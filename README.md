@@ -1,20 +1,32 @@
-<p align="center"><img src="assets/overview.svg" alt="chill-agent-cli: agree on a goal, let the agent work, review the result" width="100%" /></p>
-
 <p align="center"><a href="https://github.com/game-dev-rta-club/chill-agent-cli/actions"><img alt="CI" src="https://github.com/game-dev-rta-club/chill-agent-cli/actions/workflows/ci.yml/badge.svg" /></a> <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green" /> <img alt="Node.js 24" src="https://img.shields.io/badge/node-24-339933" /></p>
 
-# The shared workspace, without an execution policy
+# chill-agent-cli
 
-Use the Goal CLI, local Web interface and agent connection independently. Bring your own schedule or orchestration. No automatic continuation is enabled or bundled.
+Local workspace infrastructure for developers building agent workflows. Use its CLI, Web interface, and harness connection independently of the chill-agent skills and continuation policy.
 
-| Make the work visible | Keep the conversation together | Stay in control |
-| --- | --- | --- |
-| Nested Goals and readable Briefs | Annotate results; answer Letters | Native queue, Pause and Resume |
+For the ready-to-use experience, start with [chill-agent](https://github.com/game-dev-rta-club/chill-agnet).
 
-## Try it
+## Responsibilities
 
-**Current integration: Codex Desktop on macOS, Node.js 24.** Core data commands are
-portable; other Desktop harnesses are not connected yet. Messaging and remote
-access are optional and off by default.
+| This package owns | The integrating application owns |
+| --- | --- |
+| Goal hierarchy, Brief versions, Conversation, and Letters | How the agent plans and carries out work |
+| Local Web interface and feedback delivery | Skills and user onboarding |
+| Harness observations, queue coordination, and pause state | When to request more work |
+| Runtime preparation and extension hosting | Continuation policy and its configuration |
+
+```mermaid
+flowchart LR
+    A[Your workflow or extension] --> B[CLI and public extension API]
+    B --> C[Goal workspace and Web]
+    B --> D[Agent harness]
+```
+
+The standalone distribution does not bundle an automatic continuation policy or its Web control.
+
+## Standalone quickstart
+
+Requires **Node.js 24** and Git. The current Desktop harness connection supports **Codex Desktop on macOS**. Portable JavaScript contracts are also tested on Windows; this does not imply Windows Desktop integration.
 
 ```sh
 git clone https://github.com/game-dev-rta-club/chill-agent-cli.git
@@ -25,40 +37,42 @@ node bin/chill-entry.mjs goal create --title "My next project"
 node server.mjs --local
 ```
 
-The foreground command prints the local Web URL. `goal --help` lists the data operations. For the macOS Desktop hook and a persistent runtime, use `setup prepare --project <path>`.
+The foreground server prints the local Web URL. Goal data and runtime snapshots are separate from the repository checkout.
 
-## Two packages, one workspace
+## Command reference
 
-```mermaid
-flowchart LR
-    A[chill-agent: skills + continuation] --> B[chill-agent-cli: data + Web + harness]
-    C[Your own workflow] --> B
-    B --> D[Local Goal workspace]
+Use the installed version's help for supported commands, flags, and examples:
+
+```sh
+node bin/chill-entry.mjs --help
+node bin/chill-entry.mjs goal --help
+node bin/chill-entry.mjs setup --help
+node bin/chill-entry.mjs server --help
 ```
 
-- [chill-agent](https://github.com/game-dev-rta-club/chill-agnet) composes the complete experience.
-- [chill-agent-cli](https://github.com/game-dev-rta-club/chill-agent-cli) exposes the foundation and a versioned extension contract.
-- The complete package pins one tested CLI release. No separate global CLI is required.
-- Repository updates do not move your Goal data. Runtime snapshots preserve the running version until restart.
+To prepare a stable runtime and the macOS Desktop hook for a project:
 
-## How it feels
+```sh
+node bin/chill-entry.mjs setup prepare --project /path/to/your/project
+```
 
-1. Describe an outcome and agree on the scope.
-2. Read the current Brief; leave comments on the parts that matter.
-3. Let the agent work. Answer a Letter when a decision needs you.
-4. Review the result. Keep going, refine it, or mark the Goal done.
+Continue with the stable command prefix returned by setup. Updating a source checkout does not replace a running runtime snapshot.
 
-The CLI owns storage, delivery and execution observations. Extensions own policy. A CLI-only server has no 24h control.
+## Integrating an execution policy
 
-## Develop and contribute
+Use the public [extension API](docs/extensions.md) for workspace observations, execution eligibility, and coordinated enqueueing. The integrating application supplies the policy; the host owns delivery and execution coordination.
+
+Import public package entry points, rather than private library files or on-disk storage. See the extension reference for the protocol, lifecycle, and Web controls. The `./runtime` export supports packaging the CLI into a composed runtime.
+
+## Development and maintenance
 
 ```sh
 npm ci
 npm run check
 ```
 
-Small fixes can go straight to a pull request. Discuss behavior and protocol changes
-in an issue first. See [Contributing](CONTRIBUTING.md), [Releases](RELEASING.md),
-[Security](SECURITY.md) and the [MIT license](LICENSE).
+[Contributing](CONTRIBUTING.md) covers local development and pull requests. [Releasing](RELEASING.md) covers versioning and distribution. Report vulnerabilities through [Security](SECURITY.md).
 
-This is experimental software. Keep backups of important workspaces.
+CLI behavior, command documentation, and integration contracts belong in this repository. Consumer projects should link here instead of copying these details.
+
+[MIT license](LICENSE). Experimental software; back up important workspace data.
