@@ -203,11 +203,18 @@ a.status.paused:hover {text-decoration:underline;}
 .extension-trigger:disabled { opacity:.55; cursor:wait; }
 
 .extension-control { position:relative; display:inline-flex; }
-.extension-trigger .monitor-logo { width:42px; height:32px; overflow:hidden; }
+.extension-trigger .monitor-logo { width:32px; height:32px; overflow:hidden; }
 .extension-trigger { width:44px; gap:0; }
-.extension-trigger[aria-pressed="true"] { color:#a32f42; background:#fff2e873; }
+.extension-trigger[aria-pressed="true"] { color:#976b50; background:#f5ece373; }
 .extension-trigger[aria-pressed="false"] .monitor-logo,.extension-trigger:not([aria-pressed]) .monitor-logo { filter:grayscale(1); opacity:.65; }
-.extension-trigger:focus-visible { outline-color:#a32f42; }
+.extension-trigger:focus-visible { outline-color:#976b50; }
+.coffee-fill { fill:#e4c4a7; }
+.extension-trigger:not([aria-pressed="true"]) .coffee-fill { fill:none; }
+.extension-trigger:not([aria-pressed="true"]) .coffee-steam { visibility:hidden; }
+.agent-control { position:relative; display:inline-flex; }
+.agent-control:has(.agent-trigger[hidden]) { display:none; }
+.agent-control:hover .extension-tooltip,.agent-control:focus-within .extension-tooltip { display:block; }
+.agent-control:has([aria-expanded="true"]) .extension-tooltip { display:none; }
 .extension-tooltip { display:none; position:absolute; top:calc(100% + 8px); right:-40px; width:224px; padding:12px 14px; border:1px solid #d9ded8; border-radius:10px; background:#fffdf9; color:#34483e; font-size:12px; line-height:1.6; box-shadow:0 5px 20px #243f3020; z-index:80; font-weight:600; }
 .extension-tooltip small { display:block; margin-top:4px; font-size:11px; font-weight:400; }
 .extension-control:hover .extension-tooltip,.extension-control:focus-within .extension-tooltip { display:block; }
