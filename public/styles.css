@@ -184,6 +184,9 @@
 .markdown-body > :first-child {margin-top:0;}
 .markdown-body > :last-child {margin-bottom:0;}
 .markdown-body p {margin:0 0 12px;}
+/* Preserve message soft breaks without changing text nodes used by annotations. */
+.event-text.markdown-body :is(p, li) {white-space:pre-line;}
+.event-text.markdown-body :is(ul, ol) {white-space:normal;}
 .markdown-body ul,.markdown-body ol {padding-left:22px;margin:12px 0;}
 .markdown-body li {margin:5px 0;}
 .markdown-body li > p {margin-bottom:6px;}
