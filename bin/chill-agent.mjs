@@ -8,6 +8,7 @@ import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import {assignGoal,selectWork} from '../lib/goal-execution.mjs';
 import {readConnectedTree,readGoalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
+import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
 
 const output=value=>console.log(JSON.stringify(value,null,2));
 const url=(id,version)=>`http://127.0.0.1:${process.env.PORT||4173}/#/goal/${id}${version?`/v${version}`:''}`;
@@ -45,16 +46,16 @@ async function main() {
   if(command==='work') return output(await selectWork(id,{stop:Boolean(v['--stop'])}));
   if(command==='tree') return output(await readConnectedTree(id));
   if(command==='review') {
-    const visit=async goal=>{
-      console.log(renderGoalPage(await readGoalPage(goal.id)));
-      for(const child of goal.children||[])await visit(child);
-    };
-    for(const root of await readConnectedTree(id))await visit(root);
-    return;
+    return console.log(renderGoalReview(reviewGoals(await readConnectedTree(id),{state:v['--state'],letters:Boolean(v['--letters']),after:v['--after'],limit:Number(v['--limit']??50)})));
   }
   if(command==='show') {
-    const page=await readGoalPage(id,{version:v['--version']===undefined?undefined:Number(v['--version']),since:Number(v['--since']??0)});
-    return v['--format']==='text'?console.log(renderGoalPage(page)):output(page);
+    const text=v['--format']==='text',full=Boolean(v['--full']);
+    if(full&&v['--limit']!==undefined)throw Error('Use --full or --limit, not both.');
+    if(!text&&(v['--section']||v['--brief-offset']))throw Error('--section and --brief-offset require --format text.');
+    // Explicit --since is the feedback delivery boundary: do not silently drop newer instructions.
+    const limit=v['--limit']!==undefined?Number(v['--limit']):text&&!full&&v['--since']===undefined?5:undefined;
+    const page=await readGoalPage(id,{version:v['--version']===undefined?undefined:Number(v['--version']),since:Number(v['--since']??0),before:v['--before']===undefined?undefined:Number(v['--before']),limit});
+    return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--brief-offset']??0)})):output(page);
   }
   if(command==='comment'||command==='letter') {
     const event=await appendAgentComment({goalId:id,type:command,...(command==='letter'?{title:v['--title']}:{ }),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});

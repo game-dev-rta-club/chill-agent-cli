@@ -5,6 +5,10 @@ Import only `@game-dev-rta-club/chill-agent-cli/extension-api` and call
 
 - `observe(rootId, pending?)` reads assigned chat, native queue, manual pause,
   feedback delivery, content revision, and pending request execution evidence.
+  New observations also include `context.goals`: subtree totals, unfinished count,
+  display-state counts and own unanswered Letter totals, including the root.
+  This additive field indicates support for compact `goal review` filters;
+  consumers using older v1 releases can fall back to `goal tree`.
 - `eligibility(facts)` returns idle only on positively confirmed completed work.
 - `enqueue(facts, text, requestId)` locks execution, observes again, validates
   assignment/revision/turn and reserves the UUID before enqueue. Repeated IDs
