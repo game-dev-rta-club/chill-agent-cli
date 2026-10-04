@@ -29,3 +29,24 @@ test('feedback protocol addresses Goal conversation and answers without version 
  assert.match(text,/show --id 2 --since 41 --format text/);assert.match(text,/comment --id 2/);assert.match(text,/letter --id 2/);
  assert.equal(JSON.parse(text.match(/```json\n([\s\S]*?)\n```/)[1]).messages[0].notes[0].source.eventId,3);
 });
+
+test('history pages preserve original Letter questions and offer older cursors',()=>{
+ const events=[letter(1,'1'),...Array.from({length:7},(_,i)=>({id:i+2,changeId:i+2,goalId:'1',type:'comment',author:'user',text:`Message ${i+2}`}))];
+ events.at(-1).annotations=[{kind:'letter',source:{eventId:1},text:'Answer to the older Letter'}];
+ const goals=[goal('1',null,{conversation:events})];
+ const page=goalPage(goals,'1',{limit:5});
+ assert.deepEqual(page.conversation.map(e=>e.id),[4,5,6,7,8]);assert.equal(page.answerTargets[0].id,1);
+ assert.equal(page.conversationInfo.remaining,3);assert.equal(page.conversationInfo.nextBefore,4);
+ const text=renderGoalPage({...page,attachments:[]});assert.match(text,/--section conversation --before 4 --limit 5/);assert.match(text,/Question body 1/);
+ const older=goalPage(goals,'1',{limit:5,before:4});assert.deepEqual(older.conversation.map(e=>e.id),[1,2,3]);assert.equal(older.conversationInfo.remaining,0);
+ assert.equal(goalPage(goals,'1',{since:1}).conversation.length,7,'a since boundary without a limit keeps every new instruction');
+ for(const options of [{before:-1},{before:1,since:1},{limit:0},{limit:101}])assert.throws(()=>goalPage(goals,'1',options));
+});
+test('Brief pages pin their version, keep full access and do not silently discard the remainder',()=>{
+ const body='a'.repeat(6000)+'Last section';
+ const page={...goalPage([goal('1',null,{briefs:[{goalId:'1',version:1,body,format:'markdown'}]})],'1'),attachments:[]};
+ const text=renderGoalPage(page);assert.doesNotMatch(text,/Last section/);assert.match(text,/--version 1 --format text --section brief --brief-offset 6000/);
+ const rest=renderGoalPage(page,{section:'brief',briefOffset:6000});assert.match(rest,/Last section/);assert.doesNotMatch(rest,/Conversation/);
+ assert.match(renderGoalPage(page,{full:true}),/Last section/);
+ assert.throws(()=>renderGoalPage(page,{briefOffset:999999}));
+});

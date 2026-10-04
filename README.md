@@ -41,6 +41,9 @@ The foreground server prints the local Web URL. Goal data and runtime snapshots 
 
 ## Command reference
 
+[Read a workspace in layers](docs/reading-goals.md): start with a one-line Goal index,
+filter by state, then open the relevant Brief and recent conversation.
+
 Use the installed version's help for supported commands, flags, and examples:
 
 ```sh
