@@ -1,0 +1,25 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+const exec=promisify(execFile);
+test('review reads one complete subtree in parent-first order, including Done Briefs and Letters',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'chill-review-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
+ const cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+ const run=async(...args)=>(await exec(process.execPath,[cli,...args],{env})).stdout;
+ const root=JSON.parse(await run('create','--title','Root'));
+ const child=JSON.parse(await run('create','--title','Child','--parent',root.id));
+ const leaf=JSON.parse(await run('create','--title','Leaf','--parent',child.id));
+ await run('create','--title','Unrelated');
+ const brief=JSON.parse(await run('brief','path','--id',leaf.id));
+ await writeFile(brief.path,'Unique leaf Brief');await run('brief','update','--id',leaf.id);
+ await run('letter','--id',child.id,'--title','Question title','--text','Question detail');
+ const patch=join(dir,'patch.json');await writeFile(patch,JSON.stringify({state:'done'}));await run('update','--id',leaf.id,'--input-file',patch);
+ const text=await run('review','--id',root.id);
+ assert.deepEqual([...text.matchAll(/^Goal #(\d+):/gm)].map(m=>m[1]),[root.id,child.id,leaf.id]);
+ assert.match(text,/Unique leaf Brief/);assert.match(text,/Question detail/);assert.doesNotMatch(text,/Unrelated/);
+});

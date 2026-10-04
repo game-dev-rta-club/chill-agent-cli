@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';
+import {spawn,execFile} from 'node:child_process';
+import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {promisify} from 'node:util';
+import {once} from 'node:events';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
+const execute=promisify(execFile),root=await mkdtemp(join(tmpdir(),'chill-status-web-'));
+const thread='00000000-0000-0000-0000-000000000001',turn='00000000-0000-0000-0000-000000000010';
+const env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'0',CODEX_THREAD_ID:thread,CHILL_AGENT_CODEX_PATH:new URL('./fake-codex.mjs',import.meta.url).pathname};
+const cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
+let serial=0,server,browser;
+const update=async(id,patch)=>{const file=join(root,`patch-${serial++}.json`);await writeFile(file,JSON.stringify(patch));return run('update','--id',id,'--input-file',file);};
+try {
+ await writeFile(join(root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'interrupted',startedAt:Date.now()/1000,completedAt:null}]}));
+ await run('create','--title','成果と活動を見分ける');
+ for(const title of ['表示の細部を整える','返信の流れをつなぐ','HTMLの注釈を安定させる','全体の使い心地を確かめる'])await run('create','--title',title,'--parent','1');
+ await update('3',{state:'waiting',waitReason:'Choose the display'});await update('4',{state:'done'});
+ await run('letter','--id','3','--title','表示の確認','--text','How does it look?');
+ await run('assign','--id','1','--thread-id',thread);await run('work','--id','5');
+ server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
+ const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(Error(`Server exit ${c}`)));});
+ browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1100,height:800},reducedMotion:'reduce'});
+ page.setDefaultTimeout(10000);const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(url+'/#/goal/1');
+ const row=id=>page.locator('.tree-row').filter({has:page.locator(`a[href="#/goal/${id}"]`)});
+ await row('5').getByText('Running',{exact:true}).waitFor();
+ assert.equal(await row('2').locator('.status').count(),0,'Open has no badge');
+ assert.equal(await row('3').locator('.row-summary .status').innerText(),'Waiting');
+ assert.equal(await row('4').locator('.row-summary .status').innerText(),'Done');
+ assert.equal(await row('5').locator('.row-summary .status').innerText(),'Running');
+ assert.equal(await row('3').locator('.letters-button').innerText(),'1');
+ for(const id of ['3','4','5'])assert.ok((await row(id).locator('.status').boundingBox()).x>(await row(id).locator('.tree-name').boundingBox()).x);
+ await page.screenshot({path:'/tmp/chill-goal-status-desktop.png'});
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ for(const id of ['3','4','5']){const box=await row(id).locator('.status').boundingBox();assert.ok(box.x+box.width<=390);}
+ await page.screenshot({path:'/tmp/chill-goal-status-mobile.png'});
+ await run('work','--id','5','--stop');
+ await assert.rejects(update('1',{state:'done'}),/unfinished SubGoals/);
+ for(const id of ['2','3','5'])await update(id,{state:'done'});
+ await page.reload();await page.locator('.goal-heading .progress-value').getByText('99%',{exact:true}).waitFor();
+ assert.equal(await page.locator('.goal-heading .status').count(),0,'completed children do not complete the parent');
+ const result=await update('1',{state:'done'});assert.equal(result.nextActions.ancestors.length,0);
+ await page.reload();await page.locator('.goal-heading .status').getByText('Done',{exact:true}).waitFor();
+ assert.equal(await page.locator('.goal-heading .progress-value').innerText(),'100%');
+ await update('4',{state:'idle'});await page.reload();await page.locator('.goal-heading .progress-value').getByText('75%',{exact:true}).waitFor();
+ assert.equal(await page.locator('.goal-heading .status').count(),0);assert.equal(await row('2').locator('.status').innerText(),'Done');
+ assert.deepEqual(errors,[]);
+ console.log('Goal status Web OK: right-side labels, unmarked Open, live Running, Waiting/Letters, explicit parent Done, 99% cap and reopen.');
+} finally {
+ await browser?.close();if(server){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});
+}

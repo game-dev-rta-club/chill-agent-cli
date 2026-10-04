@@ -1,0 +1,29 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            name: macOS (Node 24)
+          - os: windows-2022
+            name: Windows (Node 24)
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run check
+        if: runner.os == 'macOS'
+      - run: npm run web:build
+        if: runner.os == 'Windows'
+      - run: node --test test/extension-api.test.mjs test/goal-state.test.mjs test/goal-progress.test.mjs
+        if: runner.os == 'Windows'

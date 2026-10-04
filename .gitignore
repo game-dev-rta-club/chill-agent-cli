@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+*.pem
+node_modules/
+dist/
+# Generated per-machine hook command; recreate with npm run hooks:install.
+.codex/hooks.json
+
+# Bundled browser renderer; regenerate with npm run web:build.
+public/vendor/
+
+*.tgz

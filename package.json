@@ -1,0 +1,62 @@
+{
+  "name": "@game-dev-rta-club/chill-agent-cli",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "A local Goal workspace with editable Briefs and Letters in Conversation.",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "server:start": "node bin/chill-server.mjs start",
+    "server:stop": "node bin/chill-server.mjs stop",
+    "server:status": "node bin/chill-server.mjs status",
+    "hooks:install": "node bin/chill-hook.mjs --install",
+    "setup": "node bin/chill-setup.mjs",
+    "check": "npm run web:build && node --check server.mjs && node --check lib/goal-store.mjs && node --check bin/chill-agent.mjs && node --check bin/chill-hook.mjs && node --check public/app.js && node --test test/*.test.mjs",
+    "web:build": "node scripts/build-web.mjs",
+    "predev": "npm run web:build",
+    "prestart": "npm run web:build",
+    "presetup": "npm run web:build",
+    "prehooks:install": "npm run web:build",
+    "prepack": "npm run web:build"
+  },
+  "bin": {
+    "chill-agent-cli": "bin/chill-entry.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "marked": "18.0.14",
+    "parse5": "8.0.1",
+    "sanitize-html": "2.18.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "mermaid": "11.17.2"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/game-dev-rta-club/chill-agent-cli.git"
+  },
+  "exports": {
+    "./extension-api": "./lib/extension-api.mjs",
+    "./runtime": "./lib/runtime-package.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "public",
+    "server.mjs",
+    "licenses",
+    "LICENSE",
+    "README.md",
+    "npm-shrinkwrap.json"
+  ],
+  "bundleDependencies": [
+    "marked",
+    "parse5",
+    "sanitize-html"
+  ]
+}

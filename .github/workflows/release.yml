@@ -1,0 +1,26 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run check
+      - name: Check version
+        run: node --input-type=module -e 'import fs from "node:fs"; if (process.env.GITHUB_REF_NAME !== `v${JSON.parse(fs.readFileSync("package.json")).version}`) process.exit(1)'
+      - run: npm pack
+      - run: gh release create "$GITHUB_REF_NAME" *.tgz --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
