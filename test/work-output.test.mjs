@@ -229,3 +229,25 @@ test('a lagging Activity response cannot split one running turn across feedback 
  assert.equal(later.get(1).live,false);assert.equal(later.get(1).status,'ended');
  assert.equal(later.get(2).live,true);
 });
+
+test('direct CLI receipt binds the live turn without a notification marker or work selection',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'chill-direct-receipt-'));
+ const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:new URL('./fake-codex.mjs',import.meta.url).pathname,CODEX_THREAD_ID:thread};
+ const cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+ const invoke=args=>promisify(execFile)(process.execPath,[cli,...args],{env});
+ await invoke(['create','--title','Direct read','--thread-id',thread]);
+ const input=join(dir,'feedback.json');await writeFile(input,JSON.stringify({text:'Read through the CLI'}));
+ await invoke(['feedback','--id','1','--input-file',input]);
+ const history={turns:[meta],items:{[turn]:[message('progress','Working on the direct request',Date.now())]}};
+ await writeFile(join(dir,'fake-history.json'),JSON.stringify(history));
+ const receipt=JSON.parse((await invoke(['activity','--event','1','--state','working'])).stdout).delivery;
+ assert.equal(receipt.turnId,turn);assert.equal(receipt.work.turnId,turn);
+ assert.equal(receipt.work.messages[0].text,'Working on the direct request');
+ await assert.rejects(readFile(join(dir,'workspace/executions',thread+'.json')),{code:'ENOENT'});
+ history.turns=[{id:'next',status:'inProgress',completedAt:null},meta];
+ await writeFile(join(dir,'fake-history.json'),JSON.stringify(history));
+ const retry=JSON.parse((await invoke(['activity','--event','1','--state','working'])).stdout).delivery;
+ assert.equal(retry.turnId,turn,'receipt retries preserve established ownership');
+ assert.equal(presentDelivery({status:'working',agentReported:true}).status,'received','unbound legacy receipts are not phantom Running entries');
+ assert.equal(presentDelivery({status:'queued'}).status,'queued');
+});
