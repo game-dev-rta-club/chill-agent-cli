@@ -1,6 +1,6 @@
 {
   "name": "@game-dev-rta-club/chill-agent-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "type": "module",
   "description": "A local Goal workspace with editable Briefs and Letters in Conversation.",

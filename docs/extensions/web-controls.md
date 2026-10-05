@@ -9,7 +9,8 @@ keyPoints: >-
 Return a descriptor from `read(goalId, {activity})`. The host adds the instance's
 `id` and `label`. A basic toggle returns `{rootId, enabled}`; use
 `placement: 'header'` to show it beside the agent. The frontend chooses from fixed
-icons: currently `icon: 'repeat'` is the coffee motif, with a generic fallback.
+icons: `icon: 'repeat'` is the coffee motif and `icon: 'bell'` is a bell,
+with a generic fallback. `description` supplies short header help.
 It does not accept extension HTML, scripts or arbitrary icon markup.
 
 GET `/api/goals/:id/extensions` requests controls. A same-origin JSON POST to
@@ -18,8 +19,21 @@ unknown extensions and non-boolean enablement. The extension must validate root
 ownership and persist the change; its `set` method is the authority for that
 configuration. Return null when the control does not apply to the selected Goal.
 
-Header help currently uses continuation-specific copy. The fixed controls are
-not a general UI plugin system; broader control types need a host change.
+The fixed controls are not a general UI plugin system; broader control types
+need a host change.
+
+## Offer setup through the assigned Agent
+
+Use `configured: false` with `setup: {label: 'Set up', text: '…'}` when a toggle
+would not work yet. The Agent menu shows that action instead of On/Off. On a
+configured control, the same field offers a small Change action. `detail` adds
+a short second-line value, such as the selected destination.
+
+A click saves `setup.text` as user feedback on the selected Goal, through the
+normal delivery and pause controls. It does not run extension code or send an
+external message. The UI reuses a request ID on retry and marks an accepted
+request Requested. Extensions should describe the setup task and any required
+user choices, not assert that the click approved a recipient or a test send.
 
 ## Add an activity view
 
@@ -36,6 +50,7 @@ activity: {
     summary: 'Check for anything missed in the completed Goals.',
     message: 'The exact request text',
     status: 'Result received',
+    detail: 'Optional short context',
     result: { label: 'No work reported', at: '2026-10-05T00:10:00Z' }
   }]
 }

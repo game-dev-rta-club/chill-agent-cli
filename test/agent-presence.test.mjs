@@ -40,8 +40,8 @@ test('presence collects turn and thread state with one native connection and ret
 test('AutoContinue count reflects active work while completed history stays available',()=>{
  const data={label:'AutoContinue',total:14,activeCount:0,entries:[{id:'done',status:'Run ended',message:'done'}]};
  const markup=activeCount=>activityMarkup([{id:'test',enabled:false,activity:{...data,activeCount}}]);
- assert.match(markup(0),/title="Active checks">0</);assert.match(markup(0),/>Empty</);assert.match(markup(0),/>History/);
- assert.match(markup(1),/title="Active checks">1</);assert.doesNotMatch(markup(1),/>Empty</);
+ assert.match(markup(0),/title="Active requests">0</);assert.match(markup(0),/>Empty</);assert.match(markup(0),/>History/);
+ assert.match(markup(1),/title="Active requests">1</);assert.doesNotMatch(markup(1),/>Empty</);
  assert.doesNotMatch(markup(undefined),/class="agent-count"/,'older extensions do not mislabel a history total as current work');
 });
 

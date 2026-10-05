@@ -21,7 +21,7 @@ test('settings are optional, private, independently writable, and independently 
   await saveMessageSetting('notifications',{enabled:false},root);
   assert.deepEqual((await readMessageSettings(root)).remote,remote);
   await saveMessageSetting('remote',{mode:'off'},root);
-  assert.deepEqual(await readMessageSettings(root),{remote:{mode:'off'},notifications:{enabled:false}});
+  assert.deepEqual(await readMessageSettings(root),{remote:{mode:'off'},notifications:{...notifications,enabled:false}});
 });
 
 test('named tunnel uses exact HTTPS hostname and per-ingress Access verification; invalid settings do not replace good ones',async t=>{

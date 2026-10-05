@@ -264,3 +264,10 @@ a.status.paused:hover {text-decoration:underline;}
 .agent-trigger[data-state="unknown"] .agent-antenna-unknown { display:block; }
 .agent-trigger[data-state="unlinked"] .agent-antenna-light { fill:none; stroke-dasharray:2 2; }
 @media(prefers-reduced-motion:reduce) { .agent-trigger[data-state="working"] .agent-antenna-orbit { animation:none; } }
+
+.agent-auto-toggle > svg:not(.monitor-logo) { width:20px; height:20px; }
+.agent-extension-setup { border:0; background:none; color:var(--accent); font:inherit; font-size:11px; padding:0; cursor:pointer; }
+.agent-extension-setup:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
+.agent-extension-setup:disabled { color:var(--muted); cursor:default; }
+.agent-extension-detail { max-width:190px; overflow-wrap:anywhere; }
+.agent-extension-detail .agent-extension-setup { margin-left:6px; }

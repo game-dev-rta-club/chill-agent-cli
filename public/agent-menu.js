@@ -13,11 +13,11 @@ function timeMarkup(at){
  const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString())}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}))}</time>`;
 }
 function workMarkup(work){return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${work?.goalId&&['working','paused'].includes(work.status)?`<a class="agent-work-link" href="#/goal/${esc(work.goalId)}">#${esc(work.goalId)} ${esc(work.title)} →</a>`:''}`;}
-function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div class="agent-auto-meta">${timeMarkup(entry.at)}<span>${esc(entry.result?.label||entry.status)}</span></div><p>${esc(entry.summary)}</p>${entry.message?`<details data-agent-detail="${esc(id)}"><summary>View message</summary><pre class="agent-auto-message">${esc(entry.message)}</pre></details>`:'<p class="agent-muted">Message not saved.</p>'}</article>`;}
+function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div class="agent-auto-meta">${timeMarkup(entry.at)}<span>${esc(entry.result?.label||entry.status)}</span></div><p>${esc(entry.summary)}</p>${entry.detail?`<p class="agent-muted">${esc(entry.detail)}</p>`:''}${entry.message?`<details data-agent-detail="${esc(id)}"><summary>View message</summary><pre class="agent-auto-message">${esc(entry.message)}</pre></details>`:'<p class="agent-muted">Message not saved.</p>'}</article>`;}
 export function activityMarkup(controls){
  return (controls||[]).filter(c=>c.activity).map(c=>{
   const a=c.activity,entries=a.entries||[],activeCount=Number.isInteger(a.activeCount)&&a.activeCount>=0?a.activeCount:null;
-  return `<section class="agent-section agent-auto"><div class="agent-section-heading"><h3>${esc(a.label||c.label)}${activeCount===null?'':` <span class="agent-count" title="Active checks">${activeCount}</span>`}</h3><button type="button" class="extension-trigger agent-auto-toggle" data-agent-extension="${esc(c.id)}" aria-label="${esc(c.label)}" aria-pressed="${c.enabled}" title="${esc(c.label)}: ${c.enabled?'ON · Turn off':'OFF · Turn on'}">${extensionIcon(c.icon)}<span>${c.enabled?'On':'Off'}</span></button></div>${activeCount===0?'<p class="agent-muted agent-auto-empty">Empty</p>':''}${entries.length?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-activity"><summary>History</summary>${a.total>entries.length?`<p class="agent-muted">Latest ${entries.length}</p>`:''}${entries.map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}<p class="agent-muted" data-extension-message role="status"></p></section>`;
+  return `<section class="agent-section agent-auto"><div class="agent-section-heading"><h3>${esc(a.label||c.label)}${activeCount===null?'':` <span class="agent-count" title="Active requests">${activeCount}</span>`}</h3>${c.configured===false?`<button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup?.label||'Set up')}</button>`:`<button type="button" class="extension-trigger agent-auto-toggle" data-agent-extension="${esc(c.id)}" aria-label="${esc(c.label)}" aria-pressed="${c.enabled}" title="${esc(c.label)}: ${c.enabled?'ON · Turn off':'OFF · Turn on'}">${extensionIcon(c.icon)}<span>${c.enabled?'On':'Off'}</span></button>`}</div>${c.detail?`<p class="agent-muted agent-auto-empty agent-extension-detail" title="${esc(c.detail)}">${esc(c.detail)}${c.configured&&c.setup?` <button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup.label)}</button>`:''}</p>`:''}${activeCount===0?'<p class="agent-muted agent-auto-empty">Empty</p>':''}${entries.length?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-activity"><summary>History</summary>${a.total>entries.length?`<p class="agent-muted">Latest ${entries.length}</p>`:''}${entries.map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}<p class="agent-muted" data-extension-message role="status"></p></section>`;
  }).join('');
 }
 export function agentMarkup(data) {
@@ -30,6 +30,8 @@ export function agentMarkup(data) {
  ${data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions)}`;
 }
 export function createAgentMenu({button,panel,content,getGoalId}) {
+ const setupRequests=new Map();
+ const setupKey=(id,c)=>JSON.stringify([id,c.id,c.detail,c.setup.text]);
  let opened=false,request=0,controller=null,timer=null,focusBefore=null,current=null,saving=false;
  const refreshButton=panel.querySelector('[data-agent-refresh]');
  function render(data){
@@ -37,6 +39,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>c.placement!=='header'&&!c.activity));
   for(const d of content.querySelectorAll('details[data-agent-detail]'))d.open=expanded.has(d.dataset.agentDetail);
   panel.scrollTop=scroll;
+  for(const c of data.extensions||[]){if(c.setup&&setupRequests.get(setupKey(getGoalId(),c))?.done){const b=content.querySelector(`[data-extension-setup="${c.id}"]`);if(b){b.textContent='Requested';b.disabled=true;}}}
   const form=content.querySelector('[data-agent-settings]');if(!form)return;
   const model=form.elements.model,effort=form.elements.effort;
   function options(){const m=data.models.find(m=>m.id===model.value);const previous=effort.value||data.settings.reasoning;effort.innerHTML=m.efforts.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('');effort.value=m.efforts.includes(previous)?previous:m.defaultEffort||m.efforts[0];}
@@ -56,7 +59,24 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   }catch(error){if(opened&&token===request&&id===getGoalId()){render(data);const target=content.querySelector(selector);target?.focus({preventScroll:true});target?.closest('.agent-section').querySelector('[data-extension-message]')?.append(error.name==='TimeoutError'?'Save unconfirmed. Refresh to check.':error.message);}}
   finally{saving=false;refreshButton.disabled=false;if(opened&&token!==request)void refresh();}
  }
+ async function requestSetup(controlId){
+  if(saving)return;
+  const id=getGoalId(),control=current?.extensions?.find(c=>c.id===controlId);if(!control?.setup?.text)return;
+  const key=setupKey(id,control);let pending=setupRequests.get(key);
+  if(pending?.done)return;
+  if(!pending){pending={id:crypto.randomUUID()};setupRequests.set(key,pending);}
+  const token=++request;controller?.abort();saving=true;
+  const button=content.querySelector(`[data-extension-setup="${controlId}"]`);button.disabled=true;
+  try{
+   const response=await fetch(`/api/goals/${id}/feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:control.setup.text,requestId:pending.id}),signal:AbortSignal.timeout(30000)});
+   const result=await response.json();if(!response.ok)throw Error(result.error||'Could not request setup.');
+   pending.done=true;
+   if(opened&&token===request&&id===getGoalId()){button.textContent='Requested';button.closest('.agent-section').querySelector('[data-extension-message]').textContent='Saved in Conversation.';}
+  }catch(error){if(opened&&token===request&&id===getGoalId()){button.disabled=false;button.closest('.agent-section').querySelector('[data-extension-message]').textContent=error.name==='TimeoutError'?'Save unconfirmed. Retry to check.':error.message;}}
+  finally{saving=false;}
+ }
  content.addEventListener('click',event=>{
+  const setup=event.target.closest('[data-extension-setup]');if(setup){void requestSetup(setup.dataset.extensionSetup);return;}
   const button=event.target.closest('[data-agent-extension]');if(!button)return;
   void saveExtension(button.dataset.agentExtension,button.getAttribute('aria-pressed')!=='true',`[data-agent-extension="${button.dataset.agentExtension}"]`);
  });

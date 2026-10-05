@@ -41,6 +41,15 @@ Import `@game-dev-rta-club/chill-agent-cli/extension-api` and call
 accessors instead of importing private files or inspecting the store directly.
 Unsupported protocol versions fail explicitly.
 
+`storage(namespace)` provides `read(id)`, atomic `write(id, value)` and
+`lock(id, callback)` for read-modify-write operations shared by the CLI and
+server. Workspace accessors include `readFeedback()` and `readGoalContext()`;
+do not infer assignment or event ownership from a caller's supplied IDs.
+
+Optional notification policy can use the
+[settings provider contract](notification-provider.md) to keep CLI and Web
+configuration consistent.
+
 The application chooses policy and packages its modules. The CLI supplies
 [observation and coordinated delivery](requests.md) and
 [Web control rendering](web-controls.md). Its `./runtime` export provides

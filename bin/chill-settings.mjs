@@ -4,12 +4,28 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { dataDirectory, readFeedback, readGoal } from '../lib/goal-store.mjs';
 import { readMessageSettings, saveMessageSetting } from '../lib/message-settings.mjs';
+import { notificationProvider } from '../lib/notification-provider.mjs';
 
 async function main() {
   if (showHelp('settings', process.argv.slice(2))) return;
   const [command = 'show', ...args] = process.argv.slice(2);
   const values = parseOptions(`settings ${command}`, args);
-  if (command === 'show') return console.log(JSON.stringify(await readMessageSettings(), null, 2));
+  const provider = command === 'remote' ? null : await notificationProvider();
+  if (command === 'show') {
+    const settings = await readMessageSettings();
+    if (provider) settings.notifications = await provider.settings(values['--id']);
+    return console.log(JSON.stringify(settings, null, 2));
+  }
+  if (provider && command === 'notifications') {
+    if (!values['--id']) throw Error('Use --id <GOAL> to configure this Root only.');
+    const input = values['--file'] ? JSON.parse(await readFile(values['--file'], 'utf8')) : {enabled:false};
+    return console.log(JSON.stringify(await provider.configure(values['--id'], input), null, 2));
+  }
+  if (command === 'notice-result') {
+    if (!provider) throw Error('This runtime does not provide notification history.');
+    return console.log(JSON.stringify(await provider.result(values['--id'], values['--notice'], values['--outcome']), null, 2));
+  }
+  if (provider && command === 'notice') return console.log(JSON.stringify(await provider.prepare(values['--id'], Number(values['--event'])), null, 2));
   if (['remote', 'notifications'].includes(command) && values['--file']) {
     const saved = await saveMessageSetting(command, JSON.parse(await readFile(values['--file'], 'utf8')));
     console.log(JSON.stringify(saved, null, 2));
