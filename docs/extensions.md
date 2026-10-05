@@ -24,7 +24,7 @@ A composed runtime supplies `extensions.json` with relative `modules` and option
 The host serializes ticks every 30 seconds. CLI-only distributions omit the manifest.
 Do not import private library files or inspect the CLI's storage directly.
 
-## Read-only activity in the Agent menu
+## Controls and activity in the Agent menu
 
 `read(goalId, {activity: true})` may add an `activity` descriptor to its control:
 
@@ -39,7 +39,11 @@ Do not import private library files or inspect the CLI's storage directly.
 GET `/api/goals/:id/extensions?activity=1` requests these details. Normal header
 reads omit them. Entries are newest first, bounded by the extension (continuation
 returns the latest 20); `total` exposes omitted older records. The host renders
-plain text only, with expandable messages and history after Activity and Queue.
+plain text only, with a saved-record count and expandable history after Activity
+and Queue. Empty history displays `Empty`. The control icon toggles enablement
+without opening history and shares its state with the header control.
+POST `/api/goals/:id/extensions/:extension?activity=1` saves enablement and returns
+controls with fresh activity snapshots, so a menu save retains the history.
 Use `message: null` when the exact old text was not saved; do not reconstruct it.
 Keep current enablement separate from each historical request and result. Reads
 must not create Conversation events, reset counters or cause new requests.

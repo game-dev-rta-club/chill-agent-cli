@@ -190,7 +190,7 @@ a.status.paused:hover {text-decoration:underline;}
 .agent-extension input:checked::after { left:16px; }
 .agent-extension input:focus-visible { outline:2px solid #527763; outline-offset:3px; }
 .agent-extension input:disabled { opacity:.5; cursor:wait; }
-.agent-extensions [data-extension-message]:empty { display:none; }
+[data-extension-message]:empty { display:none; }
 
 .extension-buttons { display:inline-flex; align-items:center; gap:3px; }
 .extension-buttons:empty { display:none; }
@@ -232,33 +232,27 @@ a.status.paused:hover {text-decoration:underline;}
 .agent-auto-entry { display:grid; gap:7px; min-width:0; }
 .agent-auto-entry p { line-height:1.6; overflow-wrap:anywhere; }
 .agent-auto-meta { display:flex; flex-wrap:wrap; justify-content:space-between; gap:5px 12px; color:var(--muted); font-size:10px; }
-.agent-auto .agent-detail-body summary { padding:5px 0; cursor:pointer; color:var(--accent); font-size:12px; }
+.agent-auto summary { padding:5px 0; cursor:pointer; color:var(--accent); font-size:12px; }
 .agent-auto summary:focus-visible { outline:2px solid var(--focus); outline-offset:2px; border-radius:3px; }
 .agent-auto-message { white-space:pre-wrap; overflow-wrap:anywhere; font:11px/1.7 ui-monospace,monospace; background:var(--surface-soft); border:1px solid var(--line); padding:10px; border-radius:6px; max-height:250px; overflow:auto; margin:7px 0 0; }
-.agent-auto-history { border-top:1px solid var(--line); padding-top:5px; }
+.agent-auto-history { padding-top:2px; }
 .agent-auto-history .agent-auto-entry { border-top:1px solid var(--line); padding:12px 0; }
 [data-settings-message]:empty,.delivery-entry>p:empty { display:none; }
 
 /* Only the optional continuation history is collapsed. Everyday controls stay visible. */
 .agent-settings-section { border:0; margin-top:0; padding-top:4px; }
-.agent-auto.agent-section { display:block; padding-top:7px; }
-.agent-disclosure>summary { display:flex; align-items:center; gap:12px; min-height:34px; padding:6px 0; }
-.agent-row-label { font-size:12px; color:var(--muted); font-weight:650; }
-.agent-row-value { margin-left:auto; font-size:11px; color:var(--muted); }
-.agent-disclosure { min-width:0; }
-.agent-disclosure>summary { cursor:pointer; list-style:none; }
-.agent-disclosure>summary::-webkit-details-marker { display:none; }
-.agent-disclosure>summary::after { content:''; width:5px; height:5px; border-right:1px solid var(--muted); border-bottom:1px solid var(--muted); transform:rotate(-45deg); margin-right:3px; flex:none; }
-.agent-disclosure[open]>summary::after { transform:rotate(45deg); }
-.agent-disclosure>summary:hover .agent-row-label { color:var(--ink); }
-.agent-disclosure summary:focus-visible { outline:2px solid var(--focus); outline-offset:2px; border-radius:3px; }
-.agent-detail-body { padding:8px 0 12px; display:grid; gap:12px; }
-
+.agent-auto.agent-section { display:block; }
+.agent-auto .agent-section-heading h3 { margin:0; }
+.agent-auto .agent-section-heading { margin-bottom:7px; }
+.agent-auto-toggle { width:30px; height:30px; margin:-7px 0; border-radius:7px; }
+.agent-auto-toggle .monitor-logo { width:24px; height:24px; }
 /* The antenna itself carries presence, leaving the mascot's face unobscured. */
 .agent-antenna-light { fill:#a2afa7; stroke:#657b6e; stroke-width:1; }
-.agent-antenna-orbit,.agent-antenna-paused,.agent-antenna-unknown { display:none; }
-.agent-antenna-orbit { fill:none; stroke:#347557; stroke-width:2; stroke-linecap:round; transform-origin:25px -1px; }
-.agent-trigger[data-state="working"] .agent-antenna-light { fill:#74ad8d; stroke:none; }
+.agent-antenna-track,.agent-antenna-orbit,.agent-antenna-paused,.agent-antenna-unknown { display:none; }
+.agent-antenna-track { fill:none; stroke:#c4d8d0; stroke-width:2.5; }
+.agent-antenna-orbit { fill:none; stroke:#347557; stroke-width:2.5; stroke-linecap:round; transform-origin:25px -1px; }
+.agent-trigger[data-state="working"] .agent-antenna-light { fill:none; stroke:none; }
+.agent-trigger[data-state="working"] .agent-antenna-track { display:block; }
 .agent-trigger[data-state="working"] .agent-antenna-orbit { display:block; animation:goal-working 1.1s linear infinite; }
 .agent-trigger[data-state="paused"] .agent-antenna-light { fill:#b18a43; stroke:none; }
 .agent-trigger[data-state="paused"] .agent-antenna-paused { display:block; }

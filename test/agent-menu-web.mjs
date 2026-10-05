@@ -32,7 +32,7 @@ try {
   await panel.waitFor({state:'hidden'});
  }
  await page.goto(`${url}/#/goal/2`);
- const toggle=page.getByRole('button',{name:'Auto-continue',exact:true});await toggle.waitFor();assert.equal(await toggle.getAttribute('aria-pressed'),'false');
+ const toggle=page.locator('[data-header-extension]');await toggle.waitFor();assert.equal(await toggle.getAttribute('aria-pressed'),'false');
  await page.screenshot({path:'/tmp/chill-extension-off.png'});
  await toggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='true');
  assert.equal((await (await fetch(url+'/api/goals/1/extensions')).json())[0].enabled,true);
@@ -42,6 +42,14 @@ try {
  await toggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='false');
  assert.equal((await (await fetch(url+'/api/goals/2/extensions')).json())[0].enabled,false);
  await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByText('GPT-6 Astra',{exact:true}).waitFor();assert.equal(await page.locator('#agent-panel [data-extension]').count(),0);
+ const menuToggle=page.locator('[data-agent-extension]');await menuToggle.waitFor();
+ const response=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().includes('/extensions/'));
+ await menuToggle.click();const changed=await (await response).json();assert.ok(changed[0].activity,'menu saves return activity snapshots');
+ await page.waitForFunction(()=>document.querySelector('[data-header-extension]').getAttribute('aria-pressed')==='true');
+ assert.equal(await page.getByRole('heading',{name:'AutoContinue 0',exact:true}).isVisible(),true);
+ await menuToggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]').getAttribute('aria-pressed')==='false');
+ assert.equal((await (await fetch(url+'/api/goals/2/extensions')).json())[0].enabled,false);
+
  await page.goto(`${url}/#/goal/3`);await toggle.waitFor({state:'hidden'});assert.equal(await toggle.count(),0);
  let saved=null,posts=0,failSave=false;
  const editable={connected:true,threadId:'test-thread',settings:{model:'a',label:'A',reasoning:'low'},capabilities:{settings:true},models:[{id:'a',label:'A',efforts:['low','high'],defaultEffort:'low'},{id:'b',label:'B',efforts:['high'],defaultEffort:'high'}],usage:[],queue:{items:[]}};

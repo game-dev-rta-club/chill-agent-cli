@@ -143,7 +143,7 @@ const server = createServer(async (request, response) => {
   }
   if(extensionPath&&request.method==='POST'&&extensionPath[2]){
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
-    try{return sendJson(response,200,await extensions.change(extensionPath[1],extensionPath[2],await readJson(request)));}
+    try{return sendJson(response,200,await extensions.change(extensionPath[1],extensionPath[2],await readJson(request),{activity:url.searchParams.get('activity')==='1'}));}
     catch(error){return sendJson(response,409,{error:error.message});}
   }
   const presencePath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/presence$/.exec(path);
