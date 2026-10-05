@@ -7,11 +7,9 @@ export function presenceMark(status){
 }
 export function createAgentPresence({button,getGoalId}){
  let request=0,controller=null,busy=false;
- const badge=document.createElement('span');badge.className='agent-presence';button.append(badge);
  const tooltip=document.getElementById('agent-tooltip');
  function render(data){
   const status=data.status||'unknown';button.dataset.state=status;button.title=`Agent · ${presenceLabel(status)}`;
-  badge.innerHTML=presenceMark(status);
   if(tooltip){tooltip.replaceChildren(document.createTextNode(`Agent · ${presenceLabel(status)}`));const hint=document.createElement('small');hint.textContent='Activity, settings, and usage.';tooltip.append(hint);}
   window.dispatchEvent(new CustomEvent('chill-agent-presence',{detail:{routeGoalId:getGoalId(),...data}}));
  }
