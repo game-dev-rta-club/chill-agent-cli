@@ -1,3 +1,9 @@
+---
+keyPoints: >-
+  Standalone Goal storage, Web and macOS Codex Desktop integration for developers.
+  Execution policies are optional consumers of the public extension API.
+---
+
 <p align="center"><a href="https://github.com/game-dev-rta-club/chill-agent-cli/actions"><img alt="CI" src="https://github.com/game-dev-rta-club/chill-agent-cli/actions/workflows/ci.yml/badge.svg" /></a> <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green" /> <img alt="Node.js 24" src="https://img.shields.io/badge/node-24-339933" /></p>
 
 # chill-agent-cli
@@ -39,10 +45,14 @@ node server.mjs --local
 
 The foreground server prints the local Web URL. Goal data and runtime snapshots are separate from the repository checkout.
 
-## Command reference
+## Documentation
 
-[Read a workspace in layers](docs/reading-goals.md): start with a one-line Goal index,
-filter by state, then open the relevant Brief and recent conversation.
+[Find the right guide](docs/README.md) for workspace concepts, runtime updates,
+agent delivery and extension contracts. To inspect a project,
+[start with a one-line Goal index](docs/workspace/reading-goals.md), filter by
+state, then open the relevant Brief and recent conversation.
+
+## Command reference
 
 Use the installed version's help for supported commands, flags, and examples:
 
@@ -59,7 +69,9 @@ To prepare a stable runtime and the macOS Desktop hook for a project:
 node bin/chill-entry.mjs setup prepare --project /path/to/your/project
 ```
 
-Continue with the stable command prefix returned by setup. Updating a source checkout does not replace a running runtime snapshot.
+Continue with the stable command prefix returned by setup. See
+[data and runtime updates](docs/runtime/data-and-updates.md) for how preparation
+and a server restart adopt a new version without moving the workspace.
 
 ## Integrating an execution policy
 
