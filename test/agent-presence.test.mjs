@@ -42,3 +42,14 @@ test('AutoContinue count reflects active work while completed history stays avai
  assert.match(markup(1),/title="Active checks">1</);assert.doesNotMatch(markup(1),/>Empty</);
  assert.doesNotMatch(markup(undefined),/class="agent-count"/,'older extensions do not mislabel a history total as current work');
 });
+
+test('hooks confirm a live chat before selecting a Goal, but cannot outlive its turn',()=>{
+ const now=Date.now(),turn={id:'new',status:'interrupted',completedAt:null},heartbeat={turnId:'new',heartbeatAt:new Date(now).toISOString()};
+ const snapshot={threadState:'notLoaded',turn,heartbeat};
+ assert.equal(agentPresence(snapshot,now),'working');
+ assert.equal(agentPresence({...snapshot,selection:{turnId:'old',heartbeatAt:new Date(now).toISOString()}},now),'working');
+ assert.equal(agentPresence({...snapshot,turn:{...turn,completedAt:1,status:'completed'}},now),'idle');
+ assert.equal(agentPresence({...snapshot,turn:{...turn,completedAt:1}},now),'paused');
+ assert.equal(agentPresence({...snapshot,turn:{...turn,id:'next'}},now),'unknown');
+ assert.equal(agentPresence(snapshot,now+120001),'unknown');
+});

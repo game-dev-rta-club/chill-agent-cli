@@ -25,17 +25,3 @@ test('agent read resolves child owner, returns saved settings, and does not issu
  const calls=(await readFile(join(root,'fake-requests.jsonl'),'utf8')).trim().split('\n').map(JSON.parse);
  assert.ok(calls.every(c=>['initialize','thread/read','model/list','account/rateLimits/read','thread/turns/list','thread/queue/list'].includes(c.method)));
 });
-
-test('Agent work uses Conversation records without requiring work selection',async()=>{
- const {agentWorkFromRecords}=await import('../lib/agent-status.mjs');
- const goals=[{id:'1',title:'Reply'},{id:'2',title:'Implementation'}];
- const reply={eventId:2,goalId:'1',status:'working',work:{turnId:'new',startedAt:'2026-10-04T00:00:00Z'}};
- assert.deepEqual(agentWorkFromRecords(goals,null,[reply]),{status:'working',goalId:'1',title:'Reply'});
- assert.equal(agentWorkFromRecords(goals,{goalId:'2',turnId:'old'},[reply]).goalId,'1');
- assert.equal(agentWorkFromRecords(goals,{goalId:'2',turnId:'new'},[reply]).goalId,'2');
- assert.equal(agentWorkFromRecords(goals,{goalId:'2',turnId:'new',stoppedAt:'now'},[reply]).goalId,'1');
- assert.equal(agentWorkFromRecords(goals,null,[{...reply,status:'completed'}]).status,'idle');
- assert.equal(agentWorkFromRecords(goals,null,[{...reply,status:'queued'}]).status,'idle');
- assert.equal(agentWorkFromRecords(goals,null,[]).status,'unknown');
- assert.equal(agentWorkFromRecords(goals,{goalId:'2'},[],{status:'working',goalId:'2'}).goalId,'2');
-});

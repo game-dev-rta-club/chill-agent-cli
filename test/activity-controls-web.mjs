@@ -28,7 +28,16 @@ try{
   run={...run,status:input.action==='stop'?'paused':'working',turnId:input.action==='stop'?run.turnId:'resumed',capabilities:{stop:input.action==='resume',resume:input.action==='stop'}};
   await r.fulfill({json:run});
  });
+ // Activity can lag behind delivery refresh by one request. The last feedback
+ // still owns the single indicator, merged output, and native stop control.
+ const queued=run;run={...run,eventId:a.changeId,turnId:'turn',status:'working'};
+ await page.goto(`${url}/#/goal/1`);await page.getByRole('button',{name:'Pause',exact:true}).waitFor();
+ assert.equal(await page.locator('.delivery-entry[data-state="working"]').count(),1);
+ assert.equal(await page.locator(`#delivery-${b.changeId} [data-activity-control]`).count(),1);
+ assert.equal(await page.getByText('Shared execution output',{exact:true}).count(),1);
+ run=queued;await page.goto('about:blank');
  for(const width of [1400,390,320]){
+  run=queued;await page.goto('about:blank');
   await page.setViewportSize({width,height:850});await page.goto(`${url}/#/goal/1`);
   const stop=page.getByRole('button',{name:'Pause',exact:true});await stop.waitFor();if(width===1400)assert.equal(await page.locator(`#delivery-${b.changeId} .delivery-heading strong`).textContent(),'Queued');assert.equal(await stop.count(),1);assert.equal(await page.getByText('Shared execution output',{exact:true}).count(),1);
   assert.equal(await page.locator(`[data-activity-control]`).count(),1);

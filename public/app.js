@@ -196,12 +196,10 @@ function workMarkup(work) {
 }
 function deliveryMarkup(event, work, continuedTo) {
   const delivery = deliveries.get(event.changeId);
-  const activity=activityControls.forEvent(event.changeId);
-  if(activity)continuedTo=null;
+  const activity=continuedTo?null:work?.activity||activityControls.forEvent(event.changeId);
   if (!delivery && !event.threadId && !activity) return '';
-  const state = activity?activity.status:continuedTo ? 'continued' : delivery?.status || 'saved';
-  if(activity?.work)work={key:work?.key||`continued-${event.changeId}`,live:activity.status==='working',...activity.work};
-  const labels = { saved: 'Saved', sending: 'Sending', queued: 'Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
+  const state = activity?activity.status:continuedTo ? 'continued' : work?.status || delivery?.status || 'saved';
+  const labels = { saved: 'Saved', sending: 'Sending', queued: 'Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
   const descriptions = { saved: '', sending: '', queued: '', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
   const retry = state === 'saved' || (state === 'failed' && !delivery?.mayHaveSent);
   const check = state === 'unknown';
@@ -210,7 +208,7 @@ function deliveryMarkup(event, work, continuedTo) {
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
     <div class="delivery-entry" data-state="${state}"><div class="delivery-heading"><span class="delivery-dot" aria-hidden="true"></span><strong>${activity&&state==='unknown'?'Checking':labels[state] || 'Saved'}</strong>
       ${continuedTo ? `<button type="button" class="text-button" data-action="view-work" data-event-id="${continuedTo}" aria-label="View continued work">View ↓</button>` : ''}
-      ${activity?activityControls.markup(event.changeId):''}
+      ${activity?activityControls.markup(activity.eventId):''}
       ${!activity && (retry || check) ? `<button type="button" class="text-button" data-action="retry-delivery" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${check ? 'Check' : 'Retry'}</button>` : ''}</div>
       <p>${escapeHTML(activity&&state==='unknown'?'Unconfirmed. Refresh to check.':descriptions[state] || '')}</p>
       ${workMarkup(work)}
@@ -225,7 +223,7 @@ function replyMarkup(event) {
 
 function timelineMarkup(id) {
   const visible = conversationFor(id);
-  const work = workProgressGroups(visible, deliveries);
+  const work = workProgressGroups(visible, deliveries, activityControls.current());
   // Keep each receipt in the timeline, but only its shared turn's last entry
   // owns the running indicator and Think. Delivery records remain unchanged.
   const continued = new Map([...work.values()].flatMap(group => group.eventIds
