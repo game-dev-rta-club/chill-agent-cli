@@ -30,7 +30,7 @@ Do not import private library files or inspect the CLI's storage directly.
 
 ```js
 {label: 'AutoContinue', status: 'Off', checkedAt: '2026-10-05T00:10:00Z',
- total: 1, entries: [{id: 'stable-entry-id', at: '2026-10-05T00:09:00Z',
+ activeCount: 0, total: 1, entries: [{id: 'stable-entry-id', at: '2026-10-05T00:09:00Z',
  summary: 'Check for anything missed in the completed Goals.',
  message: 'The exact request text', status: 'Result received',
  result: {label: 'No work reported', at: '2026-10-05T00:10:00Z'}}]}
@@ -39,8 +39,10 @@ Do not import private library files or inspect the CLI's storage directly.
 GET `/api/goals/:id/extensions?activity=1` requests these details. Normal header
 reads omit them. Entries are newest first, bounded by the extension (continuation
 returns the latest 20); `total` exposes omitted older records. The host renders
-plain text only, with a saved-record count and expandable history after Activity
-and Queue. Empty history displays `Empty`. The control icon toggles enablement
+plain text only, with the optional `activeCount` for pending/running checks and
+expandable history after Activity and Queue. Zero active checks displays `Empty`,
+even when history exists. Completed checks and received results do not contribute
+to `activeCount`; `total` describes history only. The control icon toggles enablement
 without opening history and shares its state with the header control.
 POST `/api/goals/:id/extensions/:extension?activity=1` saves enablement and returns
 controls with fresh activity snapshots, so a menu save retains the history.

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {agentPresence} from '../lib/agent-presence.mjs';
+import {agentPresence,readPresenceSnapshot} from '../lib/agent-presence.mjs';
 import {activityMarkup} from '../public/agent-menu.js';
 
 test('presence covers runs without feedback, manual pauses, idle, and unavailable evidence',()=>{
@@ -25,4 +25,20 @@ test('extension messages render as escaped text; missing old snapshots are not r
  const html=activityMarkup([{id:'test',label:'Policy',activity:{label:'AutoContinue',status:'Off',entries:[{id:'1',summary:'<img src=x>',message:'<script>alert(1)</script>\nnext line',result:{label:'No work reported'}},{id:'2',summary:'Old check',message:null,status:'Run ended'}],total:2}}]);
  assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>|<img/);assert.match(html,/next line/);
  assert.match(html,/Message not saved/);assert.match(html,/No work reported/);assert.match(html,/History/);
+});
+
+test('presence collects turn and thread state with one native connection and retains pending pause evidence',async()=>{
+ let connects=0;const calls=[];
+ const options={readControl:async()=>({action:'stop',turnId:'t',target:{goalId:'2'}}),connect:async run=>{connects++;return run({request:async method=>{calls.push(method);return method==='thread/read'?{thread:{status:{type:'active'}}}:{data:[{id:'t',completedAt:null,status:'inProgress'}]};}});}};
+ const snapshot=await readPresenceSnapshot('chat',options);
+ assert.equal(connects,1);assert.deepEqual(calls.sort(),['thread/read','thread/turns/list']);
+ assert.equal(agentPresence(snapshot),'unknown','an unconfirmed pause is not presented as Running');
+ assert.equal(agentPresence({...snapshot,view:null}),'working');
+});
+test('AutoContinue count reflects active work while completed history stays available',()=>{
+ const data={label:'AutoContinue',total:14,activeCount:0,entries:[{id:'done',status:'Run ended',message:'done'}]};
+ const markup=activeCount=>activityMarkup([{id:'test',enabled:false,activity:{...data,activeCount}}]);
+ assert.match(markup(0),/title="Active checks">0</);assert.match(markup(0),/>Empty</);assert.match(markup(0),/>History/);
+ assert.match(markup(1),/title="Active checks">1</);assert.doesNotMatch(markup(1),/>Empty</);
+ assert.doesNotMatch(markup(undefined),/class="agent-count"/,'older extensions do not mislabel a history total as current work');
 });

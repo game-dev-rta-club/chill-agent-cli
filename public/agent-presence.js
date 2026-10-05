@@ -6,7 +6,7 @@ export function presenceMark(status){
  return `<span class="status ${state}" aria-hidden="true">${shape}</span>`;
 }
 export function createAgentPresence({button,getGoalId}){
- let request=0,controller=null,busy=false;
+ let request=0,controller=null,busy=false,routeGoalId=null;
  const tooltip=document.getElementById('agent-tooltip');
  function render(data){
   const status=data.status||'unknown';button.dataset.state=status;button.title=`Agent · ${presenceLabel(status)}`;
@@ -21,7 +21,7 @@ export function createAgentPresence({button,getGoalId}){
   finally{if(token===request)busy=false;}
  }
  render({status:'unknown'});
- const timer=setInterval(refresh,5000);
+ const timer=setInterval(refresh,2000);
  window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);
- return {routeChanged(){request++;controller?.abort();busy=false;render({status:'unknown'});void refresh();},destroy(){clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);}};
+ return {refresh,routeChanged(){const id=getGoalId();if(id===routeGoalId){void refresh();return;}routeGoalId=id;request++;controller?.abort();busy=false;render({status:'unknown'});void refresh();},destroy(){clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);}};
 }
