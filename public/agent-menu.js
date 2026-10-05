@@ -1,4 +1,5 @@
 import {presenceMark,presenceLabel} from './agent-presence.js';
+import {extensionIcon} from './extension-buttons.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const period=m=>m===null?'Usage':m%1440===0?`${m/1440}d`:m%60===0?`${m/60}h`:`${m}m`;
 const date=seconds=>new Intl.DateTimeFormat('en-US',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}).format(new Date(seconds*1000));
@@ -16,7 +17,7 @@ function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div cl
 export function activityMarkup(controls){
  return (controls||[]).filter(c=>c.activity).map(c=>{
   const a=c.activity,entries=a.entries||[];
-  return `<details class="agent-section agent-disclosure agent-auto" data-agent-detail="${esc(c.id)}-activity"><summary><span class="agent-row-label">${esc(a.label||c.label)}</span><span class="agent-row-value">${esc(a.status)}</span></summary><div class="agent-detail-body">${entries.length?entryMarkup(entries[0],`${c.id}-${entries[0].id}`):'<p class="agent-muted">No prompts yet.</p>'}${entries.length>1?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-history"><summary>History <span class="agent-muted">${a.total>entries.length?`Latest ${entries.length}`:entries.length-1}</span></summary>${entries.slice(1).map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}</div></details>`;
+  return `<section class="agent-section agent-auto"><div class="agent-section-heading"><h3>${esc(a.label||c.label)} <span class="agent-count" title="Saved checks">${esc(a.total??entries.length)}</span></h3><button type="button" class="extension-trigger agent-auto-toggle" data-agent-extension="${esc(c.id)}" aria-label="${esc(c.label)}" aria-pressed="${c.enabled}" title="${esc(c.label)}: ${c.enabled?'ON · Turn off':'OFF · Turn on'}">${extensionIcon(c.icon)}</button></div>${entries.length?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-activity"><summary>History${a.total>entries.length?` <span class="agent-muted">Latest ${entries.length}</span>`:''}</summary>${entries.map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:'<p class="agent-muted">Empty</p>'}<p class="agent-muted" data-extension-message role="status"></p></section>`;
  }).join('');
 }
 export function agentMarkup(data) {
@@ -33,7 +34,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  const refreshButton=panel.querySelector('[data-agent-refresh]');
  function render(data){
   const expanded=new Set([...content.querySelectorAll('details[open][data-agent-detail]')].map(d=>d.dataset.agentDetail)),scroll=panel.scrollTop;
-  current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>c.placement!=='header'));
+  current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>c.placement!=='header'&&!c.activity));
   for(const d of content.querySelectorAll('details[data-agent-detail]'))d.open=expanded.has(d.dataset.agentDetail);
   panel.scrollTop=scroll;
   const form=content.querySelector('[data-agent-settings]');if(!form)return;
@@ -42,19 +43,26 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   options();model.addEventListener('change',options);
  }
  content.addEventListener('submit',event=>event.preventDefault());
+ async function saveExtension(controlId,enabled,selector){
+  if(saving)return;
+  const id=getGoalId(),data=current,control=data.extensions.find(c=>c.id===controlId);if(!control)return;
+  const token=++request;controller?.abort();saving=true;
+  content.querySelectorAll('input,select,button').forEach(el=>el.disabled=true);refreshButton.disabled=true;
+  try{
+   const response=await fetch(`/api/goals/${id}/extensions/${control.id}?activity=1`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled,rootId:control.rootId}),signal:AbortSignal.timeout(30000)});
+   const result=await response.json();if(!response.ok)throw Error(result.error||'Could not save.');
+   if(opened&&token===request&&id===getGoalId()){render({...data,extensions:result});content.querySelector(selector)?.focus({preventScroll:true});}
+   window.dispatchEvent(new CustomEvent('chill-extensions-changed'));
+  }catch(error){if(opened&&token===request&&id===getGoalId()){render(data);const target=content.querySelector(selector);target?.focus({preventScroll:true});target?.closest('.agent-section').querySelector('[data-extension-message]')?.append(error.name==='TimeoutError'?'Save unconfirmed. Refresh to check.':error.message);}}
+  finally{saving=false;refreshButton.disabled=false;if(opened&&token!==request)void refresh();}
+ }
+ content.addEventListener('click',event=>{
+  const button=event.target.closest('[data-agent-extension]');if(!button)return;
+  void saveExtension(button.dataset.agentExtension,button.getAttribute('aria-pressed')!=='true',`[data-agent-extension="${button.dataset.agentExtension}"]`);
+ });
  content.addEventListener('change',async event=>{
   if(event.target.matches('[data-extension]')){
-   if(saving)return;
-   const id=getGoalId(),data=current,control=data.extensions.find(c=>c.id===event.target.dataset.extension);
-   const enabled=event.target.checked,token=++request;controller?.abort();saving=true;
-   content.querySelectorAll('input,select').forEach(el=>el.disabled=true);refreshButton.disabled=true;
-   try{
-    const response=await fetch(`/api/goals/${id}/extensions/${control.id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled,rootId:control.rootId}),signal:AbortSignal.timeout(30000)});
-    const result=await response.json();if(!response.ok)throw Error(result.error||'Could not save.');
-    if(opened&&token===request&&id===getGoalId()){render({...data,extensions:result});content.querySelector(`[data-extension="${control.id}"]`)?.focus({preventScroll:true});}
-   }catch(error){if(opened&&token===request&&id===getGoalId()){render(data);content.querySelector('[data-extension-message]').textContent=error.name==='TimeoutError'?'Save unconfirmed. Refresh to check.':error.message;}}
-   finally{saving=false;refreshButton.disabled=false;if(opened&&token!==request)void refresh();}
-   return;
+   void saveExtension(event.target.dataset.extension,event.target.checked,`[data-extension="${event.target.dataset.extension}"]`);return;
   }
   const form=event.target.closest('[data-agent-settings]');if(!form||saving)return;
   const focusName=event.target.name;
@@ -62,7 +70,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   const input={threadId:data.threadId,model:form.elements.model.value,effort:form.elements.effort.value,expected:{model:data.settings.model,effort:data.settings.reasoning}};
   if(input.model===data.settings.model&&input.effort===data.settings.reasoning)return;
   const token=++request;controller?.abort();saving=true;
-  content.querySelectorAll('input,select').forEach(el=>el.disabled=true);
+  content.querySelectorAll('input,select,button').forEach(el=>el.disabled=true);
   refreshButton.disabled=true;form.querySelector('[data-settings-message]').textContent='Saving…';
   try{const response=await fetch(`/api/goals/${id}/agent`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input),signal:AbortSignal.timeout(30000)});const result=await response.json();if(!response.ok)throw Error(result.error||'Could not save.');if(opened&&token===request&&id===getGoalId()){render({...result,extensions:data.extensions});const message=content.querySelector('[data-settings-message]');if(message)message.textContent='Saved';if(document.activeElement===document.body||form.contains(document.activeElement))content.querySelector(`[name="${focusName}"]`)?.focus({preventScroll:true});}}
   catch(error){if(opened&&token===request&&id===getGoalId()){render(data);content.querySelector('[data-settings-message]').textContent=error.name==='TimeoutError'?'Save unconfirmed. Refresh to check.':error.message;}}

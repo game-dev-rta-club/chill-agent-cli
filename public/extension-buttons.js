@@ -1,10 +1,11 @@
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const repeatIcon=`<svg class="monitor-logo" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="coffee-fill" d="M7 15h19v9a8 8 0 0 1-8 8h-3a8 8 0 0 1-8-8z"/><path d="M26 17h2a4 4 0 0 1 0 8h-2"/><path class="coffee-steam" d="M13 11c-4-4 4-5 0-9m8 9c-4-4 4-5 0-9"/></svg>`;
+export const extensionIcon=icon=>icon==='repeat'?repeatIcon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>';
 export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  let controls=[],generation=0,controller=null,saving=false;
  function render(unknown=false){
   const focus=document.activeElement?.dataset?.headerExtension;
-  const markup=controls.filter(c=>c.placement==='header').map(c=>`<span class="extension-control"><button type="button" class="extension-trigger" data-header-extension="${esc(c.id)}" aria-label="${esc(c.label)}" aria-describedby="extension-tip-${esc(c.id)}" ${unknown?'':`aria-pressed="${c.enabled}"`} title="${esc(c.label)}：${unknown?'Status unavailable':c.enabled?'ON · Turn off':'OFF · Turn on'}" ${saving||unknown?'disabled':''}>${c.icon==='repeat'?repeatIcon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>'}</button><span class="extension-tooltip" role="tooltip" id="extension-tip-${esc(c.id)}">${esc(c.label)} · ${unknown?'Unavailable':c.enabled?'ON':'OFF'}<small>Prompts the agent to keep going.</small></span></span>`).join('');
+  const markup=controls.filter(c=>c.placement==='header').map(c=>`<span class="extension-control"><button type="button" class="extension-trigger" data-header-extension="${esc(c.id)}" aria-label="${esc(c.label)}" aria-describedby="extension-tip-${esc(c.id)}" ${unknown?'':`aria-pressed="${c.enabled}"`} title="${esc(c.label)}：${unknown?'Status unavailable':c.enabled?'ON · Turn off':'OFF · Turn on'}" ${saving||unknown?'disabled':''}>${extensionIcon(c.icon)}</button><span class="extension-tooltip" role="tooltip" id="extension-tip-${esc(c.id)}">${esc(c.label)} · ${unknown?'Unavailable':c.enabled?'ON':'OFF'}<small>Prompts the agent to keep going.</small></span></span>`).join('');
   const template=document.createElement('template');template.innerHTML=markup;
   const retained=new Set();
   for(const fresh of template.content.children){
@@ -40,5 +41,6 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  const timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
  window.addEventListener('focus',refresh);
- return {routeChanged(){generation++;controller?.abort();controls=[];render();void refresh();},refresh,destroy(){clearInterval(timer);controller?.abort();}};
+ window.addEventListener('chill-extensions-changed',refresh);
+ return {routeChanged(){generation++;controller?.abort();controls=[];render();void refresh();},refresh,destroy(){clearInterval(timer);controller?.abort();window.removeEventListener('chill-extensions-changed',refresh);}};
 }
