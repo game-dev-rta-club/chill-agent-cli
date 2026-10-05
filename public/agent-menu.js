@@ -1,3 +1,4 @@
+import {presenceMark,presenceLabel} from './agent-presence.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const period=m=>m===null?'Usage':m%1440===0?`${m/1440}d`:m%60===0?`${m/60}h`:`${m}m`;
 const date=seconds=>new Intl.DateTimeFormat('en-US',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}).format(new Date(seconds*1000));
@@ -7,22 +8,34 @@ function settingsMarkup(data){
  if(!data.capabilities?.settings||!data.models?.length)return `<dl class="agent-settings" aria-label="Settings"><div><dt>Model</dt><dd>${esc(s?.label||'Unavailable')}</dd></div><div><dt>Reasoning</dt><dd>${esc(s?.reasoning||'Unavailable')}</dd></div></dl>`;
  return `<form data-agent-settings><label>Model<select name="model" aria-label="Model">${data.models.map(m=>`<option value="${esc(m.id)}" ${m.id===s.model?'selected':''}>${esc(m.label)}</option>`).join('')}</select></label><label>Reasoning<select name="effort" aria-label="Reasoning"></select></label><p class="agent-muted" data-settings-message role="status"></p></form>`;
 }
+function timeMarkup(at){
+ const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString())}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}))}</time>`;
+}
+function workMarkup(work){return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${work?.goalId&&['working','paused'].includes(work.status)?`<a class="agent-work-link" href="#/goal/${esc(work.goalId)}">#${esc(work.goalId)} ${esc(work.title)} →</a>`:''}`;}
+function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div class="agent-auto-meta">${timeMarkup(entry.at)}<span>${esc(entry.result?.label||entry.status)}</span></div><p>${esc(entry.summary)}</p>${entry.message?`<details data-agent-detail="${esc(id)}"><summary>View message</summary><pre class="agent-auto-message">${esc(entry.message)}</pre></details>`:'<p class="agent-muted">Message not saved.</p>'}</article>`;}
+export function activityMarkup(controls){
+ return (controls||[]).filter(c=>c.activity).map(c=>{
+  const a=c.activity,entries=a.entries||[];
+  return `<section class="agent-section agent-auto"><div class="agent-section-heading"><h3>${esc(a.label||c.label)}</h3><span class="agent-muted">${esc(a.status)}</span></div>${entries.length?entryMarkup(entries[0],`${c.id}-${entries[0].id}`):'<p class="agent-muted">No prompts yet.</p>'}${entries.length>1?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-history"><summary>History <span class="agent-muted">${a.total>entries.length?`Latest ${entries.length}`:entries.length-1}</span></summary>${entries.slice(1).map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}</section>`;
+ }).join('');
+}
 export function agentMarkup(data) {
  if(!data.connected)return '<p class="agent-empty">No agent connected.</p>';
- const settings=data.settings,work=data.work,queue=data.queue;
- const workText=work?.status==='working'?'Running':work?.status==='paused'?'Paused':work?.status==='idle'?'Idle':'Status unavailable';
- return `<section class="agent-section">${settingsMarkup(data)}</section>
- <section class="agent-section"><h3>Activity</h3><div class="agent-current"><span class="agent-run-state" data-state="${esc(work?.status||'unknown')}">${esc(workText)}</span>${work?.goalId&&['working','paused'].includes(work.status)?`<a class="agent-work-link" href="#/goal/${work.goalId}">#${work.goalId} ${esc(work.title)} →</a>`:''}</div>
-
- <div class="agent-pending"><span class="agent-muted">Queue${queue?` · ${queue.items.length}${queue.truncated?'+':''}`:''}</span>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${q.goalId}">#${q.goalId} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'':'<p>Queue unavailable.</p>'}</div></section>
- <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':data.usage.flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>
- `;
+ const work=data.work,queue=data.queue;
+ return `<section class="agent-section"><h3>Activity</h3><div class="agent-current">${workMarkup(work)}</div></section>
+ <section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>
+ ${data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions)}
+ <section class="agent-section"><h3>Settings</h3>${settingsMarkup(data)}</section>
+ <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>`;
 }
 export function createAgentMenu({button,panel,content,getGoalId}) {
  let opened=false,request=0,controller=null,timer=null,focusBefore=null,current=null,saving=false;
  const refreshButton=panel.querySelector('[data-agent-refresh]');
  function render(data){
+  const expanded=new Set([...content.querySelectorAll('details[open][data-agent-detail]')].map(d=>d.dataset.agentDetail)),scroll=panel.scrollTop;
   current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>c.placement!=='header'));
+  for(const d of content.querySelectorAll('details[data-agent-detail]'))d.open=expanded.has(d.dataset.agentDetail);
+  panel.scrollTop=scroll;
   const form=content.querySelector('[data-agent-settings]');if(!form)return;
   const model=form.elements.model,effort=form.elements.effort;
   function options(){const m=data.models.find(m=>m.id===model.value);const previous=effort.value||data.settings.reasoning;effort.innerHTML=m.efforts.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('');effort.value=m.efforts.includes(previous)?previous:m.defaultEffort||m.efforts[0];}
@@ -59,15 +72,15 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   const id=getGoalId();if(!opened||!id||saving)return;
   const token=++request;controller?.abort();controller=new AbortController();
   refreshButton.disabled=true;content.setAttribute('aria-busy','true');
-  try{const options={signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)]),cache:'no-store'};const [response,extensionResponse]=await Promise.all([fetch(`/api/goals/${id}/agent`,options),fetch(`/api/goals/${id}/extensions`,options)]);if(!response.ok||!extensionResponse.ok)throw new Error();const data=await response.json();data.extensions=await extensionResponse.json();
+  try{const options={signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)]),cache:'no-store'};const [response,extensionResponse]=await Promise.all([fetch(`/api/goals/${id}/agent`,options),fetch(`/api/goals/${id}/extensions?activity=1`,options).catch(()=>null)]);if(!response.ok)throw new Error();const data=await response.json();data.extensions=extensionResponse?.ok?await extensionResponse.json():null;
    if(!opened||token!==request||id!==getGoalId())return;
    // Do not replace a focused link during an automatic refresh.
-   if(!content.contains(document.activeElement))render(data);
+   if(!content.contains(document.activeElement)&&!window.getSelection()?.toString())render(data);
   }catch(error){if(error.name!=='AbortError'&&opened&&token===request)content.innerHTML='<p class="agent-empty">Agent unavailable. Refresh to retry.</p>';}
   finally{if(token===request){refreshButton.disabled=false;content.removeAttribute('aria-busy');}}
  }
  function close({restore=false}={}){if(!opened)return;opened=false;request++;controller?.abort();clearInterval(timer);panel.hidden=true;button.setAttribute('aria-expanded','false');if(restore)(focusBefore?.isConnected?focusBefore:button).focus({preventScroll:true});}
- function open(){if(!getGoalId())return;opened=true;focusBefore=document.activeElement;panel.hidden=false;button.setAttribute('aria-expanded','true');content.innerHTML='<p class="agent-empty">Loading…</p>';panel.querySelector('[data-agent-close]').focus({preventScroll:true});void refresh();timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},60000);}
+ function open(){if(!getGoalId())return;opened=true;focusBefore=document.activeElement;panel.hidden=false;button.setAttribute('aria-expanded','true');content.innerHTML='<p class="agent-empty">Loading…</p>';panel.querySelector('[data-agent-close]').focus({preventScroll:true});void refresh();timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);}
  button.addEventListener('click',()=>opened?close({restore:true}):open());
  panel.querySelector('[data-agent-close]').addEventListener('click',()=>close({restore:true}));refreshButton.addEventListener('click',refresh);
  document.addEventListener('pointerdown',e=>{if(opened&&!panel.contains(e.target)&&!button.contains(e.target))close();});
@@ -76,5 +89,11 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  panel.addEventListener('click',e=>{if(e.target.closest('a'))close({restore:true});});
  window.addEventListener('blur',()=>setTimeout(()=>{if(opened&&document.activeElement?.tagName==='IFRAME')close();},0));
  document.addEventListener('visibilitychange',()=>{if(opened&&document.visibilityState==='visible')void refresh();});
- return {routeChanged(){close();button.hidden=!getGoalId();},close};
+ window.addEventListener('chill-extensions-changed',()=>{if(opened)void refresh();});
+ window.addEventListener('chill-agent-presence',event=>{
+  if(!opened||event.detail.routeGoalId!==getGoalId()||!current?.connected)return;
+  current.work=event.detail;const target=content.querySelector('.agent-current');
+  if(target&&!target.contains(document.activeElement))target.innerHTML=workMarkup(event.detail);
+ });
+ return {routeChanged(){close();current=null;button.hidden=!getGoalId();},close};
 }
