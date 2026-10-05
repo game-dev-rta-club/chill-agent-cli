@@ -22,7 +22,7 @@ try {
   await page.setViewportSize({width,height:844});await page.goto('about:blank');const before=reads;await page.goto(`${url}/#/goal/1`);
   const button=page.getByRole('button',{name:'Agent',exact:true});await button.waitFor();assert.equal(reads,before,'No agent polling while closed');
   const textarea=page.locator('.conversation-form textarea').first();await textarea.fill('Keep this draft');await page.locator('main').evaluate(el=>el.scrollTop=400);const scroll=await page.locator('main').evaluate(el=>el.scrollTop);
-  await button.click();await page.getByText('GPT-6 Astra',{exact:true}).waitFor();await page.locator('.agent-usage > summary').getByText('88% left',{exact:true}).waitFor();
+  await button.click();await page.getByText('GPT-6 Astra',{exact:true}).waitFor();await page.getByText('88% left',{exact:true}).waitFor();
   const panel=page.locator('#agent-panel'),box=await panel.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width);assert.ok(box.y+box.height<=844);assert.equal(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   assert.equal(await page.locator('main').evaluate(el=>el.scrollTop),scroll);await page.keyboard.press('Escape');assert.equal(await panel.isVisible(),false);assert.equal(await button.evaluate(el=>el===document.activeElement),true);assert.equal(await textarea.inputValue(),'Keep this draft');
   await button.click();await page.getByText('GPT-6 Astra',{exact:true}).waitFor();await page.getByRole('button',{name:'Close'}).click();assert.equal(await panel.isVisible(),false);

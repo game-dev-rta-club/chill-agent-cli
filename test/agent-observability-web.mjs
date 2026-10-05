@@ -35,36 +35,44 @@ try{
   await page.waitForFunction(()=>document.querySelector('#agent-button').dataset.state==='idle');assert.equal(agentReads,before,'closed header must not read settings/usage');
   const button=page.getByRole('button',{name:'Agent',exact:true});await button.hover();await page.locator('#agent-tooltip').waitFor({state:'visible'});assert.match(await page.locator('#agent-tooltip').innerText(),/Agent · Idle/);
   await button.click();await page.locator('.agent-auto > summary').waitFor();
-  assert.deepEqual((await page.locator('.agent-overview .agent-row-label').allTextContents()),['Activity','Queue','AutoContinue']);
+  assert.deepEqual(await page.locator('#agent-content h3').allTextContents(),['Usage','Activity','Queue 0']);
   assert.equal(await page.locator('.agent-auto').getAttribute('open'),null);assert.equal(await page.locator('.agent-auto-entry').first().isVisible(),false);
-  assert.equal(await page.locator('.agent-usage').getAttribute('open'),null);
+  assert.equal(await page.locator('.agent-window progress').isVisible(),true);
+  const model=await page.getByLabel('Model',{exact:true}).boundingBox(),reasoning=await page.getByLabel('Reasoning',{exact:true}).boundingBox(),usage=await page.getByRole('heading',{name:'Usage',exact:true}).boundingBox();
+  assert.ok(model.y<reasoning.y&&reasoning.y<usage.y,'settings come first, in full-width rows');assert.equal(model.width,reasoning.width);
   assert.equal(await page.getByLabel('Model',{exact:true}).isVisible(),true);
-  await page.screenshot({path:`/tmp/chill-384-compact-${width}.png`});
-  const panel=page.locator('#agent-panel'),box=await panel.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width);assert.ok(box.y+box.height<=844);assert.ok(box.height<350,'secondary controls stay compact when closed');
+  await page.screenshot({path:`/tmp/chill-387-menu-${width}.png`});
+  const panel=page.locator('#agent-panel'),box=await panel.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width);assert.ok(box.y+box.height<=844);
   assert.equal(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   await page.locator('.agent-auto > summary').focus();await page.keyboard.press('Enter');
   await page.getByText('View message',{exact:true}).click();assert.equal(await page.locator('.agent-auto-message').textContent(),message);assert.equal(await page.locator('not-html').count(),0);
   await page.getByText('History 1',{exact:true}).click();await page.getByText('Message not saved.',{exact:true}).waitFor();
   await page.locator('[data-agent-refresh]').click();await page.waitForTimeout(100);
   assert.equal(await page.locator('details[data-agent-detail][open]').count(),3,'poll refresh keeps disclosures open');
-  await page.screenshot({path:`/tmp/chill-384-expanded-${width}.png`});
+  await page.screenshot({path:`/tmp/chill-387-expanded-${width}.png`});
   await page.keyboard.press('Escape');assert.equal(await button.evaluate(el=>el===document.activeElement),true);
  }
  queued=true;await page.goto(`${url}/#/goal/1`);await page.getByRole('button',{name:'Agent',exact:true}).click();
- await page.getByText('1 waiting',{exact:true}).waitFor();assert.equal(await page.getByText('#2 A queued request',{exact:true}).isVisible(),false);
- await page.locator('[data-agent-detail="queue"] > summary').click();await page.getByText('#2 A queued request',{exact:true}).waitFor();
- await page.locator('.agent-usage > summary').click();await page.locator('.agent-window progress').waitFor();
- await page.locator('[data-agent-refresh]').click();await page.waitForTimeout(100);assert.equal(await page.locator('[data-agent-detail="queue"]').getAttribute('open'),'');assert.equal(await page.locator('.agent-usage').getAttribute('open'),'');
+ await page.getByText('#2 A queued request',{exact:true}).waitFor();assert.equal(await page.locator('.agent-window progress').isVisible(),true);
  await page.keyboard.press('Escape');queued=false;
  for(const state of ['working','paused','idle']){
   status=state;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForFunction(s=>document.querySelector('#agent-button').dataset.state===s,state);
-  await page.screenshot({path:`/tmp/chill-381-${state}.png`});
+  const lamp=await page.locator('#agent-button .agent-antenna-light').boundingBox();assert.ok(lamp.width>=7,'antenna color stays visible at actual size');
+  assert.equal(await page.locator('#agent-button .agent-presence').count(),0,'no separate face badge');
+  const orbit=page.locator('#agent-button .agent-antenna-orbit');
+  if(state==='working'){
+   assert.equal(await orbit.evaluate(el=>getComputedStyle(el).animationName),'goal-working');
+   const before=await orbit.evaluate(el=>getComputedStyle(el).transform);await page.waitForTimeout(150);assert.notEqual(await orbit.evaluate(el=>getComputedStyle(el).transform),before,'running ring really rotates');
+   await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await orbit.evaluate(el=>getComputedStyle(el).animationName),'none');await page.emulateMedia({reducedMotion:'no-preference'});
+  }else assert.equal(await orbit.isVisible(),false);
+  if(state==='paused')assert.equal(await page.locator('.agent-antenna-paused').isVisible(),true);
+  await page.screenshot({path:`/tmp/chill-387-${state}.png`});
  }
  fail=true;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForFunction(()=>document.querySelector('#agent-button').dataset.state==='unknown');fail=false;
  // A late response from another Goal must not repaint this Goal's badge.
  status='working';delay=400;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForTimeout(30);
  status='paused';delay=0;await page.goto(`${url}/#/goal/2`);await page.waitForFunction(()=>document.querySelector('#agent-button').dataset.state==='paused');await page.waitForTimeout(500);assert.equal(await page.locator('#agent-button').getAttribute('data-state'),'paused');
- extFail=true;await page.getByRole('button',{name:'Agent',exact:true}).click();await page.locator('.agent-overview-row').filter({hasText:'Extensions'}).filter({hasText:'Unavailable'}).waitFor();await page.getByText('Activity',{exact:true}).waitFor();await page.keyboard.press('Escape');extFail=false;
+ extFail=true;await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByText('Extensions unavailable.',{exact:true}).waitFor();await page.getByText('Activity',{exact:true}).waitFor();await page.keyboard.press('Escape');extFail=false;
  await page.goto(`${url}/#/goal/1`);const toggle=page.getByRole('button',{name:'Auto-continue',exact:true});await toggle.waitFor();await toggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]').getAttribute('aria-pressed')==='true');assert.equal(posts,1);
  await page.goto(`${url}/#/goals`);await page.locator('#agent-button').waitFor({state:'hidden'});assert.deepEqual(errors,[]);
  console.log('passed: ordered sections, exact escaped messages/history, preserved disclosures, responsive layout, closed-menu presence, status transitions/failure/stale routes, keyboard close, isolated extension failure, one-click toggle');

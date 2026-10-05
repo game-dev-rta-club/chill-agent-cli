@@ -16,30 +16,17 @@ function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div cl
 export function activityMarkup(controls){
  return (controls||[]).filter(c=>c.activity).map(c=>{
   const a=c.activity,entries=a.entries||[];
-  return `<details class="agent-disclosure agent-auto" data-agent-detail="${esc(c.id)}-activity"><summary><span class="agent-row-label">${esc(a.label||c.label)}</span><span class="agent-row-value">${esc(a.status)}</span></summary><div class="agent-detail-body">${entries.length?entryMarkup(entries[0],`${c.id}-${entries[0].id}`):'<p class="agent-muted">No prompts yet.</p>'}${entries.length>1?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-history"><summary>History <span class="agent-muted">${a.total>entries.length?`Latest ${entries.length}`:entries.length-1}</span></summary>${entries.slice(1).map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}</div></details>`;
+  return `<details class="agent-section agent-disclosure agent-auto" data-agent-detail="${esc(c.id)}-activity"><summary><span class="agent-row-label">${esc(a.label||c.label)}</span><span class="agent-row-value">${esc(a.status)}</span></summary><div class="agent-detail-body">${entries.length?entryMarkup(entries[0],`${c.id}-${entries[0].id}`):'<p class="agent-muted">No prompts yet.</p>'}${entries.length>1?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-history"><summary>History <span class="agent-muted">${a.total>entries.length?`Latest ${entries.length}`:entries.length-1}</span></summary>${entries.slice(1).map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}</div></details>`;
  }).join('');
-}
-function queueMarkup(queue){
- const label='<span class="agent-row-label">Queue</span>';
- if(!queue?.items.length)return `<div class="agent-overview-row">${label}<span class="agent-row-value">${queue?'Empty':'Unavailable'}</span></div>`;
- return `<details class="agent-disclosure" data-agent-detail="queue"><summary>${label}<span class="agent-row-value">${queue.items.length}${queue.truncated?'+':''} waiting</span></summary><ol class="agent-queue agent-detail-body">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol></details>`;
-}
-function usageMarkup(usage){
- const windows=(usage||[]).flatMap(bucket=>bucket.windows.map(w=>({...w,name:bucket.name})));
- const remaining=windows.map(w=>w.remaining).filter(v=>v!==null);
- const label=remaining.length?remaining.length===windows.length?`${Math.round(Math.min(...remaining))}% left`:'Partial data':usage===null||windows.length?'Unavailable':'No data';
- const heading=`<span class="agent-row-label" title="Shared across your Codex account">Usage</span><span class="agent-row-value" title="Lowest remaining allowance">${label}</span>`;
- if(!windows.length)return `<div class="agent-section agent-overview-row">${heading}</div>`;
- return `<details class="agent-section agent-disclosure agent-usage" data-agent-detail="usage"><summary>${heading}</summary><div class="agent-detail-body">${windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(w.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(w.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`).join('')}</div></details>`;
 }
 export function agentMarkup(data) {
  if(!data.connected)return '<p class="agent-empty">No agent connected.</p>';
  const work=data.work,queue=data.queue;
- return `<section class="agent-overview" aria-label="Agent activity"><div class="agent-overview-row"><span class="agent-row-label">Activity</span><div class="agent-current">${workMarkup(work)}</div></div>
- ${queueMarkup(queue)}
- ${data.extensions===null?'<div class="agent-overview-row"><span class="agent-row-label">Extensions</span><span class="agent-row-value">Unavailable</span></div>':activityMarkup(data.extensions)}</section>
- <section class="agent-section" aria-label="Settings">${settingsMarkup(data)}</section>
- ${usageMarkup(data.usage)}`;
+ return `<section class="agent-section agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</section>
+ <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>
+ <section class="agent-section"><h3>Activity</h3><div class="agent-current">${workMarkup(work)}</div></section>
+ <section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>
+ ${data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions)}`;
 }
 export function createAgentMenu({button,panel,content,getGoalId}) {
  let opened=false,request=0,controller=null,timer=null,focusBefore=null,current=null,saving=false;
