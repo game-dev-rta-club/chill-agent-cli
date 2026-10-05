@@ -1,3 +1,9 @@
+---
+keyPoints: >-
+  Tagged distribution history; unreleased checkout changes are not listed as
+  features of an existing release.
+---
+
 # Changelog
 
 ## 0.1.0

@@ -26,5 +26,7 @@ setup, use `node bin/chill-entry.mjs` from a built checkout. Run a command with
 `--help` for the arguments supported by that version.
 
 For development and release work, see [Contributing](../CONTRIBUTING.md) and
-[Releasing](../RELEASING.md). Each behavior has one home here; consumer projects
+[Releasing](../RELEASING.md). Use [Security](../SECURITY.md) for private vulnerability
+reports and the [Changelog](../CHANGELOG.md) for tagged release history.
+Each behavior has one home here; consumer projects
 can link to it without copying the specification.
