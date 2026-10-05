@@ -1,3 +1,9 @@
+---
+keyPoints: >-
+  Use Node.js 24 and the full check before a focused PR. CLI behavior and integration
+  contracts belong in this repository; consumer onboarding belongs in chill-agent.
+---
+
 # Contributing
 
 Contributions that make chill-agent-cli simpler, safer, or easier to use are
@@ -32,9 +38,12 @@ of a Windows Desktop integration. Keep generated bundles out of source control.
 
 Write for developers using the infrastructure independently. This repository owns
 CLI usage, runtime behavior, and extension contracts. Keep detailed specifications
-here and let consumer projects link to them. Product onboarding, skills, and
-continuation policy belong to chill-agent, not this README. Prefer installed
-command help over maintaining duplicate flag lists.
+under [docs/](docs/README.md) and let consumer projects link to them. Product
+onboarding, skills, and continuation policy belong to chill-agent, not this README. Prefer installed
+command help over maintaining duplicate flag lists. Give public guide pages
+English `keyPoints` frontmatter so their behavior can be previewed in Sonner.
+Keep existing public document URLs working when moving an explanation; a short
+link to its new home is enough. Local investigations are not product contracts.
 
 ## Pull requests
 

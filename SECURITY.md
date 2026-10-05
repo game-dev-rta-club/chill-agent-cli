@@ -1,3 +1,9 @@
+---
+keyPoints: >-
+  Report CLI, Web and extension-host vulnerabilities privately on GitHub. This
+  experimental project does not promise a security support or response timeline.
+---
+
 # Security Policy
 
 ## Maintenance status
@@ -24,8 +30,9 @@ Include:
 
 ## Scope
 
-The shipped CLI, Web interface, extension host, skills and continuation policy are
-in scope. Report vulnerabilities in third-party services to their upstream project.
+The shipped CLI, Web interface and extension host are in scope. Skills and
+continuation policy belong to [chill-agent](https://github.com/game-dev-rta-club/chill-agnet/blob/main/SECURITY.md).
+Report vulnerabilities in third-party services to their upstream project.
 Do not include private Goal data, credentials or user conversations in reports.
 
 ## Disclosure and attribution

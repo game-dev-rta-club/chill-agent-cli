@@ -1,3 +1,9 @@
+---
+keyPoints: >-
+  Release reviewed SemVer tags as GitHub archives after CI and clean-install checks.
+  The all-in-one package adopts an exact tested archive in a separate dependency PR.
+---
+
 # Releases
 
 Use SemVer. Breaking public CLI or extension contracts require a major version.
@@ -16,7 +22,5 @@ Archives are distributed through GitHub Releases. npm registry publication is
 not configured and no registry credentials are required. Do not document an npm
 registry install until a package has actually been published there.
 
-For existing users: prepare a new immutable runtime with the same data directory,
-stop the existing Web server, then start it from the new stable command. Verify
-Goals, history and held feedback. Back up data before schema migrations; a package
-rollback does not reverse a data migration.
+For existing installations, follow [data and runtime updates](docs/runtime/data-and-updates.md)
+to adopt the release and verify preserved workspace data.
