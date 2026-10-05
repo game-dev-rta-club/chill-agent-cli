@@ -143,15 +143,15 @@ h1,h2,h3,p { margin:0; }
 .agent-trigger { position:relative; width:44px; height:44px; padding:7px; border-radius:10px; display:grid; place-items:center; }
 .agent-trigger:hover,.agent-trigger[aria-expanded=true] { background:#ffffff85; }
 .agent-trigger .agent-avatar { width:29px; height:29px; }
-.agent-panel { position:fixed; z-index:60; top:60px; right:16px; width:360px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 76px); overflow:auto; overscroll-behavior:contain; border:1px solid #a9bdb0; border-radius:12px; background:white; box-shadow:0 10px 32px #274c3326; padding:0 19px 18px; font-size:13px; }
+.agent-panel { position:fixed; z-index:60; top:60px; right:16px; width:336px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 76px); overflow:auto; overscroll-behavior:contain; border:1px solid var(--line); border-radius:12px; background:white; box-shadow:0 8px 24px #274c331a; padding:0 16px 12px; font-size:13px; }
 .agent-panel-heading { position:sticky; top:0; background:white; display:flex; align-items:center; justify-content:space-between; padding:15px 0 11px; z-index:1; }
-.agent-panel-heading h2 { font-size:17px; }
+.agent-panel-heading h2 { font-size:15px; }
 .agent-panel-heading>div { display:flex; gap:3px; }
 .agent-panel-heading button { min-width:36px; min-height:36px; border-radius:6px; font-size:12px; }
 .agent-panel-heading button:hover { background:var(--surface-soft); }
 .agent-panel-heading button:disabled { color:var(--muted); opacity:.5; }
 .agent-muted { font-size:11px; color:var(--muted); line-height:1.75; }
-.agent-section { border-top:1px solid var(--line); margin-top:15px; padding-top:13px; display:grid; gap:9px; }
+.agent-section { border-top:1px solid var(--line); margin-top:10px; padding-top:12px; display:grid; gap:9px; }
 .agent-section h3 { font-size:12px; color:var(--muted); font-weight:650; }
 .agent-settings { display:grid; grid-template-columns:1.5fr 1fr; gap:12px; margin:0; }
 .agent-settings dt { font-size:11px; color:var(--muted); }
@@ -164,16 +164,18 @@ h1,h2,h3,p { margin:0; }
 .agent-window progress::-webkit-progress-value { background:#6c967f; }
 .agent-window progress::-moz-progress-bar { background:#6c967f; }
 .agent-control-note { margin:16px 0 10px; }
-.agent-current { display:grid; gap:4px; }
+.agent-current { display:grid; justify-items:end; gap:4px; min-width:0; text-align:right; }
+.agent-current .agent-work-link { font-size:11px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .agent-pending { padding-top:8px; }
 .agent-panel-heading button { display:inline-flex; align-items:center; justify-content:center; }
 .agent-queue { margin:0; padding-left:17px; display:grid; gap:7px; }
 .agent-empty { padding:10px 0; color:var(--muted); }
 @media(max-width:520px) { .agent-panel { right:12px; } .header-actions { gap:3px; } }
 
-[data-agent-settings]{display:grid;gap:12px}
-[data-agent-settings] label{display:grid;gap:5px;font-size:12px;font-weight:600}
-[data-agent-settings] select{width:100%;min-width:0;padding:8px;border:1px solid var(--line,#cbd5d1);border-radius:7px;background:white;color:inherit;font:inherit}
+[data-agent-settings]{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:8px}
+[data-agent-settings] label{display:grid;gap:5px;font-size:11px;font-weight:500;color:var(--muted)}
+[data-settings-message]{grid-column:1/-1}
+[data-agent-settings] select{width:100%;min-width:0;padding:8px;border:1px solid var(--line,#cbd5d1);border-radius:7px;background:white;color:var(--ink);font:inherit;font-size:12px}
 [data-settings-message]:empty{display:none}
 
 .activity-settings{font-size:12px;font-weight:600;overflow-wrap:anywhere}
@@ -229,12 +231,24 @@ a.status.paused:hover {text-decoration:underline;}
 .status.unlinked .dot { border-style:dashed; }
 .agent-presence .status.paused svg,.agent-run-state .status.paused svg { width:13px; height:13px; fill:none; stroke:#a88442; stroke-width:2; }
 .status.unknown { color:#897568; font-weight:650; }
-.agent-section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.agent-count { font-weight:400; margin-left:5px; }
+.agent-overview-row,.agent-disclosure>summary { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:34px; padding:6px 0; }
+.agent-row-label { font-size:12px; color:var(--muted); font-weight:500; }
+.agent-row-value { margin-left:auto; font-size:12px; color:var(--muted); text-align:right; }
+.agent-disclosure { min-width:0; }
+.agent-disclosure>summary { cursor:pointer; list-style:none; }
+.agent-disclosure>summary::-webkit-details-marker { display:none; }
+.agent-disclosure>summary::after { content:''; width:5px; height:5px; border-right:1px solid var(--muted); border-bottom:1px solid var(--muted); transform:rotate(-45deg); margin-right:3px; flex:none; }
+.agent-disclosure[open]>summary::after { transform:rotate(45deg); }
+.agent-disclosure>summary:hover .agent-row-label { color:var(--ink); }
+.agent-disclosure summary:focus-visible { outline:2px solid var(--focus); outline-offset:2px; border-radius:3px; }
+.agent-detail-body { padding:8px 0 12px; display:grid; gap:12px; }
+.agent-queue.agent-detail-body { padding-left:17px; }
+.agent-usage.agent-section { display:block; padding-top:4px; }
+.agent-usage .agent-usage-label strong { font-size:12px; font-weight:500; }
 .agent-auto-entry { display:grid; gap:7px; min-width:0; }
 .agent-auto-entry p { line-height:1.6; overflow-wrap:anywhere; }
 .agent-auto-meta { display:flex; flex-wrap:wrap; justify-content:space-between; gap:5px 12px; color:var(--muted); font-size:10px; }
-.agent-auto summary { padding:5px 0; cursor:pointer; color:var(--accent); font-size:12px; }
+.agent-auto .agent-detail-body summary { padding:5px 0; cursor:pointer; color:var(--accent); font-size:12px; }
 .agent-auto summary:focus-visible { outline:2px solid var(--focus); outline-offset:2px; border-radius:3px; }
 .agent-auto-message { white-space:pre-wrap; overflow-wrap:anywhere; font:11px/1.7 ui-monospace,monospace; background:var(--surface-soft); border:1px solid var(--line); padding:10px; border-radius:6px; max-height:250px; overflow:auto; margin:7px 0 0; }
 .agent-auto-history { border-top:1px solid var(--line); padding-top:5px; }
