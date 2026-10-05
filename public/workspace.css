@@ -235,16 +235,20 @@ a.status.paused:hover {text-decoration:underline;}
 .agent-auto summary { padding:5px 0; cursor:pointer; color:var(--accent); font-size:12px; }
 .agent-auto summary:focus-visible { outline:2px solid var(--focus); outline-offset:2px; border-radius:3px; }
 .agent-auto-message { white-space:pre-wrap; overflow-wrap:anywhere; font:11px/1.7 ui-monospace,monospace; background:var(--surface-soft); border:1px solid var(--line); padding:10px; border-radius:6px; max-height:250px; overflow:auto; margin:7px 0 0; }
-.agent-auto-history { padding-top:2px; }
+.agent-auto-history { grid-column:1 / -1; grid-row:2; }
+.agent-auto-history > summary { width:max-content; margin-left:auto; padding:0; line-height:1.75; }
 .agent-auto-history .agent-auto-entry { border-top:1px solid var(--line); padding:12px 0; }
 [data-settings-message]:empty,.delivery-entry>p:empty { display:none; }
 
 /* Only the optional continuation history is collapsed. Everyday controls stay visible. */
 .agent-settings-section { border:0; margin-top:0; padding-top:4px; }
-.agent-auto.agent-section { display:block; }
+.agent-auto.agent-section { grid-template-columns:minmax(0,1fr) auto; gap:7px 12px; }
+.agent-auto-empty { grid-column:1; grid-row:2; align-self:start; }
+.agent-auto > [data-extension-message] { grid-column:1 / -1; }
 .agent-auto .agent-section-heading h3 { margin:0; }
-.agent-auto .agent-section-heading { margin-bottom:7px; }
-.agent-auto-toggle { width:30px; height:30px; margin:-7px 0; border-radius:7px; }
+.agent-auto .agent-section-heading { grid-column:1 / -1; }
+.agent-auto-toggle { width:auto; min-width:65px; height:26px; flex-direction:row; gap:4px; padding:0 5px; margin:-3px 0; border-radius:7px; }
+.agent-auto-toggle span { font-size:11px; letter-spacing:0; font-weight:500; }
 .agent-auto-toggle .monitor-logo { width:24px; height:24px; }
 /* The antenna itself carries presence, leaving the mascot's face unobscured. */
 .agent-antenna-light { fill:#a2afa7; stroke:#657b6e; stroke-width:1; }

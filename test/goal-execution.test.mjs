@@ -148,3 +148,24 @@ test('hook heartbeats are limited to the selected chat and turn, and stop stays 
   await f.run('work','--id','3','--stop');const stopped=await f.json(f.selectionPath);await hookCall({});
   assert.deepEqual(await f.json(f.selectionPath),stopped);
 });
+
+test('a hook tracks chat liveness before work selection; Goal and header use the same turn evidence',async t=>{
+ const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);
+ const read=async()=>JSON.parse((await execute(process.execPath,['--input-type=module','-e',
+  `import {readAgentPresence} from './lib/agent-presence.mjs';console.log(JSON.stringify(await readAgentPresence('1')));`],
+  {env:f.env,cwd:new URL('..',import.meta.url).pathname})).stdout);
+ const hookCall=async extra=>execute(process.execPath,['--input-type=module','-e',
+  `import {hookOutput} from ${JSON.stringify(new URL('../bin/chill-hook.mjs',import.meta.url).href)};await hookOutput(${JSON.stringify({hook_event_name:'PostToolUse',session_id:thread,turn_id:turn,...extra})},'${thread}');`],{env:f.env});
+ assert.equal((await read()).status,'unknown');
+ await hookCall({agent_id:'child'});assert.equal((await read()).status,'unknown');
+ await hookCall({});assert.equal((await read()).status,'working');
+ await assert.rejects(f.json(f.selectionPath),{code:'ENOENT'},'a heartbeat does not select work');
+ await f.run('work','--id','3');
+ let tree=(await f.run('tree','--id','1'))[0];assert.equal(tree.children[1].state,'working');
+ assert.equal((await read()).goalId,'3');
+ const selected=await f.json(f.selectionPath);selected.heartbeatAt='2020-01-01T00:00:00Z';
+ await writeFile(join(f.root,f.selectionPath),JSON.stringify(selected));
+ tree=(await f.run('tree','--id','1'))[0];assert.equal(tree.children[1].state,'working','independent chat heartbeat confirms the selected run');
+ await f.history({turns:[{id:turn,status:'completed',completedAt:Date.now()/1000}]});
+ assert.equal((await read()).status,'idle');assert.equal((await f.run('tree','--id','1'))[0].state,'idle');
+});

@@ -213,3 +213,19 @@ test('monitor receipt binds by its exact result command without a visible marker
   assert.equal(await reader(queued),null);
  }
 });
+
+test('a lagging Activity response cannot split one running turn across feedback entries',()=>{
+ const events=[{author:'user',changeId:1,goalId:'3'},{author:'user',changeId:2,goalId:'3'}];
+ const deliveries=new Map([[1,{threadId:thread,status:'working',work:{turnId:turn,messages:[{id:'a',text:'Working',at:1}]}}],
+   [2,{threadId:thread,status:'working',turnId:turn}]]);
+ const activity={goalId:'3',eventId:1,threadId:thread,turnId:turn,status:'working',capabilities:{stop:true}};
+ const groups=workProgressGroups(events,deliveries,{...activity,work:{messages:[]}});
+ assert.equal(groups.size,1);assert.equal(groups.has(1),false);
+ assert.deepEqual(groups.get(2).eventIds,[1,2]);assert.equal(groups.get(2).activity.eventId,activity.eventId);
+ assert.equal(groups.get(2).messages[0].text,'Working');
+ assert.equal(workProgressGroups(events,deliveries,{...activity,status:'paused'}).get(2).live,false);
+ const later=workProgressGroups(events,deliveries,{...activity,eventId:2,turnId:'resumed',work:{messages:[{id:'b',text:'Resumed'}]}});
+ assert.equal(later.size,2,'a real resumed turn remains separate');
+ assert.equal(later.get(1).live,false);assert.equal(later.get(1).status,'ended');
+ assert.equal(later.get(2).live,true);
+});

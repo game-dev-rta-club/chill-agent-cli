@@ -42,8 +42,9 @@ returns the latest 20); `total` exposes omitted older records. The host renders
 plain text only, with the optional `activeCount` for pending/running checks and
 expandable history after Activity and Queue. Zero active checks displays `Empty`,
 even when history exists. Completed checks and received results do not contribute
-to `activeCount`; `total` describes history only. The control icon toggles enablement
-without opening history and shares its state with the header control.
+to `activeCount`; `total` describes history only. The control icon with an On/Off label toggles enablement
+without opening history and shares its state with the header control. The collapsed
+section uses two rows, with History beneath the control.
 POST `/api/goals/:id/extensions/:extension?activity=1` saves enablement and returns
 controls with fresh activity snapshots, so a menu save retains the history.
 Use `message: null` when the exact old text was not saved; do not reconstruct it.
@@ -52,6 +53,7 @@ must not create Conversation events, reset counters or cause new requests.
 
 The header's Agent presence is host-owned, independent of extension state, and
 read through GET `/api/goals/:id/agent/presence`. It uses the assigned chat's current
-turn, manual-pause evidence and fresh work heartbeat, including runs with no user
-feedback receipt. Missing evidence displays unavailable, not idle. Header refreshes
+turn, manual-pause evidence and fresh chat heartbeat, including runs with no user
+feedback receipt or selected Goal. Goal execution uses the same observation and
+state resolver; only the selected Goal and its ancestors show Running. Missing evidence displays unavailable, not idle. Header refreshes
 do not request settings or account usage and do not renew the server lease.

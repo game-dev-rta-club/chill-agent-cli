@@ -38,12 +38,17 @@ try{
   await button.click();await page.locator('.agent-auto-toggle').waitFor();
   assert.deepEqual(await page.locator('#agent-content h3').allTextContents(),['Usage','Activity','Queue 0','AutoContinue 0']);
   assert.equal(await page.locator('.agent-auto > .agent-muted').first().textContent(),'Empty');
+  assert.equal((await page.locator('.agent-auto-toggle').innerText()).trim(),'Off');
+  const coffee=await page.locator('.agent-auto-toggle').boundingBox(),history=await page.locator('.agent-auto-history > summary').boundingBox(),empty=await page.locator('.agent-auto-empty').boundingBox();
+  assert.ok(history.y>=coffee.y+coffee.height,'History sits below the coffee control');
+  assert.ok(Math.abs(empty.y-history.y)<3,'Empty and History share the second row');
+  assert.ok(Math.abs(history.x+history.width-coffee.x-coffee.width)<3,'History aligns with the coffee control');
   assert.equal(await page.locator('.agent-auto-history').getAttribute('open'),null);assert.equal(await page.locator('.agent-auto-entry').first().isVisible(),false);
   assert.equal(await page.locator('.agent-window progress').isVisible(),true);
   const model=await page.getByLabel('Model',{exact:true}).boundingBox(),reasoning=await page.getByLabel('Reasoning',{exact:true}).boundingBox(),usage=await page.getByRole('heading',{name:'Usage',exact:true}).boundingBox();
   assert.ok(model.y<reasoning.y&&reasoning.y<usage.y,'settings come first, in full-width rows');assert.equal(model.width,reasoning.width);
   assert.equal(await page.getByLabel('Model',{exact:true}).isVisible(),true);
-  await page.screenshot({path:`/tmp/chill-392-menu-${width}.png`});
+  await page.screenshot({path:`/tmp/chill-397-menu-${width}.png`});
   const panel=page.locator('#agent-panel'),box=await panel.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width);assert.ok(box.y+box.height<=844);
   assert.equal(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   await page.locator('.agent-auto-history > summary').focus();await page.keyboard.press('Enter');
@@ -51,7 +56,7 @@ try{
   await page.getByText('Message not saved.',{exact:true}).waitFor();
   await page.locator('[data-agent-refresh]').click();await page.waitForTimeout(100);
   assert.equal(await page.locator('details[data-agent-detail][open]').count(),2,'poll refresh keeps disclosures open');
-  await page.screenshot({path:`/tmp/chill-392-expanded-${width}.png`});
+  await page.screenshot({path:`/tmp/chill-397-expanded-${width}.png`});
   await page.keyboard.press('Escape');assert.equal(await button.evaluate(el=>el===document.activeElement),true);
  }
  queued=true;await page.goto(`${url}/#/goal/1`);await page.getByRole('button',{name:'Agent',exact:true}).click();
@@ -72,7 +77,7 @@ try{
    await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await orbit.evaluate(el=>getComputedStyle(el).animationName),'none');await page.emulateMedia({reducedMotion:'no-preference'});
   }else assert.equal(await orbit.isVisible(),false);
   if(state==='paused')assert.equal(await page.locator('.agent-antenna-paused').isVisible(),true);
-  await page.screenshot({path:`/tmp/chill-392-${state}.png`});
+  await page.screenshot({path:`/tmp/chill-397-${state}.png`});
  }
  status='working';await page.waitForFunction(()=>document.querySelector('#agent-button').dataset.state==='working',null,{timeout:3500});
  delay=400;await page.evaluate(()=>location.hash='#/goal/1/activity/1');await page.waitForTimeout(80);assert.equal(await page.locator('#agent-button').getAttribute('data-state'),'working','same-Goal navigation keeps confirmed presence');await page.waitForTimeout(500);delay=0;
@@ -84,7 +89,7 @@ try{
  await page.goto(`${url}/#/goal/1`);await page.getByRole('heading',{name:'A calm workspace',exact:true}).waitFor();const toggle=page.getByRole('button',{name:'Auto-continue',exact:true});await toggle.waitFor();await toggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='true');assert.equal(posts,1);
  // Both coffee controls share the same state; toggles never expand history.
  await page.getByRole('button',{name:'Agent',exact:true}).click();const menuToggle=page.locator('[data-agent-extension]');await menuToggle.waitFor();
- assert.equal(await menuToggle.getAttribute('aria-pressed'),'true');
+ assert.equal(await menuToggle.getAttribute('aria-pressed'),'true');assert.equal((await menuToggle.innerText()).trim(),'On');
  saveDelay=200;await menuToggle.click();await menuToggle.dispatchEvent('click');
  await page.waitForFunction(()=>document.querySelector('[data-agent-extension]').getAttribute('aria-pressed')==='false');
  await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='false');
