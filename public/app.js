@@ -32,7 +32,7 @@ const icons = {
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">${icons[name]}</svg>`;
 const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-  <path d="M20 9V5l4-2" stroke="#373e42" stroke-width="1.8"/>${presence?`<circle class="agent-antenna-light" cx="25" cy="-1" r="5.5"/>
+  <path d="${presence?'M20 9V7l5-2.5':'M20 9V5l4-2'}" stroke="#373e42" stroke-width="1.8"/>${presence?`<circle class="agent-antenna-light" cx="25" cy="-1" r="5.5"/>
   <circle class="agent-antenna-track" cx="25" cy="-1" r="8"/>
   <circle class="agent-antenna-orbit" cx="25" cy="-1" r="8" pathLength="100" stroke-dasharray="32 68"/>
   <path class="agent-antenna-paused" d="M23 -4v6m4-6v6" stroke="#fff" stroke-width="1.8"/>
