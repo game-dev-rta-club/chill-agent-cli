@@ -16,6 +16,7 @@ import { readMessageSettings } from './lib/message-settings.mjs';
 import {renderedEvent} from './lib/markdown.mjs';
 import {briefDocument} from './lib/brief.mjs';
 import {readAgentStatus,saveAgentSettings,controlAgent} from './lib/agent-status.mjs';
+import {readAgentPresence} from './lib/agent-presence.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
@@ -49,6 +50,7 @@ const assets = new Map([
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/activity-controls.js', ['activity-controls.js', 'text/javascript; charset=utf-8']],
   ['/agent-menu.js', ['agent-menu.js', 'text/javascript; charset=utf-8']],
+  ['/agent-presence.js', ['agent-presence.js', 'text/javascript; charset=utf-8']],
   ['/extension-buttons.js', ['extension-buttons.js', 'text/javascript; charset=utf-8']],
   ['/work-ui.js', ['work-ui.js', 'text/javascript; charset=utf-8']],
   ['/goal-view.js', ['goal-view.js', 'text/javascript; charset=utf-8']],
@@ -127,22 +129,27 @@ const server = createServer(async (request, response) => {
   response.setHeader('Referrer-Policy', 'no-referrer');
   const styleNonce=randomBytes(18).toString('base64');
   response.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'nonce-${styleNonce}'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'`);
-  let path;
+  let path,url;
   try {
-    path = new URL(request.url, 'http://localhost').pathname;
+    url = new URL(request.url, 'http://localhost');path = url.pathname;
   } catch {
     response.writeHead(400);
     return response.end('Invalid request URL');
   }
   const extensionPath=/^\/api\/goals\/([1-9][0-9]*)\/extensions(?:\/([a-z][a-z0-9-]*))?$/.exec(path);
   if(extensionPath&&request.method==='GET'&&!extensionPath[2]){
-    try{return sendJson(response,200,await extensions.controls(extensionPath[1]));}
+    try{return sendJson(response,200,await extensions.controls(extensionPath[1],{activity:url.searchParams.get('activity')==='1'}));}
     catch(error){return sendJson(response,503,{error:error.message});}
   }
   if(extensionPath&&request.method==='POST'&&extensionPath[2]){
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
     try{return sendJson(response,200,await extensions.change(extensionPath[1],extensionPath[2],await readJson(request)));}
     catch(error){return sendJson(response,409,{error:error.message});}
+  }
+  const presencePath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/presence$/.exec(path);
+  if(presencePath&&request.method==='GET'){
+    try{return sendJson(response,200,await readAgentPresence(presencePath[1]));}
+    catch{return sendJson(response,503,{error:'Could not read Agent status.'});}
   }
   const agentPath=/^\/api\/goals\/([1-9][0-9]*)\/agent$/.exec(path);
   if(agentPath&&request.method==='GET') {

@@ -1,5 +1,6 @@
 import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
+import {createAgentPresence} from './agent-presence.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState} from './letter-state.js';
 import { workProgressGroups, workDisclosure } from './work-ui.js';
@@ -67,6 +68,7 @@ let currentRoute = '';
 let activeGoalId = null;
 const agentButton=document.getElementById('agent-button');
 agentButton.innerHTML=agentAvatar();
+const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
 const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,announce:showToast});
 let activeVersion = null;
@@ -902,6 +904,7 @@ function renderRoute() {
   if(activeGoalId&&(match[2]||activeVersion)&&!briefAt(activeGoalId,activeVersion))activeGoalId=null;
   agentMenu.routeChanged();
   extensionButtons.routeChanged();
+  agentPresence.routeChanged();
   let ready=Promise.resolve();
   if(activeGoalId) {
     if(match?.[3])conversationWindow.reveal(activeGoalId,conversationFor(activeGoalId),Number(match[3]));

@@ -23,3 +23,29 @@ A composed runtime supplies `extensions.json` with relative `modules` and option
 `label`, and optional start/tick/stop/busy methods plus read/set for Web controls.
 The host serializes ticks every 30 seconds. CLI-only distributions omit the manifest.
 Do not import private library files or inspect the CLI's storage directly.
+
+## Read-only activity in the Agent menu
+
+`read(goalId, {activity: true})` may add an `activity` descriptor to its control:
+
+```js
+{label: 'AutoContinue', status: 'Off', checkedAt: '2026-10-05T00:10:00Z',
+ total: 1, entries: [{id: 'stable-entry-id', at: '2026-10-05T00:09:00Z',
+ summary: 'Check for anything missed in the completed Goals.',
+ message: 'The exact request text', status: 'Result received',
+ result: {label: 'No work reported', at: '2026-10-05T00:10:00Z'}}]}
+```
+
+GET `/api/goals/:id/extensions?activity=1` requests these details. Normal header
+reads omit them. Entries are newest first, bounded by the extension (continuation
+returns the latest 20); `total` exposes omitted older records. The host renders
+plain text only, with expandable messages and history after Activity and Queue.
+Use `message: null` when the exact old text was not saved; do not reconstruct it.
+Keep current enablement separate from each historical request and result. Reads
+must not create Conversation events, reset counters or cause new requests.
+
+The header's Agent presence is host-owned, independent of extension state, and
+read through GET `/api/goals/:id/agent/presence`. It uses the assigned chat's current
+turn, manual-pause evidence and fresh work heartbeat, including runs with no user
+feedback receipt. Missing evidence displays unavailable, not idle. Header refreshes
+do not request settings or account usage and do not renew the server lease.
