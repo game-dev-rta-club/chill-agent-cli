@@ -1,6 +1,6 @@
 import {letterState} from './letter-state.js';
 import {ownGoalProgress,progressPercent} from './goal-progress.js';
-import {executionState,goalState} from './goal-state.js';
+import {executionState,goalState,isRunning} from './goal-state.js';
 const icons = {
   pause:'<path d="M8 5v14M16 5v14"/>',
   check:'<path d="m5 12 4 4L19 6"/>',
@@ -30,7 +30,7 @@ function state(id){return goalState(goals[id],goals[id].children.map(state));}
 function status(id){
   const s=state(id);
   if(s==='idle')return '';
-  const description=s==='waiting'?(goals[id].waitReason||'Waiting: all unfinished Split Goals need a prerequisite'):s==='working'&&executionState(goals[id])!=='working'?'Running in Split Goals':labels[s];
+  const description=s==='waiting'?(goals[id].waitReason||'Waiting: all unfinished Split Goals need a prerequisite'):s==='working'&&!isRunning(executionState(goals[id]))?'Running in Split Goals':labels[s];
   const activity=goals[id].execution?.activity;
   const tag=s==='paused'&&activity?'a':'span';
   const link=tag==='a'?` href="#/goal/${activity.goalId}/activity/${activity.eventId}"`:'';

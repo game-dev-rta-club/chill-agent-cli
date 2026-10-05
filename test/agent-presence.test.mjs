@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {agentPresence,readPresenceSnapshot} from '../lib/agent-presence.mjs';
+import {displayPresence} from '../lib/agent-observation.mjs';
+import {presenceLabel,presenceMark} from '../public/agent-presence.js';
 import {activityMarkup} from '../public/agent-menu.js';
 
 test('presence covers runs without feedback, manual pauses, idle, and unavailable evidence',()=>{
@@ -31,7 +33,7 @@ test('presence collects turn and thread state with one native connection and ret
  let connects=0;const calls=[];
  const options={readControl:async()=>({action:'stop',turnId:'t',target:{goalId:'2'}}),connect:async run=>{connects++;return run({request:async method=>{calls.push(method);return method==='thread/read'?{thread:{status:{type:'active'}}}:{data:[{id:'t',completedAt:null,status:'inProgress'}]};}});}};
  const snapshot=await readPresenceSnapshot('chat',options);
- assert.equal(connects,1);assert.deepEqual(calls.sort(),['thread/read','thread/turns/list']);
+ assert.equal(connects,1);assert.deepEqual(calls.sort(),['thread/queue/list','thread/read','thread/turns/list']);
  assert.equal(agentPresence(snapshot),'unknown','an unconfirmed pause is not presented as Running');
  assert.equal(agentPresence({...snapshot,view:null}),'working');
 });
@@ -52,4 +54,21 @@ test('hooks confirm a live chat before selecting a Goal, but cannot outlive its 
  assert.equal(agentPresence({...snapshot,turn:{...turn,completedAt:1}},now),'paused');
  assert.equal(agentPresence({...snapshot,turn:{...turn,id:'next'}},now),'unknown');
  assert.equal(agentPresence(snapshot,now+120001),'unknown');
+});
+
+test('pending queue and checking share Running display without changing control facts',()=>{
+ const idle={threadState:'idle',turn:{id:'ended',status:'completed',completedAt:1}};
+ const pending={threadState:'notLoaded',turn:{id:'new',status:'interrupted',completedAt:null}};
+ assert.equal(displayPresence({...idle,queue:{data:[{id:'q'}]}}),'queued');
+ assert.equal(displayPresence(pending),'checking');
+ assert.equal(agentPresence(pending),'unknown','display does not confirm execution');
+ assert.equal(displayPresence({...pending,view:{status:'unknown'}}),'checking');
+ assert.equal(displayPresence({...idle,holds:[{phase:'paused'}],queue:{data:[]}}),'paused');
+ assert.equal(displayPresence({...idle,holds:[{phase:'paused'}],queue:{data:[{id:'q'}]}}),'queued','another queued job remains active while a branch is paused');
+ assert.equal(displayPresence({threadState:'systemError'}),'unknown');
+ assert.equal(displayPresence(idle),'idle');
+ for(const state of ['queued','checking']){
+  assert.equal(presenceLabel(state),'Running');assert.match(presenceMark(state),/status working/);
+ }
+ assert.equal(presenceLabel('unknown'),'Status unavailable');
 });

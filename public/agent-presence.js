@@ -1,6 +1,9 @@
+import {isRunning} from './goal-state.js';
 const labels={working:'Running',idle:'Idle',paused:'Paused',unknown:'Status unavailable',unlinked:'Not connected'};
-export const presenceLabel=status=>labels[status]||labels.unknown;
+const displayState=status=>isRunning(status)?'working':status;
+export const presenceLabel=status=>labels[displayState(status)]||labels.unknown;
 export function presenceMark(status){
+ status=displayState(status);
  const state=Object.hasOwn(labels,status)?status:'unknown';
  const shape=state==='paused'?'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 4v8m6-8v8"/></svg>':state==='unknown'?'<span aria-hidden="true">?</span>':'<span class="dot" aria-hidden="true"></span>';
  return `<span class="status ${state}" aria-hidden="true">${shape}</span>`;
@@ -9,7 +12,7 @@ export function createAgentPresence({button,getGoalId}){
  let request=0,controller=null,busy=false,routeGoalId=null;
  const tooltip=document.getElementById('agent-tooltip');
  function render(data){
-  const status=data.status||'unknown';button.dataset.state=status;button.title=`Agent · ${presenceLabel(status)}`;
+  const status=displayState(data.status)||'unknown';button.dataset.state=status;button.title=`Agent · ${presenceLabel(status)}`;
   if(tooltip){tooltip.replaceChildren(document.createTextNode(`Agent · ${presenceLabel(status)}`));const hint=document.createElement('small');hint.textContent='Activity, settings, and usage.';tooltip.append(hint);}
   window.dispatchEvent(new CustomEvent('chill-agent-presence',{detail:{routeGoalId:getGoalId(),...data}}));
  }

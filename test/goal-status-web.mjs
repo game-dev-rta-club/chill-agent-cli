@@ -30,6 +30,9 @@ try {
  assert.equal(await row('3').locator('.row-summary .status').innerText(),'Waiting');
  assert.equal(await row('4').locator('.row-summary .status').innerText(),'Done');
  assert.equal(await row('5').locator('.row-summary .status').innerText(),'Running');
+ await update('5',{state:'done'});await page.reload();
+ await row('5').getByText('Running',{exact:true}).waitFor();
+ assert.equal((await run('show','--id','5')).goal.storedState,'done','live display does not reopen Done');
  assert.equal(await row('3').locator('.letters-button').innerText(),'1');
  for(const id of ['3','4','5'])assert.ok((await row(id).locator('.status').boundingBox()).x>(await row(id).locator('.tree-name').boundingBox()).x);
  await page.screenshot({path:'/tmp/chill-goal-status-desktop.png'});
@@ -45,6 +48,18 @@ try {
  const result=await update('1',{state:'done'});assert.equal(result.nextActions.ancestors.length,0);
  await page.reload();await page.locator('.goal-heading .status').getByText('Done',{exact:true}).waitFor();
  assert.equal(await page.locator('.goal-heading .progress-value').innerText(),'100%');
+ // A new queued reply to a Done Goal takes precedence in both the tree and header.
+ await writeFile(join(root,'fake-history.json'),JSON.stringify({status:{type:'idle'},turns:[{id:turn,status:'completed',completedAt:123}]}));
+ const input=join(root,'feedback.json');await writeFile(input,JSON.stringify({text:'Check once more'}));
+ const sent=(await execute(process.execPath,[cli,'feedback','--id','4','--input-file',input],{env})).stdout.trim().split('\n').map(JSON.parse);
+ const event=sent.find(item=>item.feedback).feedback.changeId;
+ await page.reload();await row('4').getByText('Running',{exact:true}).waitFor();
+ await page.locator('.goal-heading .status').getByText('Running',{exact:true}).waitFor();
+ await page.waitForFunction(()=>document.querySelector('#agent-button').dataset.state==='working');
+ assert.equal((await run('show','--id','4')).goal.storedState,'done');
+ await run('activity','--event',String(event),'--state','working');await run('activity','--event',String(event),'--state','completed');
+ await page.reload();await row('4').getByText('Done',{exact:true}).waitFor();
+ await page.waitForFunction(()=>document.querySelector('#agent-button').dataset.state==='idle');
  await update('4',{state:'idle'});await page.reload();await page.locator('.goal-heading .progress-value').getByText('75%',{exact:true}).waitFor();
  assert.equal(await page.locator('.goal-heading .status').count(),0);assert.equal(await row('2').locator('.status').innerText(),'Done');
  assert.deepEqual(errors,[]);

@@ -33,5 +33,6 @@ test('Web and CLI prioritize activity but never infer parent completion from chi
   assert.equal(workspaceTree(goals,'1')[0].progress,100);
   a.conversation=[{id:1,goalId:'2',author:'agent',type:'letter',title:'Question'}];check('done');
   root.execution={status:'working',expiresAt:new Date(Date.now()+60000).toISOString()};check('working');
+  for(const status of ['queued','checking']){root.execution.status=status;check('working');assert.equal(workspaceTree(goals,'1')[0].progress,100);}
   root.execution.expiresAt='2000-01-01T00:00:00Z';check('done');
 });
