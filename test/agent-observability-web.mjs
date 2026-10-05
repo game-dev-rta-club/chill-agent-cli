@@ -62,12 +62,12 @@ try{
  queued=true;await page.goto(`${url}/#/goal/1`);await page.getByRole('button',{name:'Agent',exact:true}).click();
  await page.getByText('#2 A queued request',{exact:true}).waitFor();assert.equal(await page.locator('.agent-window progress').isVisible(),true);
  await page.keyboard.press('Escape');queued=false;
- for(const state of ['working','paused','idle']){
-  status=state;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForFunction(s=>document.querySelector('#agent-button').dataset.state===s,state);
+ for(const state of ['working','queued','checking','paused','idle']){
+  const display=['working','queued','checking'].includes(state)?'working':state;status=state;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForFunction(s=>document.querySelector('#agent-button').dataset.state===s,display);
   const lamp=await page.locator('#agent-button .agent-antenna-light').boundingBox();assert.ok(lamp.width>=7,'antenna color stays visible at actual size');
   assert.equal(await page.locator('#agent-button .agent-presence').count(),0,'no separate face badge');
   const orbit=page.locator('#agent-button .agent-antenna-orbit');
-  if(state==='working'){
+  if(display==='working'){
    assert.equal(await orbit.evaluate(el=>getComputedStyle(el).animationName),'goal-working');
    assert.equal(await orbit.evaluate(el=>getComputedStyle(el).stroke),'rgb(52, 117, 87)');
    assert.equal(await page.locator('#agent-button .agent-antenna-track').isVisible(),true);

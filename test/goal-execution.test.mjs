@@ -86,7 +86,7 @@ test('one selected branch works while another waits; turn end returns to Idle',a
   await assert.rejects(f.run('work','--id','2'),/No current unfinished/);
 });
 
-test('connection loss, stale heartbeats, reassignment and a new turn cannot retain Working',async t=>{
+test('connection loss and reassignment clear activity; unfinished turns can remain Checking',async t=>{
   const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);await f.run('work','--id','3');
   await f.history({fail:true});let tree=(await f.run('tree'))[0];
   assert.equal(tree.state,'idle');assert.equal(tree.children[1].execution.status,'unknown');
@@ -95,7 +95,7 @@ test('connection loss, stale heartbeats, reassignment and a new turn cannot reta
   const selection=await f.json(f.selectionPath);selection.heartbeatAt=new Date(Date.now()-heartbeatTTL-1000).toISOString();
   await writeFile(join(f.root,f.selectionPath),JSON.stringify(selection));
   await f.history({turns:[{id:turn,status:'interrupted',completedAt:null}]});
-  tree=(await f.run('tree'))[0];assert.equal(tree.children[1].execution.status,'unknown');
+  tree=(await f.run('tree'))[0];assert.equal(tree.children[1].execution.status,'checking');assert.equal(tree.state,'working');
   const nextTurn='00000000-0000-0000-0000-000000000011';
   await f.history({turns:[{id:nextTurn,status:'inProgress',completedAt:null}]});
   tree=(await f.run('tree'))[0];assert.equal(tree.state,'idle');
@@ -124,7 +124,7 @@ test('completedAt wins over heartbeat; a recent hook can confirm an externally n
   const owner={status:{type:'notLoaded'}},unfinished={id:turn,status:'interrupted',completedAt:null};
   assert.equal(observeExecution(selection,owner,unfinished,now).status,'working');
   assert.equal(observeExecution(selection,owner,{...unfinished,completedAt:now/1000},now).status,'idle');
-  assert.equal(observeExecution(selection,owner,unfinished,now+heartbeatTTL+1).status,'unknown');
+  assert.equal(observeExecution(selection,owner,unfinished,now+heartbeatTTL+1).status,'checking');
   assert.equal(observeExecution(selection,{status:{type:'systemError'}},unfinished,now).status,'unknown');
   assert.equal(observeExecution(selection,owner,null,now).status,'unknown');
 });
@@ -156,8 +156,8 @@ test('a hook tracks chat liveness before work selection; Goal and header use the
   {env:f.env,cwd:new URL('..',import.meta.url).pathname})).stdout);
  const hookCall=async extra=>execute(process.execPath,['--input-type=module','-e',
   `import {hookOutput} from ${JSON.stringify(new URL('../bin/chill-hook.mjs',import.meta.url).href)};await hookOutput(${JSON.stringify({hook_event_name:'PostToolUse',session_id:thread,turn_id:turn,...extra})},'${thread}');`],{env:f.env});
- assert.equal((await read()).status,'unknown');
- await hookCall({agent_id:'child'});assert.equal((await read()).status,'unknown');
+ assert.equal((await read()).status,'checking');
+ await hookCall({agent_id:'child'});assert.equal((await read()).status,'checking');
  await hookCall({});assert.equal((await read()).status,'working');
  await assert.rejects(f.json(f.selectionPath),{code:'ENOENT'},'a heartbeat does not select work');
  await f.run('work','--id','3');
@@ -168,4 +168,29 @@ test('a hook tracks chat liveness before work selection; Goal and header use the
  tree=(await f.run('tree','--id','1'))[0];assert.equal(tree.children[1].state,'working','independent chat heartbeat confirms the selected run');
  await f.history({turns:[{id:turn,status:'completed',completedAt:Date.now()/1000}]});
  assert.equal((await read()).status,'idle');assert.equal((await f.run('tree','--id','1'))[0].state,'idle');
+});
+
+test('Done stays stored while queued, checking, and running feedback takes display priority',async t=>{
+ const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);
+ await f.patch('2',{state:'done'});await f.patch('3',{state:'done'});await f.patch('1',{state:'done'});
+ await f.history({status:{type:'idle'},turns:[{id:turn,status:'completed',completedAt:1}]});
+ const [{feedback}]=await f.feedback();
+ let page=await f.run('show','--id','2');
+ assert.equal(page.goal.state,'working');assert.equal(page.goal.execution.status,'queued');assert.equal(page.goal.storedState,'done');assert.equal(page.goal.progress,100);assert.equal(page.root.state,'working');
+ const next='00000000-0000-0000-0000-000000000011';
+ await f.history({turns:[{id:next,status:'interrupted',completedAt:null}]});
+ await f.run('activity','--event',String(feedback.changeId),'--state','working');
+ page=await f.run('show','--id','2');assert.equal(page.goal.state,'working');assert.equal(page.goal.execution.status,'checking');
+ assert.equal((await f.json('workspace/goals/2/goal.json')).state,'done');
+ await assert.rejects(f.json(f.selectionPath),{code:'ENOENT'},'display does not select work');
+ await f.history({turns:[{id:next,status:'inProgress',completedAt:null}]});
+ page=await f.run('show','--id','2');assert.equal(page.goal.execution.status,'working');
+ await f.history({turns:[{id:next,status:'completed',completedAt:2}]});
+ await f.run('activity','--event',String(feedback.changeId),'--state','completed');
+ page=await f.run('show','--id','2');assert.equal(page.goal.state,'done');assert.equal(page.root.state,'done');
+ // Marking a selected Goal Done also keeps its live activity until the turn ends.
+ await f.patch('2',{state:'idle'});await f.history({turns:[{id:next,status:'inProgress',completedAt:null}]});await f.run('work','--id','2');await f.patch('2',{state:'done'});
+ page=await f.run('show','--id','2');assert.equal(page.goal.state,'working');assert.equal(page.goal.storedState,'done');
+ await f.history({turns:[{id:next,status:'completed',completedAt:3}]});
+ assert.equal((await f.run('show','--id','2')).goal.state,'done');
 });
