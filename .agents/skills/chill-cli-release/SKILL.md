@@ -1,6 +1,6 @@
 ---
 name: chill-cli-release
-description: Use when preparing or executing a stable main promotion, version bump, release tag or distribution of chill-agent-cli. Not routine topic PR integration into develop.
+description: Use when preparing or executing a stable main promotion, version classification, version bump, release tag or distribution of chill-agent-cli. Not routine topic PR integration into develop.
 ---
 
 # Read before release

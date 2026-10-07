@@ -1,12 +1,12 @@
 {
   "name": "@game-dev-rta-club/chill-agent-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@game-dev-rta-club/chill-agent-cli",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "bundleDependencies": [
         "marked",
         "parse5",
