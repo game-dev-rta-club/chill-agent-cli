@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
+import {DatabaseSync} from 'node:sqlite';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
 
 const execute = promisify(execFile);
@@ -151,9 +152,9 @@ test('unassigned Goals save locally without enqueueing',async()=>{
 test('a crashed delivery can be checked concurrently without stealing a new lease', async () => {
   const f = await fixture();
   await f.feedback({}, {CHILL_TEST_DROP_AFTER_ADD:'1'});
-  const leases = join(f.root,'workspace/deliveries/locks/1');
-  await mkdir(leases,{recursive:true});
-  await writeFile(join(leases,'100.json'),JSON.stringify({pid:2147483647,released:false}));
+  const leases = new DatabaseSync(join(f.root,'workspace/coordination.sqlite'));
+  leases.prepare('INSERT INTO leases (key,token,pid) VALUES (?,?,?)').run('deliveries/locks/1','crashed-owner',2147483647);
+  leases.close();
   await Promise.all([f.run(['retry','--event','1']),f.run(['retry','--event','1']),f.run(['retry','--event','1'])]);
   assert.equal((await f.json('fake-queue.json')).length,1);
   assert.equal((await f.json('workspace/deliveries/1.json')).status,'queued');
