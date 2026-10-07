@@ -1,3 +1,4 @@
+import {readWorkspaceTheme,saveWorkspaceTheme} from './lib/workspace-theme.mjs';
 import {join} from 'node:path';
 import {writeJsonAtomically} from './lib/storage.mjs';
 import {projectProfile,selectProjectPort,projectExtensionEnabled} from './lib/project-workspace.mjs';
@@ -52,6 +53,7 @@ function shutdown(preserveTunnel=false) {
 
 // Fixed CLI commands handle input. Neither command nor chat ID comes from the browser.
 const assets = new Map([
+  ['/themes.css', ['themes.css', 'text/css; charset=utf-8']],
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
   ['/goals', ['index.html', 'text/html; charset=utf-8']],
@@ -163,6 +165,13 @@ const server = createServer(async (request, response) => {
     return response.end('Invalid request URL');
   }
   if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
+  if(path==='/api/workspace/theme'){
+    if(request.method==='GET')return sendJson(response,200,await readWorkspaceTheme());
+    if(request.method!=='POST')return sendJson(response,405,{error:'Method not allowed.'});
+    if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    try{return sendJson(response,200,await saveWorkspaceTheme(await readJson(request)));}
+    catch(error){return sendJson(response,400,{error:error.message});}
+  }
   const extensionAsset=extensions.asset(path);
   if(extensionAsset&&['GET','HEAD'].includes(request.method)){
     try{const data=await readFile(extensionAsset.file);response.writeHead(200,{'Content-Type':extensionAsset.type,...(extensionAsset.scope==='/'?{'Service-Worker-Allowed':'/'}:{})});return response.end(request.method==='HEAD'?undefined:data);}
@@ -336,7 +345,7 @@ const server = createServer(async (request, response) => {
   }
   try {
     let data = await readFile(fileURLToPath(new URL(`./public/${asset[0]}`, import.meta.url)));
-    if(asset[0]==='index.html') data=Buffer.from(data.toString().replace('__STYLE_NONCE__',styleNonce));
+    if(asset[0]==='index.html') data=Buffer.from(data.toString().replace('__STYLE_NONCE__',styleNonce).replace('__WORKSPACE_THEME__',(await readWorkspaceTheme()).theme));
     if (request.method === 'GET' && asset[0] === 'index.html') await recordServerUse(dataDirectory());
     if(asset[0]!=='index.html'){
       const etag='W/"'+createHash('sha256').update(data).digest('hex')+'"';
