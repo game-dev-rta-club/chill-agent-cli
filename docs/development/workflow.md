@@ -89,9 +89,13 @@ before pruning. Thereafter return to small slices.
 
 ## Promote a stable version
 
-Use a release PR from `develop` to `main` for a coherent tested version. Preserve
-shared ancestry with a merge commit rather than squash-merging the entire
-long-lived branch. Bring any hotfix on `main` back into `develop` immediately.
+Use a release PR from `develop` to `main` for a coherent tested version. Prefer
+a merge commit to preserve shared ancestry. If protected main requires squash
+and linear history, keep that protection: squash the checked promotion, then
+merge main back into develop immediately and verify identical trees. This
+restores the shared ancestor without reset/force-push. The synchronization adds
+no new source changes and uses the already-reviewed release tree. Bring any
+hotfix on `main` back into `develop` immediately.
 Do not let separate long-lived release branches accumulate.
 
 For two-repository changes, integrate the CLI first, then the app against an
