@@ -1,7 +1,7 @@
 ---
 keyPoints: >-
-  The opt-in SQLite foundation preserves numeric identities and change cursors in
-  isolated workspaces. Goal commands and Web support opt-in SQLite; migration and cutover are
+  The SQLite foundation preserves numeric identities and change cursors in
+  isolated workspaces. New Goal workspaces use SQLite by default; migration and cutover are
   separate work, with delivery records and editable files preserved explicitly.
 ---
 
@@ -10,14 +10,17 @@ keyPoints: >-
 The internal `openSqliteWorkspace` foundation creates a project-local
 `workspace.sqlite` with Goal, Conversation and Brief-version tables. It requires
 Node.js 24.15 or newer and uses `node:sqlite`, without a separate database service.
-Goal commands and Web use it when `CHILL_AGENT_STORAGE=sqlite` is set for a
-fresh data directory. Once created, the database is detected on later launches
-without the variable. Selecting `json` for that directory is rejected to prevent
-a parallel store. Existing JSON installations remain unchanged; setup does not
-select SQLite by default and there is no automatic migration.
+Goal commands and Web select SQLite for a fresh data directory. Once created,
+the database is detected on later launches. Selecting `json` for that directory
+is rejected to prevent a parallel store. Existing JSON installations with
+`workspace/schema.json` remain JSON; there is no automatic migration.
+`CHILL_AGENT_STORAGE=json` explicitly creates a legacy workspace for compatibility
+testing. `CHILL_AGENT_STORAGE=sqlite` refuses existing JSON data instead of
+silently converting or ignoring it.
 
-For a disposable checkout test, set `CHILL_AGENT_DATA_DIR` to a new directory
-and `CHILL_AGENT_STORAGE=sqlite`, then use the ordinary Goal CLI and Web server.
+For a disposable checkout test, set `CHILL_AGENT_DATA_DIR` to a new directory,
+then use the ordinary Goal CLI and Web server. No database service or storage
+variable is required.
 Published Goal, Conversation and Brief records live in SQLite; editable Brief
 sources and attachments keep their existing paths. Feedback delivery reads the
 same event API instead of opening an event JSON file directly.

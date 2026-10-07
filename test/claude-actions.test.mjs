@@ -8,7 +8,7 @@ import {promisify} from 'node:util';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {requestClaudeAction,confirmClaudeAction,inspectClaudeRequest,handleClaudeToolHook} from '../lib/claude-actions.mjs';
-import {createGoal,createClaudeRoot,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
+import {initializeStore,createGoal,createClaudeRoot,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
 import {assignGoal} from '../lib/goal-execution.mjs';
 import {deliverFeedback,readDeliveryState,updateDelivery} from '../lib/delivery.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
@@ -236,7 +236,7 @@ test('explicit recovery retains the offer ID, but processing retries never revea
 
 test('an automatic inbox failure does not hide an already confirmed action',async t=>{
   const f=await fixture(t),s=await f.start(),r=await s.request('create-goal',goalInput);
-  const events=join(process.env.CHILL_AGENT_DATA_DIR,'workspace/events');await mkdir(events,{recursive:true});await writeFile(join(events,'1.json'),'invalid JSON');
+  await initializeStore();const {DatabaseSync}=await import('node:sqlite');const db=new DatabaseSync(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/workspace.sqlite'));db.exec('DROP TABLE events');db.close();
   const result=await handleClaudeToolHook(s.hook(r,{prompt_id:randomUUID()}),{cwd:f.cwd});
   assert.match(context(result),/Created Goal #1/);assert.match(context(result),/Automatic feedback could not be checked/);
   assert.equal((await listGoals()).length,1);

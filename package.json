@@ -25,7 +25,7 @@
     "chill-agent-cli": "bin/chill-entry.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24.15"
   },
   "dependencies": {
     "marked": "18.0.14",

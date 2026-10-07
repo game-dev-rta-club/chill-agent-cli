@@ -32,7 +32,7 @@ The standalone distribution does not bundle an automatic continuation policy or 
 
 ## Standalone quickstart
 
-Requires **Node.js 24** and Git. The current Desktop harness connection supports **Codex Desktop on macOS**. Portable JavaScript contracts are also tested on Windows; this does not imply Windows Desktop integration.
+Requires **Node.js 24.15 or newer** and Git. The current Desktop harness connection supports **Codex Desktop on macOS**. Portable JavaScript contracts are also tested on Windows; this does not imply Windows Desktop integration.
 
 ```sh
 git clone https://github.com/game-dev-rta-club/chill-agent-cli.git
