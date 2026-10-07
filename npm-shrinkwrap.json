@@ -26,7 +26,7 @@
         "mermaid": "11.17.2"
       },
       "engines": {
-        "node": ">=20"
+        "node": ">=24.15"
       }
     },
     "node_modules/@antfu/install-pkg": {

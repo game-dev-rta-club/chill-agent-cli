@@ -9,7 +9,7 @@ const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.me
 
 test('public Goal commands persist SQLite records, preserve Letter relationships and reject parallel JSON',async t=>{
   const root=await mkdtemp(join(tmpdir(),'chill-sqlite-goals-'));t.after(()=>rm(root,{recursive:true,force:true}));
-  const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'sqlite',CHILL_AGENT_CODEX_PATH:'/missing/codex'};
+  const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   const goal=await run('create','--title','SQLite root');
   assert.equal(await readFile(goal.briefPath,'utf8'),'');
@@ -45,7 +45,7 @@ test('public Goal commands persist SQLite records, preserve Letter relationships
 test('isolated SQLite Web accepts a reply and CLI reads it after server shutdown',async t=>{
   const {spawn}=await import('node:child_process');const {once}=await import('node:events');
   const root=await mkdtemp(join(tmpdir(),'chill-sqlite-web-'));
-  const env={...process.env,PORT:'0',CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'sqlite',CHILL_AGENT_CODEX_PATH:'/missing/codex'};
+  const env={...process.env,PORT:'0',CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   await run('create','--title','Web SQLite');
   const letter=await run('letter','--id','1','--title','Choice','--text','Choose');
@@ -76,4 +76,18 @@ test('isolated SQLite Web accepts a reply and CLI reads it after server shutdown
   child.kill('SIGTERM');await exit;
   const shown=await run('show','--id','1');assert.equal(shown.letters.length,0);
   assert.ok(shown.conversation.some(event=>event.text==='Web reply'));
+});
+
+test('existing JSON workspaces remain JSON until an explicit separate migration',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'chill-legacy-selection-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'json'};
+ const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
+ await run('create','--title','Legacy');
+ delete env.CHILL_AGENT_STORAGE;
+ await run('comment','--id','1','--text','Still legacy');
+ assert.equal(JSON.parse(await readFile(join(root,'workspace/events/1.json'))).text,'Still legacy');
+ await assert.rejects(readFile(join(root,'workspace/workspace.sqlite')),{code:'ENOENT'});
+ const original=await readFile(join(root,'workspace/goals/1/goal.json'));
+ env.CHILL_AGENT_STORAGE='sqlite';await assert.rejects(run('show','--id','1'),/explicit migration/);
+ assert.deepEqual(await readFile(join(root,'workspace/goals/1/goal.json')),original);
 });
