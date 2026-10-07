@@ -117,3 +117,6 @@ Use `--limit` to bound a history page. JSON retains its compatibility reader.
 Hierarchy/version metadata and open-Letter aggregation still grow with workspace
 size; the tree command and execution/delivery lookup have separate optimization
 work remaining.
+
+Use the [offline migration rehearsal](sqlite-migration.md) to import and verify
+a schema-7 copy without activating its delivery state.
