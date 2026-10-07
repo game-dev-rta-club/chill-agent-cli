@@ -46,7 +46,7 @@ try {
  const response=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().includes('/extensions/'));
  await menuToggle.click();const changed=await (await response).json();assert.ok(changed[0].activity,'menu saves return activity snapshots');
  await page.waitForFunction(()=>document.querySelector('[data-header-extension]').getAttribute('aria-pressed')==='true');
- assert.equal(await page.getByRole('heading',{name:'AutoContinue 0',exact:true}).isVisible(),true);
+ assert.equal(await page.getByRole('heading',{name:'AutoContinue',exact:true}).isVisible(),true);
  await menuToggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]').getAttribute('aria-pressed')==='false');
  assert.equal((await (await fetch(url+'/api/goals/2/extensions')).json())[0].enabled,false);
 
