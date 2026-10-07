@@ -245,9 +245,9 @@ function timelineMarkup(id) {
     const time=`<time datetime="${event.at.toISOString()}">${event.at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
     return `<li id="event-${event.id}" class="timeline-event comment-event">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
-      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${letter.status!=='open'?`<span class="answered-label">${letter.status==='notice'?'No reply needed':letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
+      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
-      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>`<a class="event-image-link" href="/api/images/${escapeHTML(id)}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="/api/images/${escapeHTML(id)}" alt="Attached image"></a>`).join('')}${letter?`<button type="button" class="action letter-answer-toggle" data-action="answer-letter" data-letter-id="${event.id}">${letter.status==='notice'?'Comment':'Answer'}</button>`:''}</article></li>${event.author==='user'?deliveryMarkup(event,work.get(event.changeId),continued.get(event.changeId)):''}`;
+      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>`<a class="event-image-link" href="/api/images/${escapeHTML(id)}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="/api/images/${escapeHTML(id)}" alt="Attached image"></a>`).join('')}${letter?`<button type="button" class="action letter-answer-toggle" data-action="answer-letter" data-letter-id="${event.id}">Answer</button>`:''}</article></li>${event.author==='user'?deliveryMarkup(event,work.get(event.changeId),continued.get(event.changeId)):''}`;
     }).join('');
   }).join('');
 }
@@ -608,15 +608,14 @@ function openNoteEditor(note) {
   form.querySelector('.save-error')?.remove();
   form.hidden = false;
   const answering=note.kind==='letter';
-  const notice=answering&&events.find(e=>e.id===note.source?.eventId)?.replyRequired===false;
-  form.querySelector('[data-editor-heading]').textContent=notice?'Comment':answering?'Answer':'Annotation';
-  form.querySelector('label[for="annotation-comment"]').textContent=notice?'Comment':answering?'Answer':'Annotation';
-  form.querySelector('[data-action="close-annotation"]').setAttribute('aria-label',notice?'Close comment':answering?'Close answer':'Close annotation');
+  form.querySelector('[data-editor-heading]').textContent=answering?'Answer':'Annotation';
+  form.querySelector('label[for="annotation-comment"]').textContent=answering?'Answer':'Annotation';
+  form.querySelector('[data-action="close-annotation"]').setAttribute('aria-label',answering?'Close answer':'Close annotation');
   form.querySelector('.note-comment').hidden=!answering;
   form.querySelector('.annotation-quote').textContent = noteSourceLabel(note) + noteLabel(note);
   const input = form.querySelector('textarea');
   input.value = note.text;
-  input.placeholder=notice?'Add a comment (optional)':answering?'Write your answer':'Add a note';
+  input.placeholder=answering?'Write your answer':'Add a note';
   form.querySelector('.note-delete').hidden = !notesFor().some(item => item.id === note.id);
   refreshImageControl('annotation');
   clearSelections();

@@ -144,12 +144,12 @@ try {
  for(const viewport of [{width:1200,height:900},{width:390,height:844}]){
   await page.setViewportSize(viewport);await go(`/letter/${notice.id}`);
   const card=page.locator(`#event-${notice.id}`);await readCard(card);
-  await card.getByText('No reply needed',{exact:true}).waitFor();
-  assert.equal(await card.getByRole('button',{name:'Answer',exact:true}).count(),0);
-  await card.getByRole('button',{name:'Comment',exact:true}).click();
-  assert.equal(await editor().locator('[data-editor-heading]').innerText(),'Comment');
+  assert.equal(await card.getByText('No reply needed',{exact:true}).count(),0);
+  assert.equal(await card.getByRole('button',{name:'Comment',exact:true}).count(),0);
+  await card.getByRole('button',{name:'Answer',exact:true}).click();
+  assert.equal(await editor().locator('[data-editor-heading]').innerText(),'Answer');
   await editor().locator('textarea').fill('Optional feedback');await send(editor());
-  await card.getByText('No reply needed',{exact:true}).waitFor();
+  assert.equal(await card.getByText('No reply needed',{exact:true}).count(),0);
   assert.equal(await page.locator('.letter-title').count(),0);
   await page.screenshot({path:join(root,`notice-${viewport.width}.png`)});
  }

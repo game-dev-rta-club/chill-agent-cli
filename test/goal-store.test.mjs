@@ -179,14 +179,14 @@ test('runtime rejects obsolete schemas without modifying data',async t=>{
  await assert.rejects(f.run('tree'),/Unsupported workspace/);assert.equal(await readFile(path,'utf8'),old);
 });
 
-test('outcome Letters stay reply-free through comments, receipt and index reads',async t=>{
+test('legacy no-reply Letters preserve counts without exposing a separate message kind',async t=>{
  const f=await fixture(t);await f.run('create','--title','Outcomes');
  const question=await f.run('letter','--id','1','--title','Choose','--text','A or B?');
  const notice=await f.run('letter','--id','1','--no-reply','--title','Ready','--text','Open the artifact.');
  assert.equal(notice.replyRequired,false);
  assert.deepEqual((await f.run('show','--id','1')).letters.map(e=>e.id),[question.id]);
  assert.equal((await f.run('tree'))[0].letterCount,1);
- assert.match((await f.invoke('show','--id','1','--format','text')).stdout,/No reply needed/);
+ assert.doesNotMatch((await f.invoke('show','--id','1','--format','text')).stdout,/No reply needed|Comment target · Notice/);
  await f.feedback('1',{annotations:[{kind:'letter',source:{kind:'comment',eventId:notice.id},text:'An optional correction'}]});
  const page=await f.run('show','--id','1');assert.equal(page.goal.storedState,'idle');
  assert.deepEqual(page.letters.map(e=>e.id),[question.id]);

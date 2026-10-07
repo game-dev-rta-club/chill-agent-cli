@@ -45,12 +45,10 @@ Use `goal comment --id 1 --text-file result.txt` for progress or results. Use
 `goal letter --id 1 --title "Choose a direction" --text-file question.txt` when
 the user needs to answer. Files preserve multiline text without shell escaping.
 
-Use `goal letter --no-reply --id 1 --title "Ready to use" --text-file result.txt`
-for a usable outcome the user should receive while away. It uses the configured
-Letter notification route, displays “No reply needed”, and stays out of pending
-Letter counts. Optional comments retain their link to the outcome. No viewing,
-reply or receipt action is required before the agent continues. Old Letters
-without this option retain their question behavior.
+Letter has one presentation and one Answer action. Ordinary results belong in
+Comments and do not require acknowledgement before work continues. The old
+`--no-reply` option is compatibility-only; historical records stay out of pending
+counts, so updating does not turn old results into new unanswered questions.
 
 Message bodies already accept static HTML such as paragraphs, lists, tables,
 links and disclosures, alongside Markdown. Both authors use the same sanitizer;
