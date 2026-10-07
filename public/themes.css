@@ -37,8 +37,6 @@
 
 :root[data-theme]:not([data-theme="gradient-mint"]) .app-shell { background-image:var(--theme-backdrop); }
 :root[data-theme^="dark-"] .action-primary { color:var(--canvas); }
-:root[data-theme^="dark-"] .letter-comment { --letter-header:var(--surface-soft); }
-:root[data-theme^="dark-"] .letter-comment.is-answered { --letter-border:var(--line); }
 .theme-panel { width:min(440px,calc(100vw - 24px)); max-height:calc(100dvh - 90px); overflow:auto; }
 .theme-panel fieldset { border:0; padding:0; margin:20px 0; min-width:0; }
 .theme-panel legend { font-size:12px; font-weight:650; margin-bottom:10px; }
@@ -49,3 +47,18 @@
 .theme-grid button:disabled { opacity:.65; }
 .theme-swatch { display:block; height:34px; border:1px solid #80808050; border-radius:5px; }
 .theme-message { min-height:2.8em; font-size:12px; color:var(--muted); }
+/* Status meaning does not change when a project changes its decorative palette. */
+:root[data-theme] { --state-pending:#84603d; --state-pending-surface:#f8f1e5; --state-pending-border:#c6a978; --state-done:#477962; --state-done-surface:#eef6f1; --state-done-border:#80b9a5; --brief-ink:var(--state-done); --brief:var(--state-done-border); --letter-ink:var(--state-pending); --letter:var(--state-pending-border); --letter-border:var(--state-pending-border); --letter-surface:var(--state-pending-surface); }
+:root[data-theme^="dark-"] { --state-pending:#e2b97f; --state-pending-surface:#30291f; --state-pending-border:#9f8056; --state-done:#94c6ac; --state-done-surface:#202e27; --state-done-border:#5d8c74; }
+:root[data-theme] .timeline-entry.letter-comment { --letter-header:var(--state-pending-surface); }
+:root[data-theme] .letter-comment.is-answered { --letter-header:var(--state-done-surface); --letter-border:var(--state-done-border); --letter-ink:var(--state-done); --letter:var(--state-done-border); }
+:root[data-theme] .status:is(.working,.waiting,.paused,.unknown) { color:var(--state-pending); }
+:root[data-theme] .status.working .dot { border-top-color:var(--state-pending); }
+:root[data-theme] .status.done,.answered-label { color:var(--state-done); }
+:root[data-theme] .delivery-entry:is([data-state="sending"],[data-state="working"],[data-state="queued"]) .delivery-dot { border-top-color:var(--state-pending); }
+:root[data-theme] .delivery-entry:is([data-state="sending"],[data-state="working"]) .delivery-heading strong { color:var(--state-pending); }
+:root[data-theme] .delivery-entry[data-state="completed"] .delivery-dot::before { background:var(--state-done); }
+:root[data-theme] .delivery-entry[data-state="paused"] .delivery-dot::before { border-color:var(--state-pending); }
+:root[data-theme] .agent-run-state .status.paused svg { stroke:var(--state-pending); }
+:root[data-theme] .agent-trigger[data-state="working"] .agent-antenna-light { fill:var(--state-pending); }
+:root[data-theme^="dark-"] .is-on .header-letter-count { color:var(--canvas); }
