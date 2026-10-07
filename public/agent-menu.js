@@ -37,7 +37,7 @@ export function agentMarkup(data) {
  const work=data.work,queue=data.queue;
  return `<section class="agent-section agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</section>
  <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>
- <section class="agent-section"><h3>Activity</h3><div class="agent-current">${workMarkup(work)}</div>${runActivityMarkup(data.extensions)}</section>
+ <section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current">${workMarkup(work)}</div><div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div></div>${(data.currentMessages||[]).map(m=>`<p class="agent-run-text">${esc(m.text)}</p>`).join('')}${work?.status==='working'&&!data.currentMessages?.length?'<p class="agent-muted">Waiting for a public update…</p>':''}</section>
  <section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>
  ${data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions)}`;
 }
@@ -109,11 +109,28 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   finally{saving=false;}
  }
  content.addEventListener('click',event=>{
+  const control=event.target.closest('[data-agent-control]');if(control){void controlCurrent(control.dataset.agentControl);return;}
   const refresh=event.target.closest('[data-run-refresh]');if(refresh){void loadRun(refresh.closest('[data-extension-run]'),{fresh:true});return;}
   const setup=event.target.closest('[data-extension-setup]');if(setup){void requestSetup(setup.dataset.extensionSetup);return;}
   const button=event.target.closest('[data-agent-extension]');if(!button)return;
   void saveExtension(button.dataset.agentExtension,button.getAttribute('aria-pressed')!=='true',`[data-agent-extension="${button.dataset.agentExtension}"]`);
  });
+ async function controlCurrent(action){
+  if(saving||!current)return;
+  const id=getGoalId(),snapshot=current,token=++request;controller?.abort();saving=true;
+  content.querySelectorAll('input,select,button').forEach(el=>el.disabled=true);
+  const message=content.querySelector('[data-agent-control-message]');if(message)message.textContent=action==='stop'?'Pausing…':'Resuming…';
+  try{
+   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'current',action,threadId:snapshot.threadId,turnId:snapshot.control.turnId,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
+   const result=await response.json();if(!response.ok)throw Error(result.error||'Action unconfirmed. Refresh to check.');
+   if(opened&&id===getGoalId()&&token===request)render({...result,extensions:snapshot.extensions});
+  }catch(error){
+   if(opened&&id===getGoalId()&&token===request){
+    render({...snapshot,capabilities:{...snapshot.capabilities,stop:false,resume:false}});
+    const target=content.querySelector('[data-agent-control-message]');if(target)target.textContent='Action unconfirmed. Refresh to check.';
+   }
+  }finally{saving=false;refreshButton.disabled=false;}
+ }
  content.addEventListener('change',async event=>{
   if(event.target.matches('[data-extension]')){
    void saveExtension(event.target.dataset.extension,event.target.checked,`[data-extension="${event.target.dataset.extension}"]`);return;

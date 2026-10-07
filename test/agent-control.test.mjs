@@ -32,6 +32,12 @@ test('stop alone never fabricates a paused state; unsupported UI omits controls'
  const record={action:'stop',turnId,target};assert.equal(controlView(record,{id:turnId,status:'interrupted',completedAt:null}).status,'unknown');
  assert.equal(controlView(record,{id:next}),null);
  const data={connected:true,settings:{},usage:[],queue:{items:[]},work:{status:'paused',...target},control:{status:'paused'},capabilities:{resume:true}};
- assert.match(activityControlMarkup({...data,status:'paused'}),/data-activity-control="resume"/);assert.doesNotMatch(agentMarkup(data),/data-agent-control/);assert.match(agentMarkup(data),/Paused/);
+ assert.match(activityControlMarkup({...data,status:'paused'}),/data-activity-control="resume"/);assert.match(agentMarkup(data),/data-agent-control="resume"/);assert.match(agentMarkup(data),/Paused/);
+ assert.doesNotMatch(agentMarkup({...data,capabilities:{}}),/data-agent-control=/);
+});
+
+test('Activity shows only current public output and adjacent controls, not run history',()=>{
+ const data={connected:true,settings:{},usage:[],queue:{items:[]},work:{status:'working',goalId:'2',title:'Task'},capabilities:{stop:true},currentMessages:[{text:'<update>'}],extensions:[{id:'continuation',activity:{runs:[{id:'old',at:'2026-01-01',status:'completed'}]}}]};
+ const html=agentMarkup(data);assert.match(html,/data-agent-control="stop"/);assert.match(html,/&lt;update&gt;/);assert.doesNotMatch(html,/Recent runs|Run log|data-run-id/);
  assert.doesNotMatch(agentMarkup({...data,capabilities:{}}),/data-agent-control=/);
 });
