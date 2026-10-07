@@ -1,6 +1,6 @@
 ---
 keyPoints: >-
-  Fresh setup gives each real project folder its own store, Web port, runtime and
+  Fresh setup gives each real project folder its own store, Web port, runtime, theme and
   extension selection. Existing explicitly bound stores stay intact; isolate a new
   project with --isolated instead of moving existing conversations implicitly.
 ---
@@ -52,6 +52,18 @@ without a selection uses the package's extensions. The composed package offers
 `continuation`, `notifications` (host-tool delivery), `web-notifications`, and
 `public-link`. Selection does not install arbitrary extension code. Disabling
 an extension retains its saved settings for future use.
+
+## Recognize projects by color
+
+Open **More → Color theme** to choose one of six hues in Gradient, Light or Dark.
+Gradient Mint is the original appearance. Selection is stored in that workspace,
+so a reload or another device uses the same theme; other projects are unchanged.
+An already open page picks up changes when it regains focus or becomes visible.
+A failed save keeps the previous theme.
+
+The theme colors the workspace controls and reading surfaces. Attached images
+and authored HTML Briefs retain their own colors. Legacy shared stores have one
+shared theme; different Root Goals in the same store are not separate projects.
 
 ## Preserve an existing workspace
 
