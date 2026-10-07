@@ -66,3 +66,10 @@ remain local at startup. The service serializes transitions, reports starting,
 ready or failed, revokes the allowed public origin on stop/failure, and leaves
 local Web available. It does not choose credentials, create Cloudflare accounts
 or render a QR. Extension stop runs before shutdown finishes.
+
+Use `workspacePort()` from the public extension API when building local Web URLs
+or CLI command prefixes. It honors an explicit `PORT`, then the isolated
+project's saved automatic port, and finally the legacy default. Re-read it after
+starting a server: startup can replace a port taken by another process.
+Do not hardcode 4173 in an extension. The local address is distinct from the
+public origin returned by `readPublicOrigin()`.
