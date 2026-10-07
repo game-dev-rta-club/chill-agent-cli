@@ -15,3 +15,15 @@ test('theme stays with its workspace; invalid input cannot overwrite it',async t
  assert.equal((await readWorkspaceTheme(a)).theme,'dark-sand');
  await writeFile(join(a,'appearance.json'),JSON.stringify({theme:'removed-theme'}));assert.equal((await readWorkspaceTheme(a)).theme,'gradient-mint');
 });
+
+// Exercise the copied package boundary, not only source-tree imports.
+test('prepared runtime includes theme catalog and stylesheet',async t=>{
+ const {copyRuntime}=await import('../lib/runtime-package.mjs');
+ const {pathToFileURL,fileURLToPath}=await import('node:url');
+ const {readFile}=await import('node:fs/promises');
+ const root=await mkdtemp(join(tmpdir(),'theme-runtime-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ await copyRuntime(fileURLToPath(new URL('../',import.meta.url)),root);
+ const api=await import(pathToFileURL(join(root,'lib/workspace-theme.mjs')));
+ assert.equal((await api.readWorkspaceTheme(join(root,'data'))).theme,'gradient-mint');
+ assert.match(await readFile(join(root,'public/themes.css'),'utf8'),/dark-iris/);
+});
