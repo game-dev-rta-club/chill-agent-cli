@@ -2,7 +2,7 @@
 keyPoints: >-
   Create and verify an offline SQLite migration bundle without modifying a legacy
   schema-7 workspace. Preserve record identities and all original files; archived
-  delivery state is never activated. Restoration and live cutover remain separate.
+  delivery state is never activated. Restore exact original files offline before planning live cutover.
 ---
 
 # Rehearse a legacy workspace import
@@ -68,10 +68,42 @@ The process reads one file payload at a time. Inventory and path metadata remain
 in memory; import is a one-time full scan, not a normal workspace read path.
 A transaction may span local file reads because this is a private, offline database.
 
+## Restore the original files offline
+
+```sh
+node bin/chill-migrate.mjs restore \
+  --bundle /absolute/new-offline-bundle \
+  --destination /absolute/new-offline-workspace
+node bin/chill-migrate.mjs verify-restored \
+  --bundle /absolute/new-offline-bundle \
+  --destination /absolute/new-offline-workspace
+```
+
+Restoration first verifies the bundle and then writes a new private staging
+folder. It restores every original file, including JSON records, editable Briefs,
+attachments, receipts and historical leases. It compares contents, paths, sizes
+and permission bits against the captured inventory, and rechecks the bundle
+before publishing the destination. The verifier can be rerun in a separate process
+and rejects missing, changed or additional files. An existing destination is
+never overwritten; use a new sibling directory for another attempt.
+
+Absolute paths, traversal, drive paths, Windows device names, path aliases and
+symbolic links are rejected. Restoration requires a filesystem capable of
+reproducing the recorded permission bits; a mismatch fails verification instead
+of silently claiming an exact restore. Directory permissions are private, and
+ownership, timestamps and empty directories are outside the archive contract.
+
+This reconstructs the **captured legacy snapshot**, not a live rollback. It starts
+no server or harness and does not make old leases current. Keep the destination
+offline until activation has reconciled connection and delivery state. If writes
+occurred after the snapshot, retain those separately and reconcile them first;
+this command intentionally cannot overwrite an active workspace or erase newer
+messages. A crash can leave a partial destination: run `verify-restored` before
+using it, and retry into a new directory if it fails.
+
 ## Continue toward cutover
 
-After a real copy passes verification, test restoring the original files to a
-separate directory and compare bytes. Define activation separately: editable files
+After a real copy and its offline restoration pass verification, define activation separately: editable files
 and attachments stay as files, while receipts must retain their semantics without
 replaying completed or uncertain sends. Historical lock files are evidence, not
 live leases. Inventory and prepare settings outside the workspace independently.
