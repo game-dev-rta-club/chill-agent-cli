@@ -1,0 +1,32 @@
+import {test} from 'node:test';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+const exec=promisify(execFile);
+for(const storage of ['json','sqlite'])test(`archive retains history and IDs, hides entire roots: ${storage}`,async t=>{
+ const root=await mkdtemp(join(tmpdir(),'chill-archive-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const code=`
+ import assert from 'node:assert/strict';
+ import * as store from ${JSON.stringify(new URL('../lib/goal-store.mjs',import.meta.url).href)};
+ import {listWebRecords} from ${JSON.stringify(new URL('../lib/web-records.mjs',import.meta.url).href)};
+ const a=await store.createGoal({title:'keep'});
+ const b=await store.createGoal({title:'test'});
+ const c=await store.createGoal({title:'child',parentId:b.id});
+ await assert.rejects(store.updateGoal(c.id,{archived:true}),/root Goal/);
+ await assert.rejects(store.updateGoal(b.id,{archived:'true'}),/boolean/);
+ await store.updateGoal(b.id,{archived:true});
+ assert.deepEqual((await store.listGoals()).map(g=>g.id),[a.id]);
+ assert.deepEqual((await listWebRecords()).map(g=>g.id),[a.id]);
+ assert.equal((await store.readGoal(c.id)).title,'child');
+ assert.equal((await store.listGoals({includeArchived:true})).length,3);
+ await assert.rejects(store.createGoal({title:'new child',parentId:b.id}),/Restore/);
+ await assert.rejects(store.updateGoal(b.id,{state:'done'}),/unfinished/);
+ const next=await store.createGoal({title:'next'});assert.equal(next.id,'4');
+ await store.updateGoal(b.id,{archived:false});
+ assert.deepEqual((await store.listGoals()).map(g=>g.id),['1','2','3','4']);
+ assert.equal((await listWebRecords()).length,4);
+ `;
+ await exec(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:storage},maxBuffer:1024*1024});
+});
