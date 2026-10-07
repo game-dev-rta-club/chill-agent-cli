@@ -1,10 +1,10 @@
-import {themes,defaultTheme,validTheme} from './theme-catalog.js';
+import {themes,defaultTheme,validTheme,browserThemeColor} from './theme-catalog.js';
 export function createThemeMenu({button,closeMore,restoreMore}) {
  const panel=document.createElement('section');panel.className='theme-panel extension-panel';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Color theme');document.body.append(panel);
  panel.innerHTML='<div class="extension-panel-heading"><h2>Color theme</h2><button type="button" aria-label="Close color theme">×</button></div><p class="agent-muted">Saved for this project, on all your devices.</p>'+['gradient','light','dark'].map(kind=>`<fieldset><legend>${{gradient:'Gradient',light:'Light',dark:'Dark'}[kind]}</legend><div class="theme-grid">${themes.filter(t=>t.kind===kind).map(t=>`<button type="button" data-theme-choice="${t.id}" aria-label="${kind} ${t.name}" aria-pressed="false"><span class="theme-swatch swatch-${t.id}" aria-hidden="true"></span><span>${t.name}</span></button>`).join('')}</div></fieldset>`).join('')+'<p class="theme-message" role="status"></p>';
  let saved=document.documentElement.dataset.theme||defaultTheme,busy=false,revision=0;
  const status=panel.querySelector('[role=status]');
- function apply(id){if(!validTheme(id))return;saved=id;document.documentElement.dataset.theme=id;for(const b of panel.querySelectorAll('[data-theme-choice]'))b.setAttribute('aria-pressed',String(b.dataset.themeChoice===id));}
+ function apply(id){if(!validTheme(id))return;saved=id;document.documentElement.dataset.theme=id;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',browserThemeColor(id));for(const b of panel.querySelectorAll('[data-theme-choice]'))b.setAttribute('aria-pressed',String(b.dataset.themeChoice===id));}
  function close(restore=false){panel.hidden=true;button.setAttribute('aria-expanded','false');if(restore){restoreMore();button.focus();}}
  async function refresh(){const version=revision;try{const r=await fetch('/api/workspace/theme',{cache:'no-store'});if(!r.ok)throw Error();const value=await r.json();if(!busy&&version===revision)apply(value.theme);}catch{if(!panel.hidden&&!busy)status.textContent='Could not load the saved theme. Try again.';}}
  button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');

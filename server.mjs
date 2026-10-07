@@ -1,3 +1,4 @@
+import {browserThemeColor} from './public/theme-catalog.js';
 import {readWorkspaceTheme,saveWorkspaceTheme} from './lib/workspace-theme.mjs';
 import {join} from 'node:path';
 import {writeJsonAtomically} from './lib/storage.mjs';
@@ -345,7 +346,7 @@ const server = createServer(async (request, response) => {
   }
   try {
     let data = await readFile(fileURLToPath(new URL(`./public/${asset[0]}`, import.meta.url)));
-    if(asset[0]==='index.html') data=Buffer.from(data.toString().replace('__STYLE_NONCE__',styleNonce).replace('__WORKSPACE_THEME__',(await readWorkspaceTheme()).theme));
+    if(asset[0]==='index.html'){const {theme}=await readWorkspaceTheme();data=Buffer.from(data.toString().replace('__STYLE_NONCE__',styleNonce).replace('__WORKSPACE_THEME__',theme).replace('__BROWSER_THEME_COLOR__',browserThemeColor(theme)));}
     if (request.method === 'GET' && asset[0] === 'index.html') await recordServerUse(dataDirectory());
     if(asset[0]!=='index.html'){
       const etag='W/"'+createHash('sha256').update(data).digest('hex')+'"';
