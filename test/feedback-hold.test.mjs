@@ -51,6 +51,7 @@ test('queued pause preserves comments; next comment and held input become one qu
  await f.stop(a);assert.equal((await readAgentActivity(a.goalId)).status,'paused');
  let pending=await f.queue();assert.equal(pending.data.length,1);assert.match(pending.data[0].input[0].text,/Other work/);
  assert.equal((await readFeedbackHold(a.goalId)).phase,'paused');
+ assert.deepEqual((await collectHookFeedback({threadId:thread,turnId:turn})).map(e=>e.eventId),[other.changeId],'Unselected Goals are offered while manually paused input stays held');
  const stored=JSON.parse(await readFile(join(f.dir,'workspace/events',a.changeId+'.json'),'utf8'));assert.equal(stored.text,'Make it blue');
  const b=await f.feedback('Actually green and small');await deliverFeedback(b.changeId);
  pending=await f.queue();assert.equal(pending.data.length,2);
@@ -60,6 +61,7 @@ test('queued pause preserves comments; next comment and held input become one qu
  assert.deepEqual(payload.messages.map(m=>[m.eventId,m.text]),[[a.changeId,'Make it blue'],[b.changeId,'Actually green and small']]);
  assert.doesNotMatch(merged,/Other work/);assert.equal(f.requests.filter(r=>r.method==='thread-follower-interrupt-turn'&&r.params.expectedTurnId===turn).length,0);
  assert.equal((await readDeliveryState(a.changeId)).batchId,(await readDeliveryState(b.changeId)).batchId);
+ assert.deepEqual(await collectHookFeedback({threadId:thread,turnId:turn}),[],'Resumed bundles keep one native delivery and are not split into hook notices');
  await deliverFeedback(b.changeId);assert.equal((await f.queue()).data.length,2);
 }));
 test('saved input can be paused before dispatch and resumed without a new comment',()=>fixture(async f=>{
@@ -146,4 +148,20 @@ test('pause wins while delivery is preparing; preparation cannot enqueue the hel
  }
  const start=Date.now();await f.stop(a);assert.ok(Date.now()-start<1000,'Pause does not wait for connection preparation');
  await sending;assert.equal((await f.queue()).data.length,0);assert.equal((await readFeedbackHold(a.goalId)).phase,'paused');
+}));
+
+
+test('pausing deferred feedback preserves unrelated live work and cannot be undone by deferment',()=>fixture(async f=>{
+ const a=await f.feedback('Later request');await deliverFeedback(a.changeId);
+ await f.history({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}],items:{[turn]:[]}});
+ const {recordActivity}=await import('../lib/delivery.mjs');
+ await collectHookFeedback({threadId:thread,turnId:turn});
+ await recordActivity(a.changeId,'deferred',thread);
+ const activity=await readAgentActivity(a.goalId,{fresh:true});assert.equal(activity.status,'queued');assert.equal(activity.turnId,null);
+ await f.stop(a);
+ assert.equal((await readFeedbackHold(a.goalId)).sourceTurnId,null);
+ assert.equal((await readFeedbackHold(a.goalId)).phase,'paused');
+ assert.equal(f.requests.filter(r=>r.method==='thread-follower-interrupt-turn'&&r.params.expectedTurnId===turn).length,0);
+ await assert.rejects(recordActivity(a.changeId,'deferred',thread),/unclaimed queued/);
+ assert.deepEqual(await collectHookFeedback({threadId:thread,turnId:randomUUID()}),[]);
 }));

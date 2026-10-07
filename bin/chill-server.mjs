@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {projectProfile,selectProjectPort,projectExtensionEnabled} from '../lib/project-workspace.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -10,18 +11,20 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { dataDirectory } from '../lib/goal-store.mjs';
 import { serverOptions } from '../lib/server-lifecycle.mjs';
 import { cloudflaredPath, tunnelStatePath } from '../lib/tunnel.mjs';
+import {stopManagedTunnel} from '../lib/managed-tunnel.mjs';
 import { readMessageSettings } from '../lib/message-settings.mjs';
 
 const execute = promisify(execFile);
 const xml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 
-async function main() {
+async function main(attempt=0) {
   if (showHelp('server', process.argv.slice(2))) return;
   const [command = 'start', ...args] = process.argv.slice(2);
   parseOptions(`server ${command}`, args);
   if (process.platform !== 'darwin') throw new Error('Background startup uses macOS launchd. Use npm start -- --idle-timeout 3d on this platform.');
+  if(['start','restart'].includes(command)&&!process.env.PORT&&projectProfile())await selectProjectPort();
   const { port, duration, tunnel: quick, configured } = serverOptions(args);
-  const remote = configured ? (await readMessageSettings()).remote : { mode: quick ? 'quick' : 'off' };
+  const remote = configured ? (projectExtensionEnabled('public-link')?(await readMessageSettings()).remote:{mode:'off'}) : { mode: quick ? 'quick' : 'off' };
   const tunnel = remote.mode !== 'off';
   if (port === 0) throw new Error('Background startup requires a fixed PORT (default 4173).');
   const directory = dataDirectory();
@@ -56,15 +59,29 @@ async function main() {
   }
   if (command === 'stop') {
     if (initial) await execute('/bin/launchctl', ['bootout', target]);
+    await stopManagedTunnel(directory,port);
     console.log('Stopped');
     return;
   }
-  if (pid) throw new Error(`Server is already running at ${url}. Use npm run server:stop before changing its settings.`);
+  if(command==='restart' && pid){
+    const oldConfig=await readFile(join(runtime,'server.plist'),'utf8');
+    if(oldConfig.includes('CHILL_AGENT_MANAGED_TUNNEL')){
+      process.kill(Number(pid),'SIGUSR2');
+      for(let i=0;i<100;i++){if(!/^\s*pid = (\d+)$/m.test(await state()))break;await delay(100);}
+      if(/^\s*pid = (\d+)$/m.test(await state()))throw Error('Web is still stopping; tunnel was preserved.');
+    }
+  }
+  if (pid && command!=='restart') throw new Error(`Server is already running at ${url}. Use npm run server:stop before changing its settings.`);
   const connector = tunnel ? await cloudflaredPath() : null;
-  if (initial) await execute('/bin/launchctl', ['bootout', target]);
+  if(!tunnel)await stopManagedTunnel(directory,port);
+  if (initial) {
+    await execute('/bin/launchctl', ['bootout', target]);
+    for(let i=0;i<100 && await state();i++)await delay(100);
+    if(await state())throw Error('Previous Web service is still stopping. Retry once it stops.');
+  }
   await mkdir(runtime, { recursive: true });
   const entry = fileURLToPath(new URL('../server.mjs', import.meta.url));
-  const environment = { CHILL_AGENT_DATA_DIR: directory, PORT: String(port), CHILL_AGENT_SERVER_STARTED_AT: String(Date.now()) };
+  const environment = { CHILL_AGENT_DATA_DIR: directory, PORT: String(port), CHILL_AGENT_MANAGED_TUNNEL:'1', CHILL_AGENT_SERVER_STARTED_AT: String(Date.now()) };
   if (process.env.CHILL_AGENT_CODEX_PATH) environment.CHILL_AGENT_CODEX_PATH = process.env.CHILL_AGENT_CODEX_PATH;
   if (process.env.CHILL_AGENT_EXTENSIONS) environment.CHILL_AGENT_EXTENSIONS = process.env.CHILL_AGENT_EXTENSIONS;
   if (connector) environment.CHILL_AGENT_CLOUDFLARED_PATH = connector;
@@ -99,6 +116,8 @@ async function main() {
     await delay(100);
   }
   await execute('/bin/launchctl', ['bootout', target]);
+  await stopManagedTunnel(directory,port);
+  if(attempt<2&&!process.env.PORT&&projectProfile()&&(await readFile(log,'utf8')).includes('is in use')){await selectProjectPort(directory,{force:true});return main(attempt+1);}
   throw new Error(`Server did not stay running. Check ${log}`);
 }
 

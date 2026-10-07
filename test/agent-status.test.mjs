@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {usageWindows} from '../lib/agent-status.mjs';
+import {usageWindows} from '../lib/codex-desktop-connection.mjs';
 const exec=promisify(execFile),thread='00000000-0000-0000-0000-000000000001';
 test('usage uses all account buckets and windows, distinguishes missing values, and never includes credits',()=>{
  const result=usageWindows({credits:{balance:'62500'},rateLimits:{primary:{usedPercent:50}},rateLimitsByLimitId:{codex:{primary:{usedPercent:12,windowDurationMins:10080,resetsAt:42},secondary:{usedPercent:null}},other:{primary:{usedPercent:110},secondary:{usedPercent:-5}}}});

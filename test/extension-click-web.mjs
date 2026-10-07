@@ -2,11 +2,15 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const source=await readFile(new URL('../public/extension-buttons.js',import.meta.url),'utf8');
+const contextSource=await readFile(new URL('../public/browser-context.js',import.meta.url),'utf8');
+const confirmSource=await readFile(new URL('../public/confirmation-dialog.js',import.meta.url),'utf8');
 const browser=await chromium.launch({headless:true});
 try{
  const page=await browser.newPage();let enabled=false,reads=0,posts=0;
  await page.route('http://chill.test/**',async route=>{
   const path=new URL(route.request().url()).pathname;
+  if(path==='/confirmation-dialog.js')return route.fulfill({contentType:'text/javascript',body:confirmSource});
+  if(path==='/browser-context.js')return route.fulfill({contentType:'text/javascript',body:contextSource});
   if(path==='/extension-buttons.js')return route.fulfill({contentType:'text/javascript',body:source});
   if(path.startsWith('/api/')){if(route.request().method()==='POST'){posts++;enabled=route.request().postDataJSON().enabled;}else reads++;
    return route.fulfill({json:[{id:'continuation',label:'Auto-continue',rootId:'1',enabled,placement:'header',icon:'repeat'}]});}
@@ -19,10 +23,13 @@ try{
  await page.evaluate(async()=>{window.dispatchEvent(new Event('focus'));await window.ui.refresh();});
  await page.mouse.up();
  await page.waitForTimeout(150);
- assert.equal(posts,1,'the first click must survive a focus refresh between pointerdown and pointerup');
+ assert.equal(posts,0,'opening the panel must not toggle');
+ assert.equal(await page.getByRole('dialog').isVisible(),true);
+ await page.getByRole('switch',{name:'Auto-continue'}).click();await page.waitForTimeout(150);assert.equal(posts,1);
  assert.equal(await button.getAttribute('aria-pressed'),'true');
  assert.equal(await button.evaluate(el=>el===window.originalButton),true,'polling and saving preserve the button node');
- await button.focus();await page.keyboard.press('Space');await page.waitForTimeout(150);assert.equal(posts,2);assert.equal(enabled,false);
+ await page.getByRole('switch',{name:'Auto-continue'}).focus();await page.keyboard.press('Space');await page.waitForTimeout(150);assert.equal(posts,2);assert.equal(enabled,false);
+ await page.keyboard.press('Escape');assert.equal(await page.getByRole('dialog').count(),0);
  assert.ok(reads>=3);
- console.log('passed: first pointer click survives focus refresh; stable button; keyboard toggles once');
+ console.log('passed: first pointer click survives focus refresh; stable button; keyboard switch toggles once; opening never toggles');
 }finally{await browser.close();}

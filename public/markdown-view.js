@@ -3,7 +3,7 @@ export async function renderDiagrams(root) {
   const targets = [...root.querySelectorAll('.mermaid-diagram:not([data-rendered])')]
     .filter(el => el.getClientRects().length && !el.closest('details:not([open])'));
   if (!targets.length) return;
-  library ??= import('./vendor/mermaid.js').then(({default:mermaid}) => {
+  library ??= import('/vendor/mermaid.js').then(({default:mermaid}) => {
     mermaid.initialize({startOnLoad:false, securityLevel:'strict', htmlLabels:false, suppressErrorRendering:true});
     return mermaid;
   });

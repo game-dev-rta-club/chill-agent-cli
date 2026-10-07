@@ -19,6 +19,11 @@ the private reporting process in [SECURITY.md](SECURITY.md).
   the behavior and scope can be agreed before implementation.
 - Keep refactoring separate from behavior changes.
 
+Follow the [development workflow](docs/development/workflow.md) for short-lived
+branches from develop, milestone commits, PR integration into develop and stable
+release promotion to main. Entrusted agent work includes review and merging;
+external contributions follow maintainer review.
+
 ## Local development
 
 Use Node.js 24 and Git. The Desktop harness integration currently supports macOS.

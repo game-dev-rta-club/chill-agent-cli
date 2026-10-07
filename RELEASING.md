@@ -24,3 +24,5 @@ registry install until a package has actually been published there.
 
 For existing installations, follow [data and runtime updates](docs/runtime/data-and-updates.md)
 to adopt the release and verify preserved workspace data.
+
+Agent entry: [read before release](.agents/skills/chill-cli-release/SKILL.md).

@@ -14,7 +14,7 @@ test('a started turn is controllable from its input before receipt; queued sibli
 });
 test('one activity owns merged feedback; continuation retains its original anchor',()=>{
  const record={resumedTurnId:'new',activity:{eventId:2}};
- assert.equal(activityOwner([{eventId:1,work:{turnId:'old'}},{eventId:2,hookTurnId:'old'},{eventId:3,turnId:'different'}],'old',null,null),2);
+ assert.equal(activityOwner([{eventId:1,work:{turnId:'old'}},{eventId:2,hookTurnId:'old',agentReported:true},{eventId:3,turnId:'different'}],'old',null,null),2);
  assert.equal(activityOwner([],'new',record,{status:'working'}),2);
  assert.equal(activityOwner([],'new',record,null),2,'completed continuation still has an owner');
  assert.equal(activityOwner([],'other',record,null),null);

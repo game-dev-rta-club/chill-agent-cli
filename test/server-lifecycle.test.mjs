@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { connect } from 'node:net';
 import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -67,6 +68,7 @@ if (process.env.CHILL_TEST_TUNNEL_CRASH) {
   setTimeout(() => process.exit(2), 100);
 } else {
   console.error('https://phone-test.trycloudflare.com');
+  console.error('Registered tunnel connection');
   setInterval(() => {}, 1000);
 }
 `);
@@ -104,7 +106,7 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   await assert.rejects(readFile(f.tunnelPath),{code:'ENOENT'});
 });
 
-test('manual shutdown also stops the connector; a connector failure stops the public server', {timeout:8000}, async t => {
+test('manual shutdown also stops the connector; a connector failure keeps local Web available', {timeout:8000}, async t => {
   const f = await tunnelFixture(t,'1h');
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const pid = Number(await readFile(f.pidFile,'utf8'));
@@ -113,8 +115,31 @@ test('manual shutdown also stops the connector; a connector failure stops the pu
   assert.throws(() => process.kill(pid,0),/ESRCH/);
   await assert.rejects(readFile(f.tunnelPath),{code:'ENOENT'});
   const crashed = await tunnelFixture(t,'1h',{CHILL_TEST_TUNNEL_CRASH:'1'});
-  assert.equal((await crashed.exited)[0],1);
-  assert.match(crashed.output(),/Cloudflare tunnel stopped/);
+  await delay(300);
+  assert.equal((await fetch(crashed.url)).status,200);
+  assert.equal((await fetch(crashed.url+'/api/activity',{method:'POST',headers:{Origin:'https://phone-test.trycloudflare.com','Content-Type':'application/json'},body:'{}'})).status,403);
+  crashed.child.kill('SIGTERM');await crashed.exited;
+});
+
+test('restart drains an active connection and rejects a pipelined request without crashing', {timeout:8000}, async t => {
+  const f = await fixture(t, '1h');
+  const socket = connect(Number(new URL(f.url).port), '127.0.0.1');
+  t.after(() => socket.destroy());
+  await once(socket, 'connect');
+  let response = '';
+  socket.on('data', chunk => { response += chunk; });
+  const closed = once(socket, 'close');
+  const ready = once(socket, 'data');
+  socket.write(`POST /api/images HTTP/1.1\r\nHost: ${new URL(f.url).host}\r\nOrigin: ${f.url}\r\nContent-Type: image/png\r\nContent-Length: 2\r\nExpect: 100-continue\r\n\r\n`);
+  await ready;
+  assert.match(response, /100 Continue/);
+  f.child.kill('SIGUSR2');
+  await delay(100);
+  socket.end(`xxPOST /api/activity HTTP/1.1\r\nHost: ${new URL(f.url).host}\r\nOrigin: ${f.url}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`);
+  await closed;
+  assert.equal((await f.exited)[0], 0, f.output());
+  assert.match(response, /503 Service Unavailable/);
+  assert.doesNotMatch(f.output(), /TypeError/);
 });
 
 test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {timeout:10000}, async t => {
@@ -238,4 +263,3 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   await f.run(['activity','--event','1','--state','completed']);
   assert.equal((await f.exited)[0],0);
 });
-

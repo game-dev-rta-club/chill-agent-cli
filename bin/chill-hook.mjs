@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { collectHookFeedback, openLetterActions } from '../lib/delivery.mjs';
 import { dataDirectory, writeJsonAtomically } from '../lib/goal-store.mjs';
 import { notificationReminder } from '../lib/notification-reminder.mjs';
+import {agentGuide} from '../lib/agent-guidance.mjs';
 import {recordWorkHeartbeat} from '../lib/goal-execution.mjs';
 
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
@@ -60,10 +61,13 @@ export async function hookOutput(input, assignedThreadId = process.env.CODEX_THR
   const reminder = await notificationReminder();
   const command = `CHILL_AGENT_DATA_DIR=${quote(dataDirectory())} ${quote(process.execPath)} ${quote(cli)}`;
   const items = pending.map(item => `Root Goal #${item.rootId}; path ${item.path.map(g=>`#${g.id} ${JSON.stringify(g.title)}`).join(' / ')}; feedback #${item.eventId}:\n` +
-    `PORT=${quote(item.port)} ${command} activity --event ${item.eventId} --state working\n` +
-    `PORT=${quote(item.port)} ${command} show --id ${item.goalId} --since ${item.eventId - 1}${item.letters.length?`\n\n${openLetterActions(item.letters)}`:''}`).join('\n\n');
-  const context = `New user feedback for your current work Goal is saved in chill-agent. Other Goals remain in the Codex queue. This notice identifies saved feedback; read the original user content through the CLI.\n` +
-    `For each entry, record receipt first (this removes its pending Codex queue notification), then read the feedback. If already completed, do not repeat work or reply.\n\n${items}\n\n` +
+    `PORT=${quote(item.port)} ${command} show --id ${item.goalId} --since ${item.eventId - 1} --format text --section context\n` +
+    `Receipt: PORT=${quote(item.port)} ${command} activity --event ${item.eventId} --state <deferred|working>${item.letters.length?`\n\n${openLetterActions(item.letters)}`:''}`).join('\n\n');
+  const guide = agentGuide();
+  const workflow = guide ? `Workflow: ${JSON.stringify(guide)}. Use its guide for receiving feedback during work; reuse it if already read. ` : '';
+  const context = `New user feedback assigned to this chat is saved in chill-agent, across Goals regardless of work selection. Manually held feedback and other chats' queues stay separate. This notice identifies saved feedback; read the original user content through the CLI.\n` +
+    `Read all entries and later corrections before choosing a receipt. Apply corrections to current work now. For an independent later request, deferred records that you read it and verifies its native Queue entry remains; continue the original task. working claims feedback and removes its matching Queue entry. If deferment fails, do not assume redelivery. Already completed feedback needs no repeated work or reply.\n\n${items}\n\n` +
+    workflow +
     `Incorporate the feedback within the root Goal's agreed scope. Read tree --id <ROOT> for other branches. Select work --id <GOAL> when changing your work target; receipt alone does not change it. A Letter reply is not automatically permission or unblocking. Mark a Goal done only after its agreed criteria are met, and report results with comment. Comments and Brief updates do not complete a Goal. Continue independent agreed work while a branch waits. Use comment for a response or letter with a title for a question on the feedback's Goal, and record activity --event <ID> --state completed (failed if needed). Do not abandon the original task unless the user asks. Queue cleanup errors are shown as queueError; retry activity if needed. This notice is not a new user request itself.${reminder ? `\n\n${reminder}` : ''}`;
   return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: context } };
 }
