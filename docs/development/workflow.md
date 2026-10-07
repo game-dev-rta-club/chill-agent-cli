@@ -111,3 +111,6 @@ Protect both long-lived branches against force pushes and deletion. Configure
 required checks for `develop` without requiring routine user approval of entrusted
 PRs; retain the agreed release controls on `main`. These are desired repository
 settings and must be verified before relying on them.
+
+Agent entry: [read before development](../../.agents/skills/chill-cli-development/SKILL.md).
+When changing this workflow, use [guideline authoring](guidelines.md).

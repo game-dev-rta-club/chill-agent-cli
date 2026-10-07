@@ -42,3 +42,5 @@ For development and release work, see [Contributing](../CONTRIBUTING.md) and
 reports and the [Changelog](../CHANGELOG.md) for tagged release history.
 Each behavior has one home here; consumer projects
 can link to it without copying the specification.
+
+For guideline and task-entry maintenance, see [Writing development guidelines](development/guidelines.md).
