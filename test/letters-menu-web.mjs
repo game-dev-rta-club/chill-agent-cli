@@ -19,7 +19,7 @@ for(const width of [390,1280]){
  await page.keyboard.press('Escape');assert.equal(await page.locator('#panel').isVisible(),false);
  await page.evaluate(()=>update(2));assert.match(await button.getAttribute('aria-label'),/2 unanswered · On/);
  await button.click();assert.equal(await page.locator('#panel a').count(),2);
- 
+
  await page.locator('#panel a').first().click();assert.equal(new URL(page.url()).hash,'#/goal/1/letter/1');assert.equal(await page.locator('#panel').isVisible(),false);
  await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('link',{name:'Goals',exact:true}).click();assert.equal(new URL(page.url()).hash,'#/goals');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
