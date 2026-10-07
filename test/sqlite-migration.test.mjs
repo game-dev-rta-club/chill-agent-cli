@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,readFile,rm,readdir} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,rm,readdir,lstat} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {createMigrationBundle,verifyMigrationBundle} from '../lib/sqlite-migration.mjs';
+import {createHash} from 'node:crypto';
+import {createMigrationBundle,verifyMigrationBundle,restoreMigrationSource,verifyRestoredSource} from '../lib/sqlite-migration.mjs';
 import {openSqliteWorkspace} from '../lib/sqlite-workspace.mjs';
 async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chill-migrate-')),source=join(root,'old'),destination=join(root,'bundle');
@@ -48,4 +49,41 @@ test('archive corruption is detected before database verification',async t=>{
  const f=await fixture(t);await createMigrationBundle(f.source,f.destination);
  await writeFile(join(f.destination,'source.ndjson'),'broken');
  await assert.rejects(verifyMigrationBundle(f.destination),/checksum/);
+});
+
+
+test('offline restore reproduces files and receipts without overwriting a destination',async t=>{
+ const f=await fixture(t);
+ await f.put('deliveries/9.json',{status:'unknown',eventId:9,attempt:'retain uncertainty'});
+ await f.put('requests/pending.json',{phase:'queued',eventIds:[9]});
+ await createMigrationBundle(f.source,f.destination);
+ const restored=join(f.root,'restored');
+ const report=await restoreMigrationSource(f.destination,restored);
+ assert.equal(report.restored,true);assert.equal(report.offline,true);
+ const archived=(await readFile(join(f.destination,'source.ndjson'),'utf8')).trim().split('\n').map(JSON.parse);
+ for(const entry of archived){
+  assert.deepEqual(await readFile(join(restored,entry.path)),await readFile(join(f.source,entry.path)));
+  assert.equal((await lstat(join(restored,entry.path))).mode&0o777,entry.mode);
+ }
+ assert.equal((await verifyRestoredSource(f.destination,restored)).verified,true);
+ await assert.rejects(restoreMigrationSource(f.destination,restored),/already exists/);
+ await assert.rejects(restoreMigrationSource(f.destination,join(f.destination,'restored')),/outside/);
+ await writeFile(join(restored,'events/4.json'),'modified after recovery');
+ await assert.rejects(verifyRestoredSource(f.destination,restored),/differs/);
+ assert.equal(JSON.parse(await readFile(join(f.source,'events/4.json'))).id,4);
+});
+
+test('restore rejects traversal and platform path aliases even with recomputed checksums',async t=>{
+ const f=await fixture(t);await createMigrationBundle(f.source,f.destination);
+ const lines=(await readFile(join(f.destination,'source.ndjson'),'utf8')).trim().split('\n').map(JSON.parse);
+ const original=JSON.parse(await readFile(join(f.destination,'manifest.json'),'utf8'));
+ const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+ for(const path of ['../escaped','/escaped','C:/escaped','attachments/.. /escaped','attachments/CON','attachments/a\\escaped']){
+  const entries=structuredClone(lines);entries.find(e=>e.path==='attachments/image.png').path=path;
+  const archive=entries.map(e=>JSON.stringify(e)+'\n').join('');
+  await writeFile(join(f.destination,'source.ndjson'),archive);
+  await writeFile(join(f.destination,'manifest.json'),JSON.stringify({...original,archiveSha256:hash(archive),sourceDigest:hash(JSON.stringify(entries.map(({data,...entry})=>entry)))}));
+  await assert.rejects(restoreMigrationSource(f.destination,join(f.root,'restored')),/Unsafe/);
+  assert.deepEqual((await readdir(f.root)).sort(),['bundle','old']);
+ }
 });
