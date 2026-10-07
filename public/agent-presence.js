@@ -12,7 +12,7 @@ export function createAgentPresence({button,getGoalId}){
  let request=0,controller=null,busy=false,routeGoalId=null;
  const tooltip=document.getElementById('agent-tooltip');
  function render(data){
-  const status=displayState(data.status)||'unknown';button.dataset.state=status;button.title=`Agent · ${presenceLabel(status)}`;
+  const status=displayState(data.status)||'unknown';button.dataset.state=status;button.removeAttribute('title');
   if(tooltip){tooltip.replaceChildren(document.createTextNode(`Agent · ${presenceLabel(status)}`));const hint=document.createElement('small');hint.textContent='Activity, settings, and usage.';tooltip.append(hint);}
   window.dispatchEvent(new CustomEvent('chill-agent-presence',{detail:{routeGoalId:getGoalId(),...data}}));
  }

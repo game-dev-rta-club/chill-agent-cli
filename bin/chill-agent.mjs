@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {workspacePort} from '../lib/project-workspace.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
@@ -11,7 +12,7 @@ import {renderGoalPage} from '../lib/goal-page-text.mjs';
 import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
 
 const output=value=>console.log(JSON.stringify(value,null,2));
-const url=(id,version)=>`http://127.0.0.1:${process.env.PORT||4173}/#/goal/${id}${version?`/v${version}`:''}`;
+const url=(id,version)=>`http://127.0.0.1:${workspacePort()}/#/goal/${id}${version?`/v${version}`:''}`;
 async function input(path) {
   let raw='';
   if(path==='-') for await(const chunk of process.stdin) { raw+=chunk; if(raw.length>160000) throw new Error('Request is too large.'); }
@@ -58,7 +59,7 @@ async function main() {
     return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--brief-offset']??0)})):output(page);
   }
   if(command==='comment'||command==='letter') {
-    const event=await appendAgentComment({goalId:id,type:command,...(command==='letter'?{title:v['--title']}:{ }),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
+    const event=await appendAgentComment({goalId:id,type:command,...(command==='letter'?{title:v['--title'],...(v['--no-reply']?{replyRequired:false}:{})}:{ }),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
     return output({...event,url:command==='letter'?`${url(id)}/letter/${event.id}`:url(id)});
   }
   if(command==='check') return output(await checkFeedback({goalId:id,since:Number(v['--since']??0)}));

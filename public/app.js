@@ -2,7 +2,7 @@ import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence} from './agent-presence.js';
 import {createExtensionButtons} from './extension-buttons.js';
-import {letterState} from './letter-state.js';
+import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
 import { workProgressGroups, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
@@ -114,10 +114,11 @@ function noteLabel(note) {
   return note.kind === 'text' ? note.anchor.quote : note.imageName || imageNames.get(note.imageId) || 'Image';
 }
 const selectedNotes = (id = activeGoalId) => notesFor(id).filter(note => note.selected !== false);
-const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.kind === 'text' ? (note.source?.kind === 'comment' ? `${note.source.field==='title'?'Letter title':'Agent'} #${note.source.eventId} · ` : `Brief v${note.source?.version} · `) : '';
+const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Brief v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent'} #${note.source?.eventId} · ` : '';
 function noteImageMarkup(note, preview = false) {
-  return attachmentIdsFor(note).map(id => {
-    const src = `/api/images/${escapeHTML(id)}`;
+  const images=attachmentIdsFor(note).map(id=>`/api/images/${escapeHTML(id)}`);
+  if(note.kind==='image'&&note.source?.kind==='brief')images.unshift(`/api/goals/${activeGoalId}/briefs/${Number(note.source.version)}/svg/${Number(note.source.svgIndex)}`);
+  return images.map(src => {
     const img = `<img class="${preview ? 'note-image' : 'note-thumbnail'}" src="${src}" alt="Note attachment">`;
     return preview ? `<a href="${src}" target="_blank" rel="noopener" aria-label="Open note image">${img}</a>` : img;
   }).join('');
@@ -199,8 +200,8 @@ function deliveryMarkup(event, work, continuedTo) {
   const activity=continuedTo?null:work?.activity||activityControls.forEvent(event.changeId);
   if (!delivery && !event.threadId && !activity) return '';
   const state = activity?activity.status:continuedTo ? 'continued' : work?.status || delivery?.status || 'saved';
-  const labels = { saved: 'Saved', sending: 'Sending', queued: 'Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
-  const descriptions = { saved: '', sending: '', queued: '', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
+  const labels = { saved: 'Saved', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
+  const descriptions = { saved: '', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
   const retry = state === 'saved' || (state === 'failed' && !delivery?.mayHaveSent);
   const check = state === 'unknown';
   const history = delivery?.history || [];
@@ -244,9 +245,9 @@ function timelineMarkup(id) {
     const time=`<time datetime="${event.at.toISOString()}">${event.at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
     return `<li id="event-${event.id}" class="timeline-event comment-event">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
-      <article class="timeline-entry${letter?` letter-comment ${letter.status!=='open'?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${letter.status!=='open'?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
+      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${letter.status!=='open'?`<span class="answered-label">${letter.status==='notice'?'No reply needed':letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
-      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>`<a class="event-image-link" href="/api/images/${escapeHTML(id)}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="/api/images/${escapeHTML(id)}" alt="Attached image"></a>`).join('')}${letter?`<button type="button" class="action letter-answer-toggle" data-action="answer-letter" data-letter-id="${event.id}">Answer</button>`:''}</article></li>${event.author==='user'?deliveryMarkup(event,work.get(event.changeId),continued.get(event.changeId)):''}`;
+      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>`<a class="event-image-link" href="/api/images/${escapeHTML(id)}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="/api/images/${escapeHTML(id)}" alt="Attached image"></a>`).join('')}${letter?`<button type="button" class="action letter-answer-toggle" data-action="answer-letter" data-letter-id="${event.id}">${letter.status==='notice'?'Comment':'Answer'}</button>`:''}</article></li>${event.author==='user'?deliveryMarkup(event,work.get(event.changeId),continued.get(event.changeId)):''}`;
     }).join('');
   }).join('');
 }
@@ -319,6 +320,7 @@ function goalView() {
 }
 function refreshGoalFrame() {
   updateBrandTarget();
+  updateTabTitle();
   const slot=main.querySelector('#goal-frame');
   if(slot&&activeGoalId)slot.innerHTML=goalView().brief(activeGoalId);
 }
@@ -332,7 +334,7 @@ function renderGoal(id,version) {
   });
   const key=formKey(id,'comment');
   const comment=commentDrafts.get(key)??readDraft('comment',id);commentDrafts.set(key,comment);
-  document.title=`${goalMetadata.get(id).title} · chill`;
+  updateTabTitle();
   main.innerHTML=`<div id="goal-frame">${view.brief(id)}</div><div class="history-grid">
     <section class="document-section"><div class="section-heading document-heading"><h2>Brief</h2>${brief?view.pager(id,version):''}</div>
       <article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Brief">
@@ -384,6 +386,7 @@ function mountHTMLBrief(id,version) {
   frame.addEventListener('load',async()=>{
     if(!frame.isConnected){ready();return;}
     const doc=frame.contentDocument,body=doc?.querySelector('.brief-body');if(!body){ready();return;}
+    body.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
     const size=()=>{if(frame.isConnected)frame.style.height=`${Math.ceil(Math.max(body.getBoundingClientRect().height,body.scrollHeight))+1}px`;};
     const observer=new ResizeObserver(size);observer.observe(body);
     for(const type of ['wheel','touchmove','keydown'])doc.addEventListener(type,briefScrollIntent,{passive:true});
@@ -392,11 +395,12 @@ function mountHTMLBrief(id,version) {
     // Read the completed selection as well, without moving focus out of the Brief.
     doc.addEventListener('pointerup',updateSelectionAction);
     doc.addEventListener('keyup',updateSelectionAction);
+    doc.addEventListener('toggle',()=>renderAnnotations(),true);
     doc.addEventListener('click',event=>{
       const mark=event.target.closest('.annotation-mark, .image-note-box');
       if(mark){event.preventDefault();openNoteReference(mark.dataset.noteRef);return;}
+      const image=event.target.closest('[data-action="annotate-image"]');if(image){event.preventDefault();openImageSelection(image.dataset.imageId,image.dataset.svgIndex);return;}
       const link=event.target.closest('a[href]');if(link){event.preventDefault();window.open(link.href,'_blank','noopener,noreferrer');}
-      const image=event.target.closest('[data-action="annotate-image"]');if(image)openImageSelection(image.dataset.imageId);
     });
     doc.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches('.annotation-mark')){event.preventDefault();event.target.click();}});
     renderAnnotations();size();
@@ -604,14 +608,15 @@ function openNoteEditor(note) {
   form.querySelector('.save-error')?.remove();
   form.hidden = false;
   const answering=note.kind==='letter';
-  form.querySelector('[data-editor-heading]').textContent=answering?'Answer':'Annotation';
-  form.querySelector('label[for="annotation-comment"]').textContent=answering?'Answer':'Annotation';
-  form.querySelector('[data-action="close-annotation"]').setAttribute('aria-label',answering?'Close answer':'Close annotation');
+  const notice=answering&&events.find(e=>e.id===note.source?.eventId)?.replyRequired===false;
+  form.querySelector('[data-editor-heading]').textContent=notice?'Comment':answering?'Answer':'Annotation';
+  form.querySelector('label[for="annotation-comment"]').textContent=notice?'Comment':answering?'Answer':'Annotation';
+  form.querySelector('[data-action="close-annotation"]').setAttribute('aria-label',notice?'Close comment':answering?'Close answer':'Close annotation');
   form.querySelector('.note-comment').hidden=!answering;
   form.querySelector('.annotation-quote').textContent = noteSourceLabel(note) + noteLabel(note);
   const input = form.querySelector('textarea');
   input.value = note.text;
-  input.placeholder=answering?'Write your answer':'Add a note';
+  input.placeholder=notice?'Add a comment (optional)':answering?'Write your answer':'Add a note';
   form.querySelector('.note-delete').hidden = !notesFor().some(item => item.id === note.id);
   refreshImageControl('annotation');
   clearSelections();
@@ -653,16 +658,18 @@ function updateImageSelection() {
   if (area) positionArea(imageAreaBox, area);
   imageAreaNext.disabled = !area || Boolean(imageDrawing);
 }
-function openImageSelection(imageId) {
+function openImageSelection(imageId,svgIndex) {
   if (annotationSaves.has(notesKey()) || submitting.has(formKey(activeGoalId, 'comment'))) return;
   hideAnnotationAction(); hideAnnotationPreview();
   clearSelections();
-  imageSelection = {imageId, imageName: imageNames.get(imageId) || 'Image', goalId: activeGoalId, version: activeVersion, rect: null};
+  const svg=svgIndex===undefined?null:briefRoot()?.querySelector(`svg[data-brief-svg="${Number(svgIndex)}"]`);
+  const source=svg?{kind:'brief',version:activeVersion,svgIndex:Number(svgIndex)}:null;
+  imageSelection = {...(source?{source}:{imageId}), imageName: svg?(svg.getAttribute('aria-label')||svg.querySelector('title')?.textContent||`Diagram ${Number(svgIndex)+1}`).slice(0,200):imageNames.get(imageId) || 'Image', goalId: activeGoalId, version: activeVersion, rect: null};
   imageDrawing = null;
   imageAreaWhole.disabled = true;
   imageAreaDialog.querySelector('.image-area-hint').textContent = 'Drag to select. Drag again to redraw.';
   imageAreaImage.alt = imageSelection.imageName;
-  imageAreaImage.src = `/api/images/${imageId}`;
+  imageAreaImage.src = source?`/api/goals/${activeGoalId}/briefs/${activeVersion}/svg/${source.svgIndex}`:`/api/images/${imageId}`;
   updateImageSelection();
   imageAreaDialog.showModal();
 }
@@ -687,7 +694,7 @@ imageAreaNext.addEventListener('click', () => {
   const selection = imageSelection;
   closeImageSelection();
   if (selection.goalId !== activeGoalId || selection.version !== activeVersion) return;
-  openNoteEditor({id: crypto.randomUUID(), kind: 'image', imageId: selection.imageId, imageName: selection.imageName, rect: selection.rect, text: ''});
+  openNoteEditor({id: crypto.randomUUID(), kind: 'image', ...(selection.source?{source:selection.source}:{imageId:selection.imageId}), imageName: selection.imageName, rect: selection.rect, text: ''});
 });
 function imagePoint(event) {
   const bounds = imageAreaImage.getBoundingClientRect();
@@ -771,7 +778,7 @@ function renderAnnotations(openingEditor=false) {
     source.querySelectorAll('.annotation-mark').forEach(mark => mark.replaceWith(...mark.childNodes));
     source.normalize();
   });
-  annotationSources('.annotatable-image').forEach(wrapper => wrapper.replaceWith(wrapper.querySelector('img')));
+  annotationSources('.annotatable-image').forEach(wrapper => wrapper.replaceWith(wrapper.firstElementChild));
   if (CSS.highlights) CSS.highlights.delete('note-annotations');
   visibleNotes.clear();
   const entries = noteEntries();
@@ -785,12 +792,16 @@ function renderAnnotations(openingEditor=false) {
       markText(target, {...entry.note.anchor, start: entry.note.anchor.start - base, end: entry.note.anchor.end - base}, entry.ref, entry.draft, entry.editing);
     }
   }
-  annotationSources('.brief-body img, .image-preview img, .event-image').forEach(img => {
-    const imageId = imageIdFromSource(img.src);
+  annotationSources('.brief-body img, .brief-body svg[data-brief-svg], .image-preview img, .event-image').forEach(img => {
+    const svgIndex=img.dataset.briefSvg===undefined?null:Number(img.dataset.briefSvg);
+    const imageId = svgIndex===null?imageIdFromSource(img.src):null;
     const attachment = Boolean(img.closest('.image-preview'));
-    if (!imageId && !attachment) return;
-    const matching = entries.filter(item => item.note.kind === 'image' && (imageId ? item.note.imageId === imageId : item.note.target === 'attachment'));
-    const editable = imageId && img.closest('.brief-body');
+    if (!imageId && !attachment && svgIndex===null) return;
+    const matching = entries.filter(item => item.note.kind === 'image' && (svgIndex!==null?item.note.source?.kind==='brief'&&item.note.source.version===activeVersion&&item.note.source.svgIndex===svgIndex:imageId ? item.note.imageId === imageId : item.note.target === 'attachment'));
+    const bounds=svgIndex!==null?img.getBoundingClientRect():null;
+    // Small decorative SVG icons keep their layout; a diagram-sized SVG gets
+    // the same control as an uploaded image.
+    const editable = (imageId||svgIndex!==null&&bounds.width>=64&&bounds.height>=64) && img.closest('.brief-body');
     if (!matching.length && !editable) return;
     const wrapper = document.createElement('span');
     wrapper.className = 'annotatable-image';
@@ -810,8 +821,8 @@ function renderAnnotations(openingEditor=false) {
       annotate.type = 'button';
       annotate.className = 'image-annotate';
       annotate.dataset.action = 'annotate-image';
-      annotate.dataset.imageId = imageId;
-      annotate.setAttribute('aria-label', `Annotate image: ${imageNames.get(imageId) || 'Image'}`);
+      if(svgIndex!==null)annotate.dataset.svgIndex=String(svgIndex);else annotate.dataset.imageId = imageId;
+      annotate.setAttribute('aria-label', `Annotate image: ${svgIndex!==null?(img.getAttribute('aria-label')||`Diagram ${svgIndex+1}`):imageNames.get(imageId) || 'Image'}`);
       annotate.title = 'Annotate image';
       annotate.innerHTML = icon('annotate');
       wrapper.append(annotate);
@@ -890,7 +901,22 @@ function updateBrandTarget(){
   const brand=document.querySelector('.brand'),target=goalView().brandTarget();
   brand.href=target.href;brand.setAttribute('aria-label',target.label);brand.title=target.label;
 }
-function renderIndex(){document.title='Goals · chill';main.innerHTML=goalView().index();}
+let tabTitleGeneration=0,letterCountRequest=false;
+function updateTabTitle(){
+  tabTitleGeneration++;
+  document.title=letterTabTitle(rootLetterSummary([...goalMetadata.values()],events,activeGoalId));
+}
+async function refreshLetterCount(){
+  if(!activeGoalId||letterCountRequest)return;
+  const id=activeGoalId,generation=tabTitleGeneration;
+  letterCountRequest=true;
+  try{
+    const response=await fetch(`/api/goals/${id}/letters/count`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
+    if(response.ok){const summary=await response.json();if(id===activeGoalId&&generation===tabTitleGeneration)document.title=letterTabTitle(summary);}
+  }catch{/* Keep the last known count until the connection returns. */}
+  finally{letterCountRequest=false;}
+}
+function renderIndex(){updateTabTitle();main.innerHTML=goalView().index();}
 let stepFocus=null;
 function renderRoute() {
   hasNewBrief.dismiss();
@@ -904,6 +930,7 @@ function renderRoute() {
   activeGoalId=match&&goalMetadata.has(match[1])?match[1]:null;
   activeVersion=activeGoalId?Number(match[2]||latestVersion(activeGoalId)):null;
   if(activeGoalId&&(match[2]||activeVersion)&&!briefAt(activeGoalId,activeVersion))activeGoalId=null;
+  updateTabTitle();
   agentMenu.routeChanged();
   extensionButtons.routeChanged();
   agentPresence.routeChanged();
@@ -1063,7 +1090,7 @@ main.addEventListener('click', event => {
   } else if (button.dataset.action === 'edit-draft-note') {
     openNoteReference(`draft-${button.dataset.noteId}`, true);
   } else if (button.dataset.action === 'annotate-image') {
-    openImageSelection(button.dataset.imageId);
+    openImageSelection(button.dataset.imageId,button.dataset.svgIndex);
   } else if (button.dataset.action === 'delete-draft-note') {
     if (annotationSaves.has(notesKey())) return;
     const noteId = button.dataset.noteId;
@@ -1127,6 +1154,7 @@ function notesPayload(notes, attachmentId) {
     const attachment = attachmentIdsFor(note).length ? {attachmentIds: attachmentIdsFor(note)} : {};
     if (note.kind === 'letter') return {...attachment, kind: 'letter', source: note.source, text: note.text};
     if (note.kind === 'text') return {...attachment, kind: 'text', anchor: note.anchor, source: note.source, text: note.text};
+    if(note.source?.kind==='brief')return {...attachment,kind:'image',source:note.source,imageName:note.imageName,rect:note.rect,text:note.text};
     const imageId = note.target === 'attachment' ? attachmentId : note.imageId;
     if (!imageId) throw new Error('Attach the image before sending its notes.');
     return {...attachment, kind: 'image', imageId, ...(note.imageName ? {imageName: note.imageName} : {}), rect: note.rect, text: note.text};
@@ -1262,11 +1290,30 @@ document.addEventListener('click', event => {
     main.querySelector('h1')?.focus({preventScroll: true});
   }
 });
-window.addEventListener('hashchange',async()=>{
-  const target=location.hash;
-  try {await loadStoredGoals();if(location.hash===target)renderRoute();}
-  catch(error){announcement.textContent=error.message;}
-});
+let navigationGeneration=0;
+async function navigate({refresh=true}={}){
+  const generation=++navigationGeneration,target=location.hash;
+  const match=/^#\/goal\/([1-9][0-9]*)(?:\/v([1-9][0-9]*))?/.exec(target);
+  try{
+    // The latest Briefs and tree are already in memory. Never put a network
+    // round trip in front of a normal move through the workspace.
+    if(match&&!goalMetadata.has(match[1]))await loadStoredGoals();
+    if(match?.[2]){
+      const brief=briefAt(match[1],Number(match[2]));
+      if(brief&&brief.html===undefined){
+        announcement.textContent='Loading earlier Brief…';
+        const response=await fetch(`/api/goals/${match[1]}/briefs/${match[2]}`,{signal:AbortSignal.timeout(12000)});
+        if(!response.ok)throw Error('Could not load this Brief. Your draft is kept.');
+        const loaded=await response.json();
+        Object.assign(briefAt(match[1],Number(match[2]))||brief,loaded);
+      }
+    }
+    if(generation!==navigationGeneration||location.hash!==target)return;
+    renderRoute();announcement.textContent='';
+    if(refresh)void refreshGoals().catch(()=>{announcement.textContent='Showing the last update. Reconnecting…';});
+  }catch(error){if(generation===navigationGeneration)showToast(error.message);}
+}
+window.addEventListener('hashchange',navigate);
 
 // Only real interaction renews the server's idle timeout. The update polls below
 // intentionally do not, so leaving a tab open cannot keep the server alive forever.
@@ -1281,14 +1328,25 @@ for (const type of ['pointerdown', 'keydown', 'input', 'wheel', 'touchmove']) {
   document.addEventListener(type, reportInteraction, {capture: true, passive: true});
 }
 
-let storeSignature='';
-async function loadStoredGoals() {
-  const response=await fetch('/api/goals',{cache:'no-store',signal:AbortSignal.timeout(12000)});
-  if(!response.ok)throw new Error('Could not load Goals. Your draft is kept.');
-  const stored=await response.json(),signature=JSON.stringify(stored,(key,value)=>['checkedAt','expiresAt'].includes(key)?undefined:value),changed=signature!==storeSignature;
-  storeSignature=signature;
-  for(const {id,briefs,conversation,...metadata} of stored){goalMetadata.set(id,{id,...metadata});briefsByGoal.set(id,briefs);conversation.forEach(addEvent);}
-  return changed;
+let storeSignature='',storeRequest=null;
+function loadStoredGoals() {
+  // Polling, returning to the tab and navigation share one request.
+  if(storeRequest)return storeRequest;
+  storeRequest=(async()=>{
+    const response=await fetch('/api/goals?view=web',{cache:'no-store',signal:AbortSignal.timeout(12000)});
+    if(!response.ok)throw new Error('Could not load Goals. Your draft is kept.');
+    const stored=await response.json(),signature=JSON.stringify(stored,(key,value)=>['checkedAt','expiresAt'].includes(key)?undefined:value),changed=signature!==storeSignature;
+    storeSignature=signature;
+    for(const {id,briefs,conversation,...metadata} of stored){
+      const previous=briefsByGoal.get(id)||[];
+      goalMetadata.set(id,{id,...metadata});
+      // Published versions are immutable. Keep older Briefs once opened.
+      briefsByGoal.set(id,briefs.map(brief=>brief.html===undefined?{...previous.find(b=>b.version===brief.version),...brief}:brief));
+      conversation.forEach(addEvent);
+    }
+    return changed;
+  })().finally(()=>{storeRequest=null;});
+  return storeRequest;
 }
 async function updateCurrentBrief(version) {
   const id=activeGoalId,section=main.querySelector('.document-section');
@@ -1301,7 +1359,8 @@ async function updateCurrentBrief(version) {
   // Only replace the Brief; keep the composer, active annotation editor and drafts.
   section.style.minHeight=`${height}px`;
   activeVersion=version;
-  if(imageSelection?.goalId===id)imageSelection.version=version;
+  // A diagram selection belongs to the version actually shown in its editor.
+  if(imageSelection?.goalId===id)closeImageSelection();
   if(/\/v[1-9][0-9]*$/.test(currentRoute)){
     currentRoute=versionRoute(id,version);history.replaceState(null,'',currentRoute);
   }
@@ -1362,7 +1421,7 @@ viewUpdate.addEventListener('click',()=>{
   const heading=main.querySelector('.document-heading');
   if(heading){main.scrollTop+=heading.getBoundingClientRect().top-main.getBoundingClientRect().top-12;heading.querySelector('h2').setAttribute('tabindex','-1');heading.querySelector('h2').focus({preventScroll:true});}
 });
-loadStoredGoals().then(renderRoute,error=>{
+loadStoredGoals().then(()=>navigate({refresh:false}),error=>{
  main.innerHTML=`<div class="not-found"><h1>Could not load Goals</h1><p>${escapeHTML(error.message)}</p></div>`;
 }).finally(()=>{
  let refreshing=false;
@@ -1373,11 +1432,13 @@ loadStoredGoals().then(renderRoute,error=>{
      goal.execution={...goal.execution,status:'unknown'};expired=true;
    }
    if(expired){storeSignature='';if(activeGoalId)refreshGoalFrame();else if(currentRoute==='#/goals')renderIndex();}
-   if(refreshing)return;refreshing=true;
+   if(document.visibilityState!=='visible'||refreshing)return;refreshing=true;
    try{await refreshGoals();await refreshDeliveries();if(timelineRefreshPending&&activeGoalId&&!interactingWithAnnotation()){updateTimeline(activeGoalId);renderAnnotations();}}
    catch(error){announcement.textContent=error.message;}finally{refreshing=false;}
  }
  setInterval(refresh,5000);
+ // Hidden tabs need the Root's count, without fetching Briefs or execution logs.
+ setInterval(()=>{if(document.visibilityState!=='visible')void refreshLetterCount();},15000);
  // Controls must not wait behind loading the full conversation's execution logs.
  setInterval(()=>{if(document.visibilityState==='visible')void activityControls.refresh();},2000);
  document.addEventListener('visibilitychange',()=>{

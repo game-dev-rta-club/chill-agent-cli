@@ -50,3 +50,18 @@ test('Brief pages pin their version, keep full access and do not silently discar
  assert.match(renderGoalPage(page,{full:true}),/Last section/);
  assert.throws(()=>renderGoalPage(page,{briefOffset:999999}));
 });
+
+test('context handoff retains agreement and all new corrections while deferring large bodies',()=>{
+ const events=[letter(1,'2'),...Array.from({length:7},(_,i)=>({id:i+2,changeId:i+2,goalId:'2',type:'comment',author:'user',text:`Correction ${i+2}`}))];
+ events.at(-1).annotations=[{kind:'letter',source:{eventId:1},text:'The final answer'}];
+ const goals=[goal('1',null),goal('2','1',{briefs:[{...brief('2',3),body:'LONG BRIEF '.repeat(2000)}],conversation:events}),goal('3','2',{conversation:[letter(9,'3')]})];
+ const page={...goalPage(goals,'2',{since:1}),attachments:[{id:'image',mimeType:'image/png',path:'/attachments/image.png'}]};
+ const output=renderGoalPage(page,{section:'context'});
+ for(const text of ['Scope 1','Scope 2','Outcome 1','Outcome 2','Question body 1','The final answer','/attachments/image.png'])assert.ok(output.includes(text));
+ for(let i=2;i<=8;i++)assert.ok(output.includes(`Correction ${i}`));
+ assert.doesNotMatch(output,/LONG BRIEF/);
+ assert.match(output,/--version 3 --format text --section brief/);
+ assert.match(output,/goal review --id 2 --letters/);
+ assert.match(renderGoalPage(page,{section:'brief'}),/LONG BRIEF/);
+ assert.deepEqual(page.conversation.map(e=>e.id),[2,3,4,5,6,7,8],'rendering does not consume feedback');
+});

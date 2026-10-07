@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {workspacePort} from '../lib/project-workspace.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -47,7 +48,7 @@ async function main() {
     // Only advertise the connector actually running, not a configured/stale URL.
     let origin = null;
     try {
-      const live = JSON.parse(await readFile(join(dataDirectory(), 'runtime', `web-${process.env.PORT || 4173}`, 'tunnel.json'), 'utf8'));
+      const live = JSON.parse(await readFile(join(dataDirectory(), 'runtime', `web-${workspacePort()}`, 'tunnel.json'), 'utf8'));
       process.kill(live.pid, 0);
       if (settings.remote.mode === 'quick' && /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(live.url)
         || settings.remote.mode === 'named' && live.url === settings.remote.url) origin = live.url;

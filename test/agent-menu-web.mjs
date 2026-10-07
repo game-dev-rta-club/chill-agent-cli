@@ -34,12 +34,12 @@ try {
  await page.goto(`${url}/#/goal/2`);
  const toggle=page.locator('[data-header-extension]');await toggle.waitFor();assert.equal(await toggle.getAttribute('aria-pressed'),'false');
  await page.screenshot({path:'/tmp/chill-extension-off.png'});
- await toggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='true');
+ await toggle.click();await page.getByRole('switch',{name:'Auto-continue'}).click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='true');
  assert.equal((await (await fetch(url+'/api/goals/1/extensions')).json())[0].enabled,true);
- await toggle.hover();await page.getByRole('tooltip').waitFor({state:'visible'});assert.match(await page.getByRole('tooltip').innerText(),/Prompts the agent to keep going/);await page.screenshot({path:'/tmp/chill-extension-on.png'});
+ await page.keyboard.press('Escape');await toggle.hover();await page.getByRole('tooltip').waitFor({state:'visible'});assert.match(await page.getByRole('tooltip').innerText(),/Prompts the agent to keep going/);await page.screenshot({path:'/tmp/chill-extension-on.png'});
  const box=await toggle.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=320);
  await page.goto(`${url}/#/goal/1`);await toggle.waitFor();assert.equal(await toggle.getAttribute('aria-pressed'),'true');
- await toggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='false');
+ await toggle.click();await page.getByRole('switch',{name:'Auto-continue'}).click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='false');
  assert.equal((await (await fetch(url+'/api/goals/2/extensions')).json())[0].enabled,false);
  await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByText('GPT-6 Astra',{exact:true}).waitFor();assert.equal(await page.locator('#agent-panel [data-extension]').count(),0);
  const menuToggle=page.locator('[data-agent-extension]');await menuToggle.waitFor();
