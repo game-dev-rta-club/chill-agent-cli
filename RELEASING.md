@@ -47,8 +47,10 @@ fix a bad release with a new version. Use immutable commit IDs for development
 inputs without bumping the published version for every merge.
 
 First integrate the release preparation into develop. Promote develop to main
-through a checked PR using a merge commit (not squash), preserving shared ancestry.
-Bring that main merge back to develop before the next development change. Tag only
+through a checked PR. Prefer a merge commit where allowed. If main requires linear
+history and squash, respect that rule, then merge the resulting main commit back
+into develop immediately (the trees must match). This restores the common ancestor
+without resetting or force-pushing either branch. Tag only
 the successful main commit. An explicit user request to publish authorizes that release; the consultation
 rule does not require asking again for the same action.
 
