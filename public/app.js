@@ -1363,6 +1363,8 @@ function loadStoredGoals() {
     if(!response.ok)throw new Error('Could not load Goals. Your draft is kept.');
     const stored=await response.json(),signature=JSON.stringify(stored,(key,value)=>['checkedAt','expiresAt'].includes(key)?undefined:value),changed=signature!==storeSignature;
     storeSignature=signature;
+    const visibleIds=new Set(stored.map(goal=>goal.id));
+    for(const id of goalMetadata.keys())if(!visibleIds.has(id))goalMetadata.delete(id);
     for(const {id,briefs,conversation,conversationInfo,letterStates,...metadata} of stored){
       if(conversationInfo&&historyPages.get(id)?.head!==conversationInfo.head)historyPages.set(id,{...conversationInfo});
       for(const status of letterStates||[]){letterStatuses.set(status.id,status);const cached=events.find(e=>e.id===status.id);if(cached)cached.letterStatus=status;}
@@ -1408,6 +1410,7 @@ async function updateCurrentBrief(version) {
 async function refreshGoals(){
   const id=activeGoalId,previousLatest=latestVersion(id);
   if(!await loadStoredGoals())return;
+  if(activeGoalId&&!goalMetadata.has(activeGoalId)){navigate({refresh:false});return;}
   if(activeGoalId){
     updateNoticeForRoute();
     if(activeGoalId===id&&activeVersion===previousLatest&&latestVersion(id)>previousLatest)await updateCurrentBrief(latestVersion(id));

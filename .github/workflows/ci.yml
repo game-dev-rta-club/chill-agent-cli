@@ -26,5 +26,5 @@ jobs:
         if: runner.os == 'macOS'
       - run: npm run web:build
         if: runner.os == 'Windows'
-      - run: node --test test/extension-api.test.mjs test/goal-state.test.mjs test/goal-progress.test.mjs
+      - run: node --test test/extension-api.test.mjs test/goal-state.test.mjs test/goal-progress.test.mjs test/goal-archive.test.mjs
         if: runner.os == 'Windows'

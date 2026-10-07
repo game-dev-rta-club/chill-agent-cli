@@ -42,3 +42,13 @@ See [execution state](../agent/execution-state.md).
 
 Implementation: [Goal store](../../lib/goal-store.mjs),
 [progress calculation](../../public/goal-progress.js).
+
+## Hide an unused root
+
+Use `chill goal update --id <root> --input-file archive.json` with
+`{"archived":true}` to remove an unused root and its descendants from normal
+lists and continuation discovery. This preserves their IDs, Briefs and
+Conversation; it does not mark unfinished work Done. Restore the same ID with
+`{"archived":false}`. Archive only whole roots, so hiding a SubGoal cannot make
+an incomplete parent appear finished. Archiving is not a command to interrupt
+an already running agent or delete its queued messages.
