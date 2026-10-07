@@ -9,13 +9,14 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  const more=document.createElement('button');more.type='button';more.className='extension-more';more.setAttribute('aria-label','More');more.setAttribute('aria-expanded','false');more.setAttribute('aria-controls','extension-list');
  more.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>More</span>';
  const list=document.createElement('div');list.id='extension-list';list.className='extension-list';list.setAttribute('aria-label','Settings');
- container.hidden=true;container.append(more,list);
+ const goals=document.createElement('a');goals.href='#/goals';goals.className='extension-trigger';goals.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span class="extension-name">Goals</span>';goals.onclick=()=>showMore(false);list.append(goals);
+ container.hidden=false;container.append(more,list);
  function showMore(value,restore=false){container.classList.toggle('is-open',value);more.setAttribute('aria-expanded',String(value));if(restore)more.focus({preventScroll:true});}
  more.onclick=()=>{const next=more.getAttribute('aria-expanded')!=='true';close();showMore(next);};
  const panel=document.createElement('section');panel.className='extension-panel';panel.hidden=true;panel.setAttribute('role','dialog');document.body.append(panel);
  function close(restore=false){const id=opened;opened=null;panelController?.abort();cleanup?.();cleanup=null;panel.hidden=true;render();if(restore)more.focus({preventScroll:true});}
  function render(unknown=false){
-  const retained=new Set();container.hidden=!controls.some(c=>c.placement==='header');
+  const retained=new Set();container.hidden=false;
   for(const c of controls.filter(c=>c.placement==='header')){
    if(c.manifest?.startsWith(`/extensions/${c.id}/`)&&!document.querySelector('link[rel="manifest"]')){const link=document.createElement('link');link.rel='manifest';link.href=c.manifest;document.head.append(link);}
    retained.add(c.id);let wrapper=container.querySelector(`[data-header-extension="${c.id}"]`)?.parentElement;

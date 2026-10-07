@@ -1,3 +1,4 @@
+import {createLettersMenu} from './letters-menu.js';
 import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence} from './agent-presence.js';
@@ -74,6 +75,7 @@ const agentButton=document.getElementById('agent-button');
 agentButton.innerHTML=agentAvatar(true);
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
+const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel')});
 const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,announce:showToast});
 let activeVersion = null;
 let pendingAnchor = null;
@@ -903,6 +905,7 @@ function updateBrandTarget(){
 let tabTitleGeneration=0,letterCountRequest=false;
 function updateTabTitle(){
   tabTitleGeneration++;
+  lettersMenu.update([...goalMetadata.values()],events,activeGoalId);
   document.title=letterTabTitle(rootLetterSummary([...goalMetadata.values()],events,activeGoalId));
 }
 async function refreshLetterCount(){
@@ -930,6 +933,7 @@ function renderRoute() {
   activeVersion=activeGoalId?Number(match[2]||latestVersion(activeGoalId)):null;
   if(activeGoalId&&(match[2]||activeVersion)&&!briefAt(activeGoalId,activeVersion))activeGoalId=null;
   updateTabTitle();
+  lettersMenu.close();
   agentMenu.routeChanged();
   extensionButtons.routeChanged();
   agentPresence.routeChanged();

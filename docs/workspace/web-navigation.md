@@ -14,6 +14,11 @@ changes share an in-flight request rather than downloading the same data twice.
 Hidden tabs pause the full workspace refresh. They continue a small Letter-count
 request every 15 seconds, subject to the browser's background timer throttling.
 
+The header keeps Agent and Letters beside each other. Letters opens the unanswered
+list for the current Root and its descendants; on the Goals index it includes all
+Roots. The envelope shows a muted zero when empty and a highlighted count when
+there are Letters. Goals navigation lives inside More, even without extensions.
+
 The browser tab shows the current Root's title and unanswered Letter count,
 including all descendants: `(2) Root title · chill`. Opening a child or an older
 Brief keeps that Root's count. Other Roots do not contribute. Answers and explicit

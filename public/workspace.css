@@ -349,3 +349,16 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 }
 
 .agent-panel,.extension-panel { right:max(12px,calc((100vw - 1120px)/2 + 20px)); }
+
+.header-letters { position:relative; display:flex; align-items:center; justify-content:center; width:var(--header-control-size); height:var(--header-control-size); border-radius:10px; color:var(--muted); }
+.header-letters>svg { width:var(--header-icon-size); height:var(--header-icon-size); }
+.header-letters.is-on { color:var(--letter-ink); background:var(--letter-surface); }
+.header-letters:hover,.header-letters[aria-expanded=true] { background:#f2eadc; }
+.header-letter-count { position:absolute; right:0; top:0; min-width:17px; padding:0 3px; border-radius:9px; background:var(--surface-soft); font-size:10px; line-height:17px; font-variant-numeric:tabular-nums; }
+.is-on .header-letter-count { background:var(--letter-ink); color:white; }
+.letters-panel { max-height:calc(100dvh - 90px); overflow:auto; }
+.header-letter-list { list-style:none; margin:0; padding:0; }
+.header-letter-list a { display:grid; gap:4px; padding:12px 8px; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+.header-letter-list a:hover { background:var(--letter-surface); }
+.header-letter-list strong { font-size:14px; color:var(--letter-ink); }
+.header-letter-list small { font-size:12px; color:var(--muted); }
