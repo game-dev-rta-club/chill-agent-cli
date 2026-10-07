@@ -15,7 +15,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listStoredGoals, listGoals, readFeedback, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listStoredGoals, listGoals, readFeedback, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { listDeliveries, refreshWorkOutputs } from './lib/delivery.mjs';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
@@ -226,6 +226,15 @@ const server = createServer(async (request, response) => {
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
     try{return sendJson(response,200,await controlAgent(controlPath[1],await readJson(request)));}
     catch(error){return sendJson(response,409,{error:error.message});}
+  }
+  const conversationPath=/^\/api\/goals\/([1-9][0-9]*)\/conversation$/.exec(path);
+  if(conversationPath&&request.method==='GET'){
+    try{
+      const before=url.searchParams.has('before')?Number(url.searchParams.get('before')):undefined;
+      const limit=url.searchParams.has('limit')?Number(url.searchParams.get('limit')):30;
+      const page=await readConversationPage(conversationPath[1],{before,limit});
+      return sendJson(response,200,{...page,events:page.events.map(renderedEvent),answerTargets:page.answerTargets.map(renderedEvent)});
+    }catch(error){return sendJson(response,error.status||400,{error:error.message});}
   }
   const lettersCountPath=/^\/api\/goals\/([1-9][0-9]*)\/letters\/count$/.exec(path);
   if(lettersCountPath&&request.method==='GET'){
