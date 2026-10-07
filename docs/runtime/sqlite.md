@@ -29,9 +29,13 @@ Indexes support parent lookups and a Goal's events after a cursor. Stored JSON
 bodies retain full record contents while indexed columns support bounded reads.
 Future adapters must keep these columns consistent with the public record.
 
-Writes use short synchronous transactions and enforce foreign keys. WAL permits
-readers during a writer's transaction; writers still serialize with a five-second
-busy timeout. Long work and asynchronous calls belong outside a transaction.
+Published-record operations validate and write in a single transaction and enforce foreign keys. WAL permits
+readers during a writer's transaction; writers still serialize. Compound operations yield between attempts for up to
+ten seconds; standalone connections have a five-second busy timeout. Goal operations reuse their transaction connection across local file reads.
+Writer acquisition yields while waiting, so a second request cannot block the
+Node event loop needed by the first. External calls and long work belong outside
+these transactions. Editable sources are not transactional; a retried creation
+preserves a source left by a rolled-back database operation.
 The foundation checks its application ID and schema version before adoption and
 rejects legacy JSON workspaces and unsupported database versions. No existing
 store is silently converted.
@@ -41,9 +45,8 @@ store is silently converted.
 1. Goal, Conversation and Brief operations now retain their validation and public
    shapes through the database. Newest Brief and changed-event queries use indexes.
    Follow up with bounded conversation pages and compact workspace summaries:
-   the compatibility snapshot still loads all history. Operation-level file leases
-   still serialize compound validation/writes; replace those with database-owned
-   transactions before calling the storage replacement complete.
+   the compatibility snapshot still loads all history. Goal, Brief and event operations now use database transactions instead of file
+   leases. Transport and extension coordination remain separate work.
 2. Exercise Web, CLI and harness delivery in a disposable project. Inventory
    coordination records separately: delivery receipts, holds, connection identity,
    extension state and pending requests are not part of the foundation tables yet.
