@@ -1,43 +1,52 @@
+import {join} from 'node:path';
+import {writeJsonAtomically} from './lib/storage.mjs';
+import {projectProfile,selectProjectPort,projectExtensionEnabled} from './lib/project-workspace.mjs';
 import {readAgentActivity} from './lib/agent-activity.mjs';
 import {createExtensionHost} from './lib/server-extensions.mjs';
 import {registeredExtensions} from './lib/extension-registry.mjs';
 import { showHelp } from './lib/cli-help.mjs';
-import {randomBytes} from 'node:crypto';
+import {randomBytes,createHash} from 'node:crypto';
+import {gzipSync} from 'node:zlib';
+import {webSnapshot,webBrief} from './lib/web-snapshot.mjs';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listStoredGoals, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listStoredGoals, listGoals, readFeedback, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import {rootLetterSummary} from './public/letter-state.js';
 import { listDeliveries, refreshWorkOutputs } from './lib/delivery.mjs';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
-import { startTunnel } from './lib/tunnel.mjs';
+import { createTunnelController } from './lib/tunnel-controller.mjs';
 import { readMessageSettings } from './lib/message-settings.mjs';
 import {renderedEvent} from './lib/markdown.mjs';
-import {briefDocument} from './lib/brief.mjs';
+import {briefDocument,briefSVG} from './lib/brief.mjs';
 import {readAgentStatus,saveAgentSettings,controlAgent} from './lib/agent-status.mjs';
 import {readAgentPresence} from './lib/agent-presence.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
+if(!process.env.PORT&&projectProfile())await selectProjectPort();
 const { port, duration, idleTimeoutMs, tunnel, configured } = serverOptions(process.argv.slice(2));
-const remote = configured ? (await readMessageSettings()).remote : { mode: tunnel ? 'quick' : 'off' };
+const remote = configured ? (projectExtensionEnabled('public-link')?(await readMessageSettings()).remote:{mode:'off'}) : { mode: tunnel ? 'quick' : 'off' };
 // launchd preserves this baseline across crash recovery. A manual start creates a new one.
 const startedAt = Number(process.env.CHILL_AGENT_SERVER_STARTED_AT ?? Date.now());
 if (!Number.isSafeInteger(startedAt) || startedAt <= 0) throw new Error('Invalid server start time.');
 let activeRequests = 0, activeCommands = 0, stopIdleWatch;
-let tunnelOrigin = null, stopTunnel, closing = false;
-const extensions=createExtensionHost(registeredExtensions());
+let tunnelOrigin = null, closing = false;
+const instanceToken=randomBytes(32).toString('hex');
+const publicTunnel=createTunnelController({directory:dataDirectory(),port:()=>server.address().port,onOrigin:origin=>{tunnelOrigin=origin;}});
+const extensions=createExtensionHost(registeredExtensions({tunnel:publicTunnel,configured}));
 const allowedOrigin = request => request.headers.origin === `http://127.0.0.1:${server.address().port}`
   || (tunnelOrigin !== null && request.headers.origin === tunnelOrigin);
 
-function shutdown() {
+function shutdown(preserveTunnel=false) {
   if (closing) return;
   closing = true;
   stopIdleWatch?.();
   void extensions.stop().catch(error=>console.error(error.message));
-  void stopTunnel?.().catch(error => console.error(error.message));
+  void (preserveTunnel ? publicTunnel.release() : publicTunnel.stop()).catch(error => console.error(error.message));
   server.close();
 }
 
@@ -47,11 +56,14 @@ const assets = new Map([
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
   ['/goals', ['index.html', 'text/html; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
+  ['/vendor/workspace-app.js', ['vendor/workspace-app.js', 'text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/activity-controls.js', ['activity-controls.js', 'text/javascript; charset=utf-8']],
   ['/agent-menu.js', ['agent-menu.js', 'text/javascript; charset=utf-8']],
   ['/agent-presence.js', ['agent-presence.js', 'text/javascript; charset=utf-8']],
   ['/extension-buttons.js', ['extension-buttons.js', 'text/javascript; charset=utf-8']],
+  ['/browser-context.js', ['browser-context.js', 'text/javascript; charset=utf-8']],
+  ['/confirmation-dialog.js', ['confirmation-dialog.js', 'text/javascript; charset=utf-8']],
   ['/work-ui.js', ['work-ui.js', 'text/javascript; charset=utf-8']],
   ['/goal-view.js', ['goal-view.js', 'text/javascript; charset=utf-8']],
   ['/goal-progress.js', ['goal-progress.js', 'text/javascript; charset=utf-8']],
@@ -72,6 +84,14 @@ async function readJson(request) {
     if (body.length > 160000) throw new Error('Request is too large.');
   }
   return JSON.parse(body);
+}
+
+function acceptsGzip(request) {
+  return (request.headers['accept-encoding'] || '').split(',').some(part => {
+    const [name, ...parameters] = part.trim().toLowerCase().split(';');
+    const quality = parameters.find(value => value.trim().startsWith('q='));
+    return name.trim() === 'gzip' && (!quality || Number(quality.trim().slice(2)) > 0);
+  });
 }
 
 function sendJson(response, status, data) {
@@ -127,6 +147,12 @@ const server = createServer(async (request, response) => {
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
+  // Existing sockets can pipeline more requests after server.close() has
+  // cleared the listening address. Drain them without starting new work.
+  if (closing) {
+    response.setHeader('Connection', 'close');
+    return sendJson(response, 503, {error:'The server is restarting. Please try again shortly.'});
+  }
   const styleNonce=randomBytes(18).toString('base64');
   response.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'nonce-${styleNonce}'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'`);
   let path,url;
@@ -136,9 +162,28 @@ const server = createServer(async (request, response) => {
     response.writeHead(400);
     return response.end('Invalid request URL');
   }
+  if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
+  const extensionAsset=extensions.asset(path);
+  if(extensionAsset&&['GET','HEAD'].includes(request.method)){
+    try{const data=await readFile(extensionAsset.file);response.writeHead(200,{'Content-Type':extensionAsset.type,...(extensionAsset.scope==='/'?{'Service-Worker-Allowed':'/'}:{})});return response.end(request.method==='HEAD'?undefined:data);}
+    catch{return sendJson(response,404,{error:'Extension asset unavailable.'});}
+  }
+  const extensionRequest=/^\/api\/extensions\/([a-z][a-z0-9-]*)\/([a-z0-9/-]+)$/.exec(path);
+  if(extensionRequest&&['GET','POST'].includes(request.method)){
+    if(request.method==='POST'&&(!allowedOrigin(request)&&!(request.headers['sec-fetch-site']==='same-origin'&&!request.headers.origin)||!request.headers['content-type']?.startsWith('application/json')))
+      return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    try{
+      const localHost=`127.0.0.1:${server.address().port}`;
+      const result=await extensions.request(extensionRequest[1],{method:request.method,path:extensionRequest[2],query:Object.fromEntries(url.searchParams),
+        body:request.method==='POST'?await readJson(request):{},
+        origin:request.headers.origin||(request.headers.host===localHost?`http://${localHost}`:tunnelOrigin),
+        local:!request.headers['cf-connecting-ip']&&!request.headers['cf-ray']&&request.headers.host===localHost&&(!request.headers.origin||request.headers.origin===`http://${localHost}`)});
+      return sendJson(response,result?.status||200,result?.body??result);
+    }catch(error){return sendJson(response,error.status||400,{error:error.message});}
+  }
   const extensionPath=/^\/api\/goals\/([1-9][0-9]*)\/extensions(?:\/([a-z][a-z0-9-]*))?$/.exec(path);
   if(extensionPath&&request.method==='GET'&&!extensionPath[2]){
-    try{return sendJson(response,200,await extensions.controls(extensionPath[1],{activity:url.searchParams.get('activity')==='1'}));}
+    try{return sendJson(response,200,await extensions.controls(extensionPath[1],{activity:url.searchParams.get('activity')==='1',clientId:/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(url.searchParams.get('clientId')||'')?url.searchParams.get('clientId'):null}));}
     catch(error){return sendJson(response,503,{error:error.message});}
   }
   if(extensionPath&&request.method==='POST'&&extensionPath[2]){
@@ -171,6 +216,30 @@ const server = createServer(async (request, response) => {
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
     try{return sendJson(response,200,await controlAgent(controlPath[1],await readJson(request)));}
     catch(error){return sendJson(response,409,{error:error.message});}
+  }
+  const lettersCountPath=/^\/api\/goals\/([1-9][0-9]*)\/letters\/count$/.exec(path);
+  if(lettersCountPath&&request.method==='GET'){
+    try{
+      const [goals,conversation]=await Promise.all([listGoals(),readFeedback()]);
+      const summary=rootLetterSummary(goals,conversation,lettersCountPath[1]);
+      return sendJson(response,summary?200:404,summary||{error:'Goal not found.'});
+    }catch{return sendJson(response,500,{error:'Could not count Letters.'});}
+  }
+  const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
+  if(briefSVGPath&&request.method==='GET'){
+    try{
+      const brief=await readBrief(briefSVGPath[1],Number(briefSVGPath[2]));
+      const svg=brief?.format==='html'?briefSVG(brief.body,Number(briefSVGPath[3])):null;
+      if(!svg)return sendJson(response,404,{error:'Brief image not found.'});
+      response.setHeader('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; sandbox");
+      response.writeHead(200,{'Content-Type':'image/svg+xml; charset=utf-8'});
+      return response.end(svg);
+    }catch{return sendJson(response,500,{error:'Could not load Brief image.'});}
+  }
+  const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)$/.exec(path);
+  if(briefDataPath&&request.method==='GET'){
+    try{const brief=await readBrief(briefDataPath[1],Number(briefDataPath[2]));return sendJson(response,brief?200:404,brief?webBrief(brief):{error:'Brief not found.'});}
+    catch{return sendJson(response,500,{error:'Could not load Brief.'});}
   }
   const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/document$/.exec(path);
   if(briefDocumentPath&&request.method==='GET') {
@@ -248,7 +317,11 @@ const server = createServer(async (request, response) => {
   }
   if (path === '/api/goals') {
     try {
-      const body = JSON.stringify(await readConnectedGoals());
+      const web=url.searchParams.get('view')==='web';
+      const goals=await readConnectedGoals({render:!web});
+      let body = Buffer.from(JSON.stringify(web?webSnapshot(goals):goals));
+      response.setHeader('Vary','Accept-Encoding');
+      if(acceptsGzip(request)){body=gzipSync(body);response.setHeader('Content-Encoding','gzip');}
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       return response.end(request.method === 'HEAD' ? undefined : body);
     } catch {
@@ -265,6 +338,13 @@ const server = createServer(async (request, response) => {
     let data = await readFile(fileURLToPath(new URL(`./public/${asset[0]}`, import.meta.url)));
     if(asset[0]==='index.html') data=Buffer.from(data.toString().replace('__STYLE_NONCE__',styleNonce));
     if (request.method === 'GET' && asset[0] === 'index.html') await recordServerUse(dataDirectory());
+    if(asset[0]!=='index.html'){
+      const etag='W/"'+createHash('sha256').update(data).digest('hex')+'"';
+      response.setHeader('Cache-Control','private, no-cache');response.setHeader('ETag',etag);
+      response.setHeader('Vary','Accept-Encoding');
+      if(request.headers['if-none-match']===etag){response.writeHead(304);return response.end();}
+      if(acceptsGzip(request)){data=gzipSync(data);response.setHeader('Content-Encoding','gzip');}
+    }
     response.writeHead(200, { 'Content-Type': asset[1] });
     response.end(request.method === 'HEAD' ? undefined : data);
   } catch {
@@ -274,10 +354,11 @@ const server = createServer(async (request, response) => {
 });
 
 await initializeStore();
-server.listen(port, '127.0.0.1', () => {
+server.listen(port, '127.0.0.1', async () => {
   // Child CLI receipts must link to this server, including an OS-chosen port.
   process.env.PORT=String(server.address().port);
-  void extensions.start().catch(error=>{console.error(error.message);process.exitCode=1;shutdown();});
+  if(projectProfile())try{await writeJsonAtomically(join(dataDirectory(),'runtime','endpoint.json'),{pid:process.pid,port:server.address().port,token:instanceToken});}catch(error){console.error(error.message);process.exitCode=1;shutdown();return;}
+  void (async()=>{await extensions.start();if(remote.mode!=='off'&&!publicTunnel.initialized&&!closing)await publicTunnel.set(true,remote);})().catch(error=>{console.error(error.message);process.exitCode=1;shutdown();});
   console.log(`chill-agent: http://127.0.0.1:${server.address().port}`);
   console.log(`Idle timeout: ${duration} (user actions and CLI updates renew it; polling does not).`);
   stopIdleWatch = watchServerIdle({ directory: dataDirectory(), idleTimeoutMs, startedAt,
@@ -285,13 +366,7 @@ server.listen(port, '127.0.0.1', () => {
     canStop: () => activeRequests===0 && activeCommands===0 && !extensions.active,
     onIdle: () => { console.log(`Idle timeout reached (${duration}). Stopping server.`); shutdown(); },
   });
-  if (remote.mode !== 'off' && !closing) {
-    void startTunnel({ directory: dataDirectory(), port: server.address().port, remote,
-      onOrigin: origin => { tunnelOrigin = origin; },
-      onFailure: error => { console.error(error.message); process.exitCode = 1; shutdown(); },
-    }).then(stop => { stopTunnel = stop; if (closing) return stop(); })
-      .catch(error => { console.error(error.message); process.exitCode = 1; shutdown(); });
-  }
+
 });
 server.on('close', () => stopIdleWatch?.());
 server.on('error', error => {
@@ -299,5 +374,7 @@ server.on('error', error => {
   process.exitCode = 1;
 });
 for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, shutdown);
+  process.on(signal, () => shutdown());
 }
+
+process.on('SIGUSR2',()=>shutdown(true));
