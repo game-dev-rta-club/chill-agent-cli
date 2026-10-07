@@ -44,7 +44,8 @@ store is silently converted.
 
 1. Goal, Conversation and Brief operations now retain their validation and public
    shapes through the database. Newest Brief and changed-event queries use indexes.
-   Follow up with bounded conversation pages and compact workspace summaries:
+   Conversation pages are available through the endpoint below. Follow up with
+   the Web client adopting them and compact workspace summaries:
    the compatibility snapshot still loads all history. Goal, Brief and event operations now use database transactions instead of file
    leases. Transport and extension coordination remain separate work.
 2. Exercise Web, CLI and harness delivery in a disposable project. Inventory
@@ -66,3 +67,26 @@ size still need their own measurement.
 Implementation: [SQLite foundation](../../lib/sqlite-workspace.mjs).
 See [existing data ownership](data-and-updates.md) and
 [project isolation](projects.md).
+
+## Read one conversation page
+
+`GET /api/goals/<id>/conversation?limit=30` returns the newest page in ascending
+change order. `limit` is 1–100; follow `nextBefore` as `before` to fetch the next
+older page while `hasMore` is true. Both storage backends implement the contract;
+SQLite uses `(goal_id, change_id)` to read only the requested range plus one
+lookahead row. JSON retains its legacy full-file read.
+
+`events` contains the requested page. `answerTargets` contains only the referenced
+Agent Letters needed to understand its replies, including off-page Letters.
+Both include rendered HTML. `cursor` is the workspace change watermark captured
+with that page. A missing Goal returns 404; invalid pagination returns 400.
+
+Event identity and change order differ: closing a Letter keeps its ID and advances
+its change cursor. A client should retain the first page's watermark and reconcile
+subsequent `/api/events?since=...` changes by event ID while loading history. Pages
+are read snapshots, not a durable historical snapshot spanning several requests.
+A cursor from a later history page must not skip intervening live changes.
+
+The existing Web client still consumes its full compatibility snapshot. This
+endpoint establishes bounded reads for the next client integration; it does not
+by itself reduce the current browser's payload or replace the global delta API.
