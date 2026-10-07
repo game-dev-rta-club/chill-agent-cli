@@ -8,7 +8,7 @@ import {once} from 'node:events';
 import {promisify} from 'node:util';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=await mkdtemp(join(tmpdir(),'chill-agent-menu-'));
-const env={...process.env,CHILL_AGENT_DATA_DIR:root,CODEX_HOME:root,PORT:'0',CHILL_AGENT_CODEX_PATH:new URL('./fake-codex.mjs',import.meta.url).pathname};
+const env={...process.env,CHILL_AGENT_DATA_DIR:root,CODEX_HOME:root,PORT:'0',CHILL_AGENT_EXTENSIONS:'none',CHILL_AGENT_CODEX_PATH:new URL('./fake-codex.mjs',import.meta.url).pathname};
 const cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname,exec=promisify(execFile);
 const run=async(...args)=>JSON.parse((await exec(process.execPath,[cli,...args],{env})).stdout);
 let server,browser;
@@ -18,6 +18,17 @@ try {
  server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(new Error(`Server exit ${c}`)));});
  browser=await chromium.launch({headless:true});const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let reads=0;page.on('request',r=>{if(/\/agent$/.test(r.url()))reads++;});
+ // The CLI does not bundle application policy. Model that public extension contract explicitly.
+ let extensionEnabled=false;const extensionWrites=[];
+ await page.route(/\/api\/goals\/\d+\/extensions(?:\/[^?]+)?(?:\?.*)?$/,async route=>{
+  const request=route.request(),path=new URL(request.url()).pathname;
+  if(request.method()==='POST'){
+   const input=request.postDataJSON();extensionWrites.push({path,input});
+   assert.equal(input.rootId,'1');extensionEnabled=input.enabled;
+  }
+  const controls=path.includes('/goals/3/')?[]:[{id:'continuation',rootId:'1',label:'Auto-continue',description:'Prompts the agent to keep going.',enabled:extensionEnabled,placement:'header',icon:'repeat',activity:{label:'AutoContinue',activeCount:0,entries:[]}}];
+  await route.fulfill({json:controls});
+ });
  for(const width of [1400,390,320]){
   await page.setViewportSize({width,height:844});await page.goto('about:blank');const before=reads;await page.goto(`${url}/#/goal/1`);
   const button=page.getByRole('button',{name:'Agent',exact:true});await button.waitFor();assert.equal(reads,before,'No agent polling while closed');
@@ -31,16 +42,16 @@ try {
   else await page.mouse.click(4,90);
   await panel.waitFor({state:'hidden'});
  }
- await page.goto(`${url}/#/goal/2`);
+ await page.goto(`${url}/#/goal/2`);await page.locator('#goal-title').filter({hasText:'Child'}).waitFor();await page.getByRole('button',{name:'More',exact:true}).click();
  const toggle=page.locator('[data-header-extension]');await toggle.waitFor();assert.equal(await toggle.getAttribute('aria-pressed'),'false');
  await page.screenshot({path:'/tmp/chill-extension-off.png'});
  await toggle.click();await page.getByRole('switch',{name:'Auto-continue'}).click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='true');
- assert.equal((await (await fetch(url+'/api/goals/1/extensions')).json())[0].enabled,true);
- await page.keyboard.press('Escape');await toggle.hover();await page.getByRole('tooltip').waitFor({state:'visible'});assert.match(await page.getByRole('tooltip').innerText(),/Prompts the agent to keep going/);await page.screenshot({path:'/tmp/chill-extension-on.png'});
+ assert.equal(extensionEnabled,true);assert.equal(extensionWrites.at(-1).path,'/api/goals/2/extensions/continuation');
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'More',exact:true}).click();await toggle.waitFor();await page.screenshot({path:'/tmp/chill-extension-on.png'});
  const box=await toggle.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=320);
- await page.goto(`${url}/#/goal/1`);await toggle.waitFor();assert.equal(await toggle.getAttribute('aria-pressed'),'true');
+ await page.goto(`${url}/#/goal/1`);await page.locator('#goal-title').filter({hasText:'Root'}).waitFor();await page.getByRole('button',{name:'More',exact:true}).click();await toggle.waitFor();assert.equal(await toggle.getAttribute('aria-pressed'),'true');
  await toggle.click();await page.getByRole('switch',{name:'Auto-continue'}).click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='false');
- assert.equal((await (await fetch(url+'/api/goals/2/extensions')).json())[0].enabled,false);
+ assert.equal(extensionEnabled,false);assert.equal(extensionWrites.at(-1).path,'/api/goals/1/extensions/continuation');
  await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByText('GPT-6 Astra',{exact:true}).waitFor();assert.equal(await page.locator('#agent-panel [data-extension]').count(),0);
  const menuToggle=page.locator('[data-agent-extension]');await menuToggle.waitFor();
  const response=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().includes('/extensions/'));
@@ -48,7 +59,7 @@ try {
  await page.waitForFunction(()=>document.querySelector('[data-header-extension]').getAttribute('aria-pressed')==='true');
  assert.equal(await page.getByRole('heading',{name:'AutoContinue',exact:true}).isVisible(),true);
  await menuToggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]').getAttribute('aria-pressed')==='false');
- assert.equal((await (await fetch(url+'/api/goals/2/extensions')).json())[0].enabled,false);
+ assert.equal(extensionEnabled,false);assert.equal(extensionWrites.at(-1).path,'/api/goals/1/extensions/continuation');
 
  await page.goto(`${url}/#/goal/3`);await toggle.waitFor({state:'hidden'});assert.equal(await toggle.count(),0);
  let saved=null,posts=0,failSave=false;
