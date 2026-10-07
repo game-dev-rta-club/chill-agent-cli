@@ -73,3 +73,9 @@ project's saved automatic port, and finally the legacy default. Re-read it after
 starting a server: startup can replace a port taken by another process.
 Do not hardcode 4173 in an extension. The local address is distinct from the
 public origin returned by `readPublicOrigin()`.
+
+Before a CLI contacts an automatically assigned project port, await
+`resolveWorkspacePort()`. It verifies the saved running-instance token and
+selects another available port if a different service occupies the old one.
+The returned port may need a server start; this function does not start Web.
+An explicit `PORT` remains the caller's override.
