@@ -4,7 +4,7 @@ import {mkdtemp,mkdir,writeFile,readFile,rm,readdir,lstat} from 'node:fs/promise
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
-import {createMigrationBundle,verifyMigrationBundle,restoreMigrationSource,verifyRestoredSource} from '../lib/sqlite-migration.mjs';
+import {createMigrationBundle,verifyMigrationBundle,restoreMigrationSource,verifyRestoredSource,prepareMigrationWorkspace,verifyPreparedWorkspace} from '../lib/sqlite-migration.mjs';
 import {openSqliteWorkspace} from '../lib/sqlite-workspace.mjs';
 async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chill-migrate-')),source=join(root,'old'),destination=join(root,'bundle');
@@ -86,4 +86,33 @@ test('restore rejects traversal and platform path aliases even with recomputed c
   await assert.rejects(restoreMigrationSource(f.destination,join(f.root,'restored')),/Unsafe/);
   assert.deepEqual((await readdir(f.root)).sort(),['bundle','old']);
  }
+});
+
+
+test('prepared SQLite workspace preserves durable files and quarantines runtime state',async t=>{
+ const f=await fixture(t);
+ await f.put('deliveries/9.json',{status:'unknown',eventId:9});
+ await f.put('requests/queued.json',{state:'queued'});
+ await f.put('connections/test/session.json',{pid:123});
+ await f.put('extensions/auto-mode.json',{enabled:true});
+ await createMigrationBundle(f.source,f.destination);
+ const destination=join(f.root,'prepared');
+ const report=await prepareMigrationWorkspace(f.destination,destination);
+ assert.equal(report.state,'offline-prepared');assert.equal(report.copiedFiles,4);
+ assert.equal(report.archiveGroups.connections,1);assert.equal(report.archiveGroups.extensions,1);
+ assert.equal((await verifyPreparedWorkspace(f.destination,destination)).verified,true);
+ const workspace=join(destination,'workspace');
+ assert.deepEqual(JSON.parse(await readFile(join(workspace,'deliveries/9.json'))),{status:'unknown',eventId:9});
+ for(const name of ['connections','extensions','requests','locks','events','schema.json'])await assert.rejects(lstat(join(workspace,name)),{code:'ENOENT'});
+ const store=await openSqliteWorkspace(workspace);try{
+  assert.equal(JSON.parse(store.db.prepare('SELECT body FROM events WHERE id=7').get().body).annotations[0].source.eventId,4);
+  assert.equal(store.db.prepare('SELECT change_id FROM events WHERE id=4').get().change_id,10);
+ }finally{store.close();}
+ const {execFile}=await import('node:child_process');const {promisify}=await import('node:util');
+ await assert.rejects(promisify(execFile)(process.execPath,[new URL('../bin/chill-agent.mjs',import.meta.url).pathname,'show','--id','8'],{env:{...process.env,CHILL_AGENT_DATA_DIR:destination}}),/offline-prepared/);
+ await assert.rejects(prepareMigrationWorkspace(f.destination,destination),/already exists/);
+ await assert.rejects(prepareMigrationWorkspace(f.destination,join(f.destination,'data')),/outside/);
+ await writeFile(join(workspace,'deliveries/9.json'),'changed');
+ await assert.rejects(verifyPreparedWorkspace(f.destination,destination),/files differ/);
+ assert.equal((await verifyMigrationBundle(f.destination)).verified,true);
 });
