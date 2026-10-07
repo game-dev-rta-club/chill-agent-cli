@@ -13,7 +13,7 @@ import {workProgressGroups, workDisclosure} from '../public/work-ui.js';
 const thread='00000000-0000-0000-0000-000000000001';
 const turn='00000000-0000-0000-0000-000000000002';
 const started='2026-09-27T04:00:00.000Z', start=Date.parse(started);
-const state={threadId:thread,hookTurnId:turn,messageId:'notice-1',status:'working',history:[{status:'working',at:started}]};
+const state={threadId:thread,hookTurnId:turn,messageId:'notice-1',status:'working',agentReported:true,history:[{status:'working',at:started}]};
 const meta={id:turn,startedAt:start/1000-10,completedAt:null,status:'interrupted',items:[]};
 const message=(id,text,at=start+100,turnId=turn)=>({turnId,startedAtMs:at,item:{id,type:'agentMessage',phase:'commentary',text}});
 const clientFor=(entries, metadata=meta)=>({request:async(method,p)=>{
@@ -250,4 +250,14 @@ test('direct CLI receipt binds the live turn without a notification marker or wo
  assert.equal(retry.turnId,turn,'receipt retries preserve established ownership');
  assert.equal(presentDelivery({status:'working',agentReported:true}).status,'received','unbound legacy receipts are not phantom Running entries');
  assert.equal(presentDelivery({status:'queued'}).status,'queued');
+});
+
+
+test('unclaimed hook notices never borrow the interrupted work output',async()=>{
+ const client={request:async(method)=>{
+  if(method==='thread/turns/list')return {data:[{id:turn,status:'inProgress',completedAt:null,items:[]}],nextCursor:null};
+  throw Error('No other reads expected');
+ }};
+ const queued={threadId:thread,hookTurnId:turn,messageId:'pending',status:'deferred',history:[]};
+ assert.equal(await workReader(client)(queued),null);
 });

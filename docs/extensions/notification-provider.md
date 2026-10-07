@@ -1,7 +1,7 @@
 ---
 keyPoints: >-
   A trusted notification provider makes settings commands and reminders use the
-  same application policy as Web controls. The host never sends external messages.
+  same application policy as Web controls. The provider owns any direct delivery; the host adds no sending policy.
 ---
 
 # Connect notification policy to settings
@@ -20,7 +20,9 @@ methods:
 The service owns Root selection, saved profiles, event eligibility, message
 reservation and receipts. `settings` returns at least `enabled` and `on` for
 reminders. `prepare` returns `{enabled:false}` to skip, or a tool, destination,
-exact message and result command. Outcomes are `sent`, `failed`, `unconfirmed`;
+exact message and result command. A provider can also deliver directly and return
+`{enabled:false, handled:true, delivery:"web-push", results:[…]}`. The caller must
+not send that notification again. Outcomes are `sent`, `failed`, `unconfirmed`;
 the service decides what evidence each receipt represents. The host sends
 nothing and stores no credentials for external services.
 
@@ -30,8 +32,11 @@ to a stale global On setting. `CHILL_AGENT_EXTENSIONS=none` suppresses server
 extension registration, not the provider used by explicit settings commands.
 
 The public extension API exposes shared settings readers, validation,
-`saveMessageSetting` and `notificationUrl(goalId, event)`. The latter only
-returns a confirmed running phone URL; null is not a usable phone link.
+`saveMessageSetting`, `readPublicOrigin()` and `notificationUrl(goalId, event)`.
+The origin reader returns the confirmed running connector's origin or null.
+A notification extension can use it to retire subscriptions for an obsolete
+public URL. Do not infer a user's device identity from its browser fingerprint.
+The URL helper adds a Goal or Letter path; null is not a usable phone link.
 Disabling shared notifications retains the known connection. Applications
 can use this to migrate existing preferences without guessing a recipient.
 

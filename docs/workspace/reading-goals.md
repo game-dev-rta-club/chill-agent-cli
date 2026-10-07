@@ -1,7 +1,7 @@
 ---
 keyPoints: >-
   Review gives one line per Goal with state filters and ancestor context. Show opens
-  one Brief and recent discussion, with explicit commands for older or longer content.
+  one Brief and recent discussion; context mode keeps the agreement and new input while linking to longer bodies.
 ---
 
 # Read a workspace in layers
@@ -30,6 +30,21 @@ for the next page. Counts distinguish the entire subtree, matching Goals and
 this page. Reads reflect current state; if the workspace changes while paging,
 restart the query for a new overview. The cursor remains valid if that Goal no
 longer matches the filter, but not if it has moved outside the queried subtree.
+
+## Resume with current context
+
+```sh
+chill goal show --id 6 --since 17 --format text --section context
+```
+
+Context mode keeps the Goal and root agreement, criteria, current state, Letter
+titles and conversation. It links to the published Brief version and full
+questions instead of printing their bodies. Replies still include their original
+question, and annotations and attachment paths remain available. With `--since`,
+all later input is retained unless a limit is explicitly requested.
+
+This is a view over the same Goal page, not a stored summary or completion
+judgment. Follow its printed commands when the next decision needs more detail.
 
 ## Open one Goal
 

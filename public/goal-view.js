@@ -81,7 +81,7 @@ function pager(id,version){
   };
   return `<nav class="version-pager" aria-label="Brief history"><span class="history-label">History</span>${step('previous',version-1)}<span class="version-label" aria-label="Version ${version}">v${version}</span>${step('next',version+1)}</nav>`;
 }
-function brief(id){return `${breadcrumb(id)}<section class="surface goal-brief" aria-labelledby="goal-title"><header class="goal-heading"><h1 id="goal-title">${escapeHTML(goals[id].title)}</h1><div class="goal-topline"><div class="badges">${status(id)}${progress(id)}${lettersButton(id)}</div></div></header>${splitGoals(id)}</section>`;}
+function brief(id){return `${breadcrumb(id)}<section class="surface goal-brief" aria-labelledby="goal-title"><header class="goal-heading"><h1 id="goal-title">${escapeHTML(goals[id].title)}</h1><div class="goal-topline"><div class="badges">${status(id)}${progress(id)}</div></div></header>${splitGoals(id)}</section>`;}
 function index(){const roots=Object.keys(goals).filter(id=>!goals[id].parentId);return `<div class="goals-index"><h1>Goals</h1>${roots.length?roots.map(id=>`<section class="surface goal-brief"><header class="goal-heading"><h2><a class="goal-index-link" href="${href(id)}">${escapeHTML(goals[id].title)} ↗</a></h2><div class="badges">${status(id)}${progress(id)}<span class="letters-count${letterCount(id)?'':' is-empty'}" aria-label="${letterCount(id)} unanswered Letters under ${escapeHTML(goals[id].title)}" title="Unanswered Letters, including Split Goals">${icon('letter')}<span>${letterCount(id)}</span></span></div></header></section>`).join(''):'<p class="empty-state">No Goals yet. Create a Goal from the CLI to begin.</p>'}</div>`;}
 return {brief,index,pager,brandTarget,descendants,letterCount,lettersButton,splitGoals};
 }

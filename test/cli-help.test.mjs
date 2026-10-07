@@ -23,7 +23,7 @@ async function fixture(t) {
 test('every command help works without data, valid settings, Codex, or server startup', async t => {
   const f=await fixture(t);
   const entries={monitor:'bin/chill-monitor.mjs',goal:'bin/chill-agent.mjs',settings:'bin/chill-settings.mjs',setup:'bin/chill-setup.mjs',
-    server:'bin/chill-server.mjs',hook:'bin/chill-hook.mjs',foreground:'server.mjs',link:'bin/chill-link.mjs'};
+    server:'bin/chill-server.mjs',hook:'bin/chill-hook.mjs',connection:'bin/chill-connection.mjs',foreground:'server.mjs',link:'bin/chill-link.mjs'};
   for(const path of Object.keys(commands)) {
     if(!path)continue;
     const [group,...parts]=path.split(' ');

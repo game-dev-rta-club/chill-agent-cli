@@ -68,5 +68,12 @@ the policy journal with `storage(namespace)` and serialize policy decisions with
 `listGoals` and `readGoalContext` provide workspace facts; `touch()` records
 genuine use when needed, not routine polling.
 
+For an on-demand public log, `readRunOutput({threadId, id, at, turnId?, matchText?})`
+uses the same turn reader without observing scheduling eligibility or enqueueing.
+Pass only a request from the extension's own saved journal after checking the
+current Root owner. Keep its Goal association at send time; do not derive an old
+run's target from today's work selection. Public messages and turn settings are
+returned, never private reasoning or tool input/output.
+
 Implementation: [request reservation](../../lib/extension-api.mjs),
 [observation and eligibility](../../lib/continuation-observation.mjs).

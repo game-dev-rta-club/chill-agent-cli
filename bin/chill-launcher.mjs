@@ -12,7 +12,7 @@ try {
   const installed = JSON.parse(await readFile(join(runtime, 'installation.json'), 'utf8'));
   let [command, ...args] = process.argv.slice(2);
   if (!command || ['--help', '-h', 'help'].includes(command)) command = 'help';
-  const entries = { help: 'bin/chill-help.mjs', goal: 'bin/chill-agent.mjs', server: 'bin/chill-server.mjs', hook: 'bin/chill-hook.mjs', settings: 'bin/chill-settings.mjs', monitor: 'bin/chill-monitor.mjs' };
+  const entries = { help: 'bin/chill-help.mjs', setup:'bin/chill-setup.mjs', goal: 'bin/chill-agent.mjs', server: 'bin/chill-server.mjs', hook: 'bin/chill-hook.mjs', connection: 'bin/chill-connection.mjs', settings: 'bin/chill-settings.mjs', monitor: 'bin/chill-monitor.mjs' };
   const extra=await readFile(join(installed.root,'extensions.json'),'utf8').then(JSON.parse).catch(e=>{if(e.code==='ENOENT')return {};throw e;});
   delete entries.monitor; Object.assign(entries,extra.commands||{});
   if (!Object.hasOwn(entries, command)) throw new Error('Unknown command. Use chill --help.');

@@ -32,6 +32,21 @@ test('stop alone never fabricates a paused state; unsupported UI omits controls'
  const record={action:'stop',turnId,target};assert.equal(controlView(record,{id:turnId,status:'interrupted',completedAt:null}).status,'unknown');
  assert.equal(controlView(record,{id:next}),null);
  const data={connected:true,settings:{},usage:[],queue:{items:[]},work:{status:'paused',...target},control:{status:'paused'},capabilities:{resume:true}};
- assert.match(activityControlMarkup({...data,status:'paused'}),/data-activity-control="resume"/);assert.doesNotMatch(agentMarkup(data),/data-agent-control/);assert.match(agentMarkup(data),/Paused/);
+ assert.match(activityControlMarkup({...data,status:'paused'}),/data-activity-control="resume"/);assert.match(agentMarkup(data),/data-agent-control="resume"/);assert.match(agentMarkup(data),/Paused/);
  assert.doesNotMatch(agentMarkup({...data,capabilities:{}}),/data-agent-control=/);
+});
+
+test('Activity links to its Goal with adjacent controls, without message content or history',()=>{
+ const data={connected:true,settings:{},usage:[],queue:{items:[]},work:{status:'working',goalId:'2',title:'Task'},capabilities:{stop:true},currentMessages:[{text:'<update>'}],extensions:[{id:'continuation',activity:{runs:[{id:'old',at:'2026-01-01',status:'completed'}]}}]};
+ const html=agentMarkup(data);assert.match(html,/data-agent-control="stop"/);assert.match(html,/href="#\/goal\/2"/);assert.doesNotMatch(html,/&lt;update&gt;|Waiting for a public update/);assert.doesNotMatch(html,/Recent runs|Run log|data-run-id/);
+ assert.doesNotMatch(agentMarkup({...data,capabilities:{}}),/data-agent-control=/);
+});
+
+test('Activity keeps links while checking or queued and labels a Root fallback honestly',()=>{
+ const base={connected:true,settings:{},usage:[],rootId:'1',rootTitle:'Root'};
+ for(const status of ['working','checking','queued','paused']){
+  assert.match(agentMarkup({...base,work:{status,goalId:'2',title:'Child'}}),/href="#\/goal\/2"/);
+  assert.match(agentMarkup({...base,work:{status}}),/Root Goal · #1 Root/);
+ }
+ assert.doesNotMatch(agentMarkup({...base,work:{status:'idle'}}),/agent-work-link/);
 });

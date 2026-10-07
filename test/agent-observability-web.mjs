@@ -36,12 +36,11 @@ try{
   await page.waitForFunction(()=>document.querySelector('#agent-button').dataset.state==='idle');assert.equal(agentReads,before,'closed header must not read settings/usage');
   const button=page.getByRole('button',{name:'Agent',exact:true});await button.hover();await page.locator('#agent-tooltip').waitFor({state:'visible'});assert.match(await page.locator('#agent-tooltip').innerText(),/Agent · Idle/);
   await button.click();await page.locator('.agent-auto-toggle').waitFor();
-  assert.deepEqual(await page.locator('#agent-content h3').allTextContents(),['Usage','Activity','Queue 0','AutoContinue 0']);
-  assert.equal(await page.locator('.agent-auto > .agent-muted').first().textContent(),'Empty');
+  assert.deepEqual(await page.locator('#agent-content h3').allTextContents(),['Usage','Activity','Queue 0','AutoContinue']);
+  assert.equal(await page.locator('.agent-auto > p').filter({hasText:'Empty'}).count(),0);
   assert.equal((await page.locator('.agent-auto-toggle').innerText()).trim(),'Off');
-  const coffee=await page.locator('.agent-auto-toggle').boundingBox(),history=await page.locator('.agent-auto-history > summary').boundingBox(),empty=await page.locator('.agent-auto-empty').boundingBox();
+  const coffee=await page.locator('.agent-auto-toggle').boundingBox(),history=await page.locator('.agent-auto-history > summary').boundingBox();
   assert.ok(history.y>=coffee.y+coffee.height,'History sits below the coffee control');
-  assert.ok(Math.abs(empty.y-history.y)<3,'Empty and History share the second row');
   assert.ok(Math.abs(history.x+history.width-coffee.x-coffee.width)<3,'History aligns with the coffee control');
   assert.equal(await page.locator('.agent-auto-history').getAttribute('open'),null);assert.equal(await page.locator('.agent-auto-entry').first().isVisible(),false);
   assert.equal(await page.locator('.agent-window progress').isVisible(),true);
@@ -86,7 +85,7 @@ try{
  status='working';delay=400;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForTimeout(30);
  status='paused';delay=0;await page.goto(`${url}/#/goal/2`);await page.waitForFunction(()=>document.querySelector('#agent-button').dataset.state==='paused');await page.waitForTimeout(500);assert.equal(await page.locator('#agent-button').getAttribute('data-state'),'paused');
  extFail=true;await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByText('Extensions unavailable.',{exact:true}).waitFor();await page.getByText('Activity',{exact:true}).waitFor();await page.keyboard.press('Escape');extFail=false;
- await page.goto(`${url}/#/goal/1`);await page.getByRole('heading',{name:'A calm workspace',exact:true}).waitFor();const toggle=page.getByRole('button',{name:'Auto-continue',exact:true});await toggle.waitFor();await toggle.click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='true');assert.equal(posts,1);
+ await page.goto(`${url}/#/goal/1`);await page.getByRole('heading',{name:'A calm workspace',exact:true}).waitFor();const toggle=page.getByRole('button',{name:'Auto-continue',exact:true});await toggle.waitFor();await toggle.click();await page.getByRole('switch',{name:'Auto-continue'}).click();await page.waitForFunction(()=>document.querySelector('[data-header-extension]')?.getAttribute('aria-pressed')==='true');assert.equal(posts,1);
  // Both coffee controls share the same state; toggles never expand history.
  await page.getByRole('button',{name:'Agent',exact:true}).click();const menuToggle=page.locator('[data-agent-extension]');await menuToggle.waitFor();
  assert.equal(await menuToggle.getAttribute('aria-pressed'),'true');assert.equal((await menuToggle.innerText()).trim(),'On');
@@ -101,10 +100,10 @@ try{
  saveFail=true;await menuToggle.click();await page.getByText('Could not save.',{exact:true}).waitFor();
  assert.equal(await menuToggle.getAttribute('aria-pressed'),'true');assert.equal(await page.locator('details[data-agent-detail][open]').count(),2);saveFail=false;
  await page.keyboard.press('Escape');activity.activeCount=1;
- await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByRole('heading',{name:'AutoContinue 1',exact:true}).waitFor();assert.equal(await page.locator('.agent-auto > p').filter({hasText:'Empty'}).count(),0);
+ await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByRole('heading',{name:'AutoContinue',exact:true}).waitFor();assert.equal(await page.locator('.agent-auto > p').filter({hasText:'Empty'}).count(),0);
  await page.keyboard.press('Escape');activity.activeCount=0;activity.entries=[];activity.total=0;
- await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByRole('heading',{name:'AutoContinue 0',exact:true}).waitFor();
- assert.equal(await page.locator('.agent-auto .agent-muted').first().textContent(),'Empty');assert.equal(await page.locator('.agent-auto-history').count(),0);
+ await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByRole('heading',{name:'AutoContinue',exact:true}).waitFor();
+ assert.equal(await page.locator('.agent-auto > p').filter({hasText:'Empty'}).count(),0);assert.equal(await page.locator('.agent-auto-history').count(),0);
  await page.keyboard.press('Escape');
  await page.goto(`${url}/#/goals`);await page.locator('#agent-button').waitFor({state:'hidden'});assert.deepEqual(errors,[]);
  console.log('passed: ordered sections, exact escaped messages/history, preserved disclosures, responsive layout, closed-menu presence, status transitions/failure/stale routes, keyboard close, isolated extension failure, one-click toggle');

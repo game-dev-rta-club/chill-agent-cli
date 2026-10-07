@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {agentPresence,readPresenceSnapshot} from '../lib/agent-presence.mjs';
 import {displayPresence} from '../lib/agent-observation.mjs';
 import {presenceLabel,presenceMark} from '../public/agent-presence.js';
-import {activityMarkup} from '../public/agent-menu.js';
+import {activityMarkup,runActivityMarkup,runOutputMarkup} from '../public/agent-menu.js';
 
 test('presence covers runs without feedback, manual pauses, idle, and unavailable evidence',()=>{
  const now=1000000;
@@ -31,18 +31,19 @@ test('extension messages render as escaped text; missing old snapshots are not r
 
 test('presence collects turn and thread state with one native connection and retains pending pause evidence',async()=>{
  let connects=0;const calls=[];
- const options={readControl:async()=>({action:'stop',turnId:'t',target:{goalId:'2'}}),connect:async run=>{connects++;return run({request:async method=>{calls.push(method);return method==='thread/read'?{thread:{status:{type:'active'}}}:{data:[{id:'t',completedAt:null,status:'inProgress'}]};}});}};
+ const options={readControl:async()=>({action:'stop',turnId:'t',target:{goalId:'2'}}),readHeartbeat:async()=>null,connect:async run=>{connects++;return run({request:async method=>{calls.push(method);return method==='thread/read'?{thread:{id:'chat',status:{type:'active'}}}:{data:[{id:'t',completedAt:null,status:'inProgress'}]};}});}};
  const snapshot=await readPresenceSnapshot('chat',options);
  assert.equal(connects,1);assert.deepEqual(calls.sort(),['thread/queue/list','thread/read','thread/turns/list']);
  assert.equal(agentPresence(snapshot),'unknown','an unconfirmed pause is not presented as Running');
  assert.equal(agentPresence({...snapshot,view:null}),'working');
 });
-test('AutoContinue count reflects active work while completed history stays available',()=>{
+test('AutoContinue omits counts and empty labels while retaining its toggle and history',()=>{
  const data={label:'AutoContinue',total:14,activeCount:0,entries:[{id:'done',status:'Run ended',message:'done'}]};
  const markup=activeCount=>activityMarkup([{id:'test',enabled:false,activity:{...data,activeCount}}]);
- assert.match(markup(0),/title="Active requests">0</);assert.match(markup(0),/>Empty</);assert.match(markup(0),/>History/);
- assert.match(markup(1),/title="Active requests">1</);assert.doesNotMatch(markup(1),/>Empty</);
- assert.doesNotMatch(markup(undefined),/class="agent-count"/,'older extensions do not mislabel a history total as current work');
+ for(const count of [0,1,undefined]){
+  assert.doesNotMatch(markup(count),/class="agent-count"|>Empty</);
+  assert.match(markup(count),/>History/);assert.match(markup(count),/aria-pressed="false"/);
+ }
 });
 
 test('hooks confirm a live chat before selecting a Goal, but cannot outlive its turn',()=>{
@@ -71,4 +72,15 @@ test('pending queue and checking share Running display without changing control 
   assert.equal(presenceLabel(state),'Running');assert.match(presenceMark(state),/status working/);
  }
  assert.equal(presenceLabel('unknown'),'Status unavailable');
+});
+
+
+test('continuation runs appear in common Activity with escaped Goal links and lazy logs',()=>{
+ const controls=[{id:'continuation',activity:{label:'AutoContinue',runs:[{id:'a',at:'2026-10-06',goalId:'7',goalTitle:'<Task>',status:'Run ended',logPath:'/activity/a'}],activeCount:0}}];
+ const run=runActivityMarkup(controls),settings=activityMarkup(controls);
+ assert.match(run,/Recent runs/);assert.match(run,/href="#\/goal\/7"/);assert.match(run,/&lt;Task&gt;/);assert.match(run,/Run log/);
+ assert.doesNotMatch(settings,/History|Run log|Recent runs/);
+ const output=runOutputMarkup({work:{messages:[{text:'<script>hello</script>'}],endedAt:'now'},message:'<b>Request</b>'});
+ assert.match(output,/&lt;script&gt;/);assert.match(output,/&lt;b&gt;Request/);assert.doesNotMatch(output,/<script>|Refresh log/);
+ assert.match(runOutputMarkup({work:null,error:'Offline'}),/Refresh log/);
 });

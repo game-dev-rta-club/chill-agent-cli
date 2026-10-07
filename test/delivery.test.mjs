@@ -66,8 +66,8 @@ test('Next Actions and hook fallback list current open Letters, with deliberate 
  await f.feedback({text:'Discussion continues'});
  const text=(await f.json('fake-queue.json')).at(-1).input[0].text;
  assert.match(text,new RegExp(`Goal #1 · Letter #${own.id}`));assert.match(text,new RegExp(`Goal #2 · Letter #${child.id}`));
- assert.match(text,/no additional user reply is needed and it no longer needs to remain/);
- assert.match(text,/Do not close merely because a comment arrived/);
+ assert.match(text,/no additional user reply is needed/);
+ assert.match(text,/A reply is not automatically authorization or completion/);
  assert.match(text,new RegExp(`close-letter --id 2 --event ${child.id}`));
  const input=join(f.root,'child-feedback.json');await writeFile(input,JSON.stringify({text:'Child discussion'}));
  await f.run(['feedback','--id','2','--input-file',input]);
@@ -78,7 +78,7 @@ test('Next Actions and hook fallback list current open Letters, with deliberate 
  await f.run(['close-letter','--id','1','--event',String(own.id)]);
  await f.run(['close-letter','--id','2','--event',String(child.id)]);
  await f.feedback({text:'No pending questions'});
- assert.doesNotMatch((await f.json('fake-queue.json')).at(-1).input[0].text,/Open Letters in this Goal/);
+ assert.doesNotMatch((await f.json('fake-queue.json')).at(-1).input[0].text,/Open Letters \(recheck/);
 });
 
 test('retries and concurrent retries do not duplicate feedback or an accepted enqueue', async () => {
@@ -366,24 +366,82 @@ test('installing the hook is idempotent and preserves other hooks without modify
 });
 
 
-test('hook reads only the selected Goal in this turn and keeps other Goals in native Queue',async()=>{
+test('hook offers all Goals assigned to the chat without changing work selection',async()=>{
  const f=await fixture();await f.run(['create','--parent','1','--title','Child']);
  await f.feedback();
  const file=join(f.root,'child-input.json');await writeFile(file,JSON.stringify({text:'Child request'}));
  await f.run(['feedback','--id','2','--input-file',file]);
- for(const [selectedTurn,stoppedAt] of [[other,null],[turn,new Date().toISOString()]]){
-  await f.select('1',selectedTurn,thread,stoppedAt);assert.equal((await runHook(f)).stdout,'');
- }
- await f.select('1');
- const first=(await runHook(f)).stdout;assert.match(first,/feedback #1/);assert.doesNotMatch(first,/feedback #2/);
- assert.equal((await f.json('workspace/deliveries/2.json')).hookTurnId,undefined);
- await f.run(['activity','--event','1','--state','working']);assert.equal((await f.json('fake-queue.json')).length,1);
- await f.select('2');assert.match((await runHook(f)).stdout,/feedback #2/);
- assert.equal((await f.json('fake-queue.json')).length,1,'Offering does not consume native queue');
+ const output=JSON.parse((await runHook(f)).stdout).hookSpecificOutput.additionalContext;
+ assert.match(output,/feedback #1/);assert.match(output,/feedback #2/);
+ assert.match(output,/#2 "Child"/);assert.match(output,/across Goals regardless of work selection/);
+ assert.equal((await f.json(`workspace/executions/${thread}.json`)).goalId,'1','Inbox receipt does not choose the next work Goal');
+ assert.equal((await f.json('fake-queue.json')).length,2,'Offering keeps both queue fallbacks');
+ await f.run(['activity','--event','1','--state','working']);
+ assert.equal((await f.json('fake-queue.json')).length,1,'Claiming one does not consume the other Goal');
+ await f.run(['activity','--event','2','--state','working']);
+ assert.equal((await f.json('fake-queue.json')).length,0);
 });
-test('without a work selection the hook leaves feedback in native Queue',async()=>{
+test('Auto mode can receive feedback before selecting work',async()=>{
  const f=await fixture();await f.feedback();
  const {unlink}=await import('node:fs/promises');await unlink(join(f.root,'workspace/executions',`${thread}.json`));
- assert.equal((await runHook(f)).stdout,'');assert.equal((await f.json('fake-queue.json')).length,1);
- assert.equal((await f.json('workspace/deliveries/1.json')).hookTurnId,undefined);
+ assert.match((await runHook(f)).stdout,/feedback #1/);
+ assert.equal((await f.json('fake-queue.json')).length,1);
+ assert.equal((await f.json('workspace/deliveries/1.json')).hookTurnId,turn);
+});
+test('a prior or stopped work selection does not hide the chat inbox',async()=>{
+ const f=await fixture();
+ for(const [selectedTurn,stoppedAt] of [[other,null],[turn,new Date().toISOString()]]){
+  const [{feedback}]=await f.feedback();
+  await f.select('1',selectedTurn,thread,stoppedAt);
+  assert.match((await runHook(f)).stdout,new RegExp(`feedback #${feedback.changeId}`));
+  assert.equal((await f.json(`workspace/executions/${thread}.json`)).stoppedAt,stoppedAt,'A hook does not restart stopped work');
+  await f.run(['activity','--event',String(feedback.changeId),'--state','working']);
+ }
+ assert.equal((await f.json('fake-queue.json')).length,0);
+});
+
+
+test('deferred feedback stays queued and unclaimed, then binds to the turn that starts it', async () => {
+  const f=await fixture(); await f.feedback(); await f.feedback({text:'Other request'});
+  await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}]}));
+  await runHook(f);
+  const queue=await f.json('fake-queue.json');
+  const deferred=JSON.parse((await f.run(['activity','--event','1','--state','deferred'])).stdout).delivery;
+  assert.equal(deferred.status,'deferred'); assert.ok(deferred.readAt); assert.ok(!deferred.agentReported);
+  assert.equal(deferred.work,null); assert.deepEqual(await f.json('fake-queue.json'),queue);
+  assert.equal((await runHook(f)).stdout,'');
+  assert.equal((await f.json(`workspace/executions/${thread}.json`)).goalId,'1');
+  // A later native turn picks up the preserved message without a second send.
+  const next='00000000-0000-0000-0000-000000000011';
+  await writeFile(join(f.root,'fake-queue.json'),JSON.stringify(queue.slice(1)));
+  await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:next,status:'inProgress',completedAt:null,items:[{type:'userMessage',content:queue[0].input}]}]}));
+  await assert.rejects(f.run(['activity','--event','1','--state','deferred']),/already started/);
+  const claimed=JSON.parse((await f.run(['activity','--event','1','--state','working'])).stdout).delivery;
+  assert.equal(claimed.turnId,next); assert.equal(claimed.work.turnId,next); assert.equal(claimed.queueCleared,true);
+  assert.deepEqual(await f.json('fake-queue.json'),queue.slice(1));
+  await assert.rejects(f.run(['activity','--event','1','--state','deferred']),/unclaimed queued/);
+});
+
+test('deferment rejects wrong owners, missing queues, uncertain sends and unavailable evidence',async()=>{
+  const f=await fixture();await f.feedback();
+  await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}]}));
+  const args=['activity','--event','1','--state','deferred'];
+  await assert.rejects(f.run(args,{CODEX_THREAD_ID:other}),/assigned chat/);
+  await assert.rejects(f.run(args,{CHILL_AGENT_CODEX_PATH:join(f.root,'absent')}));
+  assert.equal((await f.json('workspace/deliveries/1.json')).status,'queued');
+  await writeFile(join(f.root,'fake-queue.json'),'[]');
+  await assert.rejects(f.run(args),/no longer in the Queue/);
+  assert.equal((await f.json('workspace/deliveries/1.json')).status,'queued');
+  await f.feedback({}, {CHILL_TEST_DROP_AFTER_ADD:'1'});
+  await assert.rejects(f.run(['activity','--event','2','--state','deferred']),/unclaimed queued/);
+});
+
+test('an unavailable claim observation cannot reuse the old deferred hook turn',async()=>{
+ const f=await fixture();await f.feedback();
+ await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}]}));
+ await f.run(['activity','--event','1','--state','deferred']);
+ await f.run(['activity','--event','1','--state','working'],{CHILL_AGENT_CODEX_PATH:join(f.root,'unavailable')});
+ const state=await f.json('workspace/deliveries/1.json');
+ assert.equal(state.hookTurnId,null);assert.equal(state.work,null);assert.ok(state.queueError);
+ assert.equal((await f.json('fake-queue.json')).length,1);
 });

@@ -6,6 +6,15 @@ keyPoints: >-
 
 # Changelog
 
+## 0.3.0
+
+- Minor feature release in the 0.x line; existing workspaces and commands remain supported. No data migration is required. Existing shared stores are not automatically split.
+- Add project-isolated stores and Web ports, retained Tunnel URLs on Web restart, and faster Goal navigation.
+- Add 18 project color themes, theme-aware browser toolbar colors, counted header Letters and current Activity pause/resume controls for supported Codex connections.
+- Add experimental native Claude setup, same-session ownership and resume reception. Claude must remain running; finite idle watches are not a background service or an overnight guarantee.
+- Improve delivery recovery, user controls and extension composition. Keep extension protocol versions independent of package versions.
+- Establish checked release metadata and change-based version selection.
+
 ## 0.2.0
 
 - Add a trusted notification settings provider, receipt command and locked extension storage.

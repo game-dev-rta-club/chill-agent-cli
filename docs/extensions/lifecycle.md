@@ -57,3 +57,25 @@ The application chooses policy and packages its modules. The CLI supplies
 
 Implementation: [registry](../../lib/extension-registry.mjs),
 [lifecycle host](../../lib/server-extensions.mjs), [public API](../../lib/extension-api.mjs).
+
+`createExtension(services)` receives optional live host services. The `tunnel`
+service exposes `read()`, `set(enabled, remote)` and `stop()`. A trusted extension
+can own the saved public-access policy and apply it in `start()`. An explicit
+extension choice takes priority over configured server startup; `--local` must
+remain local at startup. The service serializes transitions, reports starting,
+ready or failed, revokes the allowed public origin on stop/failure, and leaves
+local Web available. It does not choose credentials, create Cloudflare accounts
+or render a QR. Extension stop runs before shutdown finishes.
+
+Use `workspacePort()` from the public extension API when building local Web URLs
+or CLI command prefixes. It honors an explicit `PORT`, then the isolated
+project's saved automatic port, and finally the legacy default. Re-read it after
+starting a server: startup can replace a port taken by another process.
+Do not hardcode 4173 in an extension. The local address is distinct from the
+public origin returned by `readPublicOrigin()`.
+
+Before a CLI contacts an automatically assigned project port, await
+`resolveWorkspacePort()`. It verifies the saved running-instance token and
+selects another available port if a different service occupies the old one.
+The returned port may need a server start; this function does not start Web.
+An explicit `PORT` remains the caller's override.

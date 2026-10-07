@@ -139,5 +139,19 @@ try {
  assert.equal(await page.locator('.letter-title').count(),0,'Agent receipt removes the Letter from the Goal list');
  await send(main());assert.equal((await data()).conversation.at(-1).annotations[0].source.eventId,receiptLetter.id);
  await go(`/letter/${receiptLetter.id}`);await receiptCard.getByText('Received',{exact:true}).waitFor();
+
+ const notice=await run('letter','--id','1','--no-reply','--title','Your result is ready','--text','Open the result when convenient.');
+ for(const viewport of [{width:1200,height:900},{width:390,height:844}]){
+  await page.setViewportSize(viewport);await go(`/letter/${notice.id}`);
+  const card=page.locator(`#event-${notice.id}`);await readCard(card);
+  assert.equal(await card.getByText('No reply needed',{exact:true}).count(),0);
+  assert.equal(await card.getByRole('button',{name:'Comment',exact:true}).count(),0);
+  await card.getByRole('button',{name:'Answer',exact:true}).click();
+  assert.equal(await editor().locator('[data-editor-heading]').innerText(),'Answer');
+  await editor().locator('textarea').fill('Optional feedback');await send(editor());
+  assert.equal(await card.getByText('No reply needed',{exact:true}).count(),0);
+  assert.equal(await page.locator('.letter-title').count(),0);
+  await page.screenshot({path:join(root,`notice-${viewport.width}.png`)});
+ }
  assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','Save draft','targeted answer','failure retry','bundled answers','Brief history','annotation source','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
 } finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true});}
