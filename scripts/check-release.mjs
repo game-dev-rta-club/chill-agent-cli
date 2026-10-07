@@ -7,7 +7,7 @@ for(const file of ['package-lock.json','npm-shrinkwrap.json']){
  if(lock.version!==pkg.version||lock.packages?.['']?.version!==pkg.version||lock.name!==pkg.name)throw Error(`Version/name mismatch in ${file}`);
 }
 const log=await readFile('CHANGELOG.md','utf8');
-if(!log.split('\n').some(line=>line===`## ${pkg.version}`||line.startsWith(`## ${pkg.version} — `)))throw Error('Missing version section in CHANGELOG.md');
+if(!log.split(/\r?\n/).some(line=>line===`## ${pkg.version}`||line.startsWith(`## ${pkg.version} — `)))throw Error('Missing version section in CHANGELOG.md');
 const tag=process.argv[2];
 if(tag&&tag!==`v${pkg.version}`)throw Error('Release tag must match package version.');
 console.log(`Release metadata consistent: ${pkg.name}@${pkg.version}`);
