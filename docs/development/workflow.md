@@ -24,9 +24,10 @@ review each PR. Review still means inspecting the final diff against the request
 checking dependencies and running verification; approval is not a rubber stamp.
 External contributions need maintainer review unless their handling is delegated.
 
-`main` promotion and public releases follow the release agreement, not automatic
-permission inherited from a development PR. The agent prepares a coherent release
-candidate; when promotion is already entrusted, it performs it within that scope.
+Version bumps, `main` promotion and public releases affect users and require
+consultation with the user before execution. The agent may prepare a concrete
+release candidate independently. Autonomous development integration does not
+authorize distributing it or changing versions on behalf of the user.
 Never weaken repository protection, skip a failing check or invent approval to
 complete an integration. An unavailable credential or protection rule is a
 specific blocker to report, not a reason to demand routine human code review.
