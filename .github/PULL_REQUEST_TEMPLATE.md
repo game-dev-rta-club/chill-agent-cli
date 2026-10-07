@@ -6,6 +6,12 @@ Describe the user-visible problem and the focused change that addresses it.
 
 List the commands and manual scenarios used to verify the change.
 
+## Dependency and rollout
+
+State the CLI commit/archive tested, if changed. Does a clean install from the
+committed dependency pass? Link any prerequisite PR/release and keep this Draft
+until it is adopted. Describe whether a local runtime was updated separately.
+
 ## Checklist
 
 - [ ] The change is limited to one logical concern.

@@ -17,6 +17,7 @@ The integrating application decides what work to pursue and when to continue it.
 | Find the next relevant Goal without reading everything | [Read in layers](workspace/reading-goals.md) |
 | Understand page loading, live updates and Brief history | [Web navigation](workspace/web-navigation.md) |
 | Separate projects, ports and extension choices | [Project workspaces](runtime/projects.md) |
+| Choose branches, commit milestones and prepare a PR | [Development workflow](development/workflow.md) |
 | Locate data or update an installation | [Data and runtime updates](runtime/data-and-updates.md) |
 | Start Web or understand when it exits | [Server lifetime](runtime/server.md) |
 | Connect feedback, pause and resume | [Feedback delivery and controls](agent/feedback-and-controls.md) |
