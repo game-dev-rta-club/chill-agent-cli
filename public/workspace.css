@@ -165,6 +165,8 @@ h1,h2,h3,p { margin:0; }
 .agent-window progress::-moz-progress-bar { background:#6c967f; }
 .agent-control-note { margin:16px 0 10px; }
 .agent-current { display:grid; gap:4px; }
+.agent-current-row { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.agent-current-controls { display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap; }
 .agent-runs { min-width:0; }
 .agent-runs summary { color:var(--accent); font-size:12px; cursor:pointer; padding:5px 0; }
 .agent-runs summary:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }

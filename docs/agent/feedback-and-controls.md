@@ -58,6 +58,19 @@ The delivery points to that entry instead of repeating its policy. The standalon
 CLI provides a short fallback for work selection, replies and completion; it
 does not require an application skill.
 
+## Current Activity
+
+The Agent panel shows the current run and up to three recent public agent updates,
+not a list of completed runs. Its Pause/Resume controls target the exact observed
+chat and turn, including autonomous work with no feedback receipt. Native
+connections without verified execution controls omit those buttons.
+
+A manual pause prevents Auto mode from sending another continuation while that
+run remains stopped. Resume continues the same interrupted work; turning Auto
+mode off is a separate preference. Uncertain control results require refresh,
+not an automatic retry. Historical logs remain available through their existing
+API and Conversation records.
+
 ## Pause and resume
 
 Web can pause feedback while it is saved, queued or running. It holds the affected
