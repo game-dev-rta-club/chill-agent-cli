@@ -101,6 +101,40 @@ this command intentionally cannot overwrite an active workspace or erase newer
 messages. A crash can leave a partial destination: run `verify-restored` before
 using it, and retry into a new directory if it fails.
 
+## Prepare SQLite data without activating it
+
+```sh
+node bin/chill-migrate.mjs prepare --bundle /absolute/new-offline-bundle --destination /absolute/new-data-directory
+node bin/chill-migrate.mjs verify-prepared --bundle /absolute/new-offline-bundle --destination /absolute/new-data-directory
+```
+
+`prepare` builds a new `workspace/workspace.sqlite` from the verified archive.
+Goal, event and Brief bodies retain their exact original JSON, IDs and change
+cursors. Attachments, editable `goals/<id>/brief.md` or `brief.html`, and numbered
+delivery receipts are copied with their bytes and permission bits intact.
+Completed and uncertain receipts keep their existing meaning; preparation never
+changes them to pending or retries a send.
+
+Other files stay in the original bundle, including connection state, queued
+requests, extension settings and historical locks. Nothing is discarded from the
+bundle. The preparation report counts archived files by top-level directory, so
+unknown or extension-owned state remains visible for the activation review.
+Settings and runtime files outside the source workspace need a separate inventory.
+
+The destination is a **pending data directory**, not an activated installation.
+Its `migration-pending.json` marker makes normal Goal CLI and Web initialization
+fail closed: imported Goals still contain their historical agent bindings.
+Do not remove the marker to try it. Activation must first reconcile those bindings,
+unresolved inputs and extension state with the intended new environment. No
+activation command is provided yet. This is separate from restoring the original
+legacy snapshot, and it does not update an installed runtime.
+
+The independent verifier checks every SQL record and selected file against the
+bundle, rejects extra/missing records or files, and validates database references.
+It verifies the marker's source identity, not a claim that live cutover is ready.
+Existing destinations are never overwritten. A crash may leave an incomplete
+pending directory; verify it before use or retry into a new directory.
+
 ## Continue toward cutover
 
 After a real copy and its offline restoration pass verification, define activation separately: editable files
