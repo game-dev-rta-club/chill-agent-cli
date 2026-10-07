@@ -20,7 +20,7 @@ try{
  for(const width of [1280,390]){
   status='working';const page=await browser.newPage({viewport:{width,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/`);await page.getByRole('button',{name:'Agent',exact:true}).click();
-  await page.getByText('Checking the current result.').waitFor();assert.equal(await page.getByText('Recent runs').count(),0);
+  await page.getByRole('link',{name:'#1 Current task →'}).waitFor();assert.equal(await page.getByText('Checking the current result.').count(),0);assert.equal(await page.getByText('Recent runs').count(),0);
   await page.getByRole('button',{name:'Pause'}).click();await page.getByRole('button',{name:'Resume'}).waitFor();
   await page.getByRole('button',{name:'Resume'}).click();await page.getByRole('button',{name:'Pause'}).waitFor();
   assert.deepEqual(errors,[]);await page.close();

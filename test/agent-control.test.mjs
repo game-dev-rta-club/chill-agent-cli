@@ -36,8 +36,17 @@ test('stop alone never fabricates a paused state; unsupported UI omits controls'
  assert.doesNotMatch(agentMarkup({...data,capabilities:{}}),/data-agent-control=/);
 });
 
-test('Activity shows only current public output and adjacent controls, not run history',()=>{
+test('Activity links to its Goal with adjacent controls, without message content or history',()=>{
  const data={connected:true,settings:{},usage:[],queue:{items:[]},work:{status:'working',goalId:'2',title:'Task'},capabilities:{stop:true},currentMessages:[{text:'<update>'}],extensions:[{id:'continuation',activity:{runs:[{id:'old',at:'2026-01-01',status:'completed'}]}}]};
- const html=agentMarkup(data);assert.match(html,/data-agent-control="stop"/);assert.match(html,/&lt;update&gt;/);assert.doesNotMatch(html,/Recent runs|Run log|data-run-id/);
+ const html=agentMarkup(data);assert.match(html,/data-agent-control="stop"/);assert.match(html,/href="#\/goal\/2"/);assert.doesNotMatch(html,/&lt;update&gt;|Waiting for a public update/);assert.doesNotMatch(html,/Recent runs|Run log|data-run-id/);
  assert.doesNotMatch(agentMarkup({...data,capabilities:{}}),/data-agent-control=/);
+});
+
+test('Activity keeps links while checking or queued and labels a Root fallback honestly',()=>{
+ const base={connected:true,settings:{},usage:[],rootId:'1',rootTitle:'Root'};
+ for(const status of ['working','checking','queued','paused']){
+  assert.match(agentMarkup({...base,work:{status,goalId:'2',title:'Child'}}),/href="#\/goal\/2"/);
+  assert.match(agentMarkup({...base,work:{status}}),/Root Goal · #1 Root/);
+ }
+ assert.doesNotMatch(agentMarkup({...base,work:{status:'idle'}}),/agent-work-link/);
 });
