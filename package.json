@@ -1,6 +1,6 @@
 {
   "name": "@game-dev-rta-club/chill-agent-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "type": "module",
   "description": "A local Goal workspace with editable Briefs and Letters in Conversation.",
@@ -18,7 +18,8 @@
     "prestart": "npm run web:build",
     "presetup": "npm run web:build",
     "prehooks:install": "npm run web:build",
-    "prepack": "npm run web:build"
+    "prepack": "npm run web:build",
+    "release:check": "node scripts/check-release.mjs"
   },
   "bin": {
     "chill-agent-cli": "bin/chill-entry.mjs"
