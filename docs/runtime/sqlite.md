@@ -44,9 +44,8 @@ store is silently converted.
 
 1. Goal, Conversation and Brief operations now retain their validation and public
    shapes through the database. Newest Brief and changed-event queries use indexes.
-   Conversation pages are available through the endpoint below. Follow up with
-   the Web client adopting them and compact workspace summaries:
-   the compatibility snapshot still loads all history. Goal, Brief and event operations now use database transactions instead of file
+   The Web client uses conversation pages and compact workspace summaries;
+   the legacy compatibility snapshot and CLI page reader still load all history. Goal, Brief and event operations now use database transactions instead of file
    leases. Transport and extension coordination remain separate work.
 2. Exercise Web, CLI and harness delivery in a disposable project. Inventory
    coordination records separately: delivery receipts, holds, connection identity,
@@ -87,6 +86,17 @@ subsequent `/api/events?since=...` changes by event ID while loading history. Pa
 are read snapshots, not a durable historical snapshot spanning several requests.
 A cursor from a later history page must not skip intervening live changes.
 
-The existing Web client still consumes its full compatibility snapshot. This
-endpoint establishes bounded reads for the next client integration; it does not
-by itself reduce the current browser's payload or replace the global delta API.
+The Web client requests `/api/goals?view=web&history=paged`: the newest 30
+conversation records per Goal, all open Letters and referenced answer targets.
+It receives Letter status metadata so an off-page reply cannot make a cached
+Letter look unanswered. Older Brief versions contain metadata only. SQLite
+reads the latest Brief body and indexed event ranges; JSON keeps its legacy file
+reads. Letter/reply metadata still scans the Goal's records within SQLite, and
+many genuinely open Letters can still grow the payload.
+
+“Load earlier conversation” retrieves older pages on demand. Polling refreshes
+the newest page and resets its history boundary when it changes; previously
+loaded records are merged by event ID. Direct Letter links fetch the single
+record through `/api/goals/<id>/events/<eventId>`, which rejects a different
+Goal's event. Existing callers without `history=paged` retain the compatibility
+snapshot. This does not yet bound the global delta API or CLI page reader.
