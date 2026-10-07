@@ -1,7 +1,7 @@
 ---
 keyPoints: >-
   The opt-in SQLite foundation preserves numeric identities and change cursors in
-  isolated workspaces. Goal commands still use JSON; migration and cutover are
+  isolated workspaces. Goal commands and Web support opt-in SQLite; migration and cutover are
   separate work, with delivery records and editable files preserved explicitly.
 ---
 
@@ -10,8 +10,17 @@ keyPoints: >-
 The internal `openSqliteWorkspace` foundation creates a project-local
 `workspace.sqlite` with Goal, Conversation and Brief-version tables. It requires
 Node.js 24.15 or newer and uses `node:sqlite`, without a separate database service.
-It is not yet connected to Goal commands, setup or Web. Existing installations
-continue using their JSON stores; there is no automatic migration.
+Goal commands and Web use it when `CHILL_AGENT_STORAGE=sqlite` is set for a
+fresh data directory. Once created, the database is detected on later launches
+without the variable. Selecting `json` for that directory is rejected to prevent
+a parallel store. Existing JSON installations remain unchanged; setup does not
+select SQLite by default and there is no automatic migration.
+
+For a disposable checkout test, set `CHILL_AGENT_DATA_DIR` to a new directory
+and `CHILL_AGENT_STORAGE=sqlite`, then use the ordinary Goal CLI and Web server.
+Published Goal, Conversation and Brief records live in SQLite; editable Brief
+sources and attachments keep their existing paths. Feedback delivery reads the
+same event API instead of opening an event JSON file directly.
 
 Each project owns a database. Numeric Goal IDs, event IDs, independent change
 cursors and Brief versions survive reopening. The change cursor differs from the
@@ -29,9 +38,12 @@ store is silently converted.
 
 ## Complete the replacement in stages
 
-1. Connect Goal, Conversation and Brief operations to the database, retaining
-   their public shapes and validation. Read bounded pages and indexed changes;
-   putting an all-history scan inside SQL would retain the scaling problem.
+1. Goal, Conversation and Brief operations now retain their validation and public
+   shapes through the database. Newest Brief and changed-event queries use indexes.
+   Follow up with bounded conversation pages and compact workspace summaries:
+   the compatibility snapshot still loads all history. Operation-level file leases
+   still serialize compound validation/writes; replace those with database-owned
+   transactions before calling the storage replacement complete.
 2. Exercise Web, CLI and harness delivery in a disposable project. Inventory
    coordination records separately: delivery receipts, holds, connection identity,
    extension state and pending requests are not part of the foundation tables yet.
