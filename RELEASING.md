@@ -6,6 +6,9 @@ keyPoints: >-
 
 # Releases
 
+Consult the user before changing versions, promoting to main or publishing.
+Autonomous develop work does not authorize changes distributed to users.
+
 Use SemVer. Breaking public CLI or extension contracts require a major version.
 Keep the CLI protocol version explicit. The all-in-one package adopts a tested
 CLI archive with an exact release URL and lockfile integrity, never a floating branch.

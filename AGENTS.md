@@ -5,8 +5,8 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) and the
 
 Use short-lived topic branches from develop and PRs back to develop. For work
 entrusted to the agent, own review, successful checks, serialized merge and branch
-cleanup without waiting for routine user review. Main promotion and public releases
-retain their separate agreement. Read the workflow for dependency and merge gates.
+cleanup without waiting for routine user review. Version bumps, main promotion and public releases
+require user consultation before execution. Read the workflow for dependency and merge gates.
 
 Preserve existing work. Commit each verified, coherent
 milestone before switching concerns or handing back the result. Review the
