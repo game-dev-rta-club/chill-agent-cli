@@ -1,3 +1,4 @@
+import {isRunning} from './goal-state.js';
 import {presenceMark,presenceLabel} from './agent-presence.js';
 import {extensionIcon} from './extension-buttons.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -12,7 +13,11 @@ function settingsMarkup(data){
 function timeMarkup(at,seconds=false){
  const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString())}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}))}</time>`;
 }
-function workMarkup(work){return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${work?.goalId&&['working','paused'].includes(work.status)?`<a class="agent-work-link" href="#/goal/${esc(work.goalId)}">#${esc(work.goalId)} ${esc(work.title)} →</a>`:''}`;}
+function workMarkup(work,root={}){
+ const active=isRunning(work?.status)||work?.status==='paused';
+ const id=work?.goalId||root.rootId,title=work?.goalId?work.title:root.rootTitle;
+ return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
+}
 function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div class="agent-auto-meta">${timeMarkup(entry.at)}<span>${esc(entry.result?.label||entry.status)}</span></div><p>${esc(entry.summary)}</p>${entry.detail?`<p class="agent-muted">${esc(entry.detail)}</p>`:''}${entry.message?`<details data-agent-detail="${esc(id)}"><summary>View message</summary><pre class="agent-auto-message">${esc(entry.message)}</pre></details>`:'<p class="agent-muted">Message not saved.</p>'}</article>`;}
 export function runActivityMarkup(controls){
  const entries=(controls||[]).flatMap(c=>(c.activity?.runs||[]).map(run=>({...run,extensionId:c.id,label:c.activity.label||c.label}))).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,20);
@@ -37,7 +42,7 @@ export function agentMarkup(data) {
  const work=data.work,queue=data.queue;
  return `<section class="agent-section agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</section>
  <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>
- <section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current">${workMarkup(work)}</div><div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div></div>${(data.currentMessages||[]).map(m=>`<p class="agent-run-text">${esc(m.text)}</p>`).join('')}${work?.status==='working'&&!data.currentMessages?.length?'<p class="agent-muted">Waiting for a public update…</p>':''}</section>
+ <section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current">${workMarkup(work,data)}</div><div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div></div></section>
  <section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>
  ${data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions)}`;
 }
@@ -172,7 +177,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  window.addEventListener('chill-agent-presence',event=>{
   if(!opened||event.detail.routeGoalId!==getGoalId()||!current?.connected)return;
   current.work=event.detail;const target=content.querySelector('.agent-current');
-  if(target&&!target.contains(document.activeElement))target.innerHTML=workMarkup(event.detail);
+  if(target&&!target.contains(document.activeElement))target.innerHTML=workMarkup(event.detail,current);
  });
  return {routeChanged(){close();current=null;button.hidden=!getGoalId();},close};
 }

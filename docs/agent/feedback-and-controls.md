@@ -60,8 +60,9 @@ does not require an application skill.
 
 ## Current Activity
 
-The Agent panel shows the current run and up to three recent public agent updates,
-not a list of completed runs. Its Pause/Resume controls target the exact observed
+The Agent panel shows the current status and a link to the work Goal. If the
+exact work Goal is unavailable, it labels a link to the connected Root Goal.
+It does not fetch or display message bodies. Its Pause/Resume controls target the exact observed
 chat and turn, including autonomous work with no feedback receipt. Native
 connections without verified execution controls omit those buttons.
 
