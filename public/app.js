@@ -14,6 +14,8 @@ import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversatio
 const briefsByGoal = new Map();
 const goalMetadata = new Map();
 const events = [];
+const historyPages=new Map();
+const letterStatuses=new Map();
 const latestBrief = id => briefsByGoal.get(id)?.at(-1);
 const latestVersion = id => latestBrief(id)?.version || 0;
 const briefAt = (id, version) => briefsByGoal.get(id)?.find(brief => brief.version === version);
@@ -234,7 +236,9 @@ function timelineMarkup(id) {
   const pinned = conversationPins(id, visible);
   for (const group of work.values()) if (group.live) pinned.add(group.owner);
   const activity=activityControls.current();if(activity&&['saved','sending','queued','working','paused','unknown'].includes(activity.status))pinned.add(activity.eventId);
-  return conversationWindow.segments(id, visible, pinned).map(segment => {
+  const history=historyPages.get(id);
+  const older=history?.hasMore?`<li class="conversation-gap"><button type="button" data-action="load-older-conversation" ${history.loading?'disabled':''}>${history.loading?'Loading…':'Load earlier conversation'}</button></li>`:'';
+  return older+conversationWindow.segments(id, visible, pinned).map(segment => {
     if (segment.kind === 'gap') {
       const count = segment.messages.length, first = segment.messages[0].id, last = segment.messages.at(-1).id;
       const step = Math.min(EXPANSION_COMMENT_COUNT,count);
@@ -1047,9 +1051,22 @@ main.addEventListener('paste', event => {
   }
 });
 
-main.addEventListener('click', event => {
+main.addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
   if (!button || !activeGoalId) return;
+  if(button.dataset.action==='load-older-conversation'){
+    const id=activeGoalId,state=historyPages.get(id);if(!state?.hasMore||state.loading)return;
+    state.loading=true;button.disabled=true;
+    try{
+      const response=await fetch(`/api/goals/${id}/conversation?before=${state.nextBefore}&limit=30`,{signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw Error('Could not load earlier conversation.');
+      const page=await response.json();page.events.forEach(addEvent);page.answerTargets.forEach(addEvent);
+      if(historyPages.get(id)===state){state.hasMore=page.hasMore;state.nextBefore=page.nextBefore;}
+      if(activeGoalId===id){updateTimeline(id);renderAnnotations();}
+    }catch(error){showToast(error.message);}
+    finally{state.loading=false;if(activeGoalId===id)updateTimeline(id);}
+    return;
+  }
   if (button.dataset.action === 'expand-conversation' || button.dataset.action === 'collapse-conversation') {
     if (annotationOpen || submitting.size) return;
     const messages=conversationFor(activeGoalId),side=button.dataset.side;
@@ -1137,7 +1154,7 @@ function feedbackRequestId(id, kind, payload) {
 function addEvent(item) {
   const index=events.findIndex(event=>event.id===item.id);
   if(index!==-1&&events[index].changeId>=item.changeId)return false;
-  const event={...item,at:new Date(item.updatedAt)};
+  const event={...item,...(letterStatuses.has(item.id)?{letterStatus:letterStatuses.get(item.id)}:{}),at:new Date(item.updatedAt)};
   if(index===-1)events.push(event);else events[index]=event;
   events.sort((a, b) => a.at - b.at || a.id - b.id);
   return true;
@@ -1311,6 +1328,12 @@ async function navigate({refresh=true}={}){
         Object.assign(briefAt(match[1],Number(match[2]))||brief,loaded);
       }
     }
+    const letterLink=/^#\/goal\/([1-9][0-9]*)\/letter\/([1-9][0-9]*)$/.exec(target);
+    if(letterLink&&!events.some(e=>e.id===Number(letterLink[2]))){
+      const response=await fetch(`/api/goals/${letterLink[1]}/events/${letterLink[2]}`,{signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw Error('Could not load this Letter.');
+      addEvent(await response.json());
+    }
     if(generation!==navigationGeneration||location.hash!==target)return;
     renderRoute();announcement.textContent='';
     if(refresh)void refreshGoals().catch(()=>{announcement.textContent='Showing the last update. Reconnecting…';});
@@ -1336,11 +1359,13 @@ function loadStoredGoals() {
   // Polling, returning to the tab and navigation share one request.
   if(storeRequest)return storeRequest;
   storeRequest=(async()=>{
-    const response=await fetch('/api/goals?view=web',{cache:'no-store',signal:AbortSignal.timeout(12000)});
+    const response=await fetch('/api/goals?view=web&history=paged',{cache:'no-store',signal:AbortSignal.timeout(12000)});
     if(!response.ok)throw new Error('Could not load Goals. Your draft is kept.');
     const stored=await response.json(),signature=JSON.stringify(stored,(key,value)=>['checkedAt','expiresAt'].includes(key)?undefined:value),changed=signature!==storeSignature;
     storeSignature=signature;
-    for(const {id,briefs,conversation,...metadata} of stored){
+    for(const {id,briefs,conversation,conversationInfo,letterStates,...metadata} of stored){
+      if(conversationInfo&&historyPages.get(id)?.head!==conversationInfo.head)historyPages.set(id,{...conversationInfo});
+      for(const status of letterStates||[]){letterStatuses.set(status.id,status);const cached=events.find(e=>e.id===status.id);if(cached)cached.letterStatus=status;}
       const previous=briefsByGoal.get(id)||[];
       goalMetadata.set(id,{id,...metadata});
       // Published versions are immutable. Keep older Briefs once opened.
