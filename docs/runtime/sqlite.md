@@ -45,7 +45,8 @@ store is silently converted.
 1. Goal, Conversation and Brief operations now retain their validation and public
    shapes through the database. Newest Brief and changed-event queries use indexes.
    The Web client uses conversation pages and compact workspace summaries;
-   the legacy compatibility snapshot and CLI page reader still load all history. Goal, Brief and event operations now use database transactions instead of file
+   the legacy compatibility snapshot still loads all history. The SQLite CLI page
+   reader selects the requested Goal range and Brief body. Goal, Brief and event operations now use database transactions instead of file
    leases. Transport and extension coordination remain separate work.
 2. Exercise Web, CLI and harness delivery in a disposable project. Inventory
    coordination records separately: delivery receipts, holds, connection identity,
@@ -99,4 +100,20 @@ the newest page and resets its history boundary when it changes; previously
 loaded records are merged by event ID. Direct Letter links fetch the single
 record through `/api/goals/<id>/events/<eventId>`, which rejects a different
 Goal's event. Existing callers without `history=paged` retain the compatibility
-snapshot. This does not yet bound the global delta API or CLI page reader.
+snapshot. This does not yet bound the global delta API.
+
+## Read a CLI Goal page
+
+On SQLite, `show --id <id>` reads the selected Goal's conversation and selected
+Brief body without loading other Goals' conversation history or historical Brief
+bodies. `--since`, `--before` and `--limit` are applied in SQL using the Goal/change
+index. A single database read snapshot supplies page counts, the global change
+cursor, answer targets, hierarchy metadata and open Letters, including descendant
+Letters outside the page. Brief version metadata remains available for navigation.
+
+Omitting `--limit` intentionally returns all matching events for the requested
+Goal, so a continuation using only `--since` cannot silently lose instructions.
+Use `--limit` to bound a history page. JSON retains its compatibility reader.
+Hierarchy/version metadata and open-Letter aggregation still grow with workspace
+size; the tree command and execution/delivery lookup have separate optimization
+work remaining.
