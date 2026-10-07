@@ -20,7 +20,8 @@
             <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M5 21h22M9 25h14M10 17a6 6 0 1 1 12 0M16 3v3M5 8l3 3M27 8l-3 3"/></svg></span>
             <span>chill<span class="brand-period">.</span></span>
           </a>
-          <div class="header-actions"><a href="#/goals" class="index-link"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>Goals</a><span class="agent-control"><button type="button" id="agent-button" class="agent-trigger" aria-label="Agent" aria-describedby="agent-tooltip" aria-expanded="false" aria-controls="agent-panel" hidden></button><span id="agent-tooltip" class="extension-tooltip" role="tooltip">Agent<small>Settings, usage, and connection.</small></span></span>
+          <div class="header-actions"><span class="agent-control"><button type="button" id="agent-button" class="agent-trigger" aria-label="Agent" aria-describedby="agent-tooltip" aria-expanded="false" aria-controls="agent-panel" hidden></button><span id="agent-tooltip" class="extension-tooltip" role="tooltip">Agent<small>Settings, usage, and connection.</small></span></span>
+          <button type="button" id="letters-button" class="header-letters" aria-label="Letters" aria-expanded="false" aria-controls="letters-panel" aria-haspopup="dialog"></button>
           <span id="extension-buttons" class="extension-buttons"></span></div>
         </div>
         <div id="update-notice" class="update-notice" role="status" hidden>
@@ -32,6 +33,7 @@
         <div class="agent-panel-heading"><h2>Agent</h2><div><button type="button" data-agent-refresh aria-label="Refresh" title="Refresh"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1a8.3 8.3 0 0 1 13.6 3.4M4.3 14.5a8.3 8.3 0 0 0 13.6 3.4"/></svg></button><button type="button" data-agent-close aria-label="Close">✕</button></div></div>
         <div id="agent-content"></div>
       </section>
+      <section id="letters-panel" class="agent-panel letters-panel" role="dialog" aria-label="Letters" hidden></section>
       <main id="main" class="reading-pane" tabindex="-1"><p class="initial-loading" role="status">Opening your Goals…</p></main>
     </div>
     <p id="toast" class="toast" aria-hidden="true" hidden></p>
