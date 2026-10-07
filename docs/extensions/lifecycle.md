@@ -57,3 +57,12 @@ The application chooses policy and packages its modules. The CLI supplies
 
 Implementation: [registry](../../lib/extension-registry.mjs),
 [lifecycle host](../../lib/server-extensions.mjs), [public API](../../lib/extension-api.mjs).
+
+`createExtension(services)` receives optional live host services. The `tunnel`
+service exposes `read()`, `set(enabled, remote)` and `stop()`. A trusted extension
+can own the saved public-access policy and apply it in `start()`. An explicit
+extension choice takes priority over configured server startup; `--local` must
+remain local at startup. The service serializes transitions, reports starting,
+ready or failed, revokes the allowed public origin on stop/failure, and leaves
+local Web available. It does not choose credentials, create Cloudflare accounts
+or render a QR. Extension stop runs before shutdown finishes.

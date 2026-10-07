@@ -1,7 +1,8 @@
 ---
 keyPoints: >-
   Edit the existing Brief source and publish a snapshot; comments preserve discussion.
-  Letters track explicit questions, and answering one does not complete or unblock work.
+  Static HTML works in Messages; HTML Brief images and SVG diagrams support notes.
+  Letters distinguish questions from reply-free outcomes; neither answers nor viewing complete or unblock work.
 ---
 
 # Keep the explanation and discussion together
@@ -31,12 +32,30 @@ Switching format keeps previous versions and both editable source files.
 Upload images with `goal image` and use the returned `/api/images/<id>` reference.
 Text annotations retain their source version; image notes retain their attachment
 and location. Read the relevant version when responding to older feedback.
+HTML images have an annotation button. Inline SVG diagrams use the same area
+selector and retain their Brief version and SVG index, so changing a diagram
+does not move an old note onto its replacement. The original diagram can be
+opened at `/api/goals/<id>/briefs/<version>/svg/<index>` (indices start at zero).
+Small SVG icons below 64 pixels in either dimension keep their display without
+an overlaid annotation control.
 
 ## Comments and Letters
 
 Use `goal comment --id 1 --text-file result.txt` for progress or results. Use
 `goal letter --id 1 --title "Choose a direction" --text-file question.txt` when
 the user needs to answer. Files preserve multiline text without shell escaping.
+
+Use `goal letter --no-reply --id 1 --title "Ready to use" --text-file result.txt`
+for a usable outcome the user should receive while away. It uses the configured
+Letter notification route, displays “No reply needed”, and stays out of pending
+Letter counts. Optional comments retain their link to the outcome. No viewing,
+reply or receipt action is required before the agent continues. Old Letters
+without this option retain their question behavior.
+
+Message bodies already accept static HTML such as paragraphs, lists, tables,
+links and disclosures, alongside Markdown. Both authors use the same sanitizer;
+scripts, forms, custom styles and remote images are removed. Use a standalone
+HTML Brief when the explanation needs its own layout or styling.
 
 A direct user answer changes a Letter from open to answered; an unrelated
 comment leaves it open. If a question no longer needs an answer, explicitly use

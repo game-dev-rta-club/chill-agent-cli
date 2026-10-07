@@ -12,10 +12,11 @@ After [setup](data-and-updates.md), the supported macOS background commands are:
 ```sh
 chill server start --local
 chill server status
+chill server restart --configured
 chill server stop
 ```
 
-Use the same `PORT` and `CHILL_AGENT_DATA_DIR` for all three. The default port is
+Use the same `PORT` and `CHILL_AGENT_DATA_DIR` for every command. The default port is
 4173. Status reports the live URL and log path. Background startup uses launchd;
 it does not install login autostart. Unexpected exits restart, while a successful
 idle shutdown stays stopped.
@@ -24,6 +25,18 @@ The server listens on loopback. `--local` keeps access local; `--configured` use
 saved remote-access preferences. Settings default to off. Read `settings remote
 --help` before configuring an external URL; account and phone setup belong to
 the integrating application's setup guide.
+
+## Keep the public URL during updates
+
+On macOS, the background Web service and cloudflared connector have separate
+launchd services. `server restart --configured` releases the connector, replaces
+Web with the prepared runtime, and reattaches to the same connector. During this
+short interval the URL may be temporarily unavailable but stays the same.
+Public Off, `server stop`, `--local`, and idle shutdown stop the connector too.
+An unexpected Web crash can restart and reattach; a connector exit reports failure
+without silently creating a new URL. The first migration from the older server-owned
+connector requires a new URL. Foreground development still owns its connector.
+A Quick Tunnel URL is not durable across connector restart, logout or reboot.
 
 ## When the server exits
 

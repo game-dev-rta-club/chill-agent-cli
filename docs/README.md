@@ -15,9 +15,20 @@ The integrating application decides what work to pursue and when to continue it.
 | Understand Goals, completion and progress | [Goal lifecycle](workspace/goals.md) |
 | Publish a plan or ask a question | [Briefs and Conversation](workspace/briefs-and-conversation.md) |
 | Find the next relevant Goal without reading everything | [Read in layers](workspace/reading-goals.md) |
+| Understand page loading, live updates and Brief history | [Web navigation](workspace/web-navigation.md) |
+| Separate projects, ports and extension choices | [Project workspaces](runtime/projects.md) |
 | Locate data or update an installation | [Data and runtime updates](runtime/data-and-updates.md) |
 | Start Web or understand when it exits | [Server lifetime](runtime/server.md) |
 | Connect feedback, pause and resume | [Feedback delivery and controls](agent/feedback-and-controls.md) |
+| Read or change the current model | [Model settings](agent/model-settings.md) |
+| Plan additional agent connections | [Harness connection proposal](agent/harness-connections.md) |
+| Plan a return path to the current Claude conversation | [Claude conversation proposal](agent/claude-conversation.md) |
+| Qualify Claude's local hook-to-CLI identity handoff | [Claude entry handshake](agent/claude-entry.md) |
+| Prepare project-local hooks for the same Claude conversation | [Experimental Claude setup](agent/claude-setup.md) |
+| Create a new Claude Root and read its feedback through a main hook | [Experimental Claude actions](agent/claude-actions.md) |
+| Receive a reply after Claude finishes responding | [Finite idle watch](agent/claude-idle.md) |
+| Understand an expired or unconfirmed Claude reply watch | [Recorded Claude connection status](agent/claude-status.md) |
+| Check whether Claude can receive a channel event | [Channels qualification](agent/claude-channels.md) |
 | Interpret Running, Done or an unknown state | [Execution state](agent/execution-state.md) |
 | Host a policy or add its Web control | [Extension API](extensions.md) |
 

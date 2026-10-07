@@ -14,6 +14,7 @@ Use `@game-dev-rta-club/chill-agent-cli/extension-api` and call
 | Register trusted code and manage its lifetime | [Lifecycle](extensions/lifecycle.md) |
 | Observe the chat and enqueue without racing other work | [Execution requests](extensions/requests.md) |
 | Show enablement, active work and request history | [Web controls](extensions/web-controls.md) |
+| Extend a verified native action or Stop | [Connection hooks](extensions/connection-hooks.md) |
 
 The CLI supplies mechanisms. The integrating application owns scheduling policy,
 request wording and its journal. The standalone CLI does not include AutoContinue;
@@ -21,3 +22,5 @@ request wording and its journal. The standalone CLI does not include AutoContinu
 
 The current source of the public exports is [extension-api.mjs](../lib/extension-api.mjs).
 Check the version you package: optional capabilities can be added within protocol v1.
+
+For a packaged agent-policy entry point in handoffs, see [agent guidance](extensions/agent-guidance.md).

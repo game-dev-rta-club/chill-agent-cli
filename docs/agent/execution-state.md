@@ -1,7 +1,8 @@
 ---
 keyPoints: >-
   Queue and Checking share the Running visual. Activity can override a Done badge
-  without changing completion; unknown observations never prove a chat is idle.
+  without changing completion. Observations are cached per harness and session;
+  missing or failed evidence never proves a chat is idle.
 ---
 
 # Separate activity from completion
@@ -37,10 +38,24 @@ to the observation. A heartbeat can confirm an unfinished run that the Desktop
 reports as unloaded; it cannot revive a turn whose end is confirmed. Stale or
 failed observations are not proof of idle, and cached observations expire.
 
+The connection adapter supplies these observations. For Codex Desktop it reads
+the native thread, latest turn and queue through one connection, checks the
+returned thread identity, and combines the result with Codex's control record
+and heartbeat. It keeps conversation content out of the observation snapshot.
+
+The shared cache keys observations by **harness and session**, so two providers
+using the same session ID cannot share a run, pause or heartbeat. A fresh read
+can replace an in-flight read; failure of the older one cannot discard that
+newer result. An unsupported observer yields Unknown. A failed read is not
+replaced with the previously cached Idle state. Current Root assignments and
+control/delivery paths still support Codex only; this boundary does not enable
+a Claude connection by itself.
+
 The header uses a lightweight presence read. Opening the Agent menu separately
 loads model settings, usage and queue details. Extension enablement and its
 history do not define the agent's live state. Policies that send new work must
 use [execution eligibility](../extensions/requests.md), not interpret a UI label.
 
 Implementation: [shared observation](../../lib/agent-observation.mjs),
+[Codex adapter](../../lib/codex-desktop-connection.mjs),
 [Goal overlay](../../lib/agent-activity.mjs), [display priority](../../public/goal-state.js).
