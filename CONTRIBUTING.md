@@ -20,7 +20,9 @@ the private reporting process in [SECURITY.md](SECURITY.md).
 - Keep refactoring separate from behavior changes.
 
 Follow the [development workflow](docs/development/workflow.md) for short-lived
-branches, milestone commits, review and release handoff.
+branches from develop, milestone commits, PR integration into develop and stable
+release promotion to main. Entrusted agent work includes review and merging;
+external contributions follow maintainer review.
 
 ## Local development
 

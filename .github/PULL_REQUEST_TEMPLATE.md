@@ -8,9 +8,15 @@ List the commands and manual scenarios used to verify the change.
 
 ## Dependency and rollout
 
-State the CLI commit/archive tested, if changed. Does a clean install from the
-committed dependency pass? Link any prerequisite PR/release and keep this Draft
-until it is adopted. Describe whether a local runtime was updated separately.
+Target develop for ordinary changes; main only for a release promotion. State
+the exact CLI input and clean-checkout command tested. Link prerequisite PRs and
+keep this Draft until CI reproduces those inputs. Describe runtime updates separately.
+
+## Integration
+
+Record final head/base and successful checks before merging. After merging, record
+the develop commit and post-merge CI result, then remove the topic branch when no
+active work depends on it. If blocked, record the reason and next action.
 
 ## Checklist
 

@@ -1,100 +1,113 @@
 ---
 keyPoints: >-
-  Use short-lived branches from main, commit tested milestones, and review focused PRs.
-  Source commits, installed runtimes and published releases are separate states;
-  dependent application changes wait for an explicitly adopted CLI release.
+  Integrate short-lived PRs into develop without waiting for routine user review.
+  The entrusted agent owns verification, serialized merges and branch cleanup;
+  main remains the stable release line. Do not bypass checks or expand release authority.
 ---
 
-# Keep changes reviewable and reproducible
+# Keep development integrated
 
-A contributor should be able to clone a reviewed revision, install its recorded
-dependencies and reproduce its checks. Use a lightweight
-[GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow):
-`main` is the integration branch, and each focused change uses a short-lived
-branch. A separate permanent `develop` branch is not needed for our current
-release model. Users install tagged releases; work in progress stays on branches.
+Use two long-lived branches: `develop` holds tested development changes and
+`main` holds the stable release line. Create focused topic branches from the
+latest `develop`, then return each change through a PR as soon as it is ready.
+A task ends with integration or a concrete recorded blocker, not a growing pile
+of locally finished branches.
 
-## Start with a known state
+This is the agreed workflow. A document does not create remote branches,
+activate protection rules, publish releases or prove that CI passes.
 
-Read `git status --short`, the current branch and the relevant guide before
-editing. Fetch the current remote state when connected. From a clean checkout,
-create a branch from `origin/main`, for example `feat/project-workspaces` or
-`fix/resume-replies`. Agent branches may use `codex/<topic>`.
+## Responsibility and boundaries
 
-Keep unrelated work on separate branches/worktrees. When work already exists,
-identify its owner and preserve it before switching; do not reset, stash or
-rewrite someone else's work just to obtain a clean status. A branch needed by
-another branch is an explicit dependency, not a new unrelated base.
+The entrusted agent may create and review PRs, resolve ordinary integration
+conflicts, and merge agreed changes into `develop` without asking the user to
+review each PR. Review still means inspecting the final diff against the request,
+checking dependencies and running verification; approval is not a rubber stamp.
+External contributions need maintainer review unless their handling is delegated.
 
-## Commit at a useful milestone
+`main` promotion and public releases follow the release agreement, not automatic
+permission inherited from a development PR. The agent prepares a coherent release
+candidate; when promotion is already entrusted, it performs it within that scope.
+Never weaken repository protection, skip a failing check or invent approval to
+complete an integration. An unavailable credential or protection rule is a
+specific blocker to report, not a reason to demand routine human code review.
 
-Commit after a focused behavior and its relevant verification are complete,
-before moving to another concern or handing work back. Examples include a
-reproduced bug with its fix, a working API with regression tests, or a coherent
-documentation update. Code, the test that protects it and its usage explanation
-can belong in the same commit. Do not wait until the end of a long session.
+## Work in small complete slices
 
-Before committing:
+Read status and fetch before starting. Use `feat/<topic>`, `fix/<topic>` or
+`codex/<topic>` from `origin/develop`. Preserve existing work before switching;
+do not reset or stash another person's changes. Keep one active topic per worker
+and normally only one dependent PR waiting behind it. Integrate the prerequisite
+before starting another branch on top. Independent work may use isolated worktrees.
 
-```sh
-git status --short
-git diff
-# Stage the intended files or hunks explicitly.
-git add -- path/to/file
-git diff --cached --check
-git diff --cached
-```
+Commit each verified milestone before switching concerns. Stage intended paths
+or hunks, inspect `git diff --cached` and run `git diff --cached --check`. Commit
+source, regression coverage and its explanation together when they form a usable
+change. Never include generated bundles, personal runtime data or secrets. A
+checkpoint is not a release. Shared history is not force-pushed as routine cleanup.
 
-Use a short outcome-oriented title such as `fix: resume feedback after idle`.
-Record material verification or limitations in the body when needed. Do not
-commit generated bundles, local runtime data, personal hook commands or secrets.
-A commit is a reviewed checkpoint, not a claim that the feature is released.
-Avoid automatic timed commits of unreviewed working trees.
+## Finish through the integration gate
 
-At handoff, inspect status again. Commit completed work and state the branch,
-commit and verification. If unfinished changes must remain, identify them and
-why. Never describe a dirty working tree as fully recorded. Already-shared
-history is not rewritten as routine cleanup.
+1. Open a focused PR targeting `develop`. Keep incomplete work Draft and describe
+   the final behavior, tests, dependency revision and rollout implications.
+2. Verify a fresh checkout with its recorded dependencies. Run relevant tests
+   while developing and `npm run check` before integration. Document native probes
+   separately; do not run them against an active user's workspace.
+3. Review the actual final diff. Integrate the latest `develop` into the topic,
+   resolve conflicts and retest affected behavior plus required checks. Do not
+   repeatedly rebase shared topic history.
+4. Merge one ready PR at a time. Require successful repository CI on the current
+   candidate and current base, or use a configured merge queue that validates
+   their combination. If another PR changes the base first, refresh and recheck.
+   Squash focused topic PRs into `develop`.
+5. Verify post-merge CI and record the merged commit. Remove the merged remote
+   and local topic branches only after checking that no active worktree, open PR
+   or other worker depends on them. Resume from the updated `develop`.
 
-For accumulated changes that cannot safely be separated, record one explicitly
-labelled integration checkpoint with known test results and limitations. Keep
-that recovery exception out of normal day-to-day work; do not invent a sequence
-of small commits that only appears independently functional.
+Do not keep feature branches merely as backups; Git history and closed PRs retain
+the work. Do not delete an old branch just because its name looks obsolete:
+squash merges require checking the PR and final diff, not only Git ancestry.
 
-## Review and merge
+When `develop` breaks, prioritize restoring it over adding work. Make a small
+fix with verification when the cause is clear; otherwise revert the offending
+change through a checked PR. Avoid reset/force-push recovery. Record the failure,
+recovery and affected dependants so another run does not repeat the same attempt.
 
-Use one PR per user-visible concern and open a Draft for incomplete or dependent
-work. The PR describes the problem, final behavior, verification and remaining
-risks. Update it when scope changes. A branch depending on unreleased CLI APIs
-is not ready merely because a local replacement package passes.
+## Keep long runs bounded and recoverable
 
-Run focused tests while developing and `npm run check` before marking Ready.
-Verify the final revision, not just an earlier state. A fresh checkout should
-pass `npm ci` and its documented check. Native Claude/Codex probes are explicit,
-isolated integration runs: document what was actually exercised separately from
-portable unit tests. Do not run them against active user workspaces.
+At each completed slice and before ending a run, check open PRs, unmerged local
+commits, dirty worktrees and failed CI. Finish a ready integration before opening
+another topic. Record a blocked PR's exact reason and next action in its Goal or
+PR; continue independent agreed work, not repeated blind merge attempts. Ask only
+when a conflict changes the intended behavior or needs a decision not delegated.
 
-Require a maintainer review and the repository CI checks before merging. Prefer
-squash merging a focused PR into `main`; its milestone commits remain visible in
-the PR history. Delete the merged topic branch when no dependent work needs it.
-For maintainers, recommended [branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
-requires PRs and successful checks, and blocks force pushes/deletion of `main`.
-These are settings to verify in GitHub, not settings this document activates.
+For the existing accumulated work, use one labelled bootstrap integration PR per
+repository rather than pretending the changes were independent. Start `develop`
+from the current remote `main`, preserve the existing topic history, review the
+full delta and pass the same gate. Inventory old branches against merged PRs
+before pruning. Thereafter return to small slices.
 
-## Keep source, local installation and release distinct
+## Promote a stable version
+
+Use a release PR from `develop` to `main` for a coherent tested version. Preserve
+shared ancestry with a merge commit rather than squash-merging the entire
+long-lived branch. Bring any hotfix on `main` back into `develop` immediately.
+Do not let separate long-lived release branches accumulate.
+
+For two-repository changes, integrate the CLI first, then the app against an
+exact reproducible CLI revision. A private local package replacement is not a
+merge gate. The app's development dependency strategy is described in its
+`docs/development/workflow.md`; stable releases pin an immutable released archive.
 
 | State | Evidence |
 | --- | --- |
-| Recorded locally | Branch and commit, with remaining working-tree changes disclosed |
-| Reviewed for integration | PR and checks on its final revision |
-| Running locally | Prepared runtime ID and the store/server that adopted it |
-| Available to users | Published release tag and installable archive |
+| Recorded | Commit and disclosed working-tree status |
+| Integrated | Merged develop PR, final checks and post-merge status |
+| Running locally | Prepared runtime ID and the workspace adopting it |
+| Stable for users | Main promotion and published immutable release |
 
-Follow [Releasing](../../RELEASING.md) for immutable tags and clean archive tests.
-A commit, `npm pack`, or local setup alone does not publish a release or restart
-an existing Web server. Preserve active workspaces during development.
-
-For the composed app, the CLI is released first. The app then adopts that exact
-archive and regenerated lockfile in a dependency PR and repeats clean checks.
-Until then, record the local CLI commit/archive used and keep the dependent app
-branch in Draft. Never replace the public dependency with a personal file path.
+Follow [Releasing](../../RELEASING.md) for archive checks and immutable tags.
+Runtime updates are separate from merges and must preserve active workspaces.
+Protect both long-lived branches against force pushes and deletion. Configure
+required checks for `develop` without requiring routine user approval of entrusted
+PRs; retain the agreed release controls on `main`. These are desired repository
+settings and must be verified before relying on them.
