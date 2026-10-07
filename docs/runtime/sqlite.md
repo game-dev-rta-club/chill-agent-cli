@@ -50,7 +50,7 @@ store is silently converted.
    The Web client uses conversation pages and compact workspace summaries;
    the legacy compatibility snapshot still loads all history. The SQLite CLI page
    reader selects the requested Goal range and Brief body. Goal, Brief and event operations now use database transactions instead of file
-   leases. Transport and extension coordination remain separate work.
+   leases. Workspace coordination uses the separate lease database described below.
 2. Exercise Web, CLI and harness delivery in a disposable project. Inventory
    coordination records separately: delivery receipts, holds, connection identity,
    extension state and pending requests are not part of the foundation tables yet.
@@ -123,3 +123,19 @@ work remaining.
 
 Use the [offline migration rehearsal](sqlite-migration.md) to import and verify
 a schema-7 copy without activating its delivery state.
+
+## Coordinate short-lived ownership
+
+SQLite workspaces use `coordination.sqlite` for delivery, execution, native
+connection and extension locks. Each resource has at most one lease row; release
+deletes it instead of accumulating numbered files. Acquisition and release use
+short transactions. The caller can await external work without holding a SQLite
+write transaction. Different resources can proceed independently.
+
+A live owner is never taken over. A dead process can be reclaimed, and a random
+ownership token prevents a previous owner from deleting a replacement lease.
+The database has its own application ID and schema version; foreign databases
+are rejected. Existing numbered leases in a SQLite workspace require offline
+reconciliation rather than mixing ownership protocols. JSON workspaces and
+locks outside the workspace retain their existing file protocol. Delivery
+receipts, pending requests and connection records themselves remain files.
