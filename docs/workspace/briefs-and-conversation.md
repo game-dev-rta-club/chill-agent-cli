@@ -41,12 +41,11 @@ an overlaid annotation control.
 
 ## Comments and Letters
 
-Use `goal comment --id 1 --text-file result.txt` for progress or results. Use
-`goal letter --id 1 --title "Choose a direction" --text-file question.txt` when
-the user needs to answer. Files preserve multiline text without shell escaping.
+Use `goal comment --id 1 --text-file result.txt` for routine progress or supporting detail. Use
+`goal letter --id 1 --title "Choose a direction" --text-file question.txt` for a decision or a meaningful result the user should receive. Files preserve multiline text without shell escaping.
 
-Letter has one presentation and one Answer action. Ordinary results belong in
-Comments and do not require acknowledgement before work continues. The old
+Letter has one presentation and one Answer action. A result Letter does not
+require acknowledgement before authorized work continues. The old
 `--no-reply` option is compatibility-only; historical records stay out of pending
 counts, so updating does not turn old results into new unanswered questions.
 
