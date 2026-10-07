@@ -61,7 +61,9 @@ so a reload or another device uses the same theme; other projects are unchanged.
 An already open page picks up changes when it regains focus or becomes visible.
 A failed save keeps the previous theme.
 
-The theme colors the workspace controls and reading surfaces. Attached images
+The theme colors the workspace controls and reading surfaces. Status meanings
+stay consistent: Letters, waiting and work in progress use amber; answered
+Letters and completed Goals use green. Dark palettes adjust their contrast. Attached images
 and authored HTML Briefs retain their own colors. Legacy shared stores have one
 shared theme; different Root Goals in the same store are not separate projects.
 

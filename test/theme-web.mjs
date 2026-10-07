@@ -15,9 +15,16 @@ try{
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(Error(`Server exit ${c}`)));});
  browser=await chromium.launch();const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const open=async()=>{await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Color theme',exact:true}).click();};
- await page.goto(url+'/#/goal/1');await page.locator('#goal-title').filter({hasText:'A calmer'}).waitFor();await open();
+ await page.goto(url+'/#/goal/1');await page.locator('#goal-title').filter({hasText:'A calmer'}).waitFor();await page.evaluate(()=>{const fixture=document.createElement('div');fixture.id='theme-status-fixture';fixture.innerHTML='<article class="timeline-entry letter-comment"><header class="letter-comment-heading"><h2 class="letter-comment-title">Open Letter</h2></header></article><article class="timeline-entry letter-comment is-answered"><header class="letter-comment-heading"><h2 class="letter-comment-title">Answered Letter</h2></header></article><span class="status working">Working</span><span class="status done">Done</span>';document.querySelector('.reading-pane').prepend(fixture);});await open();
  assert.equal(await page.locator('[data-theme-choice]').count(),18);
- for(const t of themes){await page.locator(`[data-theme-choice="${t.id}"]`).click();await page.waitForFunction(id=>document.documentElement.dataset.theme===id,t.id);await page.getByText('Saved for this project.',{exact:true}).waitFor();assert.equal(await page.locator(`[data-theme-choice="${t.id}"]`).getAttribute('aria-pressed'),'true');}
+ const semanticColors={};
+ for(const t of themes){await page.locator(`[data-theme-choice="${t.id}"]`).click();await page.waitForFunction(id=>document.documentElement.dataset.theme===id,t.id);await page.getByText('Saved for this project.',{exact:true}).waitFor();assert.equal(await page.locator(`[data-theme-choice="${t.id}"]`).getAttribute('aria-pressed'),'true');
+  const colors=await page.locator('#theme-status-fixture').evaluate(el=>[...el.querySelectorAll('.letter-comment-title,.letter-comment-heading,.status')].map(node=>node.classList.contains('letter-comment-heading')?getComputedStyle(node).backgroundColor:getComputedStyle(node).color));
+  const mode=t.kind==='dark'?'dark':'light';if(semanticColors[mode])assert.deepEqual(colors,semanticColors[mode],'status meanings stay constant across hues');else semanticColors[mode]=colors;
+ }
+ assert.notDeepEqual(semanticColors.dark,semanticColors.light,'dark statuses adjust contrast');
+ for(const colors of Object.values(semanticColors)){assert.notEqual(colors[0],colors[2]);assert.notEqual(colors[1],colors[3]);assert.equal(colors[1],colors[4]);assert.equal(colors[3],colors[5]);}
+ await page.locator('[data-theme-choice="gradient-rose"]').click();await page.waitForFunction(()=>document.documentElement.dataset.theme==='gradient-rose');await page.keyboard.press('Escape');await page.getByRole('button',{name:'More',exact:true}).click();await page.locator('#theme-status-fixture').screenshot({path:'/tmp/chill-theme-semantic-rose.png'});await open();
  for(const id of ['gradient-ocean','light-peach','dark-iris']){
   await page.locator(`[data-theme-choice="${id}"]`).click();await page.waitForFunction(id=>document.documentElement.dataset.theme===id,id);
   await page.screenshot({path:`/tmp/chill-theme-${id}.png`});
