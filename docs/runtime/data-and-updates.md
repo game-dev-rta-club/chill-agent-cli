@@ -60,3 +60,33 @@ See [server controls](server.md) and [release maintenance](../../RELEASING.md).
 
 Implementation: [data directory](../../lib/data-directory.mjs),
 [runtime preparation](../../lib/runtime-package.mjs), [setup](../../bin/chill-setup.mjs).
+
+## Update from Web
+
+An application can register `runtimeUpdates` in its trusted `extensions.json`.
+On a managed macOS server, the local Web shows an update icon when the installed
+skill selects a different application commit. Confirming it acquires the candidate,
+prepares a snapshot and restarts Web at the same URL. Closing the confirmation
+leaves the current version running. Detection alone never downloads or activates
+code. Public links do not expose the update action: they do not authenticate an
+administrator. Foreground and Windows servers retain the explicit CLI update path.
+
+The updater uses a separate launchd worker so replacing Web cannot kill its own
+update. It rechecks the selection before switching, coalesces simultaneous clicks,
+and restores the previous program if restart fails. This recovery does not reverse
+schema migrations. Diagnostics remain in `runtime/update.json` and the per-attempt
+log. An unresponsive operation is not automatically resent.
+
+The provider exports `createRuntimeUpdates()` with `current()` (the immutable
+running commit), `candidate(directory)` (`{key}` or null, read-only), and
+`acquire(directory, key)` (a verified built runtime path). Commit keys are full
+40-character hashes. It owns the package-specific pin format and acquisition;
+the CLI owns snapshots, restart and same-origin/local-only request handling.
+Use `saveRuntimeUpdateSource` / `readRuntimeUpdateSource` from the extension API
+for the installed skill's durable source reference. Neither paths nor package
+URLs are accepted from browser input. Providers must bound downloads and verify
+that the acquired package matches the confirmed key.
+
+Run `node test/runtime-update-native.mjs` on macOS for an isolated launchd
+roundtrip. It uses disposable code and data and verifies the URL, Goal records,
+request restrictions and completed receipt; it does not touch a user's server.
