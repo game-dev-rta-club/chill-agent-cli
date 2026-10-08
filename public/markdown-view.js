@@ -1,5 +1,5 @@
 let library;
-export async function renderDiagrams(root) {
+export async function renderDiagrams(root, mutate = change => change()) {
   const targets = [...root.querySelectorAll('.mermaid-diagram:not([data-rendered])')]
     .filter(el => el.getClientRects().length && !el.closest('details:not([open])'));
   if (!targets.length) return;
@@ -21,13 +21,13 @@ export async function renderDiagrams(root) {
       const diagram=template.content.querySelector('svg');
       const width=Number(diagram?.getAttribute('viewBox')?.split(/\s+/)[2]);
       if(width>0)diagram.style.maxWidth=`${width}px`;
-      el.replaceChildren(template.content); el.dataset.rendered = 'ready';
+      mutate(()=>{el.replaceChildren(template.content); el.dataset.rendered = 'ready';});
       el.setAttribute('role','img'); el.setAttribute('aria-label','Mermaid diagram');
     } catch {
       if (!el.isConnected) continue;
       const label = document.createElement('p'); label.textContent = 'Could not display this diagram.';
       const code = document.createElement('pre'); code.textContent = el.dataset.diagramSource;
-      el.replaceChildren(label, code); el.dataset.rendered = 'error';
+      mutate(()=>{el.replaceChildren(label, code); el.dataset.rendered = 'error';});
     }
   }
 }
