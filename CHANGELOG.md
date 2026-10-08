@@ -8,9 +8,8 @@ keyPoints: >-
 
 ## 0.4.0
 
-- Minor release in the pre-1.0 line for the SQLite storage transition. SQLite workspaces cannot be opened by 0.3.x; this is an incompatible persisted-data change, not a 1.0 compatibility commitment.
+- Minor release in the pre-1.0 line for the SQLite storage transition. Compatibility and migration history are recorded in the [0.4.0 release notes](https://github.com/game-dev-rta-club/chill-agent-cli/releases/tag/v0.4.0).
 - Require Node.js 24.15 or newer. Use built-in SQLite for new workspaces, indexed Goal/Brief/conversation reads, transactional record writes and reusable coordination leases; no separate database service or native dependency build is needed.
-- Keep existing schema-7 JSON workspaces on their existing backend. Upgrading code does not automatically migrate or split data. To move to SQLite, back up and stop writers, [create and verify an offline migration bundle](docs/runtime/sqlite-migration.md), then reconcile connections, unresolved feedback and settings before explicit cutover. Activation is not a one-command operation; never remove the pending marker as a shortcut. Downgrading code does not roll back SQLite data or later messages.
 - Page older Web conversations on demand and stabilize reading position across Goal/Letter navigation and asynchronous Activity, Brief and diagram updates.
 - Archive unused root Goals without deleting their history; exclude them from normal lists and continuation discovery.
 - Clarify Letters as requests for necessary replies, with ordinary results in Comments.
