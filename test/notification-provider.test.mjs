@@ -10,7 +10,7 @@ test('an absent provider permits legacy settings; a configured broken provider n
   await mkdir(join(root,'lib'));
   const loader=join(root,'lib/notification-provider.mjs');
   await copyFile(new URL('../lib/notification-provider.mjs',import.meta.url),loader);
-  for(const name of ['project-workspace.mjs','data-directory.mjs','storage.mjs','sqlite-leases.mjs','workspace-records.mjs','sqlite-workspace.mjs'])await copyFile(new URL('../lib/'+name,import.meta.url),join(root,'lib',name));
+  for(const name of ['project-workspace.mjs','data-directory.mjs','storage.mjs','sqlite-leases.mjs','workspace-records.mjs','sqlite-workspace.mjs','sqlite-errors.mjs'])await copyFile(new URL('../lib/'+name,import.meta.url),join(root,'lib',name));
   let revision=0;
   const load=async()=> (await import(pathToFileURL(loader).href+'?test='+revision++)).notificationProvider();
   assert.equal(await load(),null);
