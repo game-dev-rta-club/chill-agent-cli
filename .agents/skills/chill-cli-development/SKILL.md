@@ -7,5 +7,8 @@ description: Use when implementing, fixing, testing, committing, reviewing or in
 
 Read the [development workflow](../../../docs/development/workflow.md) and [contribution checks](../../../CONTRIBUTING.md) before working. Reuse it if already read and unchanged in this task.
 
+For Web scrolling, navigation, asynchronous layout or focus changes, also read
+the [scrolling guide](../../../docs/development/scrolling.md).
+
 The linked documents are the source of project rules. This skill selects reading;
 it does not grant new merge, publication or configuration permissions.

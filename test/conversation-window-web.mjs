@@ -30,7 +30,15 @@ try {
   browser=await chromium.launch({headless:true});
   const page=await browser.newPage({viewport:{width:1000,height:850}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(`${url}/#/goal/1`);await page.locator('.conversation-form').waitFor();
+  const loadHistory=async()=>{
+    while(await page.locator('[data-action="load-older-conversation"]').count()){
+      await page.locator('[data-action="load-older-conversation"]').click();
+      await page.waitForFunction(()=>!document.querySelector('[data-action="load-older-conversation"]:disabled'));
+    }
+    const collapse=page.locator('[data-action="collapse-conversation"]');
+    if(await collapse.isVisible())await collapse.click();
+  };
+  await page.goto(`${url}/#/goal/1`);await page.locator('.conversation-form').waitFor();await loadHistory();
   const cards=()=>page.locator('.comment-event'),gap=()=>page.locator('.conversation-gap').last();
   const main=()=>page.locator('.conversation-form');
   assert.equal(await cards().count(),4);assert.equal(await page.locator(`#event-${pending.id}`).count(),1);
@@ -48,6 +56,7 @@ try {
   assert.equal(await earlier.evaluate(e=>getComputedStyle(e,'::after').visibility),'visible');
   assert.equal(await earlier.evaluate(e=>getComputedStyle(e,'::after').content),'"Show 3 earlier comments"');
   await page.mouse.move(0,0);
+  await page.keyboard.press('Tab');
   await earlier.focus();
   assert.equal(await earlier.evaluate(e=>getComputedStyle(e,'::after').visibility),'visible');
   await main().locator('textarea').fill('Keep this draft while I read.');
@@ -100,13 +109,14 @@ try {
     await page.locator('[data-action="collapse-conversation"]').click();
   }
   // All hidden ranges can be read to the end; no messages disappear or repeat.
+  await loadHistory();
   while(await page.locator('.conversation-gap').count())await page.locator('.conversation-gap').first().locator('[data-side="top"]').click();
   assert.equal(await cards().count(),46);
   // Multiple older unanswered Letters stay visible on entry, reload and collapse.
   const open=[];
   for(let i=0;i<3;i++)open.push(await run('letter','--id','1','--title',`Pending choice ${i}`,'--text','A question for later.'));
   for(let i=0;i<10;i++)await run('comment','--id','1','--text',`Later discussion ${i}`);
-  await page.goto(`${url}/#/goal/1`);await page.reload();await main().waitFor();
+  await page.goto(`${url}/#/goal/1`);await page.reload();await main().waitFor();await loadHistory();
   for(const letter of open)assert.equal(await page.locator(`#event-${letter.id}`).count(),1);
   assert.equal(await cards().count(),7,'latest three plus every unanswered Letter');
   assert.equal(await page.locator(`#event-${closed.id}`).count(),0);
@@ -116,7 +126,7 @@ try {
   assert.equal(await cards().count(),7);
   await run('close-letter','--id','1','--event',String(open[0].id));
   await appendFeedback({goalId:'1',annotations:[{kind:'letter',source:{kind:'comment',eventId:open[1].id},text:'Settled'}]});
-  await page.reload();await main().waitFor();
+  await page.reload();await main().waitFor();await loadHistory();
   assert.equal(await page.locator(`#event-${open[0].id}`).count(),0);
   assert.equal(await page.locator(`#event-${open[1].id}`).count(),0);
   assert.equal(await page.locator(`#event-${open[2].id}`).count(),1);
