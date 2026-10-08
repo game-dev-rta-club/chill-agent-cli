@@ -45,6 +45,15 @@ node server.mjs --local
 
 The foreground server prints the local Web URL. Goal data and runtime snapshots are separate from the repository checkout.
 
+## Upgrading to 0.4
+
+New workspaces use SQLite with Node.js 24.15+. Existing schema-7 JSON workspaces
+stay on JSON until an explicit migration; installing this version does not move
+or rewrite them. SQLite workspaces cannot be read by 0.3.x. Back up before
+changing storage and follow [the offline migration guide](docs/runtime/sqlite-migration.md)
+for verification and the remaining activation work. Do not replace a live data
+directory with a migration bundle or treat a code downgrade as a data rollback.
+
 ## Documentation
 
 [Find the right guide](docs/README.md) for workspace concepts, runtime updates,
