@@ -1,12 +1,12 @@
 {
   "name": "@game-dev-rta-club/chill-agent-cli",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@game-dev-rta-club/chill-agent-cli",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "bundleDependencies": [
         "marked",
         "parse5",
@@ -26,7 +26,7 @@
         "mermaid": "11.17.2"
       },
       "engines": {
-        "node": ">=20"
+        "node": ">=24.15"
       }
     },
     "node_modules/@antfu/install-pkg": {

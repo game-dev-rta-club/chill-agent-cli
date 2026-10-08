@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,readFile,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm} from 'node:fs/promises';
+import {readFile,writeFile} from './record-fixture.mjs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
@@ -120,7 +121,7 @@ test('cached history cannot offer a reply after its Root changes connection',asy
  const f=await fixture(t);await appendFeedback({goalId:f.root.id,text:'old context'});
  const readEvents=createClaudeFeedbackReader();await readEvents();await f.stop();const {ticket}=await f.watch();
  const path=join(f.data,'workspace/goals',f.root.id,'goal.json'),goal=JSON.parse(await readFile(path,'utf8'));
- await writeJsonAtomically(path,{...goal,connection:{...goal.connection,contextId:randomUUID()}});
+ await writeFile(path,JSON.stringify({...goal,connection:{...goal.connection,contextId:randomUUID()}}));
  assert.equal((await pollClaudeIdleWatch(ticket,{readEvents})).status,'watching');
 });
 

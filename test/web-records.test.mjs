@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+const execute=promisify(execFile),store=new URL('../lib/goal-store.mjs',import.meta.url).href,web=new URL('../lib/web-records.mjs',import.meta.url).href,letters=new URL('../public/letter-state.js',import.meta.url).href;
+for(const backend of ['json','sqlite'])test(`${backend} compact Web keeps open Letters and off-page reply status without history bodies`,async t=>{
+ const root=await mkdtemp(join(tmpdir(),'chill-web-records-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const code=`
+ import assert from 'node:assert/strict';import * as s from ${JSON.stringify(store)};
+ import {listWebRecords} from ${JSON.stringify(web)};import {letterState} from ${JSON.stringify(letters)};
+ await s.createGoal({title:'A'});await s.createGoal({title:'B'});
+ const answered=await s.appendAgentComment({goalId:'1',type:'letter',title:'Answered',text:'Historical question'});
+ const open=await s.appendAgentComment({goalId:'1',type:'letter',title:'Open',text:'Still needs attention'});
+ const answer=await s.appendFeedback({goalId:'1',text:'Yes',annotations:[{kind:'letter',source:{kind:'comment',eventId:answered.id},text:'Yes'}]});
+ for(let i=0;i<65;i++)await s.appendAgentComment({goalId:'1',type:'comment',text:'Body '+i});
+ const [goal,other]=await listWebRecords();
+ assert.equal(goal.conversation.length,31);assert.equal(other.conversation.length,0);
+ assert.ok(goal.conversation.some(e=>e.id===open.id));assert.ok(!goal.conversation.some(e=>e.id===answered.id||e.id===answer.id));
+ assert.equal(goal.conversationInfo.hasMore,true);
+ const status=goal.letterStates.find(e=>e.id===answered.id);assert.equal(status.status,'answered');
+ assert.equal(letterState({...answered,letterStatus:status},goal.conversation).lastAnswerId,answer.id);
+ const older=await s.readConversationPage('1',{before:goal.conversationInfo.nextBefore});assert.equal(older.events.length,30);
+ assert.ok(older.events.every(e=>e.changeId<goal.conversationInfo.nextBefore));
+ const latestAnswer=await s.appendFeedback({goalId:'1',text:'Again',annotations:[{kind:'letter',source:{kind:'comment',eventId:answered.id},text:'Yes'}]});
+ const updated=(await listWebRecords())[0];assert.ok(updated.conversation.some(e=>e.id===answered.id));
+ assert.equal(updated.letterStates.find(e=>e.id===answered.id).lastAnswerId,latestAnswer.id);
+ await s.closeLetter('1',open.id);
+ const closed=(await listWebRecords())[0].letterStates.find(e=>e.id===open.id);
+ assert.equal(letterState({...open,letterStatus:closed},[]).status,'received');
+ `;
+ const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:backend}});
+ assert.equal(result.stdout,'');
+});

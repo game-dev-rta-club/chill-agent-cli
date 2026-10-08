@@ -10,10 +10,14 @@ import { createBriefArrivalTracker } from './brief-navigation.js';
 import { briefBody } from './brief-body.js';
 import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-view.js';
 import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversation-window.js';
+import { createReadingPane } from './reading-pane.js';
 
+history.scrollRestoration='manual';
 const briefsByGoal = new Map();
 const goalMetadata = new Map();
 const events = [];
+const historyPages=new Map();
+const letterStatuses=new Map();
 const latestBrief = id => briefsByGoal.get(id)?.at(-1);
 const latestVersion = id => latestBrief(id)?.version || 0;
 const briefAt = (id, version) => briefsByGoal.get(id)?.find(brief => brief.version === version);
@@ -47,6 +51,8 @@ const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 
   </svg>`;
 const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
 const main = document.querySelector('#main');
+const readingPane = createReadingPane(main,{rectOf:viewportRect});
+const keepReadingPosition = readingPane.preserve;
 const announcement = document.querySelector('#announcement');
 let toastTimer;
 function showToast(text) {
@@ -234,7 +240,9 @@ function timelineMarkup(id) {
   const pinned = conversationPins(id, visible);
   for (const group of work.values()) if (group.live) pinned.add(group.owner);
   const activity=activityControls.current();if(activity&&['saved','sending','queued','working','paused','unknown'].includes(activity.status))pinned.add(activity.eventId);
-  return conversationWindow.segments(id, visible, pinned).map(segment => {
+  const history=historyPages.get(id);
+  const older=history?.hasMore?`<li class="conversation-gap"><button type="button" data-action="load-older-conversation" ${history.loading?'disabled':''}>${history.loading?'Loading…':'Load earlier conversation'}</button></li>`:'';
+  return older+conversationWindow.segments(id, visible, pinned).map(segment => {
     if (segment.kind === 'gap') {
       const count = segment.messages.length, first = segment.messages[0].id, last = segment.messages.at(-1).id;
       const step = Math.min(EXPANSION_COMMENT_COUNT,count);
@@ -277,6 +285,7 @@ function interactingWithAnnotation() {
   const selection = selectedText();
   return annotationOpen || imageAreaDialog.open || submitting.size>0 || (selection && !selection.isCollapsed && (main.contains(selection.anchorNode)||briefRoot()?.contains(selection.anchorNode)));
 }
+const timelineSources=new WeakMap();
 function updateTimeline(id) {
   if (interactingWithAnnotation()) { timelineRefreshPending = true; return; }
   timelineRefreshPending = false;
@@ -287,18 +296,18 @@ function updateTimeline(id) {
   const focusKey = focused?.dataset.workId;
   const replyFocusKey = focused?.dataset.replyDetail;
   const foldFocus=document.activeElement?.closest('[data-action="expand-conversation"], [data-action="collapse-conversation"]')?.dataset;
-  const paneTop=main.getBoundingClientRect().top;
-  const anchor=[...timeline.children].find(item=>item.getBoundingClientRect().bottom>paneTop)
-    || main.querySelector('.conversation-form');
-  const anchorId=anchor?.id,anchorTop=anchor?.getBoundingClientRect().top;
-  const gapFirst=anchor?.dataset.gapFirst,gapLast=anchor?.dataset.gapLast;
-  timeline.innerHTML = timelineMarkup(id);
-  const retained=anchorId?document.getElementById(anchorId):gapFirst
-    ?timeline.querySelector(`[data-gap-first="${gapFirst}"][data-gap-last="${gapLast}"]`)
-    :main.querySelector('.conversation-form');
-  if(retained)main.scrollTop+=retained.getBoundingClientRect().top-anchorTop;
+  const template=document.createElement('template');template.innerHTML=timelineMarkup(id);
+  const key=el=>el.id||`gap:${el.dataset.gapFirst}:${el.dataset.gapLast}`;
+  const previous=new Map([...timeline.children].map(el=>[key(el),el]));
+  const children=[...template.content.children].map(el=>{
+    const old=previous.get(key(el)),source=el.outerHTML;
+    if(old&&(timelineSources.get(old)||old.outerHTML)===source){timelineSources.set(old,source);return old;}
+    timelineSources.set(el,source);return el;
+  });
+  if(children.length!==timeline.children.length||children.some((child,index)=>child!==timeline.children[index]))
+    keepReadingPosition(()=>{timeline.replaceChildren(...children);});
   if(controlFocus)document.getElementById(controlFocus)?.querySelector('[data-activity-control]')?.focus({preventScroll:true});
-  void renderDiagrams(timeline);
+  void renderDiagrams(timeline,keepReadingPosition);
   updateConversationControls(id);
   if(foldFocus) {
     const control=foldFocus.action==='collapse-conversation'?main.querySelector('[data-action="collapse-conversation"]')
@@ -324,7 +333,7 @@ function refreshGoalFrame() {
   updateBrandTarget();
   updateTabTitle();
   const slot=main.querySelector('#goal-frame');
-  if(slot&&activeGoalId)slot.innerHTML=goalView().brief(activeGoalId);
+  if(slot&&activeGoalId)keepReadingPosition(()=>{slot.innerHTML=goalView().brief(activeGoalId);});
 }
 function renderGoal(id,version) {
   const brief=briefAt(id,version),isHTML=brief?.format==='html',body=isHTML?'':briefBody(brief?.html||''),view=goalView();
@@ -351,8 +360,9 @@ function renderGoal(id,version) {
     <section class="conversation"><div class="section-heading conversation-heading"><h2>Conversation</h2><button type="button" class="text-button" data-action="collapse-conversation" hidden>Collapse earlier</button></div>
       <ol class="timeline" id="timeline-list" aria-label="Conversation">${timelineMarkup(id)}</ol>${composerMarkup(id,comment)}</section></div>`;
   const briefReady=isHTML?mountHTMLBrief(id,version):Promise.resolve();
+  for(const child of main.querySelector('#timeline-list').children)timelineSources.set(child,child.outerHTML);
   updateComposerState();updateConversationControls(id);renderAnnotations();
-  return Promise.all([briefReady,renderDiagrams(main)]);
+  return Promise.all([briefReady,renderDiagrams(main,keepReadingPosition)]);
 }
 
 function htmlBriefFrame() {return main.querySelector('.html-brief-frame');}
@@ -371,16 +381,7 @@ function viewportRect(element) {
   const offset=frame.getBoundingClientRect();
   return {left:rect.left+offset.left,right:rect.right+offset.left,top:rect.top+offset.top,bottom:rect.bottom+offset.top};
 }
-function scrollInReadingPane(target,block='center') {
-  if(!target?.isConnected)return;
-  // scrollIntoView also moves overflow:hidden ancestors, including the viewport.
-  // Keep the fixed shell in place and scroll only the reading pane.
-  const rect=viewportRect(target),pane=main.getBoundingClientRect();
-  const top=pane.top+main.clientTop+12,bottom=pane.top+main.clientTop+main.clientHeight-12;
-  if(block==='center')main.scrollTop+=(rect.top+rect.bottom-top-bottom)/2;
-  else if(rect.top>=top&&rect.bottom<=bottom||rect.top<top&&rect.bottom>bottom)return;
-  else main.scrollTop+=rect.top<top?rect.top-top:rect.bottom-bottom;
-}
+const scrollInReadingPane = readingPane.reveal;
 function mountHTMLBrief(id,version) {
   const frame=document.createElement('iframe');frame.className='html-brief-frame';frame.title='HTML Brief';
   frame.setAttribute('sandbox','allow-same-origin');frame.src=`/api/goals/${id}/briefs/${version}/document`;
@@ -389,7 +390,7 @@ function mountHTMLBrief(id,version) {
     if(!frame.isConnected){ready();return;}
     const doc=frame.contentDocument,body=doc?.querySelector('.brief-body');if(!body){ready();return;}
     body.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
-    const size=()=>{if(frame.isConnected)frame.style.height=`${Math.ceil(Math.max(body.getBoundingClientRect().height,body.scrollHeight))+1}px`;};
+    const size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
     const observer=new ResizeObserver(size);observer.observe(body);
     for(const type of ['wheel','touchmove','keydown'])doc.addEventListener(type,briefScrollIntent,{passive:true});
     doc.addEventListener('selectionchange',updateSelectionAction);
@@ -919,12 +920,13 @@ async function refreshLetterCount(){
   finally{letterCountRequest=false;}
 }
 function renderIndex(){updateTabTitle();main.innerHTML=goalView().index();}
-let stepFocus=null;
+let stepFocus=null,routeReady=Promise.resolve();
 function renderRoute() {
   hasNewBrief.dismiss();
   closeImageSelection();
-  const beforeId=activeGoalId,top=main.scrollTop;
+  const beforeId=activeGoalId,beforeVersion=activeVersion,top=main.scrollTop;
   annotationOpen=false;pendingAnchor=null;hideAnnotationAction();hideAnnotationPreview();removePendingImage('annotation');editingNote=null;
+  main.querySelector('.annotation-form')?.setAttribute('hidden','');
   // Keep the shared action alive before replacing an HTML frame that owns it.
   document.body.append(annotationAction);
   currentRoute=location.hash||'#/goals';
@@ -940,18 +942,22 @@ function renderRoute() {
   let ready=Promise.resolve();
   if(activeGoalId) {
     if(match?.[3])conversationWindow.reveal(activeGoalId,conversationFor(activeGoalId),Number(match[3]));
-    ready=renderGoal(activeGoalId,activeVersion||0);
+    if(beforeId===activeGoalId&&beforeVersion===activeVersion&&main.querySelector('#goal-frame')) {
+      // Letter and Activity links within a Goal do not recreate its iframe.
+      refreshGoalFrame();updateTimeline(activeGoalId);renderAnnotations();ready=routeReady;
+    }else ready=routeReady=renderGoal(activeGoalId,activeVersion||0);
     main.querySelectorAll('.brief-detail[data-detail-id]').forEach(detail=>{detail.open=openDetails.has(`${activeGoalId}:v${activeVersion}:${detail.dataset.detailId}`);});
   } else if(currentRoute==='#/goals')renderIndex();
   else {main.innerHTML='<div class="not-found"><h1>Goal or Brief not found</h1><a href="#/goals">Back to Goals</a></div>';}
-  main.scrollTop=beforeId===activeGoalId?top:0;
+  readingPane.setTop(beforeId===activeGoalId&&(match?.[2]||match?.[3])?top:0);
   activityControls.routeChanged();
-  const deliveriesReady=refreshDeliveries().catch(()=>{});
+  void refreshDeliveries().catch(()=>{});
   if(match?.[3]) {
-    const routeFrame=main.firstElementChild;
-    // HTML Briefs and diagrams can grow after the first render.
-    Promise.all([ready,deliveriesReady]).then(()=>requestAnimationFrame(()=>{
-      if(main.firstElementChild===routeFrame)scrollInReadingPane(document.getElementById(`event-${match[3]}`));
+    const routeFrame=main.firstElementChild,generation=navigationGeneration,interaction=readingPane.interaction;
+    // Wait for the Brief, but don't gate navigation on Activity network traffic.
+    // Later Activity/diagram changes preserve the visible target themselves.
+    Promise.resolve(ready).then(()=>requestAnimationFrame(()=>{
+      if(main.firstElementChild===routeFrame&&navigationGeneration===generation&&readingPane.interaction===interaction)scrollInReadingPane(document.getElementById(`event-${match[3]}`));
     }));
   }
   if(stepFocus) {const nav=main.querySelector('.version-pager');nav?.setAttribute('tabindex','-1');(nav?.querySelector(`[data-version-step="${stepFocus}"]`)||nav)?.focus({preventScroll:true});stepFocus=null;}
@@ -982,7 +988,7 @@ main.addEventListener('click',event=>{
 const openDeliveries = new Set();
 main.addEventListener('toggle', event => {
   const detail = event.target;
-  if (detail.open) void renderDiagrams(detail);
+  if (detail.open) void renderDiagrams(detail,keepReadingPosition);
   if (detail.matches?.('.reply-detail')) {
     if (!detail.isConnected) return;
     if (detail.open) openReplies.add(detail.dataset.replyDetail); else openReplies.delete(detail.dataset.replyDetail);
@@ -1047,9 +1053,22 @@ main.addEventListener('paste', event => {
   }
 });
 
-main.addEventListener('click', event => {
+main.addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
   if (!button || !activeGoalId) return;
+  if(button.dataset.action==='load-older-conversation'){
+    const id=activeGoalId,state=historyPages.get(id);if(!state?.hasMore||state.loading)return;
+    state.loading=true;button.disabled=true;
+    try{
+      const response=await fetch(`/api/goals/${id}/conversation?before=${state.nextBefore}&limit=30`,{signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw Error('Could not load earlier conversation.');
+      const page=await response.json();page.events.forEach(addEvent);page.answerTargets.forEach(addEvent);
+      if(historyPages.get(id)===state){state.hasMore=page.hasMore;state.nextBefore=page.nextBefore;}
+      if(activeGoalId===id){updateTimeline(id);renderAnnotations();}
+    }catch(error){showToast(error.message);}
+    finally{state.loading=false;if(activeGoalId===id)updateTimeline(id);}
+    return;
+  }
   if (button.dataset.action === 'expand-conversation' || button.dataset.action === 'collapse-conversation') {
     if (annotationOpen || submitting.size) return;
     const messages=conversationFor(activeGoalId),side=button.dataset.side;
@@ -1061,7 +1080,7 @@ main.addEventListener('click', event => {
     if(added.length) {
       const target=document.getElementById(`event-${added[0].id}`);
       // Start reading at the first revealed comment in either direction.
-      if(target)main.scrollTop+=target.getBoundingClientRect().top-edge;
+      readingPane.align(target,edge);
       const next=[...main.querySelectorAll('.conversation-gap')].find(item=>side==='top'
         ?Number(item.dataset.gapLast)===Number(button.dataset.lastId):Number(item.dataset.gapFirst)===Number(button.dataset.firstId));
       const focus=next?.querySelector(`[data-side="${side}"]`)||target?.querySelector('article');
@@ -1137,7 +1156,7 @@ function feedbackRequestId(id, kind, payload) {
 function addEvent(item) {
   const index=events.findIndex(event=>event.id===item.id);
   if(index!==-1&&events[index].changeId>=item.changeId)return false;
-  const event={...item,at:new Date(item.updatedAt)};
+  const event={...item,...(letterStatuses.has(item.id)?{letterStatus:letterStatuses.get(item.id)}:{}),at:new Date(item.updatedAt)};
   if(index===-1)events.push(event);else events[index]=event;
   events.sort((a, b) => a.at - b.at || a.id - b.id);
   return true;
@@ -1289,7 +1308,7 @@ document.addEventListener('click', event => {
     event.preventDefault();
     const letter=/\/letter\/([1-9][0-9]*)$/.exec(currentRoute);
     if(letter){scrollInReadingPane(document.getElementById(`event-${letter[1]}`));return;}
-    main.scrollTo({top: 0, behavior: 'auto'});
+    readingPane.setTop(0);
     main.querySelector('h1')?.focus({preventScroll: true});
   }
 });
@@ -1310,6 +1329,12 @@ async function navigate({refresh=true}={}){
         const loaded=await response.json();
         Object.assign(briefAt(match[1],Number(match[2]))||brief,loaded);
       }
+    }
+    const letterLink=/^#\/goal\/([1-9][0-9]*)\/letter\/([1-9][0-9]*)$/.exec(target);
+    if(letterLink&&!events.some(e=>e.id===Number(letterLink[2]))){
+      const response=await fetch(`/api/goals/${letterLink[1]}/events/${letterLink[2]}`,{signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw Error('Could not load this Letter.');
+      addEvent(await response.json());
     }
     if(generation!==navigationGeneration||location.hash!==target)return;
     renderRoute();announcement.textContent='';
@@ -1336,11 +1361,15 @@ function loadStoredGoals() {
   // Polling, returning to the tab and navigation share one request.
   if(storeRequest)return storeRequest;
   storeRequest=(async()=>{
-    const response=await fetch('/api/goals?view=web',{cache:'no-store',signal:AbortSignal.timeout(12000)});
+    const response=await fetch('/api/goals?view=web&history=paged',{cache:'no-store',signal:AbortSignal.timeout(12000)});
     if(!response.ok)throw new Error('Could not load Goals. Your draft is kept.');
     const stored=await response.json(),signature=JSON.stringify(stored,(key,value)=>['checkedAt','expiresAt'].includes(key)?undefined:value),changed=signature!==storeSignature;
     storeSignature=signature;
-    for(const {id,briefs,conversation,...metadata} of stored){
+    const visibleIds=new Set(stored.map(goal=>goal.id));
+    for(const id of goalMetadata.keys())if(!visibleIds.has(id))goalMetadata.delete(id);
+    for(const {id,briefs,conversation,conversationInfo,letterStates,...metadata} of stored){
+      if(conversationInfo&&historyPages.get(id)?.head!==conversationInfo.head)historyPages.set(id,{...conversationInfo});
+      for(const status of letterStates||[]){letterStatuses.set(status.id,status);const cached=events.find(e=>e.id===status.id);if(cached)cached.letterStatus=status;}
       const previous=briefsByGoal.get(id)||[];
       goalMetadata.set(id,{id,...metadata});
       // Published versions are immutable. Keep older Briefs once opened.
@@ -1354,9 +1383,7 @@ function loadStoredGoals() {
 async function updateCurrentBrief(version) {
   const id=activeGoalId,section=main.querySelector('.document-section');
   if(!section)return;
-  const paneTop=main.getBoundingClientRect().top,conversation=main.querySelector('.conversation');
-  const anchor=conversation?.getBoundingClientRect().top<main.getBoundingClientRect().bottom?conversation:null;
-  const anchorTop=anchor?.getBoundingClientRect().top-paneTop,top=main.scrollTop,interaction=briefScrollInteraction;
+  const restore=readingPane.capture();
   const brief=briefAt(id,version),isHTML=brief?.format==='html',height=section.offsetHeight;
   document.body.append(annotationAction);hideAnnotationAction();hideAnnotationPreview();pendingAnchor=null;
   // Only replace the Brief; keep the composer, active annotation editor and drafts.
@@ -1372,20 +1399,18 @@ async function updateCurrentBrief(version) {
   section.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
   main.querySelector('.annotation-form').dataset.version=String(version);
   renderAnnotations();
-  await Promise.all([isHTML?mountHTMLBrief(id,version):Promise.resolve(),renderDiagrams(section)]);
+  await Promise.all([isHTML?mountHTMLBrief(id,version):Promise.resolve(),renderDiagrams(section,keepReadingPosition)]);
   if(!section.isConnected||activeGoalId!==id||activeVersion!==version)return;
-  section.style.minHeight='';
-  if(interaction===briefScrollInteraction){
-    if(anchor?.isConnected)main.scrollTop+=anchor.getBoundingClientRect().top-main.getBoundingClientRect().top-anchorTop;
-    else main.scrollTop=top;
-  }
+  keepReadingPosition(()=>{section.style.minHeight='';});
+  restore();
 }
 async function refreshGoals(){
   const id=activeGoalId,previousLatest=latestVersion(id);
   if(!await loadStoredGoals())return;
+  if(activeGoalId&&!goalMetadata.has(activeGoalId)){navigate({refresh:false});return;}
   if(activeGoalId){
     updateNoticeForRoute();
-    if(activeGoalId===id&&activeVersion===previousLatest&&latestVersion(id)>previousLatest)await updateCurrentBrief(latestVersion(id));
+    if(activeGoalId===id&&activeVersion===previousLatest&&latestVersion(id)>previousLatest)await (routeReady=updateCurrentBrief(latestVersion(id)));
     refreshGoalFrame();updateTimeline(activeGoalId);renderAnnotations();updateNoticeForRoute();
     const heading=main.querySelector('.document-heading');
     if(heading&&!main.querySelector('.version-pager:focus-within'))heading.innerHTML=`<h2>Brief</h2>${briefAt(activeGoalId,activeVersion)?goalView().pager(activeGoalId,activeVersion):''}`;
@@ -1411,18 +1436,17 @@ async function refreshDeliveries() {
 }
 
 function dismissBriefNotice(){hasNewBrief.dismiss();pendingUpdateId=null;updateNotice.hidden=true;}
-let briefScrollInteraction=0;
 function briefScrollIntent(event){
   if(event.type==='keydown'&&(!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key)||event.target.closest('input,textarea,select,[contenteditable="true"]')))return;
-  briefScrollInteraction++;dismissBriefNotice();
+  readingPane.interrupt();dismissBriefNotice();
 }
 for(const type of ['wheel','touchmove','keydown'])main.addEventListener(type,briefScrollIntent,{passive:true});
 main.addEventListener('pointerdown',event=>{if(event.target===main&&event.clientX>=main.getBoundingClientRect().left+main.clientWidth)briefScrollIntent(event);});
 viewUpdate.addEventListener('click',()=>{
   if(!pendingUpdateId)return;
-  briefScrollInteraction++;dismissBriefNotice();
+  readingPane.interrupt();dismissBriefNotice();
   const heading=main.querySelector('.document-heading');
-  if(heading){main.scrollTop+=heading.getBoundingClientRect().top-main.getBoundingClientRect().top-12;heading.querySelector('h2').setAttribute('tabindex','-1');heading.querySelector('h2').focus({preventScroll:true});}
+  if(heading){scrollInReadingPane(heading,'start');heading.querySelector('h2').setAttribute('tabindex','-1');heading.querySelector('h2').focus({preventScroll:true});}
 });
 loadStoredGoals().then(()=>navigate({refresh:false}),error=>{
  main.innerHTML=`<div class="not-found"><h1>Could not load Goals</h1><p>${escapeHTML(error.message)}</p></div>`;

@@ -33,7 +33,7 @@ test('native entry reaches the CLI through shell exports, without Goal assignmen
   assert.equal(result.stage, 'entry-only');
   assert(Object.values(result.capabilities).every(value => value === false));
   assert.doesNotMatch(JSON.stringify(record), /transcript|prompt|unverified-model|turnId|threadId/);
-  assert.deepEqual(await readdir(join(f.data, 'workspace')), ['connections']);
+  assert.deepEqual(await readdir(join(f.data, 'workspace')), ['connections','coordination.sqlite']);
   const files = await readdir(join(f.data, 'workspace/connections/claude-code'));
   assert.equal(files.filter(name => /^[a-f0-9]{64}\.json$/.test(name)).length, 1);
 });

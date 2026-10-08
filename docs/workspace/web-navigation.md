@@ -2,7 +2,8 @@
 keyPoints: >-
   Web loads a compact workspace snapshot, opens known Goals from memory and refreshes
   in the background. Tabs count unanswered Letters under their own Root, including
-  hidden tabs. Earlier Brief bodies load on demand; this is not an offline store.
+  hidden tabs. Goal links start at the top; Letter links locate the message while
+  background updates keep visible content in place. Earlier Briefs load on demand.
 ---
 
 # Move between Goals without waiting for a poll
@@ -37,6 +38,14 @@ published. A failed refresh leaves the last loaded content available; it does no
 claim that content is current. A first visit and an uncached earlier Brief still
 need a connection. No workspace data is made available offline by this cache.
 
+Opening or reloading a plain Goal starts at the top. A Letter link waits for its
+Brief layout, then brings the message into view; a tall Letter starts
+at its heading. Moving between Letters in the same Goal reuses the Brief. If the
+reader scrolls while a link is loading, that interaction takes priority over the
+pending jump. Background Activity, Brief sizing and diagram rendering preserve
+the visible conversation boundary, or the current position when reading the Brief.
+Only the reading pane scrolls; the header stays fixed.
+
 JSON snapshots and static assets support gzip. The main JavaScript is bundled;
 the larger Mermaid renderer loads only when a diagram needs it. Static assets use
 private revalidation with ETags, while page HTML and workspace data stay uncached
@@ -45,3 +54,4 @@ Letter state, so current state is read again on each snapshot.
 
 Implementation: [browser navigation](../../public/app.js),
 [snapshot projection](../../lib/web-snapshot.mjs), [HTTP routes](../../server.mjs).
+For changes to positioning or focus, follow the [scrolling guidelines](../development/scrolling.md).

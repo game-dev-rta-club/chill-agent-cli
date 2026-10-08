@@ -5,7 +5,7 @@ export function letterState(letter, conversation = []) {
   if (letter.replyRequired === false) return {status: 'notice', lastAnswerId: null};
   const answer = conversation.findLast(entry => entry.goalId === letter.goalId && entry.author === 'user'
     && entry.annotations?.some(note => note.kind === 'letter' && note.source?.kind === 'comment' && note.source.eventId === letter.id));
-  return {status: letter.receivedAt ? 'received' : answer ? 'answered' : 'open', lastAnswerId: answer?.id || null};
+  return {status: letter.receivedAt ? 'received' : letter.letterStatus?.status || (answer ? 'answered' : 'open'), lastAnswerId: Math.max(answer?.id || 0, letter.letterStatus?.lastAnswerId || 0) || null};
 }
 
 export function rootLetterSummary(goals,conversation,currentId){
