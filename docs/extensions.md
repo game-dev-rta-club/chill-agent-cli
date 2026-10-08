@@ -14,6 +14,7 @@ Use `@game-dev-rta-club/chill-agent-cli/extension-api` and call
 | Register trusted code and manage its lifetime | [Lifecycle](extensions/lifecycle.md) |
 | Observe the chat and enqueue without racing other work | [Execution requests](extensions/requests.md) |
 | Show enablement, active work and request history | [Web controls](extensions/web-controls.md) |
+| Detect and apply an explicitly confirmed runtime update | [Runtime updates](runtime/data-and-updates.md#update-from-web) |
 | Extend a verified native action or Stop | [Connection hooks](extensions/connection-hooks.md) |
 
 The CLI supplies mechanisms. The integrating application owns scheduling policy,

@@ -11,6 +11,7 @@ import { briefBody } from './brief-body.js';
 import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-view.js';
 import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversation-window.js';
 import { createReadingPane } from './reading-pane.js';
+import {createRuntimeUpdate} from './runtime-update.js';
 
 history.scrollRestoration='manual';
 const briefsByGoal = new Map();
@@ -83,6 +84,7 @@ const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>active
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
 const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel')});
 const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,announce:showToast});
+createRuntimeUpdate({button:document.getElementById('runtime-update-button'),announce:showToast});
 let activeVersion = null;
 let pendingAnchor = null;
 let annotationOpen = false;
