@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import '../lib/quiet-sqlite-warning.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import { mkdir, readFile, realpath } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';

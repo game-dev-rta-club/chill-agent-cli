@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import '../lib/quiet-sqlite-warning.mjs';
 import {execFile} from 'node:child_process';
 const [directory,rawPort,duration,id]=process.argv.slice(2);
 let updateWorkerLabel;

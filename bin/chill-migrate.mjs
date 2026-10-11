@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import '../lib/quiet-sqlite-warning.mjs';
 import {parseArgs} from 'node:util';
 import {createMigrationBundle,verifyMigrationBundle,restoreMigrationSource,verifyRestoredSource,prepareMigrationWorkspace,verifyPreparedWorkspace} from '../lib/sqlite-migration.mjs';
 const {values,positionals}=parseArgs({allowPositionals:true,options:{source:{type:'string'},destination:{type:'string'},bundle:{type:'string'},help:{type:'boolean'}}});
