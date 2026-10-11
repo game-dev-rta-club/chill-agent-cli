@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import '../lib/quiet-sqlite-warning.mjs';
+import {readFile} from 'node:fs/promises';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
 import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
@@ -27,9 +28,10 @@ async function main() {
     console.log(waitResultText(await waitForClaudeFeedback()));
     return;
   }
-  if(['create-goal','inbox','activity'].includes(action)) {
+  if(['create-goal','inbox','activity','reply'].includes(action)) {
     const payload=action==='create-goal'?{title:values['--title'],scope:values['--scope']||'',criteria:values['--criteria']||''}:
-      action==='activity'?{eventId:Number(values['--event']),state:values['--state']}:{};
+      action==='activity'?{eventId:Number(values['--event']),state:values['--state']}:
+      action==='reply'?{eventId:Number(values['--event']),text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
     const request=await requestClaudeAction(action,payload);
     console.log(request.marker);
     console.log('Pending main-session hook confirmation. A shell receipt alone does not confirm this action.');

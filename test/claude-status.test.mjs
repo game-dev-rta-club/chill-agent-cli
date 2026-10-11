@@ -8,7 +8,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
 import {requestClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
-import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
+import {readClaudeConnectionStatus,withClaudeReception} from '../lib/claude-status.mjs';
 import {createGoal,listGoals} from '../lib/goal-store.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
@@ -49,4 +49,14 @@ test('child Agent menu and CLI show expose safe evidence without controls or pri
 test('missing and damaged records report unknown without changing their contents',async t=>{
  const f=await fixture(t);await writeFile(f.recordPath,'broken');assert.equal((await f.read()).state,'unknown');assert.equal(await readFile(f.recordPath,'utf8'),'broken');
  await rm(f.recordPath);assert.equal((await f.read()).state,'unknown');
+});
+
+test('saved Claude replies say whether a waiter will wake the conversation; others pass through',async t=>{
+ const f=await fixture(t),connection=f.root.connection;
+ const saved={eventId:1,status:'saved',connection},codex={eventId:2,status:'saved',threadId:randomUUID()},done={eventId:3,status:'completed',connection};
+ let [a,b,c]=await withClaudeReception([saved,codex,done],{now:()=>Date.now()});
+ assert.equal(a.waiting,false);assert.deepEqual(b,codex);assert.deepEqual(c,done);
+ const record=JSON.parse(await readFile(f.recordPath,'utf8'));
+ await writeFile(f.recordPath,JSON.stringify({...record,waiter:{id:randomUUID(),contextId:record.contextId,checkedAt:new Date().toISOString()}}));
+ [a]=await withClaudeReception([saved],{now:()=>Date.now()});assert.equal(a.waiting,true);
 });

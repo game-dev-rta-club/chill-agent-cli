@@ -23,11 +23,14 @@ Run one connection action per main-session Bash tool call:
 ```sh
 chill connection create-goal --title 'The agreed outcome' --scope 'Scope' --criteria 'Evidence of success'
 chill connection inbox
-chill connection activity --event 1 --state working
-chill connection activity --event 1 --state completed
+chill connection reply --event 1 --text 'What I did'
 ```
 
-Use the actual launcher from the prepared runtime in place of `chill`.
+Use the prepared runtime's `runtime/chill` entry in place of `chill`.
+`reply` posts the answer in the feedback's Goal Conversation and records the
+completed receipt in one confirmation; a retry of the same request does not post
+twice. `connection activity --event 1 --state working|failed` records other
+receipt states, for example before long work.
 Each command saves an intent and prints a request marker; this is not success.
 The main Bash PostToolUse hook checks the saved intent against the current native
 session, context and generation, then returns the created Goal ID, saved feedback

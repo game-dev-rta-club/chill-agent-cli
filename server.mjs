@@ -27,6 +27,7 @@ import {readAgentStatus,saveAgentSettings,controlAgent} from './lib/agent-status
 import {readAgentPresence} from './lib/agent-presence.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
+import { withClaudeReception } from './lib/claude-status.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
@@ -331,7 +332,7 @@ const server = createServer(async (request, response) => {
   if (deliveryPath) {
     try {
       await refreshWorkOutputs(deliveryPath[1]);
-      return sendJson(response, 200, await listDeliveries(deliveryPath[1]));
+      return sendJson(response, 200, await withClaudeReception(await listDeliveries(deliveryPath[1])));
     }
     catch { return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
   }

@@ -55,8 +55,9 @@ directory alone never selects a conversation. See [main-hook actions](claude-act
 for feedback and receipt handling. Native policy, hook disablement or permissions
 may still prevent activation; setup does not override them.
 
-Setup and installed hook messages use the same stable CLI prefix, including the
-canonical data-directory path. Runtime updates keep that entry usable. Direct
+Setup and installed hook messages use the same short entry, `<data>/runtime/chill`.
+It records a Node path that survives Homebrew upgrades and falls back to the
+Node on PATH if that binary disappears. Runtime updates keep that entry usable. Direct
 checkout invocations keep their own entry; they do not borrow a different store's
 installation.
 

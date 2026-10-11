@@ -37,9 +37,11 @@ allowance. Claude's own permission mode named `auto` is a separate native policy
 selecting chill Auto mode does not select it.
 See [Claude's permission guide](https://code.claude.com/docs/en/permissions).
 
-Use the exact stable command prefix printed by chill setup when reviewing a
-command. A rule allowing every `node` or Bash invocation delegates much more
-than chill operations. The installer leaves these choices with the user.
+Every chill command starts with the entry printed by setup, so a single command
+prefix rule for that entry can cover them; the permission guide describes the
+rule syntax. A rule allowing every `node`
+or Bash invocation delegates much more than chill operations. The installer
+leaves these choices with the user.
 
 ## Try the work you will actually leave running
 

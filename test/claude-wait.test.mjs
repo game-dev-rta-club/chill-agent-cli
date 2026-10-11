@@ -10,7 +10,7 @@ import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
 import {requestClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessionStartContext} from '../lib/claude-actions.mjs';
 import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
-import {listGoals,appendFeedback,createGoal} from '../lib/goal-store.mjs';
+import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
 import {readDeliveryState,prepareDelivery,updateDelivery} from '../lib/delivery.mjs';
 import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
@@ -124,4 +124,17 @@ test('CLI wait prints the next actions once feedback is saved',async t=>{
  await f.waiting();await appendFeedback({goalId:f.root.id,text:'from the Web'});
  const code=await new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});
  assert.equal(code,0);assert.equal(stderr,'');assert.match(stdout,/new Web feedback[\s\S]*connection inbox[\s\S]*connection wait/);
+});
+
+test('reply posts on the Web and completes the receipt in one confirmed action',async t=>{
+ const f=await fixture(t),reply=await appendFeedback({goalId:f.root.id,text:'Please summarize'});
+ await assert.rejects(f.action('reply',{eventId:reply.changeId,text:'Too early'}),/connection inbox first/);
+ assert.match(context(await f.action('inbox')),/connection reply --event <eventId>/);
+ const done=context(await f.action('reply',{eventId:reply.changeId,text:'Here is the summary.'}));
+ assert.match(done,new RegExp(`recorded feedback #${reply.changeId} as completed`));
+ const state=await readDeliveryState(reply.changeId);assert.equal(state.status,'completed');assert.equal(state.agentReported,true);
+ const posted=(await readFeedback()).filter(e=>e.author==='agent'&&e.goalId===f.root.id);
+ assert.deepEqual(posted.map(e=>e.text),['Here is the summary.']);
+ await assert.rejects(f.action('reply',{eventId:reply.changeId,text:'Again'}),/terminal receipt/);
+ assert.equal((await readFeedback()).filter(e=>e.author==='agent').length,1,'a rejected reply posts nothing');
 });

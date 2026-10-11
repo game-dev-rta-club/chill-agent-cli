@@ -33,9 +33,9 @@ async function main() {
     const prepared=await prepareRuntime(fileURLToPath(new URL('../',import.meta.url)));
     // Match the launcher's canonical spelling (for example /var -> /private/var).
     const directory=await realpath(prepared.dataDirectory);
-    const installed={...prepared,root:await realpath(prepared.root),dataDirectory:directory,launcher:join(directory,'runtime/chill.mjs')};
-    const hook=await configureClaudeHooks(values['--project'],{launcher:installed.launcher,directory});
-    const prefix=`CHILL_AGENT_DATA_DIR=${quote(installed.dataDirectory)} ${quote(process.execPath)} ${quote(installed.launcher)}`;
+    const installed={...prepared,root:await realpath(prepared.root),dataDirectory:directory,launcher:join(directory,'runtime/chill.mjs'),entry:join(directory,'runtime/chill')};
+    const hook=await configureClaudeHooks(values['--project'],{entry:installed.entry,directory});
+    const prefix=quote(installed.entry);
     console.log(JSON.stringify({...installed,project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,hook,command:prefix,next:'Experimental Claude hooks are written, not yet verified in the conversation. Review them with native /hooks. Preserve the current chat with native resume if SessionStart has not run; never clear or fork to repair a handshake. From its main Bash tool, run <command> connection show, then connection create-goal; its result names the reply waiter to start. No Auto mode is enabled by setup. Local settings created by hand should be excluded from Git. Native policy and existing permissions still apply.'},null,2));
     return;
   }
@@ -51,7 +51,7 @@ async function main() {
   if (process.platform !== 'darwin') throw new Error('The default setup supports Codex Desktop on macOS. Select --harness claude-code explicitly for the experimental POSIX route.');
   const codex = await resolveCodex();
   const installed = await prepareRuntime(fileURLToPath(new URL('../', import.meta.url)));
-  const prefix = `CHILL_AGENT_DATA_DIR=${quote(installed.dataDirectory)} ${quote(process.execPath)} ${quote(installed.launcher)}`;
+  const prefix = quote(installed.entry);
   const hook = await installHook(resolve(values['--project']), { command: `${prefix} hook` });
   console.log(JSON.stringify({ ...installed, project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,codex, hook, command: prefix,
     next: 'Review/trust a new or changed hook in Codex /hooks. Start with: <command> server start --configured. Existing servers keep their previous runtime until restarted.' }, null, 2));

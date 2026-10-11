@@ -19,7 +19,8 @@ waiter exits and prints the next actions
         ↓
 Claude Code reports the finished task; an idle conversation starts a new turn
         ↓
-agent claims it with `connection inbox`, replies, and starts the waiter again
+agent reads it with `connection inbox`, answers with `connection reply`,
+and starts the waiter again
 ```
 
 The waiter only detects saved feedback for its own conversation context. It

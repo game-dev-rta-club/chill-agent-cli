@@ -21,6 +21,7 @@ currently running or idle.
 | Conversation context changed | The Goal belongs to an earlier context; a new context does not inherit it |
 | Connection not observed | The record is missing or unreadable |
 
+A saved reply in the Conversation also says when no waiter will wake Claude.
 Opening the menu does not start a waiter or change a delivery record. A missing
 SessionEnd is not proof that the conversation is still open.
 

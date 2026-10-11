@@ -12,7 +12,7 @@ const execute=promisify(execFile);
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'chill-claude-setup-')),project=join(dir,"project ' one"),data=join(dir,"data ' one");await mkdir(project);
  t.after(()=>rm(dir,{recursive:true,force:true}));
- const path=join(project,'.claude/settings.local.json'),options={directory:data,launcher:join(data,"runtime ' one/chill.mjs")};
+ const path=join(project,'.claude/settings.local.json'),options={directory:data,entry:join(data,"runtime ' one/chill")};
  const config={permissions:{allow:['Read'],deny:['Bash(rm *)']},env:{EXISTING:'keep'},hooks:{PostToolUse:[{matcher:'Read',hooks:[{type:'command',command:'echo other'}]}]}};
  await mkdir(join(project,'.claude'));await writeFile(path,JSON.stringify(config));
  return {dir,project,data,path,options,config,read:async()=>JSON.parse(await readFile(path,'utf8'))};
@@ -59,9 +59,9 @@ test('CLI prepares native hooks with no Codex executable, and status never claim
     return (await execute(process.execPath,['--input-type=module','-e',code],{env:{...env,CHILL_AGENT_DATA_DIR:directory},timeout:10000})).stdout;
   };
   const firstContext=await readContext(prepared.root,prepared.dataDirectory);
-  assert(firstContext.includes(prepared.command+' connection activity'));
+  assert(firstContext.includes(prepared.command+' connection reply --event <eventId>'));
   assert(firstContext.includes(prepared.command+' goal show'));
-  assert(firstContext.includes(prepared.command+' goal comment --id <goalId>'));
+  assert.equal(prepared.command,`'${prepared.entry.replaceAll("'","'\\''")}'`,'installed hooks and agents use the short entry');
   assert(!firstContext.includes('/packages/'));
   // A runtime update must not change the suggested command, even for an old hook.
   await writeFile(join(prepared.root,'lib/probe-revision.mjs'),'export const revision=2;');
