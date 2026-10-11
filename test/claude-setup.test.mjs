@@ -79,6 +79,7 @@ test('CLI prepares native hooks with no Codex executable, and status never claim
   const firstContext=await readContext(prepared.root,prepared.dataDirectory);
   assert(firstContext.includes(prepared.command+' connection activity'));
   assert(firstContext.includes(prepared.command+' goal show'));
+  assert(firstContext.includes(prepared.command+' goal comment --id <goalId>'));
   assert(!firstContext.includes('/packages/'));
   // A runtime update must not change the suggested command, even for an old hook.
   await writeFile(join(prepared.root,'lib/probe-revision.mjs'),'export const revision=2;');

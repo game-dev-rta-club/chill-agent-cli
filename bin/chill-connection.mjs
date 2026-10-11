@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import '../lib/quiet-sqlite-warning.mjs';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
 import {watchClaudeIdle} from '../lib/claude-idle.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';

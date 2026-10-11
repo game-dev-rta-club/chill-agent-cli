@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import '../lib/quiet-sqlite-warning.mjs';
 // Optional plugin entry: find the prepared core without relying on plugin cache paths.
 import { showHelp } from '../lib/cli-help.mjs';
 import { readFile } from 'node:fs/promises';
