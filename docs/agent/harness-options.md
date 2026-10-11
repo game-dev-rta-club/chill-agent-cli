@@ -21,9 +21,9 @@ or qualified through a live integration test yet.
 ## Transport candidates
 
 For the current outcome, investigate the [native Claude entry](claude-conversation.md)
-first: hooks for session observations and in-turn input, with a channel transport
-for explicitly enabled idle wake. This uses the existing conversation instead of
-requiring a library-owned one. It remains a proposal pending live qualification.
+first: hooks for session observations and in-turn input, with a background reply
+waiter for idle wake. This uses the existing conversation instead of requiring a
+library-owned one.
 
 - [HarnessRouter](https://github.com/HarnessRouter/harnessrouter) provides a service
   with sessions, streaming and cancellation. Its [self-hosted setup](https://github.com/HarnessRouter/harnessrouter/blob/main/docs/self-hosting-guide.md)
@@ -67,5 +67,4 @@ Authentication is part of qualification for an SDK-managed session. The [officia
 directs third-party products to API-key authentication unless separately approved.
 Do not promise that a user's existing Claude subscription is reusable merely
 because an adapter supports login. This proposal does not introduce key storage,
-provider charges or a new login flow. Native Claude Code Channels have their own
-authentication and organization requirements; see the native-entry proposal.
+provider charges or a new login flow.

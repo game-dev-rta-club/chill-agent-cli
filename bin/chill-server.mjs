@@ -14,6 +14,7 @@ import { serverOptions } from '../lib/server-lifecycle.mjs';
 import { cloudflaredPath, tunnelStatePath } from '../lib/tunnel.mjs';
 import {stopManagedTunnel} from '../lib/managed-tunnel.mjs';
 import { readMessageSettings } from '../lib/message-settings.mjs';
+import { stableNodePath } from '../lib/node-path.mjs';
 
 const execute = promisify(execFile);
 const xml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -91,7 +92,7 @@ async function main(attempt=0) {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>${label}</string>
-<key>ProgramArguments</key><array>${[process.execPath, entry, '--idle-timeout', duration, ...(configured ? ['--configured'] : quick ? ['--tunnel'] : [])].map(v => `<string>${xml(v)}</string>`).join('')}</array>
+<key>ProgramArguments</key><array>${[stableNodePath(), entry, '--idle-timeout', duration, ...(configured ? ['--configured'] : quick ? ['--tunnel'] : [])].map(v => `<string>${xml(v)}</string>`).join('')}</array>
 <key>WorkingDirectory</key><string>${xml(dirname(entry))}</string>
 <key>EnvironmentVariables</key><dict>${Object.entries(environment).map(([k,v]) => `<key>${xml(k)}</key><string>${xml(v)}</string>`).join('')}</dict>
 <key>RunAtLoad</key><true/>

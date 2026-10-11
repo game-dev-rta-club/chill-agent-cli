@@ -36,7 +36,7 @@ export function activityMarkup(controls){
 export function agentMarkup(data) {
  if(data.nativeConnection){
   const s=data.nativeConnection.status;
-  return `<section class="agent-section"><h3>Claude Code</h3>${s?`<p>${esc(s.label)}</p><p class="agent-muted">${esc(s.detail)}</p>${s.watchCheckedAt?`<p class="agent-muted">Watch checked ${timeMarkup(s.watchCheckedAt,true)}</p>`:''}${s.expiresAt?`<p class="agent-muted">Watch deadline ${timeMarkup(s.expiresAt,true)}</p>`:''}${s.observedAt?`<p class="agent-muted">Last contact ${timeMarkup(s.observedAt)}</p>`:''}`:''}<p class="agent-muted">${esc(data.nativeConnection.detail)}</p></section>`;
+  return `<section class="agent-section"><h3>Claude Code</h3>${s?`<p>${esc(s.label)}</p><p class="agent-muted">${esc(s.detail)}</p>${s.waiterCheckedAt?`<p class="agent-muted">Waiter checked ${timeMarkup(s.waiterCheckedAt,true)}</p>`:''}${s.observedAt?`<p class="agent-muted">Last contact ${timeMarkup(s.observedAt)}</p>`:''}`:''}<p class="agent-muted">${esc(data.nativeConnection.detail)}</p></section>`;
  }
  if(!data.connected)return '<p class="agent-empty">No agent connected.</p>';
  const work=data.work,queue=data.queue;

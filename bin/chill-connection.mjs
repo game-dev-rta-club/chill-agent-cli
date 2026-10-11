@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import '../lib/quiet-sqlite-warning.mjs';
+import {readFile} from 'node:fs/promises';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
-import {watchClaudeIdle} from '../lib/claude-idle.mjs';
+import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
-import {requestClaudeAction,handleClaudeToolHook,inspectClaudeRequest} from '../lib/claude-actions.mjs';
+import {requestClaudeAction,handleClaudeToolHook,inspectClaudeRequest,claudeSessionStartContext} from '../lib/claude-actions.mjs';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -23,9 +24,14 @@ async function main() {
     console.log(JSON.stringify(result));
     return;
   }
-  if(['create-goal','inbox','activity'].includes(action)) {
+  if(action==='wait') {
+    console.log(waitResultText(await waitForClaudeFeedback()));
+    return;
+  }
+  if(['create-goal','inbox','activity','reply'].includes(action)) {
     const payload=action==='create-goal'?{title:values['--title'],scope:values['--scope']||'',criteria:values['--criteria']||''}:
-      action==='activity'?{eventId:Number(values['--event']),state:values['--state']}:{};
+      action==='activity'?{eventId:Number(values['--event']),state:values['--state']}:
+      action==='reply'?{eventId:Number(values['--event']),text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
     const request=await requestClaudeAction(action,payload);
     console.log(request.marker);
     console.log('Pending main-session hook confirmation. A shell receipt alone does not confirm this action.');
@@ -41,13 +47,10 @@ async function main() {
   let input;
   try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Error('Invalid Claude hook JSON.'); }
-  if(action==='claude-watch') {
-    const output=await watchClaudeIdle(input,{timeoutMs:values['--timeout-ms']===undefined?undefined:Number(values['--timeout-ms'])});
-    if(output){console.error(output);process.exitCode=2;}
-    return;
-  }
-  if(input?.hook_event_name==='SessionStart')await captureClaudeEntry(input);
-  else {
+  if(input?.hook_event_name==='SessionStart') {
+    const output=await claudeSessionStartContext(await captureClaudeEntry(input));
+    if(output)console.log(JSON.stringify(output));
+  } else {
     const output=await handleClaudeToolHook(input);
     if(output)console.log(JSON.stringify(output));
   }

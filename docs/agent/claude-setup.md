@@ -55,8 +55,9 @@ directory alone never selects a conversation. See [main-hook actions](claude-act
 for feedback and receipt handling. Native policy, hook disablement or permissions
 may still prevent activation; setup does not override them.
 
-Setup and installed hook messages use the same stable CLI prefix, including the
-canonical data-directory path. Runtime updates keep that entry usable. Direct
+Setup and installed hook messages use the same short entry, `<data>/runtime/chill`.
+It records a Node path that survives Homebrew upgrades and falls back to the
+Node on PATH if that binary disappears. Runtime updates keep that entry usable. Direct
 checkout invocations keep their own entry; they do not borrow a different store's
 installation.
 
@@ -72,16 +73,11 @@ actual operations, try one Web reply and recover without sending it twice.
 Trusting a folder, reviewing hooks, permitting tools and enabling chill Auto mode
 are distinct choices. Setup does not grant tools or change native permission mode.
 
-## Choose a finite idle watch or remove the hooks
+## Receive replies and remove the hooks
 
-Choose a finite watch on same-context resume and after each verified response ends: add
-`--idle-watch-ms 300000` for five minutes, or `--idle-watch-ms 43200000` for
-twelve hours between morning and evening checks. The accepted range is
-1000–86400000 ms (up to twenty-four hours). The installer also sets Claude's
-native timeout to the same duration plus five seconds.
-Omitting the option on a later prepare removes only the installed watcher.
-Expiration does not renew the watch. Read the [idle route's limits](claude-idle.md)
-before relying on it while away.
+Setup installs only the conversation hooks. Replies after Claude goes idle use
+the [reply waiter](claude-wait.md), which the agent starts as a background task
+when a chill result asks for it; there is nothing to configure here.
 
 ```sh
 chill setup status --harness claude-code --project /absolute/project
@@ -108,8 +104,8 @@ added project hooks; native `--resume` reopened the same session, retained the
 earlier token, created one Root and completed one Auto-mode follow-up. Unrelated
 local settings/hooks survived. Ordinary Claude settings and production chill data
 were unchanged. This verifies exit-and-resume in a disposable print-mode test,
-not hot-installation into a running interactive chat, permanent idle reception or
-a packaged native skill installation.
+not hot-installation into a running interactive chat or a packaged native skill
+installation.
 
 For first-use interactive qualification, run
 `scripts/probe-claude-onboarding.mjs --help`. It uses a disposable project and
@@ -122,10 +118,7 @@ The eight-minute wall limit bounds the session; interactive mode has no dollar
 budget. Authentication is imported only when explicitly requested and is not
 copied into the report. Normal settings and production Goals are untouched.
 
-The interactive flow was also exercised on **2026-10-06 with Claude Code
-2.1.289**. First-use screens and individual Read/Bash permissions were handled
-in the temporary environment. The resumed conversation invoked the packaged
-Skill, read its native guide, created one Root and completed feedback receipts
-with its earlier context intact. This establishes the exit-and-resume path with
-human permission responses; it does not establish unattended permission handling,
-hot-installation or overnight reception.
+The interactive flow was last exercised on **2026-10-06 with Claude Code
+2.1.289**, when feedback arrived through a finite idle hook that has since been
+replaced by the reply waiter. Rerun it before relying on first-use onboarding
+with the waiter.

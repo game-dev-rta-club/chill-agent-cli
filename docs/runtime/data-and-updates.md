@@ -32,8 +32,10 @@ node bin/chill-entry.mjs setup prepare --project /path/to/project
 ```
 
 Setup copies an allowlisted runtime into `runtime/packages/<content-hash>/`,
-registers it, and installs a project hook that calls `runtime/chill.mjs`. It
-returns the exact reusable command prefix. Review a new or changed hook's trust
+registers it, and installs a project hook that calls the short `runtime/chill`
+entry. That entry runs `runtime/chill.mjs` with a Node path that survives
+Homebrew upgrades, falling back to the Node on PATH. Setup returns it as the
+reusable command prefix. Review a new or changed hook's trust
 in Codex; setup does not change trust records or unrelated hooks.
 
 The launcher belongs to its data directory. Use a separately prepared launcher

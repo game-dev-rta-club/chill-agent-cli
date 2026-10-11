@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Opt-in interactive qualification: earlier chat -> explicit setup -> same-chat
-// resume -> packaged skill -> native permissions -> idle feedback and receipts.
+// resume -> packaged skill -> native permissions -> reply waiter, feedback and receipts.
 import {spawn,execFile} from 'node:child_process';
 import {mkdtemp,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -38,7 +38,7 @@ try{
  await writeFile(observer,`import {appendFile} from 'node:fs/promises';const parts=[];for await(const c of process.stdin)parts.push(c);const e=JSON.parse(Buffer.concat(parts).toString());await appendFile(${JSON.stringify(trace)},JSON.stringify({at:Date.now(),event:e.hook_event_name,sessionId:e.session_id,promptId:e.prompt_id||null,main:e.agent_id==null,tool:e.tool_name||null,permissionMode:e.permission_mode||null})+'\\n',{mode:0o600});`);
  const group={hooks:[{type:'command',command:`${q(process.execPath)} ${q(observer)}`,timeout:10}]};
  await mkdir(join(cwd,'.claude'));await writeFile(join(cwd,'.claude/settings.local.json'),JSON.stringify({spinnerTipsEnabled:false,hooks:Object.fromEntries(['SessionStart','UserPromptSubmit','PermissionRequest','PostToolUse','Stop','SessionEnd'].map(e=>[e,[group]]))}));
- const setup=JSON.parse((await execute(process.execPath,[join(plugin,'bin/chill-setup.mjs'),'prepare','--harness','claude-code','--project',cwd,'--idle-watch-ms','60000'],{env,cwd,timeout:30000,maxBuffer:1024*1024})).stdout);
+ const setup=JSON.parse((await execute(process.execPath,[join(plugin,'bin/chill-setup.mjs'),'prepare','--harness','claude-code','--project',cwd],{env,cwd,timeout:30000,maxBuffer:1024*1024})).stdout);
  report.setupConfigured=setup.hook.configured;if(!report.setupConfigured)throw Error('Setup unconfirmed');
  const producer=join(base,'feedback.mjs');await writeFile(producer,`import {appendFeedback} from ${JSON.stringify(new URL('../lib/goal-store.mjs',import.meta.url).href)};await appendFeedback({goalId:'1',text:${JSON.stringify('Test reply token: '+feedbackToken+'. Record working and completed receipts using the native connection. Then reply COMPLETE with the memory token from our earlier conversation and this reply token. Finish without new Goals, work or settings.')}});`);
  poll=setInterval(async()=>{if(injecting||feedbackAt||pollFailure)return;injecting=true;try{

@@ -45,8 +45,8 @@ idempotent across a crash between its write and the host's completion record.
 
 `onStop({connection, generation, promptId, checkpointId})` runs under the native
 entry lock after a verified main prompt ends. Return `null` to abstain or a reason
-string to continue. The host emits native `decision: "block"` once, removes the
-idle checkpoint and cancels its optional watcher. The next ordinary tool in the
+string to continue. The host emits native `decision: "block"` once and removes
+the Stop checkpoint. The next ordinary tool in the
 same continued prompt can receive saved Web feedback again; a repeated Stop
 without intervening tools does not create another checkpoint.
 
@@ -56,10 +56,10 @@ Off/Pause handling, result receipts and reconciliation. A result alone is not
 proof of response completion; a matching later main Stop can supply that fact.
 An unresolved request must not be bypassed through another Root in the same chat.
 
-The optional idle watcher uses the same checkpoint. If it offers Web input first,
-the continuation policy must observe that pending delivery and abstain. If the
-synchronous continuation wins, the removed checkpoint cancels the watcher.
-There is no second transport fallback or new Agent process.
+Saved Web input that the [reply waiter](../agent/claude-wait.md) has detected
+stays pending until the inbox claims it, so the continuation policy must observe
+that pending delivery and abstain. There is no second transport fallback or new
+Agent process.
 
 Use `connectionPolicyLock(connection, run)` to serialize a native policy journal.
 `continuationWorkspace(rootId)` supplies saved Goal, Brief and user-input revisions,

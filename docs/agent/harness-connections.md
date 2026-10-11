@@ -1,11 +1,10 @@
 ---
 keyPoints: >-
   Model settings and run observations have a native-adapter boundary and caches
-  isolated per harness/session. Native Claude print-mode probes pass Root creation,
-  receipts and automatic busy feedback. A finite idle watcher also passes interactive
-  prior-context qualification. Optional native Stop continuation also passes its
-  packaged probe. Explicit Claude project setup is available; permanent idle delivery and
-  controls remain open; Channels are unavailable in the tested environment.
+  isolated per harness/session. Native Claude probes pass Root creation, receipts
+  and automatic busy feedback; a background reply waiter wakes idle Claude
+  conversations, including in Claude Desktop. Optional native Stop continuation
+  passes its packaged probe. Live Claude controls remain open.
 ---
 
 # Use chill from different harnesses
@@ -98,15 +97,13 @@ Experimental [main-hook actions](claude-actions.md) add new-Root ownership,
 explicit inbox reads and receipts, with request IDs for crash recovery. A verified
 native prompt also receives new input on ordinary main-session tool hooks. Context
 IDs separate clear/fork from resume/compact. Local protocol tests and authenticated
-print-mode probes pass. An opt-in [finite Stop watcher](claude-idle.md) also passes
-native stream-mode and interactive prior-context checks. These use hooks configured
-at launch, not hot-installed into an existing user session. Permanent idle delivery,
-packaged user-facing installation and live controls remain unqualified or unavailable.
+print-mode probes pass. The [reply waiter](claude-wait.md) wakes an idle
+conversation through a background task; chill's results tell the agent when to
+start it, so connection-specific guidance stays in the adapter. Packaged
+user-facing installation and live controls remain unqualified or unavailable.
 Experimental project hooks can be installed through [explicit setup](claude-setup.md). Optional
 [connection hooks](../extensions/connection-hooks.md) now support the product Auto
-mode policy; its packaged native Stop probe passes independently of Channels.
-The [Channels probe](claude-channels.md) reached MCP initialization but native
-channel activation was unavailable; it sent no channel notifications.
+mode policy; its packaged native Stop probe passes.
 
 | Current code | Intended boundary |
 | --- | --- |
@@ -123,7 +120,7 @@ work, manual Pause, Auto mode continuation and unavailable controls. No successf
 check may depend on silently moving work into a fresh agent.
 
 The [Claude conversation proposal](claude-conversation.md) maps this boundary to
-native hooks and an optional channel. It separates feedback during work from idle
+native hooks and the reply waiter. It separates feedback during work from idle
 wake, and describes the evidence required before either is advertised as supported.
 
 The [library comparison](harness-options.md) remains useful for transport
