@@ -26,6 +26,8 @@ import {briefDocument,briefSVG} from './lib/brief.mjs';
 import {readAgentStatus,saveAgentSettings,controlAgent} from './lib/agent-status.mjs';
 import {readAgentPresence} from './lib/agent-presence.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
+import {createRuntimeUpdater} from './lib/runtime-update.mjs';
+import { withClaudeReception } from './lib/claude-status.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
@@ -38,6 +40,7 @@ if (!Number.isSafeInteger(startedAt) || startedAt <= 0) throw new Error('Invalid
 let activeRequests = 0, activeCommands = 0, stopIdleWatch;
 let tunnelOrigin = null, closing = false;
 const instanceToken=randomBytes(32).toString('hex');
+const updates=createRuntimeUpdater({port:()=>server.address().port,duration});
 const publicTunnel=createTunnelController({directory:dataDirectory(),port:()=>server.address().port,onOrigin:origin=>{tunnelOrigin=origin;}});
 const extensions=createExtensionHost(registeredExtensions({tunnel:publicTunnel,configured}));
 const allowedOrigin = request => request.headers.origin === `http://127.0.0.1:${server.address().port}`
@@ -67,6 +70,7 @@ const assets = new Map([
   ['/extension-buttons.js', ['extension-buttons.js', 'text/javascript; charset=utf-8']],
   ['/browser-context.js', ['browser-context.js', 'text/javascript; charset=utf-8']],
   ['/confirmation-dialog.js', ['confirmation-dialog.js', 'text/javascript; charset=utf-8']],
+  ['/runtime-update.js', ['runtime-update.js', 'text/javascript; charset=utf-8']],
   ['/work-ui.js', ['work-ui.js', 'text/javascript; charset=utf-8']],
   ['/goal-view.js', ['goal-view.js', 'text/javascript; charset=utf-8']],
   ['/goal-progress.js', ['goal-progress.js', 'text/javascript; charset=utf-8']],
@@ -166,6 +170,16 @@ const server = createServer(async (request, response) => {
     return response.end('Invalid request URL');
   }
   if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
+  if(path==='/api/runtime-update'){
+    const origin=`http://127.0.0.1:${server.address().port}`;
+    const local=request.socket.remoteAddress==='127.0.0.1'&&request.headers.host===`127.0.0.1:${server.address().port}`&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'];
+    if(!local)return sendJson(response,403,{error:'Updates are available from the local Web only.'});
+    if(request.method==='GET')return sendJson(response,200,{...await updates.status(),instance:startedAt});
+    if(request.method!=='POST')return sendJson(response,405,{error:'Method not allowed.'});
+    if(request.headers.origin!==origin||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    try{const result=await updates.start(await readJson(request));await recordServerUse(dataDirectory());return sendJson(response,202,result);}
+    catch(error){return sendJson(response,409,{error:error.message});}
+  }
   if(path==='/api/workspace/theme'){
     if(request.method==='GET')return sendJson(response,200,await readWorkspaceTheme());
     if(request.method!=='POST')return sendJson(response,405,{error:'Method not allowed.'});
@@ -318,7 +332,7 @@ const server = createServer(async (request, response) => {
   if (deliveryPath) {
     try {
       await refreshWorkOutputs(deliveryPath[1]);
-      return sendJson(response, 200, await listDeliveries(deliveryPath[1]));
+      return sendJson(response, 200, await withClaudeReception(await listDeliveries(deliveryPath[1])));
     }
     catch { return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
   }

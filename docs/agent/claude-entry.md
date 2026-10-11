@@ -16,8 +16,9 @@ reads and receipts on top of this identity.
 
 In an isolated development session, configure `connection claude-hook` as a
 native `SessionStart` command. The hook checks the main-session input and
-appends its identity variables to Claude's
-[environment handoff file](https://code.claude.com/docs/en/hooks#persist-environment-variables).
+writes its identity variables to Claude's
+[environment handoff file](https://code.claude.com/docs/en/hooks#persist-environment-variables),
+replacing its own earlier lines and keeping other hooks' lines.
 Use the same chill data directory when invoking `connection show` from that
 environment. Help describes the command contract:
 
@@ -77,12 +78,12 @@ or feedback delivery. Generation rotation, subagent filtering, concurrent starts
 shell quoting and failure handling are covered by `test/claude-entry.test.mjs`.
 
 `connection show` reports the identity stage with capability flags false and a
-separate [recorded connection status](claude-status.md). It distinguishes a finite
-watch, expiry and recorded session exit without enabling controls. Its exported
+separate [recorded connection status](claude-status.md). It distinguishes a running
+reply waiter and recorded session exit without enabling controls. Its exported
 shell environment cannot establish a main-session return path.
 Explicit main-hook actions have separate persisted confirmations. A confirmed
 native prompt can also receive feedback on ordinary tool hooks; SessionStart
 identity alone does not enable that route. Settings and execution controls remain
-unavailable. An opt-in [finite idle watcher](claude-idle.md) has
-separate native qualification. The broader
+unavailable. Replies after a response ends use the [reply waiter](claude-wait.md),
+which a compact in the same context keeps. The broader
 qualification checks remain in the [connection proposal](claude-conversation.md#qualify-before-exposing-controls).

@@ -11,6 +11,7 @@ import { briefBody } from './brief-body.js';
 import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-view.js';
 import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversation-window.js';
 import { createReadingPane } from './reading-pane.js';
+import {createRuntimeUpdate} from './runtime-update.js';
 
 history.scrollRestoration='manual';
 const briefsByGoal = new Map();
@@ -83,6 +84,7 @@ const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>active
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
 const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel')});
 const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,announce:showToast});
+createRuntimeUpdate({button:document.getElementById('runtime-update-button'),announce:showToast});
 let activeVersion = null;
 let pendingAnchor = null;
 let annotationOpen = false;
@@ -209,7 +211,7 @@ function deliveryMarkup(event, work, continuedTo) {
   if (!delivery && !event.threadId && !activity) return '';
   const state = activity?activity.status:continuedTo ? 'continued' : work?.status || delivery?.status || 'saved';
   const labels = { saved: 'Saved', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
-  const descriptions = { saved: '', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
+  const descriptions = { saved: delivery?.waiting===false?'Claude is not waiting for replies right now. It will read this when that conversation checks its inbox.':'', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
   const retry = state === 'saved' || (state === 'failed' && !delivery?.mayHaveSent);
   const check = state === 'unknown';
   const history = delivery?.history || [];

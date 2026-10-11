@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import '../lib/quiet-sqlite-warning.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import { mkdir, readFile, realpath } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -8,6 +9,7 @@ import { dataDirectory, writeJsonAtomically } from '../lib/goal-store.mjs';
 import { notificationReminder } from '../lib/notification-reminder.mjs';
 import {agentGuide} from '../lib/agent-guidance.mjs';
 import {recordWorkHeartbeat} from '../lib/goal-execution.mjs';
+import { stableNodePath } from '../lib/node-path.mjs';
 
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 const self = fileURLToPath(import.meta.url);
@@ -19,7 +21,7 @@ export async function installHook(projectDirectory = process.cwd(), options = {}
   let config = {};
   try { config = JSON.parse(await readFile(path, 'utf8')); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const command = options.command || `CHILL_AGENT_DATA_DIR=${quote(dataDirectory())} ${quote(process.execPath)} ${quote(self)}`;
+  const command = options.command || `CHILL_AGENT_DATA_DIR=${quote(dataDirectory())} ${quote(stableNodePath())} ${quote(self)}`;
   config.hooks ||= {};
   const groups = config.hooks.PostToolUse ||= [];
   if (!Array.isArray(groups)) throw new Error('PostToolUse must be an array.');
@@ -59,7 +61,7 @@ export async function hookOutput(input, assignedThreadId = process.env.CODEX_THR
   const pending = await collectHookFeedback({ threadId: input.session_id, turnId: input.turn_id });
   if (!pending.length) return null;
   const reminder = await notificationReminder();
-  const command = `CHILL_AGENT_DATA_DIR=${quote(dataDirectory())} ${quote(process.execPath)} ${quote(cli)}`;
+  const command = `CHILL_AGENT_DATA_DIR=${quote(dataDirectory())} ${quote(stableNodePath())} ${quote(cli)}`;
   const items = pending.map(item => `Root Goal #${item.rootId}; path ${item.path.map(g=>`#${g.id} ${JSON.stringify(g.title)}`).join(' / ')}; feedback #${item.eventId}:\n` +
     `PORT=${quote(item.port)} ${command} show --id ${item.goalId} --since ${item.eventId - 1} --format text --section context\n` +
     `Receipt: PORT=${quote(item.port)} ${command} activity --event ${item.eventId} --state <deferred|working>${item.letters.length?`\n\n${openLetterActions(item.letters)}`:''}`).join('\n\n');

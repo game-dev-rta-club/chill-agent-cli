@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import '../lib/quiet-sqlite-warning.mjs';
 import {workspacePort} from '../lib/project-workspace.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
