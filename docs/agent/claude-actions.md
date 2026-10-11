@@ -1,11 +1,10 @@
 ---
 keyPoints: >-
-  Experimental main-hook confirmation creates new Claude Roots and handles explicit
-  inbox reads and receipts. A verified native prompt also receives new feedback
-  through ordinary tool hooks. Print-mode probes and interactive prior-context
-  idle wake pass. Optional connection hooks support a separately qualified Auto
-  mode extension. Explicit project setup is available; permanent idle delivery and
-  live controls remain open.
+  Main-hook confirmation creates new Claude Roots and handles explicit inbox reads
+  and receipts; their results name the reply waiter when none is running. A
+  verified native prompt also receives new feedback through ordinary tool hooks.
+  Optional connection hooks support a separately qualified Auto mode extension.
+  Live controls remain unavailable.
 ---
 
 # Confirm an action in the Claude main conversation
@@ -76,12 +75,12 @@ Different hooks serialize their scans; previously offered events remain
 unconfirmed until an Agent receipt and are not automatically offered again.
 Manual holds, other connections and terminal receipts stay excluded.
 
-`Stop` clears the verified prompt and leaves a checkpoint for the optional
-[finite idle watcher](claude-idle.md). UserPromptSubmit, SessionStart and SessionEnd
-also clear old prompt state; a new prompt or generation needs a fresh confirmed action.
+`Stop` clears the verified prompt and leaves a checkpoint for connection
+extensions. UserPromptSubmit, SessionStart and SessionEnd also clear old prompt
+state; a new prompt or generation needs a fresh confirmed action.
 Subagent hooks cannot enable or receive this route. An explicit `inbox` remains
 the recovery path for an uncertain offer. This is busy delivery within a verified
-prompt, not an idle listener or live status signal. A trusted composed
+prompt; replies after the response ends use the [reply waiter](claude-wait.md). A trusted composed
 [connection extension](../extensions/connection-hooks.md) may separately request
 continuation at a verified Stop, reserving before output. Its next ordinary tool
 resumes feedback delivery in that same prompt.
@@ -137,11 +136,9 @@ retained its initial context and recorded completion. The earlier `loggedIn: fal
 result was caused by excluding user settings containing the credential, not by a
 failed native return path.
 
-Native clear/fork behavior, permanent idle delivery and packaged user-facing setup
-still require qualification. Explicit project installation is covered separately
+Native clear/fork behavior and packaged user-facing setup still require
+qualification. Explicit project installation is covered separately
 in the [setup guide](claude-setup.md). A composed Auto mode extension has passed its
 separate native Stop probe through [connection hooks](../extensions/connection-hooks.md).
-Separate [finite idle-watch probes](claude-idle.md)
-cover replies after a response ends, including context from before Root creation
-in an interactive terminal with hooks configured at launch. See the
+Replies after a response ends use the [reply waiter](claude-wait.md). See the
 full [connection criteria](claude-conversation.md#qualify-before-exposing-controls).

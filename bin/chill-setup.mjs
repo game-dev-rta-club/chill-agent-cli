@@ -11,7 +11,6 @@ import { readMessageSettings } from '../lib/message-settings.mjs';
 import { resolveCodex } from '../lib/codex-client.mjs';
 import { installHook } from './chill-hook.mjs';
 import {configureClaudeHooks,claudeSetupStatus} from '../lib/claude-setup.mjs';
-import {validateClaudeIdleDuration} from '../lib/claude-idle-duration.mjs';
 
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 async function main() {
@@ -29,20 +28,18 @@ async function main() {
     if(command==='status'){console.log(JSON.stringify(await claudeSetupStatus(values['--project']),null,2));return;}
     if(process.platform==='win32')throw Error('Experimental Claude setup currently uses POSIX hooks. Windows is not qualified.');
     if(command==='remove'){console.log(JSON.stringify(await configureClaudeHooks(values['--project'],{remove:true}),null,2));return;}
-    const idleWatchMs=values['--idle-watch-ms']===undefined?null:Number(values['--idle-watch-ms']);
-    if(idleWatchMs!==null)validateClaudeIdleDuration(idleWatchMs);
     // Inspect before preparing a runtime; never consult Codex for this route.
     const status=await claudeSetupStatus(values['--project']);if(status.conflict)throw Error('A Claude chill hook is untracked or edited. Review it before preparing again.');
     const prepared=await prepareRuntime(fileURLToPath(new URL('../',import.meta.url)));
     // Match the launcher's canonical spelling (for example /var -> /private/var).
     const directory=await realpath(prepared.dataDirectory);
     const installed={...prepared,root:await realpath(prepared.root),dataDirectory:directory,launcher:join(directory,'runtime/chill.mjs')};
-    const hook=await configureClaudeHooks(values['--project'],{launcher:installed.launcher,directory,idleWatchMs});
+    const hook=await configureClaudeHooks(values['--project'],{launcher:installed.launcher,directory});
     const prefix=`CHILL_AGENT_DATA_DIR=${quote(installed.dataDirectory)} ${quote(process.execPath)} ${quote(installed.launcher)}`;
-    console.log(JSON.stringify({...installed,project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,hook,command:prefix,next:'Experimental Claude hooks are written, not yet verified in the conversation. Review them with native /hooks. Preserve the current chat with native resume if SessionStart has not run; never clear or fork to repair a handshake. From its main Bash tool, run <command> connection show, then connection create-goal. No Auto mode is enabled by setup. Local settings created by hand should be excluded from Git. Native policy and existing permissions still apply.'},null,2));
+    console.log(JSON.stringify({...installed,project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,hook,command:prefix,next:'Experimental Claude hooks are written, not yet verified in the conversation. Review them with native /hooks. Preserve the current chat with native resume if SessionStart has not run; never clear or fork to repair a handshake. From its main Bash tool, run <command> connection show, then connection create-goal; its result names the reply waiter to start. No Auto mode is enabled by setup. Local settings created by hand should be excluded from Git. Native policy and existing permissions still apply.'},null,2));
     return;
   }
-  if(command==='remove'||values['--idle-watch-ms']!==undefined)throw Error('This option requires --harness claude-code.');
+  if(command==='remove')throw Error('This option requires --harness claude-code.');
   if (command === 'status') {
     let installation = null, codex;
     try { installation = JSON.parse(await readFile(join(dataDirectory(), 'runtime', 'installation.json'), 'utf8')); }
