@@ -21,6 +21,7 @@ The integrating application decides what work to pursue and when to continue it.
 | Change Web navigation, layout updates or focus without scroll jumps | [Scrolling guidelines](development/scrolling.md) |
 | Understand the SQLite replacement under development | [SQLite workspace](runtime/sqlite.md) |
 | Locate data or update an installation | [Data and runtime updates](runtime/data-and-updates.md) |
+| Let an application choose the CLI version it runs | [Version file](runtime/version-file.md) |
 | Start Web or understand when it exits | [Server lifetime](runtime/server.md) |
 | Connect feedback, pause and resume | [Feedback delivery and controls](agent/feedback-and-controls.md) |
 | Read or change the current model | [Model settings](agent/model-settings.md) |

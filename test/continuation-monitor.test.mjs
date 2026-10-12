@@ -8,6 +8,19 @@ import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createGoal,updateGoal,updateBrief,appendFeedback,readFeedback} from '../lib/goal-store.mjs';
+import {mkdir} from 'node:fs/promises';
+import {recordVersionSource} from '../lib/version-source.mjs';
+
+// The skill lives outside the runtime; setup records its guide in the data directory.
+async function installedSkill(t){
+ const dir=await mkdtemp(join(tmpdir(),'chill-guide-')),skill=join(dir,'skill'),old=process.env.CHILL_AGENT_DATA_DIR;
+ await mkdir(join(skill,'references/auto-mode'),{recursive:true});
+ await writeFile(join(skill,'SKILL.md'),'# Guide\n');await writeFile(join(skill,'references/auto-mode/continue.md'),'# Continue\n');
+ await writeFile(join(skill,'cli.json'),JSON.stringify({package:'example'}));
+ process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');
+ await recordVersionSource(process.env.CHILL_AGENT_DATA_DIR,{versionFile:join(skill,'cli.json'),agentGuide:join(skill,'SKILL.md')});
+ t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
+}
 const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootState:'idle',revision:'r1',candidates:[{id:'2',title:'Work'}],lastUserEvent:1,paused:false,pendingFeedback:[],queue:[],stable:true,harnessState:'notLoaded',heartbeatFresh:false,turn:{id:'turn',status:'completed',completedAt:1}});
 function fixture(){
  let saved={enabled:true,threadId:'t',attempts:[]},time=1000,f=idle(),sent=[],failure=false,observations=0,mutate=()=>{};
@@ -124,7 +137,8 @@ test('real store: content revisions and internal results stay separate from Web 
  }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});}
 });
 
-test('continuation gives a filtered index command and names open Letters without counters or report dumps',()=>{
+test('continuation gives a filtered index command and names open Letters without counters or report dumps',async t=>{
+ await installedSkill(t);
  const id='00000000-0000-0000-0000-000000000123';
  const f={...idle(),context:{goals:{total:3,unfinished:2,waiting:0},latestReport:'長い過去の報告',letters:[{goalId:'27',title:'対象を選んでください'}]}};
  const text=continuationMessage(f,1,id);
@@ -142,7 +156,8 @@ test('combined continuation template is English while saved Letter titles retain
  assert.doesNotMatch(continuationMessage(idle(),1,'id'),/[\u3040-\u30ff\u3400-\u9fff]/);
 });
 
-test('the combined handoff points to a readable guide shipped in the active runtime',async()=>{
+test('the combined handoff points to the guide recorded by setup',async t=>{
+ await installedSkill(t);
  const text=continuationMessage(idle(),1,'id');
  const path=JSON.parse(text.match(/^Workflow: (".*?")\./m)[1]);
  assert.ok(path.endsWith('/references/auto-mode/continue.md'));

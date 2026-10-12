@@ -2,7 +2,7 @@
 import '../lib/quiet-sqlite-warning.mjs';
 import {projectProfile,selectProjectPort,projectExtensionEnabled} from '../lib/project-workspace.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -15,9 +15,25 @@ import { cloudflaredPath, tunnelStatePath } from '../lib/tunnel.mjs';
 import {stopManagedTunnel} from '../lib/managed-tunnel.mjs';
 import { readMessageSettings } from '../lib/message-settings.mjs';
 import { stableNodePath } from '../lib/node-path.mjs';
+import { prepareRuntime } from '../lib/runtime-package.mjs';
+import { prepareSelectedPackage } from '../lib/version-source.mjs';
 
 const execute = promisify(execFile);
 const xml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+
+// Web startup follows the application's version file: when it selects a
+// different package, start that package's own server command instead.
+async function followVersionFile(directory) {
+  if (process.env.CHILL_AGENT_VERSION_SWITCHED === '1') return false;
+  const installed = await prepareSelectedPackage(directory, fileURLToPath(new URL('../', import.meta.url)), { prepare: prepareRuntime, log: message => console.error(message) });
+  if (!installed) return false;
+  await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [join(installed.root, 'bin/chill-server.mjs'), ...process.argv.slice(2)], { stdio: 'inherit', env: { ...process.env, CHILL_AGENT_VERSION_SWITCHED: '1' } });
+    child.on('error', reject);
+    child.on('exit', code => { process.exitCode = code ?? 1; resolve(); });
+  });
+  return true;
+}
 
 async function main(attempt=0) {
   if (showHelp('server', process.argv.slice(2))) return;
@@ -74,6 +90,7 @@ async function main(attempt=0) {
     }
   }
   if (pid && command!=='restart') throw new Error(`Server is already running at ${url}. Use npm run server:stop before changing its settings.`);
+  if (attempt === 0 && await followVersionFile(directory)) return;
   const connector = tunnel ? await cloudflaredPath() : null;
   if(!tunnel)await stopManagedTunnel(directory,port);
   if (initial) {

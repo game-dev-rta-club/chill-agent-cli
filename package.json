@@ -19,7 +19,8 @@
     "presetup": "npm run web:build",
     "prehooks:install": "npm run web:build",
     "prepack": "npm run web:build",
-    "release:check": "node scripts/check-release.mjs"
+    "release:check": "node scripts/check-release.mjs",
+    "prepare": "npm run web:build"
   },
   "bin": {
     "chill-agent-cli": "bin/chill-entry.mjs"
