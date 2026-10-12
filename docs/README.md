@@ -18,6 +18,7 @@ The integrating application decides what work to pursue and when to continue it.
 | Understand page loading, live updates and Brief history | [Web navigation](workspace/web-navigation.md) |
 | Separate projects, ports and extension choices | [Project workspaces](runtime/projects.md) |
 | Choose branches, commit milestones and prepare a PR | [Development workflow](development/workflow.md) |
+| Try an unreleased CLI commit in another project | [Use a development version](development/use-development-version.md) |
 | Change Web navigation, layout updates or focus without scroll jumps | [Scrolling guidelines](development/scrolling.md) |
 | Understand the SQLite replacement under development | [SQLite workspace](runtime/sqlite.md) |
 | Locate data or update an installation | [Data and runtime updates](runtime/data-and-updates.md) |

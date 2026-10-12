@@ -24,6 +24,7 @@ ready while it only works with an unrecorded local dependency replacement.
 - Change Web scrolling, navigation, content layout or focus: [scrolling](.agents/skills/chill-cli-web-scroll/SKILL.md).
 - Change guidelines or their task triggers: [write guidelines](.agents/skills/chill-cli-write-guidelines/SKILL.md).
 - Prepare a stable release: [release](.agents/skills/chill-cli-release/SKILL.md).
+- Try an unreleased CLI commit in another project: [use a development version](.agents/skills/chill-cli-use-development-version/SKILL.md).
 
 Read the matching entry when skills are not auto-discovered. Reuse guidance
 already read; the documents it links are authoritative for project conventions.
