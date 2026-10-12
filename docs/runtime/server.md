@@ -26,7 +26,8 @@ successful idle shutdown stays stopped.
 
 On Windows, `server start` registers a task under `\chill-agent\` in Task
 Scheduler, runs it as the current user without elevation, and removes the
-registration once Web is running. Web therefore runs outside the app that
+registration once Web is running; only the empty `\chill-agent\` task folder
+remains. Web therefore runs outside the app that
 started it: closing Claude Desktop or another harness does not stop it. Unexpected
 exits are not restarted; the next `server start` or `session start` starts Web
 again. `server stop` asks Web to shut down over a local route that requires a
