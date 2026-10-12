@@ -6,7 +6,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {promisify} from 'node:util';
 import test from 'node:test';
-const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+import {fileURLToPath} from 'node:url';
+const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 async function fixture(t,storage){
  const root=await mkdtemp(join(tmpdir(),'chill-goals-'));t.after(()=>rm(root,{recursive:true,force:true}));
  const env={...process.env,...(storage?{CHILL_AGENT_STORAGE:storage}:{}),CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};

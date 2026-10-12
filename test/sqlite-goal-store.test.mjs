@@ -5,7 +5,8 @@ import {promisify} from 'node:util';
 import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+import {fileURLToPath} from 'node:url';
+const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 
 test('public Goal commands persist SQLite records, preserve Letter relationships and reject parallel JSON',async t=>{
   const root=await mkdtemp(join(tmpdir(),'chill-sqlite-goals-'));t.after(()=>rm(root,{recursive:true,force:true}));
@@ -49,7 +50,7 @@ test('isolated SQLite Web accepts a reply and CLI reads it after server shutdown
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   await run('create','--title','Web SQLite');
   const letter=await run('letter','--id','1','--title','Choice','--text','Choose');
-  const child=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname],{env,stdio:['ignore','pipe','pipe']});
+  const child=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url))],{env,stdio:['ignore','pipe','pipe']});
   const exit=once(child,'exit');
   t.after(async()=>{if(child.exitCode===null&&child.signalCode===null)child.kill('SIGTERM');await exit;await rm(root,{recursive:true,force:true});});
   const url=await new Promise((resolve,reject)=>{

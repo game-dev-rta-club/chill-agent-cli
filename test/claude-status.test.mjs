@@ -12,6 +12,7 @@ import {readClaudeConnectionStatus,withClaudeReception} from '../lib/claude-stat
 import {createGoal,listGoals} from '../lib/goal-store.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
+import {fileURLToPath} from 'node:url';
 const exec=promisify(execFile);
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'claude-status-')),data=join(dir,'data'),cwd=join(dir,'project'),envFile=join(dir,'env');await mkdir(cwd);await writeFile(envFile,'');
@@ -42,7 +43,7 @@ test('child Agent menu and CLI show expose safe evidence without controls or pri
  const data=await readAgentStatus(child.id);assert.equal(data.rootId,f.root.id);assert.equal(data.nativeConnection.status.state,'ended');assert.deepEqual(data.capabilities,{settings:false,stop:false,resume:false});
  assert.doesNotMatch(JSON.stringify(data.nativeConnection),new RegExp(`${f.root.connection.sessionId}|${f.root.connection.contextId}|Private|transcript|cwd|generation`));
  const html=agentMarkup(data);assert.match(html,/Session ended/);assert.doesNotMatch(html,/<select|data-agent-settings|data-agent-extension|progress/);
- const {stdout}=await exec(process.execPath,[new URL('../bin/chill-connection.mjs',import.meta.url).pathname,'show'],{cwd:f.cwd,env:{...process.env,...f.env()}});assert.equal(JSON.parse(stdout).status.state,'ended');
+ const {stdout}=await exec(process.execPath,[fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url)),'show'],{cwd:f.cwd,env:{...process.env,...f.env()}});assert.equal(JSON.parse(stdout).status.state,'ended');
  const injected=agentMarkup({...data,nativeConnection:{...data.nativeConnection,status:{label:'<img src=x>',detail:'<script>alert(1)</script>'}}});assert.doesNotMatch(injected,/<img|<script/);
 });
 

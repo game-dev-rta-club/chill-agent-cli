@@ -12,10 +12,11 @@ import {prepareDelivery,deliverFeedback,readDeliveryState,updateDelivery,collect
 import {pauseFeedback,readFeedbackHold,resumeHeldFeedback,reconcileFeedbackHold} from '../lib/feedback-hold.mjs';
 import {withCodex} from '../lib/codex-client.mjs';
 import {readAgentActivity,invalidateActivity} from '../lib/agent-activity.mjs';
+import {fileURLToPath} from 'node:url';
 const thread='00000000-0000-0000-0000-000000000001',turn='00000000-0000-0000-0000-000000000002';
 async function fixture(run){
  const dir=await mkdtemp(join(tmpdir(),'chill-hold-')),saved={...process.env};
- process.env.CHILL_AGENT_DATA_DIR=dir;process.env.CHILL_AGENT_CODEX_PATH=new URL('./fake-codex.mjs',import.meta.url).pathname;process.env.CODEX_HOME=dir;
+ process.env.CHILL_AGENT_DATA_DIR=dir;process.env.CHILL_AGENT_CODEX_PATH=fileURLToPath(new URL('./fake-codex.mjs',import.meta.url));process.env.CODEX_HOME=dir;
  await mkdir(join(dir,'ipc'),{recursive:true,mode:0o700});const path=join(dir,'ipc/ipc.sock');let requests=[],dropStart=false;
  const history=async value=>writeFile(join(dir,'fake-history.json'),JSON.stringify(value));
  await history({turns:[{id:turn,completedAt:null,status:'inProgress',items:[]}],items:{}});
@@ -45,7 +46,7 @@ async function fixture(run){
   await run({dir,history,requests,root,child,feedback,drop:()=>{dropStart=true},queue:()=>withCodex(c=>c.request('thread/queue/list',{threadId:thread,limit:100})),stop:e=>pauseFeedback(e.goalId,{action:'stop',eventId:e.changeId,threadId:thread,turnId:null,requestId:randomUUID()},{goalId:e.goalId})});
  }finally{invalidateActivity(thread);server.close();process.env=saved;await rm(dir,{recursive:true,force:true});}
 }
-test('queued pause preserves comments; next comment and held input become one queue entry without touching other Goal',()=>fixture(async f=>{
+test('queued pause preserves comments; next comment and held input become one queue entry without touching other Goal',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Make it blue'),other=await f.feedback('Other work',f.child.id);
  await deliverFeedback(a.changeId);await deliverFeedback(other.changeId);
  invalidateActivity(thread);const activity=await readAgentActivity(a.goalId,{fresh:true});assert.equal(activity.status,'queued');assert.equal(activity.capabilities.stop,true);
@@ -65,12 +66,12 @@ test('queued pause preserves comments; next comment and held input become one qu
  assert.deepEqual(await collectHookFeedback({threadId:thread,turnId:turn}),[],'Resumed bundles keep one native delivery and are not split into hook notices');
  await deliverFeedback(b.changeId);assert.equal((await f.queue()).data.length,2);
 }));
-test('saved input can be paused before dispatch and resumed without a new comment',()=>fixture(async f=>{
+test('saved input can be paused before dispatch and resumed without a new comment',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Not dispatched');await f.stop(a);await deliverFeedback(a.changeId);assert.equal((await f.queue()).data.length,0);
  const h=await readFeedbackHold(a.goalId);await resumeHeldFeedback(a.goalId,{threadId:thread,holdId:h.id});assert.equal((await f.queue()).data.length,1);
  await assert.rejects(resumeHeldFeedback(a.goalId,{threadId:thread,holdId:h.id}));assert.equal((await f.queue()).data.length,1);
 }));
-test('running pause and supplement start one normalized IPC turn; lost start response is reconciled without resend',()=>fixture(async f=>{
+test('running pause and supplement start one normalized IPC turn; lost start response is reconciled without resend',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Original task');await deliverFeedback(a.changeId);
  const s=await readDeliveryState(a.changeId),item={type:'userMessage',content:[{type:'text',text:`[chill-agent:${s.messageId}]`}]};
  await f.history({turns:[{id:turn,completedAt:null,status:'inProgress',items:[item]}],items:{[turn]:[{turnId:turn,item}]}});
@@ -84,13 +85,13 @@ test('running pause and supplement start one normalized IPC turn; lost start res
  assert.match(text,/Original task/);assert.match(text,/Supplement/);assert.equal((await f.queue()).data.length,0);
  assert.ok((await readDeliveryState(a.changeId)).batchTurnId);
 }));
-test('a missing unconfirmed queued input is never claimed paused or replayed',()=>fixture(async f=>{
+test('a missing unconfirmed queued input is never claimed paused or replayed',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Unknown dispatch');await updateDelivery(a.changeId,{mayHaveSent:true,status:'queued'});
  await assert.rejects(f.stop(a),/Queue removal unconfirmed/);assert.equal((await readFeedbackHold(a.goalId)).phase,'uncertain');
  const b=await f.feedback('Supplement');await assert.rejects(deliverFeedback(b.changeId),/Checking/);assert.equal((await f.queue()).data.length,0);
 }));
 
-test('pausing an already bundled queue retains every member through another supplement',()=>fixture(async f=>{
+test('pausing an already bundled queue retains every member through another supplement',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('A');await deliverFeedback(a.changeId);await f.stop(a);
  const b=await f.feedback('B');await deliverFeedback(b.changeId);
  await updateDelivery(a.changeId,{agentReported:true,status:'completed'});
@@ -100,13 +101,13 @@ test('pausing an already bundled queue retains every member through another supp
  for(const e of [a,b,c])assert.ok(pending.data[0].input[0].text.includes(`Feedback: #${e.changeId}`));
  assert.equal((await readDeliveryState(a.changeId)).status,'completed','already completed receipt is not reset');
 }));
-test('queue claim races pause: stop only the turn containing the selected input',()=>fixture(async f=>{
+test('queue claim races pause: stop only the turn containing the selected input',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Race');await deliverFeedback(a.changeId);
  process.env.CHILL_TEST_START_ON_DELETE='1';await f.stop(a);
  const h=await readFeedbackHold(a.goalId);assert.equal(h.phase,'paused');assert.equal(h.sourceTurnId,'00000000-0000-0000-0000-000000000003');
  const calls=f.requests.filter(r=>r.method==='thread-follower-interrupt-turn');assert.equal(calls.length,1);assert.equal(calls[0].params.expectedTurnId,h.sourceTurnId);
 }));
-test('lost merged-queue receipt is found by batch ID, never added twice',()=>fixture(async f=>{
+test('lost merged-queue receipt is found by batch ID, never added twice',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Old input');await deliverFeedback(a.changeId);await f.stop(a);
  const b=await f.feedback('New input');process.env.CHILL_TEST_DROP_AFTER_ADD='1';
  await assert.rejects(deliverFeedback(b.changeId));delete process.env.CHILL_TEST_DROP_AFTER_ADD;
@@ -114,13 +115,13 @@ test('lost merged-queue receipt is found by batch ID, never added twice',()=>fix
  await reconcileFeedbackHold(a.goalId);await deliverFeedback(b.changeId);
  assert.equal((await f.queue()).data.length,1);assert.equal((await readFeedbackHold(a.goalId)).phase,'sent');
 }));
-test('concurrent supplements are delivered once, with one of them joining the held batch',()=>fixture(async f=>{
+test('concurrent supplements are delivered once, with one of them joining the held batch',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('A');await deliverFeedback(a.changeId);await f.stop(a);
  const b=await f.feedback('B'),c=await f.feedback('C');await Promise.all([deliverFeedback(b.changeId),deliverFeedback(c.changeId)]);
  const entries=(await f.queue()).data;assert.equal(entries.length,2);
  for(const e of [a,b,c])assert.equal(entries.filter(q=>q.input[0].text.includes(`Feedback: #${e.changeId}\n`)).length,1);
 }));
-test('confirmed no-op removal failure releases the hold so the user can stop again',()=>fixture(async f=>{
+test('confirmed no-op removal failure releases the hold so the user can stop again',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Retry stop');await deliverFeedback(a.changeId);
  process.env.CHILL_TEST_DELETE_FAIL='1';await assert.rejects(f.stop(a));delete process.env.CHILL_TEST_DELETE_FAIL;
  assert.equal((await readFeedbackHold(a.goalId)).phase,'uncertain');
@@ -128,7 +129,7 @@ test('confirmed no-op removal failure releases the hold so the user can stop aga
  await f.stop(a);assert.equal((await readFeedbackHold(a.goalId)).phase,'paused');assert.equal((await f.queue()).data.length,0);
 }));
 
-test('Saved is stoppable before Desktop I/O, even after a completed earlier execution',()=>fixture(async f=>{
+test('Saved is stoppable before Desktop I/O, even after a completed earlier execution',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const old=await f.feedback('Completed');await updateDelivery(old.changeId,{status:'completed',agentReported:true,turnId:turn,mayHaveSent:true});
  const a=await f.feedback('Saved');
  const previous=process.env.CHILL_AGENT_CODEX_PATH;process.env.CHILL_AGENT_CODEX_PATH='/missing-codex';
@@ -138,7 +139,7 @@ test('Saved is stoppable before Desktop I/O, even after a completed earlier exec
  await deliverFeedback(a.changeId);assert.equal((await f.queue()).data.length,0);assert.equal(f.requests.length,0);
 }));
 
-test('pause wins while delivery is preparing; preparation cannot enqueue the held comment',()=>fixture(async f=>{
+test('pause wins while delivery is preparing; preparation cannot enqueue the held comment',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Slow preparation');process.env.CHILL_TEST_READ_DELAY='1500';
  const sending=deliverFeedback(a.changeId);
  for(let i=0;i<100;i++){
@@ -152,7 +153,7 @@ test('pause wins while delivery is preparing; preparation cannot enqueue the hel
 }));
 
 
-test('pausing deferred feedback preserves unrelated live work and cannot be undone by deferment',()=>fixture(async f=>{
+test('pausing deferred feedback preserves unrelated live work and cannot be undone by deferment',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Later request');await deliverFeedback(a.changeId);
  await f.history({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}],items:{[turn]:[]}});
  const {recordActivity}=await import('../lib/delivery.mjs');

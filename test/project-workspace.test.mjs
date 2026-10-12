@@ -7,7 +7,7 @@ import {createServer} from 'node:net';
 import {prepareProject,projectProfile,selectProjectPort,workspacePort,resolveWorkspacePort} from '../lib/project-workspace.mjs';
 import {saveMessageSetting,readMessageSettings} from '../lib/message-settings.mjs';
 
-test('project identity isolates stores, settings and extension choices; aliases reuse identity',async t=>{
+test('project identity isolates stores, settings and extension choices; aliases reuse identity',{skip:process.platform==='win32'&&'creating symlinks needs Windows Developer Mode'},async t=>{
  const base=await mkdtemp(join(tmpdir(),'chill-projects-'));t.after(()=>rm(base,{recursive:true,force:true}));
  const a=join(base,'a'),b=join(base,'b');await mkdir(a);await mkdir(b);
  const da=await prepareProject(a,{base,extensions:[]}),db=await prepareProject(b,{base,extensions:['public-link']});

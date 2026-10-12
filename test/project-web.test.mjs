@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {createServer} from 'node:net';
 import {prepareProject,projectProfile,selectProjectPort,workspacePort} from '../lib/project-workspace.mjs';
 import {saveMessageSetting,readMessageSettings} from '../lib/message-settings.mjs';
+import {fileURLToPath} from 'node:url';
 
 test('two live project Web servers keep Goals and URLs separate and preserve a running endpoint',async t=>{
  const {spawn,execFile}=await import('node:child_process');const {promisify}=await import('node:util');const {once}=await import('node:events');
@@ -13,9 +14,9 @@ test('two live project Web servers keep Goals and URLs separate and preserve a r
  const children=[];t.after(async()=>{for(const {child,exit} of children){child.kill('SIGTERM');await exit;}await rm(base,{recursive:true,force:true});});
  async function start(name){
   const project=join(base,name);await mkdir(project);const directory=await prepareProject(project,{base,extensions:[]});
-  const env={...process.env,CHILL_AGENT_DATA_DIR:directory,CHILL_AGENT_CODEX_PATH:new URL('./fake-codex.mjs',import.meta.url).pathname,CODEX_THREAD_ID:'00000000-0000-0000-0000-000000000001'};delete env.PORT;
-  await execute(process.execPath,[new URL('../bin/chill-agent.mjs',import.meta.url).pathname,'create','--title',name],{env});
-  const child=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--idle-timeout','1m'],{env,stdio:['ignore','pipe','pipe']});const exit=once(child,'exit');children.push({child,exit});
+  const env={...process.env,CHILL_AGENT_DATA_DIR:directory,CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)),CODEX_THREAD_ID:'00000000-0000-0000-0000-000000000001'};delete env.PORT;
+  await execute(process.execPath,[fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url)),'create','--title',name],{env});
+  const child=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--idle-timeout','1m'],{env,stdio:['ignore','pipe','pipe']});const exit=once(child,'exit');children.push({child,exit});
   const url=await new Promise((resolve,reject)=>{let output='';child.stdout.on('data',chunk=>{output+=chunk;const match=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(match)resolve(match[0]);});child.stderr.on('data',c=>{output+=c;});child.once('error',reject);child.once('exit',()=>reject(Error(output)));});
   return {project,directory,url};
  }

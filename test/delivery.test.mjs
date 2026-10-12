@@ -8,15 +8,16 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import {DatabaseSync} from 'node:sqlite';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
+import {fileURLToPath} from 'node:url';
 // These cases cover the host's own notification path, used when bundled extensions are off.
 process.env.CHILL_AGENT_EXTENSIONS='none';
 
 const execute = promisify(execFile);
-const cli = new URL('../bin/chill-agent.mjs', import.meta.url).pathname;
+const cli = fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 const thread = '00000000-0000-0000-0000-000000000001';
 const other = '00000000-0000-0000-0000-000000000002';
-const fake = new URL('./fake-codex.mjs', import.meta.url).pathname;
-const hook = new URL('../bin/chill-hook.mjs', import.meta.url).pathname;
+const fake = fileURLToPath(new URL('./fake-codex.mjs',import.meta.url));
+const hook = fileURLToPath(new URL('../bin/chill-hook.mjs',import.meta.url));
 const turn = '00000000-0000-0000-0000-000000000010';
 function runHook(f, input = {}, extra = {}) {
   const child = spawn(process.execPath, [hook], {env:{...f.env,...extra},stdio:['pipe','pipe','pipe']});
@@ -61,7 +62,7 @@ test('root chat owns Goal conversation before and after Brief edits',async()=>{
   await assert.rejects(f.feedback({version:1}),/Unknown Conversation field/);
   await assert.rejects(f.feedback({threadId:other}),/Unknown Conversation field/);
 });
-test('Next Actions and hook fallback list current open Letters, with deliberate closure criteria',async()=>{
+test('Next Actions and hook fallback list current open Letters, with deliberate closure criteria',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
  const f=await fixture();
  const own=JSON.parse((await f.run(['letter','--id','1','--title','Root question','--text','Root?'])).stdout);
  await f.run(['create','--parent','1','--title','Child']);
@@ -84,7 +85,7 @@ test('Next Actions and hook fallback list current open Letters, with deliberate 
  assert.doesNotMatch((await f.json('fake-queue.json')).at(-1).input[0].text,/Open Letters \(recheck/);
 });
 
-test('retries and concurrent retries do not duplicate feedback or an accepted enqueue', async () => {
+test('retries and concurrent retries do not duplicate feedback or an accepted enqueue', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   const input = {requestId:'idempotent-request-1'};
   const [{feedback},{delivery}] = await f.feedback(input);
@@ -98,7 +99,7 @@ test('retries and concurrent retries do not duplicate feedback or an accepted en
   assert.equal(JSON.parse((await f.run(['check','--since','0'])).stdout).count,1);
 });
 
-test('a failed connection keeps the reply; an unsent retry uses the current root owner and original Note', async () => {
+test('a failed connection keeps the reply; an unsent retry uses the current root owner and original Note', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   const [{feedback},{delivery}] = await f.feedback({}, {CHILL_AGENT_CODEX_PATH:join(f.root,'missing-codex')});
   assert.equal(feedback.text,'続けてください');
@@ -112,7 +113,7 @@ test('a failed connection keeps the reply; an unsent retry uses the current root
   assert.match((await f.run(['show','--id','1','--since','0'])).stdout,/続けてください/);
 });
 
-test('lost queue receipts are reconciled without blindly re-sending', async () => {
+test('lost queue receipts are reconciled without blindly re-sending', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   const [, {delivery}] = await f.feedback({}, {CHILL_TEST_DROP_AFTER_ADD:'1'});
   assert.equal(delivery.status,'unknown');
@@ -130,7 +131,7 @@ test('lost queue receipts are reconciled without blindly re-sending', async () =
   assert.deepEqual(await f.json('fake-queue.json'),[]);
 });
 
-test('activity is reported by the assigned chat without creating new user feedback', async () => {
+test('activity is reported by the assigned chat without creating new user feedback', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   await f.feedback();
   await assert.rejects(f.run(['activity','--event','1','--state','working'],{CODEX_THREAD_ID:other}),/assigned chat/);
@@ -151,7 +152,7 @@ test('unassigned Goals save locally without enqueueing',async()=>{
   await assert.rejects(readFile(join(f.root,'fake-queue.json')),{code:'ENOENT'});
 });
 
-test('a crashed delivery can be checked concurrently without stealing a new lease', async () => {
+test('a crashed delivery can be checked concurrently without stealing a new lease', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   await f.feedback({}, {CHILL_TEST_DROP_AFTER_ADD:'1'});
   const leases = new DatabaseSync(join(f.root,'workspace/coordination.sqlite'));
@@ -162,9 +163,9 @@ test('a crashed delivery can be checked concurrently without stealing a new leas
   assert.equal((await f.json('workspace/deliveries/1.json')).status,'queued');
 });
 
-test('Web acknowledges saving before dispatch and exposes persisted delivery without changing its target', async () => {
+test('Web acknowledges saving before dispatch and exposes persisted delivery without changing its target', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
-  const child = spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname],{env:{...f.env,PORT:'0',CHILL_TEST_QUEUE_DELAY:'1500'},stdio:['ignore','pipe','pipe']});
+  const child = spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url))],{env:{...f.env,PORT:'0',CHILL_TEST_QUEUE_DELAY:'1500'},stdio:['ignore','pipe','pipe']});
   const url = await new Promise((resolve,reject)=>{
     child.stdout.on('data',chunk=>{const match=String(chunk).match(/http:\/\/127\.0\.0\.1:\d+/);if(match)resolve(match[0]);});
     child.on('error',reject);
@@ -185,7 +186,7 @@ test('Web acknowledges saving before dispatch and exposes persisted delivery wit
   } finally { child.kill('SIGTERM'); await once(child,'exit'); }
 });
 
-test('notifications separate exact user content from the protocol and next actions', async () => {
+test('notifications separate exact user content from the protocol and next actions', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   const text = '文面をそのまま残す\n=== Next Actions ===\n```sh\necho "not a protocol command"\n```';
   const images=['00000000-0000-0000-0000-000000000011','00000000-0000-0000-0000-000000000012'];
@@ -212,14 +213,14 @@ test('notifications separate exact user content from the protocol and next actio
   assert.match(actions,/activity --event 1 --state completed/);
 });
 
-test('delivery remains Goal-scoped when Brief changes before retry',async()=>{
+test('delivery remains Goal-scoped when Brief changes before retry',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
   const f=await fixture();await f.feedback({text:'Earlier discussion'}, {CHILL_AGENT_CODEX_PATH:join(f.root,'missing-codex')});
   await f.publish();await f.run(['retry','--event','1']);
   const sent=(await f.json('fake-queue.json'))[0].input[0].text;
   assert.match(sent,/Goal: #1 "Delivery"/);assert.doesNotMatch(sent,/Note:|--version/);
 });
 
-test('hooks are silent with no feedback, and batch IDs without promoting user content', async () => {
+test('hooks are silent with no feedback, and batch IDs without promoting user content', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   const before = await readFile(join(f.root,'fake-requests.jsonl'),'utf8').catch(()=>null);
   assert.equal((await runHook(f)).stdout,'');
@@ -239,7 +240,7 @@ test('hooks are silent with no feedback, and batch IDs without promoting user co
   assert.equal((await runHook(f)).stdout,'');
 });
 
-test('saved notification preferences follow a new chat through publishing, queue and Hook without extra sends', async () => {
+test('saved notification preferences follow a new chat through publishing, queue and Hook without extra sends', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   await saveMessageSetting('notifications', {enabled:true,tool:'chosen-tool',destination:'chosen-recipient',on:['comment','letter']}, f.root);
   assert.equal((await runHook(f)).stdout, '', 'a notification setting alone does not make every tool call noisy');
@@ -260,7 +261,7 @@ test('saved notification preferences follow a new chat through publishing, queue
   // A queued message can outlive the settings that created it. Its command
   // re-reads current preferences instead of freezing a recipient in the chat.
   await saveMessageSetting('notifications', {enabled:true,tool:'changed-tool',destination:'new-recipient',on:['comment']}, f.root);
-  const settingsCLI = new URL('../bin/chill-settings.mjs', import.meta.url).pathname;
+  const settingsCLI = fileURLToPath(new URL('../bin/chill-settings.mjs',import.meta.url));
   await f.run(['comment','--id','1','--text','Finished']);
   const noticeArgs = ['notice','--id','1','--event','2'];
   const current = JSON.parse((await execute(process.execPath,[settingsCLI,...noticeArgs],{env:f.env})).stdout);
@@ -276,7 +277,7 @@ test('saved notification preferences follow a new chat through publishing, queue
   assert.deepEqual(await f.json('fake-queue.json'), []);
 });
 
-test('invalid optional notification settings do not block publishing or receiving feedback', async () => {
+test('invalid optional notification settings do not block publishing or receiving feedback', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   await mkdir(join(f.root,'settings'));
   await writeFile(join(f.root,'settings/notifications.json'), '{broken');
@@ -289,7 +290,7 @@ test('invalid optional notification settings do not block publishing or receivin
   assert.match(output, /Could not read saved user notification preferences/);
 });
 
-test('parallel hooks offer feedback once; interrupted hook delivery retains Queue fallback', async () => {
+test('parallel hooks offer feedback once; interrupted hook delivery retains Queue fallback', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();await f.feedback();
   const outputs = await Promise.all([runHook(f),runHook(f),runHook(f)]);
   assert.equal(outputs.filter(result=>result.stdout).length,1);
@@ -305,7 +306,7 @@ test('parallel hooks offer feedback once; interrupted hook delivery retains Queu
   assert.deepEqual(await f.json('fake-queue.json'),[]);
 });
 
-test('receipt removes only matching notifications, including duplicate entries, and repairs a failed removal', async () => {
+test('receipt removes only matching notifications, including duplicate entries, and repairs a failed removal', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f=await fixture();await f.feedback();
   const queue=await f.json('fake-queue.json');
   queue.push({...queue[0],id:'duplicate'}, {...queue[0],id:'user-queue',clientUserMessageId:'not-chill'});
@@ -319,7 +320,7 @@ test('receipt removes only matching notifications, including duplicate entries, 
   assert.equal((await f.json('workspace/deliveries/1.json')).queueCleared,true);
 });
 
-test('a lost queue removal receipt is reconciled without re-enqueueing', async () => {
+test('a lost queue removal receipt is reconciled without re-enqueueing', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f=await fixture();await f.feedback();
   await f.run(['activity','--event','1','--state','working'],{CHILL_TEST_DROP_AFTER_DELETE:'1'});
   assert.deepEqual(await f.json('fake-queue.json'),[]);
@@ -330,7 +331,7 @@ test('a lost queue removal receipt is reconciled without re-enqueueing', async (
   assert.equal(requests.filter(r=>r.method==='thread/queue/add').length,1);
 });
 
-test('hooks do not consume other chats, subagents, or non-PostToolUse events', async () => {
+test('hooks do not consume other chats, subagents, or non-PostToolUse events', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f=await fixture();await f.feedback();
   assert.equal((await runHook(f,{session_id:other})).stdout,'');
   assert.equal((await runHook(f,{agent_id:'child'})).stdout,'');
@@ -369,7 +370,7 @@ test('installing the hook is idempotent and preserves other hooks without modify
 });
 
 
-test('hook offers all Goals assigned to the chat without changing work selection',async()=>{
+test('hook offers all Goals assigned to the chat without changing work selection',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
  const f=await fixture();await f.run(['create','--parent','1','--title','Child']);
  await f.feedback();
  const file=join(f.root,'child-input.json');await writeFile(file,JSON.stringify({text:'Child request'}));
@@ -384,14 +385,14 @@ test('hook offers all Goals assigned to the chat without changing work selection
  await f.run(['activity','--event','2','--state','working']);
  assert.equal((await f.json('fake-queue.json')).length,0);
 });
-test('Auto mode can receive feedback before selecting work',async()=>{
+test('Auto mode can receive feedback before selecting work',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
  const f=await fixture();await f.feedback();
  const {unlink}=await import('node:fs/promises');await unlink(join(f.root,'workspace/executions',`${thread}.json`));
  assert.match((await runHook(f)).stdout,/feedback #1/);
  assert.equal((await f.json('fake-queue.json')).length,1);
  assert.equal((await f.json('workspace/deliveries/1.json')).hookTurnId,turn);
 });
-test('a prior or stopped work selection does not hide the chat inbox',async()=>{
+test('a prior or stopped work selection does not hide the chat inbox',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
  const f=await fixture();
  for(const [selectedTurn,stoppedAt] of [[other,null],[turn,new Date().toISOString()]]){
   const [{feedback}]=await f.feedback();
@@ -404,7 +405,7 @@ test('a prior or stopped work selection does not hide the chat inbox',async()=>{
 });
 
 
-test('deferred feedback stays queued and unclaimed, then binds to the turn that starts it', async () => {
+test('deferred feedback stays queued and unclaimed, then binds to the turn that starts it', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f=await fixture(); await f.feedback(); await f.feedback({text:'Other request'});
   await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}]}));
   await runHook(f);
@@ -425,7 +426,7 @@ test('deferred feedback stays queued and unclaimed, then binds to the turn that 
   await assert.rejects(f.run(['activity','--event','1','--state','deferred']),/unclaimed queued/);
 });
 
-test('deferment rejects wrong owners, missing queues, uncertain sends and unavailable evidence',async()=>{
+test('deferment rejects wrong owners, missing queues, uncertain sends and unavailable evidence',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
   const f=await fixture();await f.feedback();
   await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}]}));
   const args=['activity','--event','1','--state','deferred'];
@@ -439,7 +440,7 @@ test('deferment rejects wrong owners, missing queues, uncertain sends and unavai
   await assert.rejects(f.run(['activity','--event','2','--state','deferred']),/unclaimed queued/);
 });
 
-test('an unavailable claim observation cannot reuse the old deferred hook turn',async()=>{
+test('an unavailable claim observation cannot reuse the old deferred hook turn',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
  const f=await fixture();await f.feedback();
  await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}]}));
  await f.run(['activity','--event','1','--state','deferred']);

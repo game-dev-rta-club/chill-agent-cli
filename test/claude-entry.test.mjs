@@ -6,9 +6,10 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {promisify} from 'node:util';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
+import {fileURLToPath} from 'node:url';
 
 const execute = promisify(execFile);
-const entry = new URL('../bin/chill-connection.mjs', import.meta.url).pathname;
+const entry = fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'chill-claude-test-'));
   t.after(() => rm(directory, {recursive:true, force:true}));

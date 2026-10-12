@@ -29,7 +29,9 @@ test('SQLite persists IDs and indexed change cursors across connections; isolate
 });
 
 test('failed transactions do not leave partial records; foreign keys and change IDs are enforced',async t=>{
-  const store=await openSqliteWorkspace(await fixture(t));t.after(()=>store.close());
+  // Close before the fixture is removed; Windows cannot delete an open database.
+  const store=await openSqliteWorkspace(await fixture(t));
+  try {
   assert.throws(()=>store.transaction(db=>{
     db.prepare('INSERT INTO goals VALUES (1,NULL,?)').run('{}');
     db.prepare('INSERT INTO events VALUES (1,1,99,?)').run('{}');
@@ -41,6 +43,7 @@ test('failed transactions do not leave partial records; foreign keys and change 
   assert.throws(()=>store.transaction(async()=>{}),/synchronous/);
   assert.throws(()=>store.transaction(db=>{db.prepare('INSERT INTO goals VALUES (2,NULL,?)').run('{}');return Promise.resolve();}),/Promise/);
   assert.equal(store.db.prepare('SELECT count(*) AS n FROM goals').get().n,1);
+  } finally {store.close();}
 });
 
 test('legacy and future stores are rejected without silently initializing or downgrading',async t=>{

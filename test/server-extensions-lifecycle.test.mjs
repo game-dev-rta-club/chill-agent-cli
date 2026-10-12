@@ -9,16 +9,17 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import { lastServerUse, serverOptions } from '../lib/server-lifecycle.mjs';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
+import {fileURLToPath} from 'node:url';
 
 const execute = promisify(execFile);
-const serverFile = new URL('../server.mjs', import.meta.url).pathname;
-const cli = new URL('../bin/chill-agent.mjs', import.meta.url).pathname;
+const serverFile = fileURLToPath(new URL('../server.mjs',import.meta.url));
+const cli = fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 const threadId = '00000000-0000-0000-0000-000000000001';
 
 async function fixture(t, duration = '800ms', extra = {}, args = [], remote) {
   const root = await mkdtemp(join(tmpdir(), 'chill-idle-test-'));
   const env = { ...process.env, CHILL_AGENT_DATA_DIR: root, PORT: '0', CODEX_THREAD_ID:threadId,
-    CHILL_AGENT_CODEX_PATH: new URL('./fake-codex.mjs', import.meta.url).pathname };
+    CHILL_AGENT_CODEX_PATH: fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)) };
   delete env.CHILL_AGENT_SERVER_STARTED_AT;
   delete env.CHILL_AGENT_IDLE_TIMEOUT;
   Object.assign(env, extra);
@@ -77,7 +78,7 @@ if (process.env.CHILL_TEST_TUNNEL_CRASH) {
   return {...f, pidFile, tunnelPath:join(f.root,'runtime',`web-${new URL(f.url).port}`,'tunnel.json')};
 }
 
-test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {timeout:10000}, async t => {
+test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
   const f = await tunnelFixture(t);
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const {url: origin, pid} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
@@ -105,7 +106,7 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   await assert.rejects(readFile(f.tunnelPath),{code:'ENOENT'});
 });
 
-test('manual shutdown also stops the connector; a connector failure keeps local Web available', {timeout:8000}, async t => {
+test('manual shutdown also stops the connector; a connector failure keeps local Web available', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:8000}, async t => {
   const f = await tunnelFixture(t,'1h');
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const pid = Number(await readFile(f.pidFile,'utf8'));
@@ -120,7 +121,7 @@ test('manual shutdown also stops the connector; a connector failure keeps local 
   crashed.child.kill('SIGTERM');await crashed.exited;
 });
 
-test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {timeout:10000}, async t => {
+test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'chill-named-connector-'));
   const binary = join(dir, 'cloudflared');
   const credentialsFile = join(dir, 'credentials.json');
@@ -218,7 +219,7 @@ test('crash recovery keeps the original start deadline instead of granting anoth
   assert.match(f.output(), /Idle timeout reached \(1h\)/);
 });
 
-test('idle expiry waits for Codex notification even after the Web save receipt was returned', {timeout:8000}, async t => {
+test('idle expiry waits for Codex notification even after the Web save receipt was returned', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable',timeout:8000}, async t => {
   const f = await fixture(t, '700ms', {CHILL_TEST_QUEUE_DELAY:'1500'});
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>Pending delivery</p>');

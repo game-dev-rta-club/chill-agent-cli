@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFile,execFileSync} from 'node:child_process';
 import {promisify} from 'node:util';
-import {pathToFileURL} from 'node:url';
+import {pathToFileURL,fileURLToPath} from 'node:url';
 import {prepareRuntime} from '../lib/runtime-package.mjs';
 import {configureClaudeHooks,claudeSetupStatus} from '../lib/claude-setup.mjs';
 const execute=promisify(execFile);
@@ -24,7 +24,7 @@ test('native setup is additive, idempotent and removable without changing permis
  assert.equal((await configureClaudeHooks(f.project,f.options)).changed,false);
  await configureClaudeHooks(f.project,{...f.options,remove:true});assert.deepEqual(await f.read(),f.config);assert.equal((await claudeSetupStatus(f.project,f.options)).configured,false);
 });
-test('edited, foreign and symlinked hooks fail closed while native hook disablement is preserved',async t=>{
+test('edited, foreign and symlinked hooks fail closed while native hook disablement is preserved',{skip:process.platform==='win32'&&'creating symlinks needs Windows Developer Mode'},async t=>{
  const f=await fixture(t);await writeFile(f.path,JSON.stringify({...f.config,disableAllHooks:true}));
  assert.equal((await configureClaudeHooks(f.project,f.options)).locallyDisabled,true);
  await assert.rejects(configureClaudeHooks(f.project,{...f.options,directory:join(f.dir,'other-data')}),/untracked or edited/);
@@ -49,8 +49,8 @@ test('an interrupted ownership commit can reconcile either settings version with
  await writeFile(path,JSON.stringify({...old,pending:true}));await writeFile(f.path,JSON.stringify(f.config));
  assert.equal((await configureClaudeHooks(f.project,f.options)).configured,true);assert.equal((await f.read()).hooks.Stop.length,1);
 });
-test('CLI prepares native hooks with no Codex executable, and status never claims native activation',async t=>{
- const f=await fixture(t),entry=new URL('../bin/chill-setup.mjs',import.meta.url).pathname;
+test('CLI prepares native hooks with no Codex executable, and status never claims native activation',{skip:process.platform==='win32'&&'Windows Claude setup is enabled by the next change'},async t=>{
+ const f=await fixture(t),entry=fileURLToPath(new URL('../bin/chill-setup.mjs',import.meta.url));
  const env={...process.env,CHILL_AGENT_DATA_DIR:f.data,CHILL_AGENT_CODEX_PATH:'/never/call/codex'};
  const run=(...args)=>execute(process.execPath,[entry,...args],{env,timeout:15000});
   const prepared=JSON.parse((await run('prepare','--harness','claude-code','--project',f.project)).stdout);assert(prepared.hook.configured);assert.equal(prepared.codex,undefined);

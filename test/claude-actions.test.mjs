@@ -14,6 +14,7 @@ import {deliverFeedback,readDeliveryState,updateDelivery} from '../lib/delivery.
 import {readAgentStatus} from '../lib/agent-status.mjs';
 import {needsWorkRefresh} from '../lib/work-output.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
+import {fileURLToPath} from 'node:url';
 
 async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-claude-actions-'));
@@ -153,9 +154,9 @@ test('manual held deliveries and Root holds stay untouched',async t=>{
   assert.equal((await readDeliveryState(e.changeId)).status,'saved');
 });
 
-test('actual connection CLI prints an intent, hook JSON confirms, and subagent output stays silent',async t=>{
+test('actual connection CLI prints an intent, hook JSON confirms, and subagent output stays silent',{skip:process.platform==='win32'&&'runs through POSIX /bin/sh'},async t=>{
   const f=await fixture(t),s=await f.start();
-  const execute=promisify(execFile),entry=new URL('../bin/chill-connection.mjs',import.meta.url).pathname;
+  const execute=promisify(execFile),entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
   const {stdout}=await execute(process.execPath,[entry,'create-goal','--title','CLI outcome'],{cwd:f.cwd,env:{...process.env,...s.env}});
   assert.equal((await listGoals()).length,0);
   const input=s.hook({marker:stdout});

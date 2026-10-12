@@ -7,9 +7,10 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import { commands } from '../lib/cli-help.mjs';
 import { prepareRuntime } from '../lib/runtime-package.mjs';
+import {fileURLToPath} from 'node:url';
 
 const execute = promisify(execFile);
-const root = new URL('../', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../',import.meta.url));
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'chill-help-'));
   t.after(() => rm(directory, { recursive:true, force:true }));
