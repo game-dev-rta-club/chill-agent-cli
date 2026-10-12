@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {once} from 'node:events';
+import {mkdtemp,mkdir,writeFile,rm,access,readdir} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+import {randomUUID} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+import {captureClaudeEntry} from '../lib/claude-entry.mjs';
+import {requestClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
+import {listGoals,readFeedback,appendAgentComment} from '../lib/goal-store.mjs';
+import {readDeliveryState} from '../lib/delivery.mjs';
+
+test('composed SQLite runtime carries Web feedback through native hook receipts and persists the reply',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'chill-sqlite-runtime-')),cwd=join(dir,'project'),data=join(dir,'data');await mkdir(cwd);
+ const previous={CHILL_AGENT_DATA_DIR:process.env.CHILL_AGENT_DATA_DIR,CHILL_AGENT_STORAGE:process.env.CHILL_AGENT_STORAGE};
+ process.env.CHILL_AGENT_DATA_DIR=data;delete process.env.CHILL_AGENT_STORAGE;
+ let server,exit;
+ t.after(async()=>{if(server){if(server.exitCode===null&&server.signalCode===null)server.kill();await exit;}for(const [k,v] of Object.entries(previous)){if(v===undefined)delete process.env[k];else process.env[k]=v;}await rm(dir,{recursive:true,force:true});});
+ const envFile=join(dir,'env');await writeFile(envFile,'');
+ const sessionId=randomUUID(),promptId=randomUUID();
+ const event=(hook_event_name,patch={})=>({hook_event_name,session_id:sessionId,prompt_id:promptId,cwd,...patch});
+ const entry=await captureClaudeEntry(event('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});
+ const env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CHILL_AGENT_CONNECTION_GENERATION:entry.generation};
+ async function action(name,payload){const result=await requestClaudeAction(name,payload,{env});return handleClaudeToolHook(event('PostToolUse',{tool_name:'Bash',tool_use_id:randomUUID(),tool_response:{stdout:result.marker}}),{cwd});}
+ await action('create-goal',{title:'SQLite roundtrip',scope:'One isolated Web conversation',criteria:'Web input and reply persist'});
+ const [goal]=await listGoals();assert.equal(goal.connection.sessionId,sessionId);
+ server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--local'],{cwd,env:{...process.env,PORT:'0'},stdio:['ignore','pipe','pipe']});exit=once(server,'exit');
+ const url=await new Promise((resolve,reject)=>{let output='';server.stdout.on('data',chunk=>{output+=chunk;const match=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(match)resolve(match[0]);});server.once('error',reject);server.once('exit',()=>reject(Error('Web exited before startup')));});
+ const response=await fetch(url+'/api/goals/'+goal.id+'/feedback',{method:'POST',headers:{'Content-Type':'application/json',Origin:url},body:JSON.stringify({text:'Please report SQLite result'}),signal:AbortSignal.timeout(10000)});
+ assert.equal(response.status,201);const {feedback}=await response.json();
+ const hook=event('PostToolUse',{tool_name:'Read',tool_use_id:randomUUID(),tool_response:{text:'Read context'}});
+ const offered=await handleClaudeToolHook(hook,{cwd});assert.match(offered.hookSpecificOutput.additionalContext,/Please report SQLite result/);
+ assert.equal(await handleClaudeToolHook(hook,{cwd}),null,'one native offer');
+ await action('activity',{eventId:feedback.changeId,state:'working'});
+ await appendAgentComment({goalId:goal.id,type:'comment',text:'SQLite result saved'});
+ await action('activity',{eventId:feedback.changeId,state:'completed'});
+ const snapshot=await (await fetch(url+'/api/goals?view=web&history=paged')).json();
+ assert.ok(snapshot[0].conversation.some(e=>e.text==='SQLite result saved'));
+ assert.equal((await readDeliveryState(feedback.changeId)).status,'completed');
+ server.kill();await exit;
+ assert.ok((await readFeedback(goal.id)).some(e=>e.text==='SQLite result saved'));
+ await access(join(data,'workspace/workspace.sqlite'));
+ const coordination=new DatabaseSync(join(data,'workspace/coordination.sqlite'));
+ try{assert.equal(coordination.prepare('SELECT count(*) AS n FROM leases').get().n,0,'all roundtrip leases released');}finally{coordination.close();}
+ const files=await readdir(join(data,'workspace'),{recursive:true});
+ assert.equal(files.some(path=>/(^|[\\/])locks[\\/].*\.json$/.test(path)),false,'no numbered lock files');
+ await assert.rejects(access(join(data,'workspace/schema.json')),{code:'ENOENT'});
+});

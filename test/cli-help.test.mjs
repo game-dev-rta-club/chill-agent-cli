@@ -23,11 +23,13 @@ async function fixture(t) {
 test('every command help works without data, valid settings, Codex, or server startup', async t => {
   const f=await fixture(t);
   const entries={monitor:'bin/chill-monitor.mjs',goal:'bin/chill-agent.mjs',settings:'bin/chill-settings.mjs',setup:'bin/chill-setup.mjs',
-    server:'bin/chill-server.mjs',hook:'bin/chill-hook.mjs',connection:'bin/chill-connection.mjs',foreground:'server.mjs',link:'bin/chill-link.mjs'};
+    server:'bin/chill-server.mjs',hook:'bin/chill-hook.mjs',connection:'bin/chill-connection.mjs',session:'bin/chill-session.mjs',foreground:'server.mjs',link:'bin/chill-link.mjs'};
   for(const path of Object.keys(commands)) {
     if(!path)continue;
     const [group,...parts]=path.split(' ');
     const {stdout,stderr}=await f.run(join(root,entries[group]),[...parts,'--help']);
+    // The bundled session command prints its own harness guide instead of the host help format.
+    if(group==='session'){assert.match(stdout,/Supported harness IDs/,path);assert.equal(stderr,'',path);continue;}
     assert.match(stdout,/Usage:/,path); assert.equal(stderr,'',path);
     assert.ok(stdout.includes(commands[path].summary),path);
   }
@@ -56,6 +58,7 @@ test('help-guided operations work and settings flags are order independent',asyn
   const f=await fixture(t);
   f.env.CHILL_AGENT_CODEX_PATH=join(root,'test/fake-codex.mjs');
   f.env.PORT='4173'; delete f.env.CHILL_AGENT_IDLE_TIMEOUT;
+  f.env.CHILL_AGENT_EXTENSIONS='none'; // host notification path, without the bundled provider
   const plan=args=>f.run(join(root,'bin/chill-agent.mjs'),args);
   const created=await plan(['create','--title','Help-guided Plan']);
   assert.match(created.stdout,/"id": "1"/);

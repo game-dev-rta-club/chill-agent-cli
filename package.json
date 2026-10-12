@@ -19,7 +19,9 @@
     "presetup": "npm run web:build",
     "prehooks:install": "npm run web:build",
     "prepack": "npm run web:build",
-    "release:check": "node scripts/check-release.mjs"
+    "release:check": "node scripts/check-release.mjs",
+    "prepare": "npm run web:build",
+    "use-in": "node scripts/use-in.mjs"
   },
   "bin": {
     "chill-agent-cli": "bin/chill-entry.mjs"
@@ -30,7 +32,9 @@
   "dependencies": {
     "marked": "18.0.14",
     "parse5": "8.0.1",
-    "sanitize-html": "2.18.0"
+    "qrcode": "1.5.4",
+    "sanitize-html": "2.18.0",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
@@ -53,7 +57,9 @@
     "licenses",
     "LICENSE",
     "README.md",
-    "npm-shrinkwrap.json"
+    "npm-shrinkwrap.json",
+    "extensions",
+    "extensions.json"
   ],
   "bundleDependencies": [
     "marked",

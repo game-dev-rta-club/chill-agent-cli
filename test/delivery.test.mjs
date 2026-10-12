@@ -8,6 +8,8 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import {DatabaseSync} from 'node:sqlite';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
+// These cases cover the host's own notification path, used when bundled extensions are off.
+process.env.CHILL_AGENT_EXTENSIONS='none';
 
 const execute = promisify(execFile);
 const cli = new URL('../bin/chill-agent.mjs', import.meta.url).pathname;

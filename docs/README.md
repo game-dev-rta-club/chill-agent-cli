@@ -18,9 +18,11 @@ The integrating application decides what work to pursue and when to continue it.
 | Understand page loading, live updates and Brief history | [Web navigation](workspace/web-navigation.md) |
 | Separate projects, ports and extension choices | [Project workspaces](runtime/projects.md) |
 | Choose branches, commit milestones and prepare a PR | [Development workflow](development/workflow.md) |
+| Try an unreleased CLI commit in another project | [Use a development version](development/use-development-version.md) |
 | Change Web navigation, layout updates or focus without scroll jumps | [Scrolling guidelines](development/scrolling.md) |
 | Understand the SQLite replacement under development | [SQLite workspace](runtime/sqlite.md) |
 | Locate data or update an installation | [Data and runtime updates](runtime/data-and-updates.md) |
+| Let an application choose the CLI version it runs | [Version file](runtime/version-file.md) |
 | Start Web or understand when it exits | [Server lifetime](runtime/server.md) |
 | Connect feedback, pause and resume | [Feedback delivery and controls](agent/feedback-and-controls.md) |
 | Read or change the current model | [Model settings](agent/model-settings.md) |
