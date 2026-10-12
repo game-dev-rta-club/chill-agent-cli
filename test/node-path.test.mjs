@@ -21,6 +21,15 @@ test('a Homebrew Cellar Node is persisted through its stable opt link',{skip:pro
  assert.equal(stableNodePath('/usr/local/bin/node'),'/usr/local/bin/node');
 });
 
+test('the Windows command entry runs the launcher from cmd, including Japanese and quoted paths',{skip:process.platform!=='win32'},async t=>{
+ const dir=await temporary(t),root=fileURLToPath(new URL('../',import.meta.url));
+ const prepared=await prepareRuntime(root,join(dir,"data ' 日本語 store"));
+ const command=join(prepared.dataDirectory,'runtime','chill.cmd'),env={...process.env};delete env.CHILL_AGENT_DATA_DIR;
+ const run=args=>execFileSync('cmd.exe',['/d','/s','/c',`""${command}" ${args}"`],{env,encoding:'utf8',stdio:'pipe',windowsVerbatimArguments:true});
+ assert.match(run('connection --help'),/Connect a Claude conversation/);
+ assert.throws(()=>run('nosuch'),error=>error.status===1&&/Unknown command/.test(error.stderr));
+});
+
 test('the short chill entry runs the launcher and falls back to Node on PATH',{skip:process.platform==='win32'&&'runs through POSIX /bin/sh'},async t=>{
  const dir=await temporary(t),root=fileURLToPath(new URL('../',import.meta.url));
  const prepared=await prepareRuntime(root,join(dir,"data ' store"));

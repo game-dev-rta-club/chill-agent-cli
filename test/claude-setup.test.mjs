@@ -2,17 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,readFile,writeFile,readdir,symlink,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {dirname,join} from 'node:path';
+import {existsSync} from 'node:fs';
 import {execFile,execFileSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {prepareRuntime} from '../lib/runtime-package.mjs';
 import {configureClaudeHooks,claudeSetupStatus} from '../lib/claude-setup.mjs';
 const execute=promisify(execFile);
+// Claude Code on Windows runs Bash commands in Git Bash, installed above git.
+function posixShell(){
+ if(process.platform!=='win32')return '/bin/sh';
+ const git=execFileSync('where',['git'],{encoding:'utf8'}).split(/\r?\n/)[0];
+ for(let dir=dirname(git);dirname(dir)!==dir;dir=dirname(dir))if(existsSync(join(dir,'bin','bash.exe')))return join(dir,'bin','bash.exe');
+ throw Error('Git Bash was not found.');
+}
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'chill-claude-setup-')),project=join(dir,"project ' one"),data=join(dir,"data ' one");await mkdir(project);
  t.after(()=>rm(dir,{recursive:true,force:true}));
- const path=join(project,'.claude/settings.local.json'),options={directory:data,entry:join(data,"runtime ' one/chill")};
+ const path=join(project,'.claude/settings.local.json'),options={directory:data,entry:join(data,"runtime ' one/chill"),node:process.execPath,launcher:join(data,"runtime ' one/chill.mjs")};
  const config={permissions:{allow:['Read'],deny:['Bash(rm *)']},env:{EXISTING:'keep'},hooks:{PostToolUse:[{matcher:'Read',hooks:[{type:'command',command:'echo other'}]}]}};
  await mkdir(join(project,'.claude'));await writeFile(path,JSON.stringify(config));
  return {dir,project,data,path,options,config,read:async()=>JSON.parse(await readFile(path,'utf8'))};
@@ -20,7 +28,10 @@ async function fixture(t){
 test('native setup is additive, idempotent and removable without changing permissions or other hooks',async t=>{
  const f=await fixture(t);const first=await configureClaudeHooks(f.project,f.options);assert(first.configured&&first.changed);
  let config=await f.read();assert.deepEqual(config.permissions,f.config.permissions);assert.deepEqual(config.env,f.config.env);assert.deepEqual(config.hooks.PostToolUse[0],f.config.hooks.PostToolUse[0]);
- assert.match(config.hooks.SessionStart[0].hooks[0].command,/'\\''/);assert.equal(config.hooks.Stop.length,1);
+ const hook=config.hooks.SessionStart[0].hooks[0];
+ if(process.platform==='win32')assert.deepEqual([hook.command,...hook.args],[process.execPath,f.options.launcher,'connection','claude-hook']);
+ else assert.match(hook.command,/'\\''/);
+ assert.equal(config.hooks.Stop.length,1);
  assert.equal((await configureClaudeHooks(f.project,f.options)).changed,false);
  await configureClaudeHooks(f.project,{...f.options,remove:true});assert.deepEqual(await f.read(),f.config);assert.equal((await claudeSetupStatus(f.project,f.options)).configured,false);
 });
@@ -49,7 +60,7 @@ test('an interrupted ownership commit can reconcile either settings version with
  await writeFile(path,JSON.stringify({...old,pending:true}));await writeFile(f.path,JSON.stringify(f.config));
  assert.equal((await configureClaudeHooks(f.project,f.options)).configured,true);assert.equal((await f.read()).hooks.Stop.length,1);
 });
-test('CLI prepares native hooks with no Codex executable, and status never claims native activation',{skip:process.platform==='win32'&&'Windows Claude setup is enabled by the next change'},async t=>{
+test('CLI prepares native hooks with no Codex executable, and status never claims native activation',async t=>{
  const f=await fixture(t),entry=fileURLToPath(new URL('../bin/chill-setup.mjs',import.meta.url));
  const env={...process.env,CHILL_AGENT_DATA_DIR:f.data,CHILL_AGENT_CODEX_PATH:'/never/call/codex'};
  const run=(...args)=>execute(process.execPath,[entry,...args],{env,timeout:15000});
@@ -70,12 +81,14 @@ test('CLI prepares native hooks with no Codex executable, and status never claim
   assert.equal(await readContext(updated.root,prepared.dataDirectory),firstContext);
   assert.equal(await readContext(prepared.root,prepared.dataDirectory),firstContext);
   const foreign=await readContext(prepared.root,join(f.dir,'different-store'));
-  assert(foreign.includes('/bin/chill-entry.mjs'));assert(!foreign.includes('/runtime/chill.mjs'));
+  assert.match(foreign,/[\\/]bin[\\/]chill-entry\.mjs/);assert.doesNotMatch(foreign,/[\\/]runtime[\\/]chill\.mjs/);
   // The exact quoted prefix is executable, including a path containing an apostrophe.
-  const help=execFileSync('/bin/sh',['-c',prepared.command+' connection --help'],{encoding:'utf8'});
+  const help=execFileSync(posixShell(),['-c',prepared.command+' connection --help'],{encoding:'utf8',env:{...env,CHILL_AGENT_DATA_DIR:prepared.dataDirectory}});
   assert.match(help,/connection/);
  const envFile=join(f.dir,'native-env');await writeFile(envFile,'');const hook=(await f.read()).hooks.SessionStart[0].hooks[0];
- execFileSync('/bin/sh',['-c',hook.command],{cwd:f.project,env:{...env,CLAUDE_ENV_FILE:envFile},input:JSON.stringify({hook_event_name:'SessionStart',source:'resume',session_id:'native-test',cwd:f.project}),encoding:'utf8'});
+ const options={cwd:f.project,env:{...env,CLAUDE_ENV_FILE:envFile},input:JSON.stringify({hook_event_name:'SessionStart',source:'resume',session_id:'native-test',cwd:f.project}),encoding:'utf8'};
+ // Claude runs exec-form hooks without a shell, and shell-form hooks with sh.
+ if(hook.args)execFileSync(hook.command,hook.args,options);else execFileSync('/bin/sh',['-c',hook.command],options);
  assert.match(await readFile(envFile,'utf8'),/CHILL_AGENT_SESSION_ID='native-test'/);
  const status=JSON.parse((await run('status','--harness','claude-code','--project',f.project)).stdout);assert.match(status.activation,/Not verified/);
  assert.deepEqual((await f.read()).permissions,f.config.permissions);

@@ -33,7 +33,6 @@ async function main() {
   if(values['--harness']==='claude-code'){
     if(!values['--project'])throw Error('Claude setup requires --project to identify its local settings.');
     if(command==='status'){console.log(JSON.stringify(await claudeSetupStatus(values['--project']),null,2));return;}
-    if(process.platform==='win32')throw Error('Experimental Claude setup currently uses POSIX hooks. Windows is not qualified.');
     if(command==='remove'){console.log(JSON.stringify(await configureClaudeHooks(values['--project'],{remove:true}),null,2));return;}
     // Inspect before preparing a runtime; never consult Codex for this route.
     const status=await claudeSetupStatus(values['--project']);if(status.conflict)throw Error('A Claude chill hook is untracked or edited. Review it before preparing again.');
@@ -42,7 +41,7 @@ async function main() {
     // Match the launcher's canonical spelling (for example /var -> /private/var).
     const directory=await realpath(prepared.dataDirectory);
     const installed={...prepared,root:await realpath(prepared.root),dataDirectory:directory,launcher:join(directory,'runtime/chill.mjs'),entry:join(directory,'runtime/chill')};
-    const hook=await configureClaudeHooks(values['--project'],{entry:installed.entry,directory});
+    const hook=await configureClaudeHooks(values['--project'],{entry:installed.entry,node:installed.node,launcher:installed.launcher,directory});
     const prefix=quote(installed.entry);
     console.log(JSON.stringify({...installed,project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,hook,command:prefix,next:'Experimental Claude hooks are written, not yet verified in the conversation. Review them with native /hooks. Preserve the current chat with native resume if SessionStart has not run; never clear or fork to repair a handshake. From its main Bash tool, run <command> connection show, then connection create-goal; its result names the reply waiter to start. No Auto mode is enabled by setup. Local settings created by hand should be excluded from Git. Native policy and existing permissions still apply.'+sessionNext()},null,2));
     return;

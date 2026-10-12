@@ -21,6 +21,12 @@ and adds SessionStart, UserPromptSubmit, PostToolUse, Stop and SessionEnd hooks
 to `.claude/settings.local.json`. It does not start Claude or the Web server,
 enable Auto mode, assign an existing Goal, or change native permissions.
 
+On macOS each hook is a shell command that runs the short `chill` entry. On
+Windows each hook uses Claude's exec form: `command` is the recorded Node and
+`args` start with the runtime launcher, so no shell or quoting is involved. The
+Bash tool still runs the `chill` entry through Git Bash; PowerShell and cmd can
+use `runtime\chill.cmd`.
+
 The installer preserves other settings and hooks. It replaces only its exact
 recorded entries, so repeating setup does not add duplicate hooks. Edited or
 untracked chill hooks are reported instead of overwritten. Symlinked local
