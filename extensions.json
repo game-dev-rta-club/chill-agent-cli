@@ -1,0 +1,10 @@
+{
+  "connectionExtensions": {"continuation": "./lib/claude-continuation.mjs"},
+  "modules": ["./lib/continuation-extension.mjs", "./lib/notifications.mjs", "./lib/web-notifications.mjs", "./lib/public-link-extension.mjs"],
+  "notificationProvider": "./lib/notification-routes.mjs",
+  "commands": {"monitor": "bin/chill-monitor.mjs", "session": "bin/chill-session.mjs"},
+  "help": {
+    "session": {"summary": "Selected harness operations and first-use preparation.", "detail": "Use chill session --help for the supported harness IDs and interface."},
+    "monitor": {"summary": "Optional continuation checks with durable attempt limits.", "detail": "Use chill monitor --help for controls and internal results."}
+  }
+}

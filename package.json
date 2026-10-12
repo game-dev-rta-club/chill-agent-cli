@@ -30,7 +30,9 @@
   "dependencies": {
     "marked": "18.0.14",
     "parse5": "8.0.1",
-    "sanitize-html": "2.18.0"
+    "qrcode": "1.5.4",
+    "sanitize-html": "2.18.0",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
@@ -53,7 +55,9 @@
     "licenses",
     "LICENSE",
     "README.md",
-    "npm-shrinkwrap.json"
+    "npm-shrinkwrap.json",
+    "extensions",
+    "extensions.json"
   ],
   "bundleDependencies": [
     "marked",

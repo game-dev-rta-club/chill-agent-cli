@@ -8,6 +8,8 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import { namedTunnelConfig, readMessageSettings, saveMessageSetting, validateRemote } from '../lib/message-settings.mjs';
 import { notificationReminder } from '../lib/notification-reminder.mjs';
+// These cases cover the host's own notification path, used when bundled extensions are off.
+process.env.CHILL_AGENT_EXTENSIONS='none';
 
 const execute=promisify(execFile);
 const remote={mode:'named',url:'https://plans.example.com',tunnelId:'00000000-0000-0000-0000-000000000001',credentialsFile:'/private/cloudflared/credential.json',accessTeam:'test-team',accessAud:['a'.repeat(64)]};
