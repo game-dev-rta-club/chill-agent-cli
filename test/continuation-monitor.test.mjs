@@ -10,6 +10,7 @@ import {join} from 'node:path';
 import {createGoal,updateGoal,updateBrief,appendFeedback,readFeedback} from '../lib/goal-store.mjs';
 import {mkdir} from 'node:fs/promises';
 import {recordVersionSource} from '../lib/version-source.mjs';
+import {fileURLToPath} from 'node:url';
 
 // The skill lives outside the runtime; setup records its guide in the data directory.
 async function installedSkill(t){
@@ -126,7 +127,7 @@ test('real store: content revisions and internal results stay separate from Web 
   await Promise.all([run(root.id),run(root.id)]);assert.equal(sends,1);
   const attempt=(await readMonitor(root.id)).attempts[0],events=await readFeedback();
   await assert.rejects(reportMonitorResult(root.id,attempt.id,'no-work','other'),/assigned/);
-  const response=await promisify(execFile)(process.execPath,[new URL('../bin/chill-monitor.mjs',import.meta.url).pathname,'result','--id',root.id,'--attempt',attempt.id,'--outcome','no-work'],{env:{...process.env,CODEX_THREAD_ID:threadId}});
+  const response=await promisify(execFile)(process.execPath,[fileURLToPath(new URL('../bin/chill-monitor.mjs',import.meta.url)),'result','--id',root.id,'--attempt',attempt.id,'--outcome','no-work'],{env:{...process.env,CODEX_THREAD_ID:threadId}});
   assert.equal(JSON.parse(response.stdout).outcome,'no-work');
   await reportMonitorResult(root.id,attempt.id,'no-work',threadId);
   await assert.rejects(reportMonitorResult(root.id,attempt.id,'worked',threadId),/different result/);
@@ -160,7 +161,7 @@ test('the combined handoff points to the guide recorded by setup',async t=>{
  await installedSkill(t);
  const text=continuationMessage(idle(),1,'id');
  const path=JSON.parse(text.match(/^Workflow: (".*?")\./m)[1]);
- assert.ok(path.endsWith('/references/auto-mode/continue.md'));
+ assert.ok(path.endsWith(join('references','auto-mode','continue.md')));
  const guide=await readFile(path,'utf8');
  assert.ok(guide.length>0);
  assert.match(text,/Auto mode is On/);

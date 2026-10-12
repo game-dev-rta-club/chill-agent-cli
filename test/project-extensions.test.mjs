@@ -7,6 +7,7 @@ import {prepareProject,workspacePort} from '../lib/project-workspace.mjs';
 import {registeredExtensions} from '../lib/extension-registry.mjs';
 import {connectionExtensions} from '../lib/connection-extensions.mjs';
 import {notificationProvider} from '../lib/notification-provider.mjs';
+import {fileURLToPath} from 'node:url';
 
 test('project selection restricts Web, native hooks and notification routes independently',async t=>{
  const base=await mkdtemp(join(tmpdir(),'chill-project-extensions-'));
@@ -42,6 +43,6 @@ test('monitor start contacts the project Web without an explicit PORT',async t=>
  await new Promise(resolve=>server.listen(workspacePort({CHILL_AGENT_DATA_DIR:directory}),'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
  const {writeJsonAtomically}=await import('../lib/storage.mjs');await writeJsonAtomically(join(directory,'runtime','endpoint.json'),{port:server.address().port,token});
  const env={...process.env,CHILL_AGENT_DATA_DIR:directory};delete env.PORT;delete env.CLAUDE_SESSION_ID;delete env.CHILL_AGENT_CLAUDE_SESSION_ID;delete env.CHILL_AGENT_CLAUDE_GENERATION;
- await assert.rejects(promisify(execFile)(process.execPath,[new URL('../bin/chill-monitor.mjs',import.meta.url).pathname,'start','--id','1'],{env}),e=>e.stderr.includes('does not host the continuation extension'));
+ await assert.rejects(promisify(execFile)(process.execPath,[fileURLToPath(new URL('../bin/chill-monitor.mjs',import.meta.url)),'start','--id','1'],{env}),e=>e.stderr.includes('does not host the continuation extension'));
  assert.equal(requested,'/api/goals/1/extensions');
 });

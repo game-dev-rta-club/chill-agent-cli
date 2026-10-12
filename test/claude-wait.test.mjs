@@ -14,6 +14,7 @@ import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-stor
 import {readDeliveryState,prepareDelivery,updateDelivery} from '../lib/delivery.mjs';
 import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
+import {fileURLToPath} from 'node:url';
 const writeFeedbackHold=(id,value)=>writeJsonAtomically(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/feedback-holds',`${id}.json`),value);
 
 async function fixture(t) {
@@ -118,7 +119,7 @@ test('cached history still observes manual holds and ownership changes',async t=
 });
 
 test('CLI wait prints the next actions once feedback is saved',async t=>{
- const f=await fixture(t),entry=new URL('../bin/chill-connection.mjs',import.meta.url).pathname;
+ const f=await fixture(t),entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
  const p=spawn(process.execPath,[entry,'wait'],{cwd:f.cwd,env:{...process.env,...f.env()},stdio:['ignore','pipe','pipe']});let stdout='',stderr='';
  p.stdout.on('data',b=>stdout+=b);p.stderr.on('data',b=>stderr+=b);
  await f.waiting();await appendFeedback({goalId:f.root.id,text:'from the Web'});

@@ -19,7 +19,7 @@ test('connection hooks load only composed modules, and extensions=none disables 
  const old=process.env.CHILL_AGENT_EXTENSIONS;process.env.CHILL_AGENT_EXTENSIONS='none';
  try{assert.deepEqual(await connectionExtensions(f.manifest),{});}finally{if(old===undefined)delete process.env.CHILL_AGENT_EXTENSIONS;else process.env.CHILL_AGENT_EXTENSIONS=old;}
 });
-test('connection hooks reject outside-runtime paths and symlinks',async t=>{
+test('connection hooks reject outside-runtime paths and symlinks',{skip:process.platform==='win32'&&'creating symlinks needs Windows Developer Mode'},async t=>{
  const f=await fixture(t),outside=join(f.dir,'outside.mjs');await writeFile(outside,'throw Error("must not execute");');
  await symlink(outside,join(f.root,'linked.mjs'));
  for(const path of ['../outside.mjs','./linked.mjs']){await f.save({sample:path});await assert.rejects(connectionExtensions(f.manifest),/inside the runtime/);}

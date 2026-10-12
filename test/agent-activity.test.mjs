@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {activityOwner,activityOwnerFromInput,overlayGoalActivity,invalidateActivity} from '../lib/agent-activity.mjs';
 import {goalState} from '../public/goal-state.js';
 import {createGoalView} from '../public/goal-view.js';
+import {fileURLToPath} from 'node:url';
 const thread='00000000-0000-0000-0000-000000000001';
 test('a started turn is controllable from its input before receipt; queued siblings and output mentions are excluded',()=>{
  const deliveries=[{eventId:1,messageId:'started',status:'queued'},{eventId:2,messageId:'waiting',status:'queued'}];
@@ -20,10 +21,10 @@ test('one activity owns merged feedback; continuation retains its original ancho
  assert.equal(activityOwner([],'other',record,null),null);
  assert.equal(activityOwner([{eventId:4,turnId:'new'}],'new',record,{status:'working'}),4);
 });
-test('Paused overlays only the stopped Goal and disappears on a new Desktop turn without changing Goal state',async()=>{
+test('Paused overlays only the stopped Goal and disappears on a new Desktop turn without changing Goal state',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
  const dir=await mkdtemp(join(tmpdir(),'chill-activity-'));
  const old={data:process.env.CHILL_AGENT_DATA_DIR,codex:process.env.CHILL_AGENT_CODEX_PATH};
- process.env.CHILL_AGENT_DATA_DIR=dir;process.env.CHILL_AGENT_CODEX_PATH=new URL('./fake-codex.mjs',import.meta.url).pathname;
+ process.env.CHILL_AGENT_DATA_DIR=dir;process.env.CHILL_AGENT_CODEX_PATH=fileURLToPath(new URL('./fake-codex.mjs',import.meta.url));
  try{
   await mkdir(join(dir,'workspace/agent-controls'),{recursive:true});
   const record={action:'stop',turnId:'turn',target:{goalId:'2'},activity:{goalId:'1',eventId:9}};

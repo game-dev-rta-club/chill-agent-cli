@@ -9,6 +9,7 @@ import {once} from 'node:events';
 import {setTimeout as delay} from 'node:timers/promises';
 import {workReader, needsWorkRefresh, presentDelivery} from '../lib/work-output.mjs';
 import {workProgressGroups, workDisclosure} from '../public/work-ui.js';
+import {fileURLToPath} from 'node:url';
 
 const thread='00000000-0000-0000-0000-000000000001';
 const turn='00000000-0000-0000-0000-000000000002';
@@ -143,10 +144,10 @@ test('Queue fallback after an unclaimed hook replaces even a cached old turn',as
   assert.equal((await reader({...state,hookTurnId:'old-hook',work:{turnId:'old-hook'}})).turnId,turn);
 });
 
-test('Web collects before receipt and after activity completion, then freezes only the actual completed turn',async()=>{
+test('Web collects before receipt and after activity completion, then freezes only the actual completed turn',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
   const dir=await mkdtemp(join(tmpdir(),'chill-work-test-'));
-  const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:new URL('./fake-codex.mjs',import.meta.url).pathname,CODEX_THREAD_ID:thread};
-  const cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+  const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)),CODEX_THREAD_ID:thread};
+  const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
   const run=async args=>JSON.parse((await promisify(execFile)(process.execPath,[cli,...args],{env})).stdout.trim());
   const invoke=args=>promisify(execFile)(process.execPath,[cli,...args],{env});
   const body=join(dir,'workspace/goals/1/brief.md');
@@ -159,7 +160,7 @@ test('Web collects before receipt and after activity completion, then freezes on
   const history={turns:[{...meta,items:[{type:'userMessage',content:[{type:'text',text:`[chill-agent:${delivery.messageId}]`}]}]}],items:{[turn]:[message('first','Opening before receipt',Date.now())]}};
   const saveHistory=()=>writeFile(join(dir,'fake-history.json'),JSON.stringify(history));
   await saveHistory();
-  const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname],{env:{...env,PORT:'0'},stdio:['ignore','pipe','pipe']});
+  const server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url))],{env:{...env,PORT:'0'},stdio:['ignore','pipe','pipe']});
   const url=await new Promise((resolve,reject)=>{server.stdout.on('data',chunk=>{const m=chunk.toString().match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);});
   try {
     const [live]=await (await fetch(`${url}/api/goals/1/deliveries`)).json();
@@ -230,10 +231,10 @@ test('a lagging Activity response cannot split one running turn across feedback 
  assert.equal(later.get(2).live,true);
 });
 
-test('direct CLI receipt binds the live turn without a notification marker or work selection',async()=>{
+test('direct CLI receipt binds the live turn without a notification marker or work selection',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
  const dir=await mkdtemp(join(tmpdir(),'chill-direct-receipt-'));
- const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:new URL('./fake-codex.mjs',import.meta.url).pathname,CODEX_THREAD_ID:thread};
- const cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+ const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)),CODEX_THREAD_ID:thread};
+ const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
  const invoke=args=>promisify(execFile)(process.execPath,[cli,...args],{env});
  await invoke(['create','--title','Direct read','--thread-id',thread]);
  const input=join(dir,'feedback.json');await writeFile(input,JSON.stringify({text:'Read through the CLI'}));

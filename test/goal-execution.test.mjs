@@ -8,13 +8,14 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {observeExecution,heartbeatTTL} from '../lib/goal-execution.mjs';
 import {createGoalView} from '../public/goal-view.js';
-const execute=promisify(execFile), cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
-const hook=new URL('../bin/chill-hook.mjs',import.meta.url).pathname;
+import {fileURLToPath} from 'node:url';
+const execute=promisify(execFile), cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
+const hook=fileURLToPath(new URL('../bin/chill-hook.mjs',import.meta.url));
 const thread='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
 const turn='00000000-0000-0000-0000-000000000010';
 async function fixture(t){
   const root=await mkdtemp(join(tmpdir(),'chill-execution-'));t.after(()=>rm(root,{recursive:true,force:true}));
-  const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:new URL('./fake-codex.mjs',import.meta.url).pathname,CODEX_THREAD_ID:thread,PORT:'4199'};
+  const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)),CODEX_THREAD_ID:thread,PORT:'4199'};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   const json=async path=>JSON.parse(await readFile(join(root,path),'utf8'));
   let serial=0;
@@ -30,7 +31,7 @@ async function fixture(t){
   return {root,env,run,json,patch,history,note,feedback,selectionPath};
 }
 
-test('verified root assignment routes old child Notes with root/path context, not Note author',async t=>{
+test('verified root assignment routes old child Notes with root/path context, not Note author',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
   const f=await fixture(t);await f.note();await f.note('2','notice');
   await assert.rejects(f.run('assign','--id','2','--thread-id',thread),/root Goal only/);
   await assert.rejects(f.run('assign','--id','1','--thread-id','00000000-0000-0000-0000-999999999999'),/Chat not found/);
@@ -49,7 +50,7 @@ test('verified root assignment routes old child Notes with root/path context, no
   assert.equal((await f.json('workspace/deliveries/1.json')).threadId,thread);
 });
 
-test('assignment never replays local feedback; an explicit retry enrolls it for the new owner',async t=>{
+test('assignment never replays local feedback; an explicit retry enrolls it for the new owner',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
   const f=await fixture(t);await f.note();assert.equal((await f.feedback())[1].delivery.status,'unlinked');
   await f.run('assign','--id','1','--thread-id',thread);
   await assert.rejects(f.json('fake-queue.json'),{code:'ENOENT'});
@@ -67,7 +68,7 @@ test('assignment never replays local feedback; an explicit retry enrolls it for 
   assert.equal((await f.run('show','--id','2','--version','1')).conversation.at(-1).text,'Received');
 });
 
-test('one selected branch works while another waits; turn end returns to Idle',async t=>{
+test('one selected branch works while another waits; turn end returns to Idle',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
   const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);
   await f.note();await f.patch('2',{state:'waiting',waitReason:'Need a choice'});
   await assert.rejects(f.run('work','--id','2'),/Resolve Waiting or reopen Done/);
@@ -87,7 +88,7 @@ test('one selected branch works while another waits; turn end returns to Idle',a
   await assert.rejects(f.run('work','--id','2'),/No current unfinished/);
 });
 
-test('connection loss and reassignment clear activity; unfinished turns can remain Checking',async t=>{
+test('connection loss and reassignment clear activity; unfinished turns can remain Checking',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
   const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);await f.run('work','--id','3');
   await f.history({fail:true});let tree=(await f.run('tree'))[0];
   assert.equal(tree.state,'idle');assert.equal(tree.children[1].execution.status,'unknown');
@@ -107,7 +108,7 @@ test('connection loss and reassignment clear activity; unfinished turns can rema
   await assert.rejects(f.run('work','--id','3'),/assigned chat/);
 });
 
-test('a Done Goal requires an explicit reopen before work selection',async t=>{
+test('a Done Goal requires an explicit reopen before work selection',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
   const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);
   const path='workspace/goals/3/goal.json',old=await f.json(path);
   await writeFile(join(f.root,path),JSON.stringify({...old,state:'done',started:true}));
@@ -139,7 +140,7 @@ test('the Web renders Working only on the selected branch and its ancestors',()=
   const expired=createGoalView(goals,'1',new Set()).brief('1');assert.ok(!expired.includes('status working'));assert.doesNotMatch(expired,/status idle|>Running</);
 });
 
-test('hook heartbeats are limited to the selected chat and turn, and stop stays stopped',async t=>{
+test('hook heartbeats are limited to the selected chat and turn, and stop stays stopped',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
   const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);await f.run('work','--id','3');
   const stored=await f.json(f.selectionPath);stored.heartbeatAt='2020-01-01T00:00:00.000Z';await writeFile(join(f.root,f.selectionPath),JSON.stringify(stored));
   const hookCall=async input=>execute(process.execPath,['--input-type=module','-e',`import {hookOutput} from ${JSON.stringify(new URL('../bin/chill-hook.mjs',import.meta.url).href)}; await hookOutput(${JSON.stringify({hook_event_name:'PostToolUse',session_id:thread,turn_id:turn,...input})},'${thread}');`],{env:f.env});
@@ -150,11 +151,11 @@ test('hook heartbeats are limited to the selected chat and turn, and stop stays 
   assert.deepEqual(await f.json(f.selectionPath),stopped);
 });
 
-test('a hook tracks chat liveness before work selection; Goal and header use the same turn evidence',async t=>{
+test('a hook tracks chat liveness before work selection; Goal and header use the same turn evidence',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
  const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);
  const read=async()=>JSON.parse((await execute(process.execPath,['--input-type=module','-e',
   `import {readAgentPresence} from './lib/agent-presence.mjs';console.log(JSON.stringify(await readAgentPresence('1')));`],
-  {env:f.env,cwd:new URL('..',import.meta.url).pathname})).stdout);
+  {env:f.env,cwd:fileURLToPath(new URL('..',import.meta.url))})).stdout);
  const hookCall=async extra=>execute(process.execPath,['--input-type=module','-e',
   `import {hookOutput} from ${JSON.stringify(new URL('../bin/chill-hook.mjs',import.meta.url).href)};await hookOutput(${JSON.stringify({hook_event_name:'PostToolUse',session_id:thread,turn_id:turn,...extra})},'${thread}');`],{env:f.env});
  assert.equal((await read()).status,'checking');
@@ -171,7 +172,7 @@ test('a hook tracks chat liveness before work selection; Goal and header use the
  assert.equal((await read()).status,'idle');assert.equal((await f.run('tree','--id','1'))[0].state,'idle');
 });
 
-test('Done stays stored while queued, checking, and running feedback takes display priority',async t=>{
+test('Done stays stored while queued, checking, and running feedback takes display priority',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
  const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);
  await f.patch('2',{state:'done'});await f.patch('3',{state:'done'});await f.patch('1',{state:'done'});
  await f.history({status:{type:'idle'},turns:[{id:turn,status:'completed',completedAt:1}]});

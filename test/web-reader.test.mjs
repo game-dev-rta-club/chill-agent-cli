@@ -7,7 +7,8 @@ import {once} from 'node:events';
 import {promisify} from 'node:util';
 import test from 'node:test';
 import {createGoalView} from '../public/goal-view.js';
-const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+import {fileURLToPath} from 'node:url';
+const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chill-web-')),env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'0'};
  const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
@@ -15,9 +16,10 @@ async function fixture(t){
  let count=0;const note=async()=>{await writeFile(body,`本文と注釈 ${++count}`);return run('brief','update','--id','1');};
  let server,url;
  const stop=async()=>{if(server?.exitCode===null){server.kill();await once(server,'exit');}};
- const start=async()=>{server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
+ const start=async()=>{server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--local'],{env,stdio:['ignore','pipe','pipe']});
  url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Early exit ${code}`)));});};
- t.after(async()=>{await stop();await rm(root,{recursive:true,force:true});});await start();
+ // Windows may release the stopped server's SQLite handles a moment after exit.
+ t.after(async()=>{await stop();await rm(root,{recursive:true,force:true,maxRetries:10});});await start();
  const get=path=>fetch(url+path),post=(input,origin=url)=>fetch(url+'/api/goals/1/feedback',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(input)});
  return {root,body,run,note,start,stop,get,post,url:()=>url};
 }
