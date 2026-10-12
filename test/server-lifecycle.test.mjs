@@ -123,6 +123,24 @@ test('manual shutdown also stops the connector; a connector failure keeps local 
   crashed.child.kill('SIGTERM');await crashed.exited;
 });
 
+test('the service token stops Web only from a local request that no browser can send', {timeout:8000}, async t => {
+  const token = 'a'.repeat(64);
+  const f = await fixture(t, '1h', {CHILL_AGENT_SERVICE_TOKEN:token});
+  const stop = (headers, method = 'POST') => fetch(f.url + '/api/service/shutdown', {method, headers});
+  for (const headers of [{}, {'x-chill-service':'b'.repeat(64)}, {'x-chill-service':token, Origin:f.url}, {'x-chill-service':token, 'Sec-Fetch-Site':'same-origin'}, {'x-chill-service':token, 'cf-ray':'1'}]) {
+    assert.equal((await stop(headers)).status, 404);
+  }
+  assert.equal((await stop({'x-chill-service':token}, 'GET')).status, 404);
+  assert.equal((await stop({'x-chill-service':token})).status, 202);
+  assert.deepEqual(await f.exited, [0, null]);
+});
+
+test('without a service token Web has no stop route', {timeout:8000}, async t => {
+  const f = await fixture(t, '1h');
+  assert.equal((await fetch(f.url + '/api/service/shutdown', {method:'POST', headers:{'x-chill-service':''}})).status, 404);
+  assert.equal(f.child.exitCode, null);
+});
+
 test('restart drains an active connection and rejects a pipelined request without crashing', {skip:process.platform==='win32'&&'restart by SIGUSR2 is launchd-only',timeout:8000}, async t => {
   const f = await fixture(t, '1h');
   const socket = connect(Number(new URL(f.url).port), '127.0.0.1');

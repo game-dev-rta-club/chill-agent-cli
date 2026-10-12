@@ -7,7 +7,7 @@ import {readAgentActivity} from './lib/agent-activity.mjs';
 import {createExtensionHost} from './lib/server-extensions.mjs';
 import {registeredExtensions} from './lib/extension-registry.mjs';
 import { showHelp } from './lib/cli-help.mjs';
-import {randomBytes,createHash} from 'node:crypto';
+import {randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {webSnapshot,webBrief} from './lib/web-snapshot.mjs';
 import { createServer } from 'node:http';
@@ -37,6 +37,10 @@ const remote = configured ? (projectExtensionEnabled('public-link')?(await readM
 // launchd preserves this baseline across crash recovery. A manual start creates a new one.
 const startedAt = Number(process.env.CHILL_AGENT_SERVER_STARTED_AT ?? Date.now());
 if (!Number.isSafeInteger(startedAt) || startedAt <= 0) throw new Error('Invalid server start time.');
+// Windows cannot signal a background server, so its service stops it over HTTP.
+// Commands spawned by the server do not inherit the token.
+const serviceToken = process.env.CHILL_AGENT_SERVICE_TOKEN || null;
+delete process.env.CHILL_AGENT_SERVICE_TOKEN;
 let activeRequests = 0, activeCommands = 0, stopIdleWatch;
 let tunnelOrigin = null, closing = false;
 const instanceToken=randomBytes(32).toString('hex');
@@ -168,6 +172,15 @@ const server = createServer(async (request, response) => {
   } catch {
     response.writeHead(400);
     return response.end('Invalid request URL');
+  }
+  if(path==='/api/service/shutdown'){
+    // Only the local service may stop Web: browsers always send Origin or
+    // Sec-Fetch-Site on a POST, and tunnelled requests carry Cloudflare headers.
+    const supplied=Buffer.from(String(request.headers['x-chill-service']||'')),expected=Buffer.from(serviceToken||'');
+    const local=request.socket.remoteAddress==='127.0.0.1'&&request.headers.host===`127.0.0.1:${server.address().port}`&&!request.headers.origin&&!request.headers['sec-fetch-site']&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'];
+    if(!serviceToken||request.method!=='POST'||!local||supplied.length!==expected.length||!timingSafeEqual(supplied,expected))return sendJson(response,404,{});
+    response.setHeader('Connection','close');sendJson(response,202,{stopping:true});
+    console.log('Service stop requested. Stopping server.');shutdown();return;
   }
   if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
   if(path==='/api/runtime-update'){
