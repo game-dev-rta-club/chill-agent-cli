@@ -1,13 +1,14 @@
 ---
 keyPoints: >-
-  Foreground Web and macOS background startup share one server. Real use renews its
+  Foreground Web and background startup (launchd on macOS, Task Scheduler on
+  Windows) share one server. Real use renews its
   idle deadline; polling does not. Requests and extension-reported work can delay exit.
 ---
 
 # Run the Web workspace
 
 For foreground development, build Web assets and run `node server.mjs --local`.
-After [setup](data-and-updates.md), the supported macOS background commands are:
+After [setup](data-and-updates.md), the background commands on macOS and Windows are:
 
 ```sh
 chill server start --local
@@ -17,9 +18,21 @@ chill server stop
 ```
 
 Use the same `PORT` and `CHILL_AGENT_DATA_DIR` for every command. The default port is
-4173. Status reports the live URL and log path. Background startup uses launchd;
-it does not install login autostart. Unexpected exits restart, while a successful
-idle shutdown stays stopped.
+4173. Status reports the live URL and log path. Neither platform installs login
+autostart.
+
+On macOS, background startup uses launchd. Unexpected exits restart, while a
+successful idle shutdown stays stopped.
+
+On Windows, `server start` registers a task under `\chill-agent\` in Task
+Scheduler, runs it as the current user without elevation, and removes the
+registration once Web is running; only the empty `\chill-agent\` task folder
+remains. Web therefore runs outside the app that
+started it: closing Claude Desktop or another harness does not stop it. Unexpected
+exits are not restarted; the next `server start` or `session start` starts Web
+again. `server stop` asks Web to shut down over a local route that requires a
+per-start token and rejects browser requests, then ends the process if it does
+not exit. The public link connector is macOS-only.
 
 The server listens on loopback. `--local` keeps access local; `--configured` uses
 saved remote-access preferences. Settings default to off. Read `settings remote
