@@ -4,6 +4,7 @@ import {configureMonitor,readMonitor,tickMonitor,reportMonitorResult} from '../l
 import {monitorService} from '../lib/continuation-service.mjs';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
 import {touch as hostTouch,requestNativeAction,workspacePort,resolveWorkspacePort} from '../lib/extension-api.mjs';
 const [command,...args]=process.argv.slice(2);
 const usage='Optional continuation checks with durable attempt limits.\nUsage: chill monitor <start|stop|enable|disable|status|tick|watch|result> --id <ROOT>\nOpt-in continuation: at most 1 combined continuation and stopping-review nudge per user/Goal/Brief revision. The hosted extension checks every 30s, without fixed idle/cooldown delays. start runs monitoring inside the Web server; stop disables only this Root monitor. Web remains available. watch is retired; use start. CLI-only servers may disable extensions with CHILL_AGENT_EXTENSIONS=none. Unknown/paused/queued states never send. enable preserves attempts. disable stops future sends, not a message already queued.\nResult: chill monitor result --id <ROOT> --attempt <UUID> --outcome <worked|no-work>. Saves internal results only; requires the assigned Codex thread or experimental native main-hook confirmation.\nExperimental Claude: enable/disable and result use main-hook actions. pause/resume hold only future continuations, not native execution. A verified main Stop drives checking; start/tick/watch are unsupported. Native tool permissions remain unchanged.';
@@ -35,7 +36,7 @@ try{
    await resolveWorkspacePort();
    const url=()=>`http://127.0.0.1:${workspacePort()}/api/goals/${id}/extensions`;
    let response;try{response=await fetch(url(),{signal:AbortSignal.timeout(2000)});}catch{
-    await promisify(execFile)(process.execPath,[new URL('./chill-server.mjs',import.meta.url).pathname,'start']);
+    await promisify(execFile)(process.execPath,[fileURLToPath(new URL('./chill-server.mjs',import.meta.url)),'start']);
     response=await fetch(url(),{signal:AbortSignal.timeout(5000)});
    }
    if(!response.ok||!(await response.json()).some(e=>e.id==='continuation'))throw Error('This Web server does not host the continuation extension. Update/restart it first.');
