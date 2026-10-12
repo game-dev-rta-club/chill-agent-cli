@@ -10,7 +10,7 @@ import { prepareRuntime } from '../lib/runtime-package.mjs';
 import { readMessageSettings } from '../lib/message-settings.mjs';
 import { resolveCodex } from '../lib/codex-client.mjs';
 import { installHook } from './chill-hook.mjs';
-import {configureClaudeHooks,claudeSetupStatus} from '../lib/claude-setup.mjs';
+import {configureClaudeHooks,claudeSetupStatus,findGitBash} from '../lib/claude-setup.mjs';
 import { readPackageSpec, recordVersionSource } from '../lib/version-source.mjs';
 
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
@@ -34,6 +34,7 @@ async function main() {
     if(!values['--project'])throw Error('Claude setup requires --project to identify its local settings.');
     if(command==='status'){console.log(JSON.stringify(await claudeSetupStatus(values['--project']),null,2));return;}
     if(command==='remove'){console.log(JSON.stringify(await configureClaudeHooks(values['--project'],{remove:true}),null,2));return;}
+    if(process.platform==='win32'&&!findGitBash())throw Error('Claude Code on Windows runs these hooks with Git Bash, which was not found. Install Git for Windows (https://git-scm.com/downloads/win), or set CLAUDE_CODE_GIT_BASH_PATH to its bash.exe, then run setup again.');
     // Inspect before preparing a runtime; never consult Codex for this route.
     const status=await claudeSetupStatus(values['--project']);if(status.conflict)throw Error('A Claude chill hook is untracked or edited. Review it before preparing again.');
     const prepared=await prepareRuntime(fileURLToPath(new URL('../',import.meta.url)),undefined,{package:version?.spec});
@@ -41,7 +42,7 @@ async function main() {
     // Match the launcher's canonical spelling (for example /var -> /private/var).
     const directory=await realpath(prepared.dataDirectory);
     const installed={...prepared,root:await realpath(prepared.root),dataDirectory:directory,launcher:join(directory,'runtime/chill.mjs'),entry:join(directory,'runtime/chill')};
-    const hook=await configureClaudeHooks(values['--project'],{entry:installed.entry,node:installed.node,launcher:installed.launcher,directory});
+    const hook=await configureClaudeHooks(values['--project'],{entry:installed.entry,directory});
     const prefix=quote(installed.entry);
     console.log(JSON.stringify({...installed,project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,hook,command:prefix,next:'Experimental Claude hooks are written, not yet verified in the conversation. Review them with native /hooks. Preserve the current chat with native resume if SessionStart has not run; never clear or fork to repair a handshake. From its main Bash tool, run <command> connection show, then connection create-goal; its result names the reply waiter to start. No Auto mode is enabled by setup. Local settings created by hand should be excluded from Git. Native policy and existing permissions still apply.'+sessionNext()},null,2));
     return;
