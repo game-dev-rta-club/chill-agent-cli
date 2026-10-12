@@ -7,6 +7,7 @@ import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {stableNodePath} from '../lib/node-path.mjs';
 import {prepareRuntime} from '../lib/runtime-package.mjs';
+import {findGitBash} from '../lib/claude-setup.mjs';
 
 async function temporary(t){const dir=await mkdtemp(join(tmpdir(),'node-path-'));t.after(()=>rm(dir,{recursive:true,force:true}));return dir;}
 
@@ -30,14 +31,18 @@ test('the Windows command entry runs the launcher from cmd, including Japanese a
  assert.throws(()=>run('nosuch'),error=>error.status===1&&/Unknown command/.test(error.stderr));
 });
 
-test('the short chill entry runs the launcher and falls back to Node on PATH',{skip:process.platform==='win32'&&'runs through POSIX /bin/sh'},async t=>{
+test('the short chill entry runs the launcher and falls back to Node on PATH',async t=>{
  const dir=await temporary(t),root=fileURLToPath(new URL('../',import.meta.url));
- const prepared=await prepareRuntime(root,join(dir,"data ' store"));
+ const prepared=await prepareRuntime(root,join(dir,"data ' 日本語 store"));
  assert.equal(prepared.entry,join(prepared.dataDirectory,'runtime/chill'));
- const env={...process.env,PATH:`${dirname(process.execPath)}:/usr/bin:/bin`};delete env.CHILL_AGENT_DATA_DIR;
- assert.match(execFileSync(prepared.entry,['connection','--help'],{env,encoding:'utf8'}),/Wait in the background/);
+ // Claude Code runs the entry with sh, or with Git Bash on Windows.
+ const bash=process.platform==='win32'?findGitBash():null;
+ const env=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^(path|chill_agent_data_dir)$/i.test(key)));
+ env.PATH=bash?[dirname(process.execPath),join(dirname(dirname(bash)),'usr','bin')].join(';'):`${dirname(process.execPath)}:/usr/bin:/bin`;
+ const run=()=>bash?execFileSync(bash,['-c',`'${prepared.entry.replaceAll("'","'\\''")}' connection --help`],{env,encoding:'utf8'}):execFileSync(prepared.entry,['connection','--help'],{env,encoding:'utf8'});
+ assert.match(run(),/Wait in the background/);
  // Simulate an upgrade that removed the recorded binary.
  const script=await readFile(prepared.entry,'utf8');
- await writeFile(prepared.entry,script.replace(/^node=.*$/m,"node='/missing/bin/node'"),{mode:0o700});
- assert.match(execFileSync(prepared.entry,['connection','--help'],{env,encoding:'utf8'}),/Wait in the background/);
+ await writeFile(prepared.entry,script.replace(/^node=.*$/m,bash?"node='C:\\missing\\node.exe'":"node='/missing/bin/node'"),{mode:0o700});
+ assert.match(run(),/Wait in the background/);
 });

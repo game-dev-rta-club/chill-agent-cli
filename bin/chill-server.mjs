@@ -90,13 +90,9 @@ async function main(attempt=0) {
     const output = await readFile(log, 'utf8');
     const runningPid = await service.pid();
     const remote = tunnel && runningPid && await publicUrl(runningPid);
-    if (output.includes(`chill-agent: ${url}
-`) && runningPid && (!tunnel || remote)) {
+    if (output.includes(`chill-agent: ${url}\n`) && runningPid && (!tunnel || remote)) {
       await service.started();
-      console.log(`Started: ${url}
-${remote ? `Tunnel: ${remote}
-` : ''}Idle timeout: ${duration}
-Log: ${log}`);
+      console.log(`Started: ${url}\n${remote ? `Tunnel: ${remote}\n` : ''}Idle timeout: ${duration}\nLog: ${log}`);
       return;
     }
     if (output.includes('Port ') && output.includes('is in use')) break;

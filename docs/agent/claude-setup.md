@@ -21,11 +21,13 @@ and adds SessionStart, UserPromptSubmit, PostToolUse, Stop and SessionEnd hooks
 to `.claude/settings.local.json`. It does not start Claude or the Web server,
 enable Auto mode, assign an existing Goal, or change native permissions.
 
-On macOS each hook is a shell command that runs the short `chill` entry. On
-Windows each hook uses Claude's exec form: `command` is the recorded Node and
-`args` start with the runtime launcher, so no shell or quoting is involved. The
-Bash tool still runs the `chill` entry through Git Bash; PowerShell and cmd can
-use `runtime\chill.cmd`.
+Each hook is the same shell command on every platform: it runs the short `chill`
+entry, which uses the recorded Node or, if that is gone, the Node on PATH. On
+Windows, Claude Code runs hooks and the Bash tool in Git Bash, so setup stops
+with an installation hint when Git Bash is not found (it also honours
+`CLAUDE_CODE_GIT_BASH_PATH`). Hooks written as exec form by an earlier Windows
+setup are replaced on the next prepare. PowerShell and cmd can use
+`runtime\chill.cmd`, which runs the Node on PATH.
 
 The installer preserves other settings and hooks. It replaces only its exact
 recorded entries, so repeating setup does not add duplicate hooks. Edited or
