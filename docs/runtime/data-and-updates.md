@@ -10,8 +10,10 @@ Fresh setup allocates a [separate workspace for each project](projects.md).
 Within a workspace, use one data directory for the CLI, Web server, project hook and any composed
 application that shares the workspace. `CHILL_AGENT_DATA_DIR` overrides the
 default. On macOS the default is `~/Library/Application Support/chill-agent`;
-elsewhere it is `$XDG_DATA_HOME/chill-agent`, falling back to
-`~/.local/share/chill-agent`.
+on Windows it is `%USERPROFILE%\.chill-agent`; elsewhere it is
+`$XDG_DATA_HOME/chill-agent`, falling back to `~/.local/share/chill-agent`.
+Windows avoids AppData because packaged apps such as Claude Desktop have their
+AppData writes redirected to a private folder that other processes cannot see.
 
 | Area | Purpose |
 | --- | --- |
