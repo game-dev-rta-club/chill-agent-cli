@@ -4,9 +4,9 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {mkdtemp,mkdir,writeFile,readFile,rm,realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {readPackageSpec,packageKey,readVersionSource,snapshotPackage,prepareSelectedPackage,acquirePackage} from '../lib/version-source.mjs';
+import {join,resolve} from 'node:path';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import {readPackageSpec,packageKey,readVersionSource,snapshotPackage,prepareSelectedPackage,acquirePackage,npmCommand} from '../lib/version-source.mjs';
 import {createRuntimeUpdates} from '../lib/runtime-update-provider.mjs';
 import {agentGuide} from '../lib/agent-guidance.mjs';
 
@@ -36,21 +36,21 @@ test('a version file holds exactly one npm package spec',async t=>{
  await assert.rejects(readPackageSpec('relative/cli.json'),/absolute/);
 });
 
-test('setup records the version file, its package and the agent guide, then names the session command',{skip:process.platform==='win32'&&'Windows Claude setup is enabled by the next change'},async t=>{
+test('setup records the version file, its package and the agent guide, then names the session command',async t=>{
  const f=await fixture(t);
  const result=await f.setup('--version-file',f.versionFile,'--agent-guide',f.guide);
  assert.equal(result.package,f.spec);
  assert.match(result.next,/session start --harness claude-code --project/);
  assert.deepEqual(await readVersionSource(f.data),{version:1,versionFile:f.versionFile,agentGuide:f.guide});
  assert.equal(await snapshotPackage(f.data,result.root),f.spec);
- assert.equal(agentGuide(new URL('file:///nonexistent/extensions.json')),f.guide,'a runtime without its own guide uses the recorded one');
+ assert.equal(agentGuide(pathToFileURL(resolve('/nonexistent/extensions.json'))),f.guide,'a runtime without its own guide uses the recorded one');
  // Setup without the option, as session start runs it, keeps the snapshot's package record.
  const again=await f.setup();
  assert.equal(again.root,result.root);assert.equal(again.package,f.spec);assert.doesNotMatch(again.next,/session start/);
  await assert.rejects(f.setup('--agent-guide',f.guide),/requires --version-file/);
 });
 
-test('the update provider compares the running snapshot with the version file',{skip:process.platform==='win32'&&'Windows Claude setup is enabled by the next change'},async t=>{
+test('the update provider compares the running snapshot with the version file',async t=>{
  const f=await fixture(t);
  const result=await f.setup('--version-file',f.versionFile);
  const acquired=[];
@@ -67,7 +67,7 @@ test('the update provider compares the running snapshot with the version file',{
  await assert.rejects(provider.acquire(f.data,packageKey(f.spec)),/changed/);
 });
 
-test('Web startup switches only when the version file selects another package',{skip:process.platform==='win32'&&'Windows Claude setup is enabled by the next change'},async t=>{
+test('Web startup switches only when the version file selects another package',async t=>{
  const f=await fixture(t);
  const result=await f.setup('--version-file',f.versionFile);
  const calls=[],logs=[];
@@ -82,11 +82,20 @@ test('Web startup switches only when the version file selects another package',{
  assert.equal(await prepareSelectedPackage(f.data,result.root,options),null);assert.match(logs.at(-1),/Version file ignored/);
 });
 
-test('npm acquires the package spec into the data directory',{skip:process.platform==='win32'&&'Windows Claude setup is enabled by the next change'},async t=>{
+test('npm acquires the package spec into the data directory',async t=>{
  const f=await fixture(t),pkg=join(f.dir,'pkg');
  await mkdir(pkg);await writeFile(join(pkg,'package.json'),JSON.stringify({name:'fake-chill-cli',version:'1.0.0'}));await writeFile(join(pkg,'index.js'),'');
- const tarball=join(f.dir,(await execute('npm',['pack','--pack-destination',f.dir],{cwd:pkg})).stdout.trim());
+ const npm=npmCommand();
+ const tarball=join(f.dir,(await execute(npm.file,[...npm.args,'pack','--pack-destination',f.dir],{cwd:pkg})).stdout.trim());
  const installed=await acquirePackage(`file:${tarball}`,f.data);
  assert.equal(JSON.parse(await readFile(join(installed,'package.json'),'utf8')).name,'fake-chill-cli');
  assert.ok(installed.startsWith(join(f.data,'runtime','acquired',packageKey(`file:${tarball}`))));
+});
+
+test('npm runs as the command on PATH, except through Node on Windows',()=>{
+ assert.deepEqual(npmCommand('/opt/node/bin/node',{platform:'darwin'}),{file:'npm',args:[]});
+ const node=join(tmpdir(),'node js','node.exe'),script=join(tmpdir(),'node js','node_modules','npm','bin','npm-cli.js'),other=join(tmpdir(),'npm','npm-cli.js');
+ assert.deepEqual(npmCommand(node,{platform:'win32',env:{},exists:path=>path===script}),{file:node,args:[script]});
+ assert.deepEqual(npmCommand(node,{platform:'win32',env:{npm_execpath:other},exists:path=>path===other}),{file:node,args:[other]});
+ assert.throws(()=>npmCommand(node,{platform:'win32',env:{},exists:()=>false}),/npm was not found/);
 });
