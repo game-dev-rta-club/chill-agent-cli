@@ -18,7 +18,8 @@ async function fixture(t){
  const stop=async()=>{if(server?.exitCode===null){server.kill();await once(server,'exit');}};
  const start=async()=>{server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--local'],{env,stdio:['ignore','pipe','pipe']});
  url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Early exit ${code}`)));});};
- t.after(async()=>{await stop();await rm(root,{recursive:true,force:true});});await start();
+ // Windows may release the stopped server's SQLite handles a moment after exit.
+ t.after(async()=>{await stop();await rm(root,{recursive:true,force:true,maxRetries:10});});await start();
  const get=path=>fetch(url+path),post=(input,origin=url)=>fetch(url+'/api/goals/1/feedback',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(input)});
  return {root,body,run,note,start,stop,get,post,url:()=>url};
 }
