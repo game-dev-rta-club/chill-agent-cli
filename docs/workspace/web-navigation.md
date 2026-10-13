@@ -55,3 +55,10 @@ Letter state, so current state is read again on each snapshot.
 Implementation: [browser navigation](../../public/app.js),
 [snapshot projection](../../lib/web-snapshot.mjs), [HTTP routes](../../server.mjs).
 For changes to positioning or focus, follow the [scrolling guidelines](../development/scrolling.md).
+
+## Read the Brief while you talk
+
+On a wide screen (at least 1180px), a Goal shows its Conversation as a column on
+the right that scrolls by itself, with the Goal and its Brief on the left. You can
+keep reading the Brief while you scroll and write in the Conversation; it opens at
+the newest message. Narrower screens and phones keep the single column.
