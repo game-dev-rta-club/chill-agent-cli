@@ -6,7 +6,9 @@ import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {requestClaudeAction,handleClaudeToolHook,collectClaudeHookFeedback,handleClaudeStopExtensions} from '../lib/claude-actions.mjs';
-import {listGoals,createGoal,appendFeedback,updateGoal} from '../lib/goal-store.mjs';
+import {listGoals,createGoal,appendFeedback,updateGoal,transferClaudeRoot,readGoal} from '../lib/goal-store.mjs';
+import {readForWeb,configureFromWeb,onStop} from '../lib/claude-continuation.mjs';
+import {storage} from '../lib/extension-api.mjs';
 import {readDeliveryState} from '../lib/delivery.mjs';
 import {readMonitor} from '../lib/continuation-monitor.mjs';
 
@@ -95,4 +97,45 @@ test('saved Web feedback and Auto mode cannot both claim the same Stop',async t=
   const reply=await appendFeedback({goalId:f.root.id,text:'Input after continuation won'});
   assert.equal(await readDeliveryState(reply.changeId),null,'the reply stays saved for the inbox');
  });
+});
+
+test('the Web switch turns Auto mode on and off for the current conversation of the Root without a native prompt',async t=>{
+ const f=await fixture(t),connection=(await readGoal(f.root.id)).connection;
+ assert.equal(await readForWeb(f.root.id),null);
+ await configureFromWeb(f.root.id,true);
+ assert.deepEqual((await readForWeb(f.root.id)).connection,connection);
+ assert.equal((await f.stop()).decision,'block','the conversation continues at its next Stop');
+ await configureFromWeb(f.root.id,false);await updateGoal(f.root.id,{scope:'A new revision'});await f.newPrompt();
+ assert.equal(await f.stop(),null,'Off from Web is respected');
+ // Like the native command, the Web switch keeps a continuation Pause.
+ await f.pause(true);await configureFromWeb(f.root.id,true);await updateGoal(f.root.id,{scope:'Another revision'});await f.newPrompt();
+ assert.equal(await f.stop(),null);assert.equal((await readForWeb(f.root.id)).paused,true);
+ await assert.rejects(configureFromWeb(f.root.id,'yes'),/boolean/);
+ const codex=await createGoal({title:'Codex',threadId:'00000000-0000-0000-0000-0000000000aa'});
+ await assert.rejects(configureFromWeb(codex.id,true),/Claude conversation is required/);
+});
+
+test('a taken-over Root keeps its setting; an unconfirmed request is closed, never resent',async t=>{
+ const f=await fixture(t),earlier=(await readGoal(f.root.id)).connection;
+ await configureFromWeb(f.root.id,true);
+ const offered=await f.stop();assert.equal(offered.decision,'block');
+ const continued={harnessId:'claude-code',sessionId:randomUUID(),contextId:randomUUID()};
+ await transferClaudeRoot(f.root.id,earlier,continued,randomUUID());
+ const moved=await readForWeb(f.root.id);
+ assert.equal(moved.enabled,true);assert.deepEqual(moved.connection,continued);
+ assert.equal(moved.attempts[0].phase,'assignment-changed');assert.ok(moved.attempts[0].completedAt);
+ const stop=connection=>onStop({connection,promptId:randomUUID(),checkpointId:randomUUID(),generation:randomUUID()});
+ assert.equal(await stop(earlier),null,'the earlier conversation no longer owns the setting');
+ // The owner is part of the revision: the new conversation gets one check of its own.
+ const next=await stop(continued);assert.match(next,/Auto mode is On/);
+ const state=await readForWeb(f.root.id);
+ assert.equal(state.history[0].id,moved.attempts[0].id,'the closed request is kept as history');
+ assert.equal(state.attempts.length,1);assert.notEqual(state.attempts[0].id,moved.attempts[0].id);
+ assert.equal(await stop(continued),null,'awaiting this request, not another one');
+ // A record from an owner this Root never had reads as Off and is not overwritten.
+ const journal=storage('continuation'),foreign={rootId:f.root.id,connection:{harnessId:'claude-code',sessionId:'other',contextId:randomUUID()},enabled:true,attempts:[]};
+ await journal.write(f.root.id,foreign);
+ assert.equal(await readForWeb(f.root.id),null);
+ await assert.rejects(configureFromWeb(f.root.id,false),/assignment changed/);
+ assert.deepEqual(await journal.read(f.root.id),foreign);
 });

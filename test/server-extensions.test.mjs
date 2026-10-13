@@ -77,3 +77,21 @@ test('run logs read only the stored request in the current Root and never enqueu
  const missing=await ext.request({method:'GET',path:'activity/00000000-0000-0000-0000-000000000999',query:{goalId:'4'}});assert.equal(missing.status,404);
  owner='different';assert.equal((await ext.request({method:'GET',path:`activity/${id}`,query:{goalId:'4'}})).status,404);assert.equal(calls.length,1);
 });
+
+test('a Claude Root uses the same AutoContinue control, switched through its own conversation record',async()=>{
+ const calls=[];let state=null;
+ const claude={read:async id=>{assert.equal(id,'3');return state;},configure:async(id,enabled)=>{calls.push([id,enabled]);state={...state,enabled,attempts:state?.attempts||[]};}};
+ const ext=createContinuationExtension({context:async()=>({root:{id:'3',connection:{harnessId:'claude-code',sessionId:'s',contextId:'c'}}}),claude,
+  read:async()=>{throw Error('Codex records are not read for a Claude Root');},configure:async()=>{throw Error('Codex is not configured');},retireLegacy:async()=>{throw Error('no legacy service');},touch:async()=>{}});
+ assert.deepEqual(await ext.read('4'),{rootId:'3',enabled:false,placement:'header',icon:'repeat'});
+ assert.equal((await ext.read('4',{activity:true})).activity.status,'Off');
+ await ext.set('4',{rootId:'3',enabled:true});assert.deepEqual(calls,[['3',true]]);
+ assert.equal((await ext.read('4',{activity:true})).activity.status,'Watching','Claude status does not go stale between Stops');
+ state={...state,paused:true};assert.equal((await ext.read('4',{activity:true})).activity.status,'Paused');
+ state={...state,paused:false,status:'awaiting-receipt',attempts:[{id:'11111111-1111-4111-8111-111111111111',at:'2026-10-13T00:00:00Z',phase:'uncertain',message:'Continue the Goal',summary:'Automatic check'},{id:'22222222-2222-4222-8222-222222222222',at:'2026-10-13T00:01:00Z',phase:'assignment-changed',completedAt:'2026-10-13T00:02:00Z'}]};
+ const activity=(await ext.read('4',{activity:true})).activity;
+ assert.equal(activity.status,'Awaiting confirmation');assert.deepEqual(activity.runs.map(r=>r.status),['Agent changed','Delivery unconfirmed']);
+ assert.deepEqual(await ext.request({method:'GET',path:'activity/11111111-1111-4111-8111-111111111111',query:{goalId:'4'}}),{status:200,body:{work:null,message:'Continue the Goal',error:null}});
+ assert.equal((await ext.request({method:'GET',path:'activity/33333333-3333-4333-8333-333333333333',query:{goalId:'4'}})).status,404);
+ await assert.rejects(ext.set('4',{rootId:'9',enabled:false}),/Goal moved/);
+});
