@@ -4,9 +4,10 @@ import {mkdtemp,mkdir,realpath,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {captureClaudeEntry,identifyClaudeCaller} from '../lib/claude-entry.mjs';
-import {requestClaudeJoin,requestClaudeAction,confirmClaudeAction} from '../lib/claude-actions.mjs';
-import {listGoals} from '../lib/goal-store.mjs';
+import {captureClaudeEntry,claudeEntryPaths,identifyClaudeCaller} from '../lib/claude-entry.mjs';
+import {requestClaudeJoin,requestClaudeAction,confirmClaudeAction,hasSavedClaudeFeedback} from '../lib/claude-actions.mjs';
+import {appendFeedback,createGoal,listGoals,listStoredGoals,readGoal} from '../lib/goal-store.mjs';
+import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 import {projectRoot,sameProject} from '../lib/project-root.mjs';
 import {projectDirectory} from '../lib/project-workspace.mjs';
 import {configureClaudeHooks} from '../lib/claude-setup.mjs';
@@ -79,4 +80,50 @@ test('a linked worktree is its main checkout: one store, shared hooks and accept
   // Setup from the worktree writes the main checkout's local settings, which Claude loads in both.
   const status=await configureClaudeHooks(worktree,{entry:join(f.dir,'data','runtime','chill')});
   assert.equal(status.settingsPath,join(main,'.claude','settings.local.json'));
+});
+
+test('a continued conversation takes over a Root through its main hook and receives earlier saved feedback',async t=>{
+  const f=await fixture(t);
+  const connect=async sessionId=>{const env={CLAUDE_CODE_SESSION_ID:sessionId},r=await requestClaudeJoin({env});await f.confirm(f.hook(sessionId,r.marker));return env;};
+  const before=await connect('earlier'),after=await connect('continued');
+  const create=await requestClaudeAction('create-goal',{title:'Long running',scope:'',criteria:''},{env:before});
+  await f.confirm(f.hook('earlier',create.marker));
+  const [root]=await listGoals();
+  const child=await createGoal({title:'Split',parentId:root.id});
+  const saved=await appendFeedback({goalId:child.id,text:'Sent while the earlier conversation owned it'});
+  // A shell request or another session's hook cannot move it.
+  const request=await requestClaudeAction('adopt',{goalId:child.id},{env:after});
+  assert.equal(await f.confirm(f.hook('continued',request.marker,{agent_id:'child'})),null);
+  await assert.rejects(f.confirm(f.hook('earlier',request.marker)),/stale or different conversation/);
+  assert.equal((await readGoal(root.id)).connection.sessionId,'earlier');
+  assert.match(context(await f.confirm(f.hook('continued',request.marker))),/now owns Goal #1/);
+  const moved=await readGoal(root.id);
+  assert.equal(moved.connection.sessionId,'continued');assert.equal(moved.previousConnections[0].sessionId,'earlier');
+  assert.match((await listStoredGoals()).find(g=>g.id===root.id).conversation.at(-1).text,/taken over by another Claude conversation/);
+  // The feedback saved for the earlier owner now reaches the new one, and not the earlier one.
+  assert.equal(await hasSavedClaudeFeedback(moved.connection),true);
+  const inbox=await requestClaudeAction('inbox',{},{env:after});
+  assert.match(context(await f.confirm(f.hook('continued',inbox.marker))),new RegExp(`"eventId":${saved.changeId}`));
+  const earlierInbox=await requestClaudeAction('inbox',{},{env:before});
+  assert.match(context(await f.confirm(f.hook('earlier',earlierInbox.marker))),/No unclaimed feedback/);
+  const again=await requestClaudeAction('adopt',{goalId:root.id},{env:after});
+  assert.match(context(await f.confirm(f.hook('continued',again.marker))),/already owns Goal #1/);
+});
+
+test('taking over is refused while the owner waits for Web replies, and for Goals without a Claude owner',async t=>{
+  const f=await fixture(t);
+  const connect=async sessionId=>{const env={CLAUDE_CODE_SESSION_ID:sessionId},r=await requestClaudeJoin({env});await f.confirm(f.hook(sessionId,r.marker));return env;};
+  const before=await connect('owner'),after=await connect('other');
+  const create=await requestClaudeAction('create-goal',{title:'Owned',scope:'',criteria:''},{env:before});
+  await f.confirm(f.hook('owner',create.marker));
+  const [root]=await listGoals();
+  const record=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,'owner').record,current=await readJson(record);
+  await writeJsonAtomically(record,{...current,waiter:{contextId:current.contextId,checkedAt:new Date().toISOString()}});
+  const request=await requestClaudeAction('adopt',{goalId:root.id},{env:after});
+  await assert.rejects(f.confirm(f.hook('other',request.marker)),/still waiting for Web replies/);
+  assert.equal((await readGoal(root.id)).connection.sessionId,'owner');
+  const plain=await createGoal({title:'Local only'});
+  const local=await requestClaudeAction('adopt',{goalId:plain.id},{env:after});
+  await assert.rejects(f.confirm(f.hook('other',local.marker)),/Only a Goal owned by a Claude conversation/);
+  await assert.rejects(requestClaudeAction('adopt',{goalId:'x'},{env:after}),/Invalid Goal ID/);
 });
