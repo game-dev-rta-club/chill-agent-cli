@@ -2,7 +2,8 @@
 keyPoints: >-
   Foreground Web and background startup (launchd on macOS, Task Scheduler on
   Windows) share one server. Real use renews its
-  idle deadline; polling does not. Requests and extension-reported work can delay exit.
+  idle deadline; polling does not. Writes and extension-reported work can delay exit;
+  reads cannot.
 ---
 
 # Run the Web workspace
@@ -57,8 +58,11 @@ The default idle timeout is three days and can be changed with `--idle-timeout`.
 Opening the Web page, user activity and CLI mutations renew the deadline.
 Background reads, presence polling and extension checks do not.
 
-Once the deadline expires, the host waits for active requests, CLI commands and
-extension-reported work to finish. It rechecks the deadline before exiting.
+Once the deadline expires, the host waits for active writes (requests other than
+GET and HEAD), CLI commands and extension-reported work to finish. It rechecks the
+deadline before exiting. Reads never renew the deadline, so they do not hold it
+either: continuous polling cannot keep Web alive, and a read already in progress
+still returns its whole response while Web closes.
 An extension's `busy()` determines whether its own ongoing or eligible work
 requires the server; simply being enabled is not a generic keep-alive rule.
 The standalone host does not infer this from every native agent turn itself.

@@ -41,7 +41,11 @@ if (!Number.isSafeInteger(startedAt) || startedAt <= 0) throw new Error('Invalid
 // Commands spawned by the server do not inherit the token.
 const serviceToken = process.env.CHILL_AGENT_SERVICE_TOKEN || null;
 delete process.env.CHILL_AGENT_SERVICE_TOKEN;
-let activeRequests = 0, activeCommands = 0, stopIdleWatch;
+// Only writes can renew the idle deadline, so only writes hold it once it has
+// passed. Reads never renew it: when Web stops, server.close() lets in-flight
+// reads finish, so continuous polling can neither keep Web alive nor be cut off.
+const renewing = request => !['GET','HEAD'].includes(request.method);
+let activeWrites = 0, activeCommands = 0, stopIdleWatch;
 let tunnelOrigin = null, closing = false;
 const instanceToken=randomBytes(32).toString('hex');
 const updates=createRuntimeUpdater({port:()=>server.address().port,duration});
@@ -150,9 +154,10 @@ async function readImage(request) {
 }
 
 const server = createServer(async (request, response) => {
-  activeRequests += 1;
+  const write = renewing(request);
+  if (write) activeWrites += 1;
   let finished = false;
-  const release = () => { if (!finished) { finished = true; activeRequests -= 1; } };
+  const release = () => { if (!finished) { finished = true; if (write) activeWrites -= 1; } };
   response.once('finish', release);
   response.once('close', release);
   response.setHeader('Cache-Control', 'no-store');
@@ -413,8 +418,8 @@ server.listen(port, '127.0.0.1', async () => {
   console.log(`chill-agent: http://127.0.0.1:${server.address().port}`);
   console.log(`Idle timeout: ${duration} (user actions and CLI updates renew it; polling does not).`);
   stopIdleWatch = watchServerIdle({ directory: dataDirectory(), idleTimeoutMs, startedAt,
-    isBusy: async () => activeRequests > 0 || activeCommands > 0 || await extensions.busy() || activeRequests > 0 || activeCommands > 0,
-    canStop: () => activeRequests===0 && activeCommands===0 && !extensions.active,
+    isBusy: async () => activeWrites > 0 || activeCommands > 0 || await extensions.busy() || activeWrites > 0 || activeCommands > 0,
+    canStop: () => activeWrites===0 && activeCommands===0 && !extensions.active,
     onIdle: () => { console.log(`Idle timeout reached (${duration}). Stopping server.`); shutdown(); },
   });
 
