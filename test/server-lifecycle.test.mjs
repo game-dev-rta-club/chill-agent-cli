@@ -199,20 +199,49 @@ test('background polling and invalid activity requests cannot keep an idle serve
   // A deadline longer than a slow runner's first request keeps the check about
   // renewal, not about how fast the server and fetch start.
   const f = await fixture(t, '2500ms');
-  let polls = 0;
-  const polling = setInterval(async () => {
-    try {
-      await Promise.all(['/api/events','/api/goals'].map(path => fetch(f.url + path)));
-      polls += 1;
-    } catch { /* Expected after idle shutdown. */ }
-  }, 60);
-  t.after(() => clearInterval(polling));
+  let polls = 0, polling = true;
+  // Each poll waits for the previous one, as a browser timer would, so a slow
+  // runner does not pile requests up.
+  void (async () => {
+    while (polling) {
+      try {
+        await Promise.all(['/api/events','/api/goals'].map(path => fetch(f.url + path)));
+        polls += 1;
+      } catch { /* Expected after idle shutdown. */ }
+      await delay(60);
+    }
+  })();
+  t.after(() => { polling = false; });
   assert.equal((await fetch(f.url + '/api/activity', {method:'POST', headers:{Origin:'https://elsewhere.test','Content-Type':'application/json'}, body:'{}'})).status, 403);
   const [code, signal] = await f.exited;
   assert.equal(code, 0);
   assert.equal(signal, null);
   assert.ok(polls >= 2);
   assert.match(f.output(), /Idle timeout reached \(2500ms\)/);
+});
+
+test('reads that never pause cannot hold an expired deadline, and reads in flight still complete', {timeout:30000}, async t => {
+  // Several readers keep a request in flight at every moment, as a slow
+  // machine or many tabs can. Only the generous test timeout bounds the wait.
+  const f = await fixture(t, '500ms');
+  let complete = 0, cutOff = 0, reading = true;
+  const reader = async () => {
+    while (reading) {
+      let response;
+      try { response = await fetch(f.url + '/api/goals'); } catch { break; /* Web has closed. */ }
+      try { const body = await response.text(); if (response.status === 200) { JSON.parse(body); complete += 1; } }
+      catch { cutOff += 1; }
+    }
+  };
+  const readers = Promise.all(Array.from({length:4}, reader));
+  t.after(() => { reading = false; });
+  const [code, signal] = await f.exited;
+  reading = false; await readers;
+  assert.equal(code, 0);
+  assert.equal(signal, null);
+  assert.match(f.output(), /Idle timeout reached \(500ms\)/);
+  assert.ok(complete > 0);
+  assert.equal(cutOff, 0, 'a read that started before shutdown returns its whole body');
 });
 
 test('opening the page, interaction and CLI mutations renew the idle deadline; CLI reads do not', {timeout:10000}, async t => {
