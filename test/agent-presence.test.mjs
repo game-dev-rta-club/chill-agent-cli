@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {agentPresence,readPresenceSnapshot} from '../lib/agent-presence.mjs';
 import {displayPresence} from '../lib/agent-observation.mjs';
 import {presenceLabel,presenceMark} from '../public/agent-presence.js';
-import {activityMarkup,runActivityMarkup,runOutputMarkup} from '../public/agent-menu.js';
+import {activityMarkup,agentMarkup,runActivityMarkup,runOutputMarkup} from '../public/agent-menu.js';
 
 test('presence covers runs without feedback, manual pauses, idle, and unavailable evidence',()=>{
  const now=1000000;
@@ -83,4 +83,12 @@ test('continuation runs appear in common Activity with escaped Goal links and la
  const output=runOutputMarkup({work:{messages:[{text:'<script>hello</script>'}],endedAt:'now'},message:'<b>Request</b>'});
  assert.match(output,/&lt;script&gt;/);assert.match(output,/&lt;b&gt;Request/);assert.doesNotMatch(output,/<script>|Refresh log/);
  assert.match(runOutputMarkup({work:null,error:'Offline'}),/Refresh log/);
+});
+
+test('a Claude Goal shows the AutoContinue switch beside its connection status',()=>{
+ const control={id:'continuation',label:'Auto-continue',rootId:'3',enabled:true,placement:'header',icon:'repeat',activity:{label:'AutoContinue',status:'Watching',runs:[]}};
+ const html=agentMarkup({nativeConnection:{status:{label:'Connected',detail:'Replies reach this conversation.'},detail:'Some controls are unavailable.'},extensions:[control]});
+ assert.match(html,/<h3>Claude Code<\/h3>/);
+ assert.match(html,/data-agent-extension="continuation"[^>]*aria-pressed="true"/);
+ assert.match(agentMarkup({nativeConnection:{status:null,detail:''},extensions:null}),/Extensions unavailable/);
 });

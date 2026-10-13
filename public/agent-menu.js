@@ -33,10 +33,13 @@ export function activityMarkup(controls){
   return `<section class="agent-section agent-auto"><div class="agent-section-heading"><h3>${esc(a.label||c.label)}</h3>${c.configured===false?`<button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup?.label||'Set up')}</button>`:`<button type="button" class="extension-trigger agent-auto-toggle" data-agent-extension="${esc(c.id)}" aria-label="${esc(c.label)}" aria-pressed="${c.enabled}" title="${esc(c.label)}: ${c.enabled?'ON · Turn off':'OFF · Turn on'}">${extensionIcon(c.icon)}<span>${c.enabled?'On':'Off'}</span></button>`}</div>${c.detail?`<p class="agent-muted agent-auto-empty agent-extension-detail" title="${esc(c.detail)}">${esc(c.detail)}${c.configured&&c.setup?` <button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup.label)}</button>`:''}</p>`:''}${entries.length?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-activity"><summary>History</summary>${a.total>entries.length?`<p class="agent-muted">Latest ${entries.length}</p>`:''}${entries.map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}<p class="agent-muted" data-extension-message role="status"></p></section>`;
  }).join('');
 }
+// Codex and Claude Roots share the same extension sections, such as AutoContinue.
+const extensionsMarkup=data=>data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions);
 export function agentMarkup(data) {
  if(data.nativeConnection){
   const s=data.nativeConnection.status;
-  return `<section class="agent-section"><h3>Claude Code</h3>${s?`<p>${esc(s.label)}</p><p class="agent-muted">${esc(s.detail)}</p>${s.waiterCheckedAt?`<p class="agent-muted">Waiter checked ${timeMarkup(s.waiterCheckedAt,true)}</p>`:''}${s.observedAt?`<p class="agent-muted">Last contact ${timeMarkup(s.observedAt)}</p>`:''}`:''}<p class="agent-muted">${esc(data.nativeConnection.detail)}</p></section>`;
+  return `<section class="agent-section"><h3>Claude Code</h3>${s?`<p>${esc(s.label)}</p><p class="agent-muted">${esc(s.detail)}</p>${s.waiterCheckedAt?`<p class="agent-muted">Waiter checked ${timeMarkup(s.waiterCheckedAt,true)}</p>`:''}${s.observedAt?`<p class="agent-muted">Last contact ${timeMarkup(s.observedAt)}</p>`:''}`:''}<p class="agent-muted">${esc(data.nativeConnection.detail)}</p></section>
+ ${extensionsMarkup(data)}`;
  }
  if(!data.connected)return '<p class="agent-empty">No agent connected.</p>';
  const work=data.work,queue=data.queue;
@@ -44,7 +47,7 @@ export function agentMarkup(data) {
  <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>
  <section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current">${workMarkup(work,data)}</div><div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div></div></section>
  <section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>
- ${data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions)}`;
+ ${extensionsMarkup(data)}`;
 }
 export function createAgentMenu({button,panel,content,getGoalId}) {
  const setupRequests=new Map();
