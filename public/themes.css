@@ -36,7 +36,7 @@
 .swatch-dark-sand { background:linear-gradient(135deg,hsl(45 16% 10%) 65%,hsl(45 48% 73%)); }
 
 :root[data-theme]:not([data-theme="gradient-mint"]) .app-shell { background-image:var(--theme-backdrop); }
-:root[data-theme^="dark-"] .action-primary { color:var(--canvas); }
+:root[data-theme^="dark-"] .action-primary,:root[data-theme^="dark-"] .runtime-update-button { color:var(--canvas); }
 .theme-panel { width:min(440px,calc(100vw - 24px)); max-height:calc(100dvh - 90px); overflow:auto; }
 .theme-panel fieldset { border:0; padding:0; margin:20px 0; min-width:0; }
 .theme-panel legend { font-size:12px; font-weight:650; margin-bottom:10px; }
