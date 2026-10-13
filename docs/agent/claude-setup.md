@@ -2,8 +2,9 @@
 keyPoints: >-
   Explicit Claude setup adds project-local hooks without changing permissions or
   other hooks. Repeating preparation reconciles owned entries; status reports
-  configuration, not live activation. Native resume preserves the existing chat;
-  native tool permissions remain separate from chill Auto mode.
+  configuration, not live activation. A conversation that was already running
+  connects with connection join, without resuming. A Git worktree shares its
+  main checkout's project; native tool permissions remain separate from Auto mode.
 ---
 
 # Prepare hooks for a Claude conversation
@@ -37,23 +38,29 @@ to reconcile either settings version on the next prepare, without copying a
 backup of credential-bearing settings.
 
 Claude's [settings locations](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-repository)
-matter: a Git project or worktree may use the main repository's root local file.
-Choose that directory explicitly. A local file created outside Claude may need
-an entry in your repository's ignore rules. Setup does not modify global Git
+matter: a conversation in a linked Git worktree also loads the main checkout's
+local file. Setup therefore treats a worktree as its main checkout: the hooks go
+to the main checkout's `.claude/settings.local.json`, and every worktree shares
+that project's data, Web and Goals. Conversations stay separate by their native
+session. A local file created outside Claude may need an entry in your
+repository's ignore rules. Setup does not modify global Git
 excludes, user settings or managed policy.
 
 ## Activate it in the same conversation
 
-Review the configured hooks with Claude's native `/hooks`. Hook-file changes and
-a successful settings write do not establish the SessionStart environment required
-by chill. If that handshake has not run in the current chat, use Claude's normal
-exit and resume flow to reopen **that same conversation**. Do not clear, fork or
-launch a concurrent copy as a connection repair.
+Review the configured hooks when Claude asks. A conversation started after setup
+receives its identity at SessionStart. A conversation that was already running
+connects with `connection join`: Claude names its session in every shell, and the
+same session's main PostToolUse hook confirms the claim, so a subagent cannot
+connect for it. Claude loads hooks written during a conversation for its next
+tool call, so no resume is needed. Do not clear, fork or launch a concurrent copy
+as a connection repair.
 
 Use the exact command prefix printed by setup for these main Bash calls:
 
 ```sh
 chill connection show
+chill connection join        # only when show reports no connection
 chill connection create-goal --title 'The agreed outcome'
 ```
 

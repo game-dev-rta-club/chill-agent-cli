@@ -28,6 +28,13 @@ node bin/chill-entry.mjs connection claude-hook --help
 node bin/chill-entry.mjs connection show --help
 ```
 
+A conversation that was already running when the hooks were written has no
+SessionStart record. `connection join` fills it: the shell records the session
+ID that Claude Code exports as `CLAUDE_CODE_SESSION_ID`, and the same session's
+main PostToolUse hook (never a subagent's) writes the record with a fresh
+generation. Later shells without the exported variables identify the caller by
+that session ID and the saved record. An existing record is kept unchanged.
+
 An explicit [Claude setup option](claude-setup.md) installs the project-local
 hooks. The default Codex setup does not. Use the probe below to try the handshake
 without modifying the user's environment.
