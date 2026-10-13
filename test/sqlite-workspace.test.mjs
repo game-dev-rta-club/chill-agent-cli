@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {spawn} from 'node:child_process';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 import {openSqliteWorkspace} from '../lib/sqlite-workspace.mjs';
 
 async function fixture(t) {
@@ -84,4 +86,22 @@ test('independent processes serialize writes without losing committed rows',asyn
   const reopened=await openSqliteWorkspace(dir);
   try {assert.equal(reopened.db.prepare('SELECT count(*) AS n FROM goals').get().n,40);}
   finally {reopened.close();}
+});
+
+test('first openers that start together all accept the new workspace',{timeout:120000},async t=>{
+  // Each process waits for one shared moment, so their first inspections overlap
+  // another opener's schema COMMIT, as concurrent CLI commands do.
+  const module=pathToFileURL(fileURLToPath(new URL('../lib/sqlite-workspace.mjs',import.meta.url))).href;
+  const code=`const {openSqliteWorkspace}=await import(${JSON.stringify(module)});await import('node:sqlite');while(Date.now()<Number(process.argv[2]));(await openSqliteWorkspace(process.argv[1])).close();`;
+  const failures=[];
+  for(let round=0;round<6;round++){
+    const directory=await fixture(t),start=String(Date.now()+1000);
+    const results=await Promise.all(Array.from({length:8},()=>new Promise(resolve=>{
+      const child=spawn(process.execPath,['--input-type=module','-e',code,directory,start],{stdio:['ignore','ignore','pipe']});
+      let error='';child.stderr.on('data',chunk=>{error+=chunk;});child.on('exit',status=>resolve({status,error}));
+    })));
+    failures.push(...results.filter(r=>r.status!==0).map(r=>r.error.trim().split('\n').at(-1)));
+    const store=await openSqliteWorkspace(directory);store.close();
+  }
+  assert.deepEqual(failures,[]);
 });
