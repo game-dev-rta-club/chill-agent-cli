@@ -154,10 +154,10 @@ setInterval(()=>{},1000);
   assert.equal((await fetch(local.url+'/api/activity',{method:'POST',headers:{Origin:remote.url,'Content-Type':'application/json'},body:'{}'})).status,403);
 });
 
-test('background polling and invalid activity requests cannot keep an idle server alive', {timeout:10000}, async t => {
+test('background polling and invalid activity requests cannot keep an idle server alive', {timeout:30000}, async t => {
   // A deadline longer than a slow runner's first request keeps the check about
   // renewal, not about how fast the server and fetch start.
-  const f = await fixture(t, '2500ms');
+  const f = await fixture(t, '5s');
   let polls = 0, polling = true;
   // Each poll waits for the previous one, as a browser timer would, so a slow
   // runner does not pile requests up.
@@ -176,13 +176,13 @@ test('background polling and invalid activity requests cannot keep an idle serve
   assert.equal(code, 0);
   assert.equal(signal, null);
   assert.ok(polls >= 2);
-  assert.match(f.output(), /Idle timeout reached \(2500ms\)/);
+  assert.match(f.output(), /Idle timeout reached \(5s\)/);
 });
 
 test('reads that never pause cannot hold an expired deadline, and reads in flight still complete', {timeout:30000}, async t => {
   // Several readers keep a request in flight at every moment, as a slow
   // machine or many tabs can. Only the generous test timeout bounds the wait.
-  const f = await fixture(t, '500ms');
+  const f = await fixture(t, '5s');
   let complete = 0, cutOff = 0, reading = true;
   const reader = async () => {
     while (reading) {
@@ -198,13 +198,16 @@ test('reads that never pause cannot hold an expired deadline, and reads in fligh
   reading = false; await readers;
   assert.equal(code, 0);
   assert.equal(signal, null);
-  assert.match(f.output(), /Idle timeout reached \(500ms\)/);
+  assert.match(f.output(), /Idle timeout reached \(5s\)/);
   assert.ok(complete > 0);
   assert.equal(cutOff, 0, 'a read that started before shutdown returns its whole body');
 });
 
-test('opening the page, interaction and CLI mutations renew the idle deadline; CLI reads do not', {timeout:10000}, async t => {
-  const f = await fixture(t, '1200ms');
+test('opening the page, interaction and CLI mutations renew the idle deadline; CLI reads do not', {timeout:30000}, async t => {
+  // The idle check reads the recorded last use, so renewal is checked there.
+  // The deadline is far beyond any action, so a slow CLI start cannot stop Web
+  // between actions; actual expiry is covered by the tests below.
+  const f = await fixture(t, '1h');
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>TTL test</p>');
   const uses = [];
@@ -215,21 +218,24 @@ test('opening the page, interaction and CLI mutations renew the idle deadline; C
     () => f.run(['brief','update','--id','1']),
     () => f.run(['comment','--id','1','--text','Still working']),
   ]) {
-    await delay(300);
+    await delay(50); // distinct file times
     await action();
     uses.push(await lastServerUse(f.root, 0));
-    assert.equal(f.child.exitCode, null);
   }
   assert.ok(uses.every((time, i) => i === 0 || time > uses[i - 1]));
   await f.run(['show','--id','1']);
   await f.run(['check','--id','1']);
   assert.equal(await lastServerUse(f.root, 0), uses.at(-1));
-  assert.equal((await f.exited)[0], 0);
+  assert.equal(f.child.exitCode, null);
   assert.equal(JSON.parse((await f.run(['show','--id','1'])).stdout).conversation.find(event=>event.id===1).text, 'Still working');
 });
 
-test('idle expiry waits for an in-flight save, then allows the new idle period', {timeout:8000}, async t => {
-  const f = await fixture(t, '600ms');
+test('idle expiry waits for an in-flight save, then allows the new idle period', {timeout:30000}, async t => {
+  // Renew first, so a slow server start cannot use up the deadline, then hold a
+  // save open until well after the renewed deadline has passed.
+  const idle = 4000, f = await fixture(t, `${idle}ms`);
+  assert.equal((await fetch(f.url + '/api/activity', {method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'})).status, 200);
+  const renewed = await lastServerUse(f.root, 0);
   const { request } = await import('node:http');
   const response = new Promise((resolve, reject) => {
     const req = request(f.url + '/api/activity', {method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'}}, res => {
@@ -237,14 +243,15 @@ test('idle expiry waits for an in-flight save, then allows the new idle period',
     });
     req.on('error', reject);
     req.write('{');
-    setTimeout(() => req.end('}'), 900);
+    setTimeout(() => req.end('}'), Math.max(0, renewed + idle + 1000 - Date.now()));
   });
   assert.equal(await response, 200);
+  assert.ok(Date.now() > renewed + idle, 'the save outlived the deadline');
   assert.equal(f.child.exitCode, null, 'in-flight request survived the original deadline');
   assert.equal((await f.exited)[0], 0);
 });
 
-test('crash recovery keeps the original start deadline instead of granting another full lifetime', {timeout:4000}, async t => {
+test('crash recovery keeps the original start deadline instead of granting another full lifetime', {timeout:15000}, async t => {
   const f = await fixture(t, '1h', {CHILL_AGENT_SERVER_STARTED_AT:String(Date.now() - 2 * 60 * 60 * 1000)});
   assert.equal((await f.exited)[0], 0);
   assert.match(f.output(), /Idle timeout reached \(1h\)/);
