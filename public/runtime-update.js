@@ -2,8 +2,8 @@ import {confirmAction} from './confirmation-dialog.js';
 
 export function createRuntimeUpdate({button,announce=()=>{}}){
  let state=null,busy=false,refreshing=false;
- const label='更新';
- button.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M5.2 8a7.5 7.5 0 0 1 12.4-2.2L20 8M4 16l2.4 2.2A7.5 7.5 0 0 0 18.8 16"/></svg>';
+ const label='Update';
+ button.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6l2.5 2.5"/><path d="M20.5 3.5v5h-5"/></svg><span>Update</span>';
  async function api(body){
   const response=await fetch('/api/runtime-update',{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,cache:'no-store',signal:AbortSignal.timeout(10000)});
   const value=await response.json();if(!response.ok)throw Error(value.error||'更新情報を確認できませんでした。');return value;
