@@ -47,11 +47,25 @@ remain with Claude. No permission mode is changed by this protocol.
 ## Preserve ownership and receipt identity
 
 A new Root stores `connection: {harnessId, sessionId, contextId}` and no Codex
-`threadId`. A child inherits its Root. Existing Roots cannot be reassigned through
-these commands, and native-owned trees cannot be moved to another Root. Resume
-and compact retain the context ID; startup, clear and fork replace it. Every
-SessionStart rotates the shell generation, so old shell intents need explicit
-recovery even when the context is retained.
+`threadId`. A child inherits its Root. Native-owned trees cannot be moved to
+another Root. Resume and compact retain the context ID; startup, clear and fork
+replace it. Every SessionStart rotates the shell generation, so old shell intents
+need explicit recovery even when the context is retained.
+
+When Claude continues a conversation in a new session, for example after its
+context limit, the new session owns nothing. If the user asks it to continue a
+Goal, it takes the Root over explicitly:
+
+```sh
+chill connection adopt --goal 1
+```
+
+Only that session's main PostToolUse hook confirms it. The Root and its Split
+Goals move to the new connection, the earlier one is kept in
+`previousConnections`, and feedback saved for the earlier owner is delivered to
+the new one. A comment in Web records the move. Taking over is refused while the
+owning conversation still runs its reply waiter, and for Goals that no Claude
+conversation owns.
 
 `inbox` reads up to ten unclaimed events across this connection's Goals. Each
 user event keeps its original connection and event ID. Manual holds, different

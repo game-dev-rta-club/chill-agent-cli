@@ -9,6 +9,7 @@ export default {
    createRoot:{command:'connection create-goal --help',confirmation:'A request marker is pending. Only main PostToolUse confirmation establishes the saved Root.'},
    receipt:{command:'connection activity --event <ID> --state <STATE>',states:['working','completed','failed'],confirmation:'Use separate main Bash calls and preserve stdout. Wait for main-hook confirmation; inspect connection request --id <ID> for uncertain results before any retry.'},
    selectWork:null,
+   adopt:{command:'connection adopt --goal <ID>',confirmation:'Only when the user asks this conversation to continue a Goal owned by an earlier conversation (for example after Claude continued the chat in a new session). Wait for the main PostToolUse confirmation; refused while the owner still waits for Web replies.'},
    inbox:{command:'connection inbox',confirmation:'Recover pending input or establish a verified prompt through the main hook before expecting ordinary tool hooks to receive input.'},
    reply:{command:'connection reply --event <ID> --text <TEXT>',confirmation:'Posts the Web answer and records the completed receipt in one main-hook confirmation; a retry of the same request does not post twice.'},
    wait:{command:'connection wait',confirmation:'Start it as a Claude background task (Bash run_in_background) whenever a connection result asks for it. It exits when Web feedback is saved, which wakes an idle conversation; then read connection inbox and start it again.'}

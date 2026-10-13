@@ -34,8 +34,9 @@ async function main() {
     console.log(waitResultText(await waitForClaudeFeedback()));
     return;
   }
-  if(['create-goal','inbox','activity','reply'].includes(action)) {
+  if(['create-goal','adopt','inbox','activity','reply'].includes(action)) {
     const payload=action==='create-goal'?{title:values['--title'],scope:values['--scope']||'',criteria:values['--criteria']||''}:
+      action==='adopt'?{goalId:values['--goal']}:
       action==='activity'?{eventId:Number(values['--event']),state:values['--state']}:
       action==='reply'?{eventId:Number(values['--event']),text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
     const request=await requestClaudeAction(action,payload);
