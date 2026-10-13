@@ -348,7 +348,8 @@ function renderGoal(id,version) {
   const key=formKey(id,'comment');
   const comment=commentDrafts.get(key)??readDraft('comment',id);commentDrafts.set(key,comment);
   updateTabTitle();
-  main.innerHTML=`<div id="goal-frame">${view.brief(id)}</div><div class="history-grid">
+  // On a wide screen the Conversation becomes its own scrolling column beside the rest.
+  main.innerHTML=`<div class="goal-layout"><div class="goal-primary"><div id="goal-frame">${view.brief(id)}</div><div class="history-grid">
     <section class="document-section"><div class="section-heading document-heading"><h2>Brief</h2>${brief?view.pager(id,version):''}</div>
       <article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Brief">
         <div class="brief-body markdown-body" lang="ja" ${isHTML?'hidden':''}>${body||'<p class="empty-state">No Brief yet. You can start the conversation below.</p>'}</div>
@@ -358,8 +359,8 @@ function renderGoal(id,version) {
       <div class="annotation-heading"><strong data-editor-heading>Annotation</strong><button type="button" class="text-button" data-action="close-annotation" aria-label="Close annotation">✕</button></div><blockquote class="annotation-quote"></blockquote>
       <div class="comment-field"><label class="sr-only" for="annotation-comment">Annotation</label><textarea id="annotation-comment" data-input="annotation" rows="2" placeholder="Add a note" maxlength="2000"></textarea></div>
       <div data-note-image-slot>${imageControl('annotation')}</div><div class="comment-submit"><button type="button" class="text-button note-delete" data-action="delete-note" hidden>Delete</button>${imagePicker('annotation')}<button class="action action-primary" type="submit" value="save">Save</button><button class="action action-primary note-comment" type="submit" value="comment" hidden>Comment</button></div>
-    </fieldset></form>
-    <section class="conversation"><div class="section-heading conversation-heading"><h2>Conversation</h2><button type="button" class="text-button" data-action="collapse-conversation" hidden>Collapse earlier</button></div>
+    </fieldset></form></div></div>
+    <section class="conversation" data-scroll-pane><div class="section-heading conversation-heading"><h2>Conversation</h2><button type="button" class="text-button" data-action="collapse-conversation" hidden>Collapse earlier</button></div>
       <ol class="timeline" id="timeline-list" aria-label="Conversation">${timelineMarkup(id)}</ol>${composerMarkup(id,comment)}</section></div>`;
   const briefReady=isHTML?mountHTMLBrief(id,version):Promise.resolve();
   for(const child of main.querySelector('#timeline-list').children)timelineSources.set(child,child.outerHTML);
@@ -952,6 +953,7 @@ function renderRoute() {
   } else if(currentRoute==='#/goals')renderIndex();
   else {main.innerHTML='<div class="not-found"><h1>Goal or Brief not found</h1><a href="#/goals">Back to Goals</a></div>';}
   readingPane.setTop(beforeId===activeGoalId&&(match?.[2]||match?.[3])?top:0);
+  if(activeGoalId&&beforeId!==activeGoalId&&!match?.[3])readingPane.showLatest();
   activityControls.routeChanged();
   void refreshDeliveries().catch(()=>{});
   if(match?.[3]) {
