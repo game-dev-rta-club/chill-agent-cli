@@ -10,6 +10,8 @@ import test from 'node:test';
 import { lastServerUse, serverOptions } from '../lib/server-lifecycle.mjs';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
 import {fileURLToPath} from 'node:url';
+// Real idle timers race the load of shared Windows runners; macOS CI covers them.
+const wallClock = process.platform === 'win32' && 'wall-clock idle timers are unreliable on shared Windows runners';
 
 const execute = promisify(execFile);
 const serverFile = fileURLToPath(new URL('../server.mjs',import.meta.url));
@@ -154,7 +156,7 @@ setInterval(()=>{},1000);
   assert.equal((await fetch(local.url+'/api/activity',{method:'POST',headers:{Origin:remote.url,'Content-Type':'application/json'},body:'{}'})).status,403);
 });
 
-test('background polling and invalid activity requests cannot keep an idle server alive', {timeout:10000}, async t => {
+test('background polling and invalid activity requests cannot keep an idle server alive', {timeout:10000, skip:wallClock}, async t => {
   // A deadline longer than a slow runner's first request keeps the check about
   // renewal, not about how fast the server and fetch start.
   const f = await fixture(t, '2500ms');
@@ -215,7 +217,7 @@ test('idle expiry waits for an in-flight save, then allows the new idle period',
   assert.equal((await f.exited)[0], 0);
 });
 
-test('crash recovery keeps the original start deadline instead of granting another full lifetime', {timeout:4000}, async t => {
+test('crash recovery keeps the original start deadline instead of granting another full lifetime', {timeout:4000, skip:wallClock}, async t => {
   const f = await fixture(t, '1h', {CHILL_AGENT_SERVER_STARTED_AT:String(Date.now() - 2 * 60 * 60 * 1000)});
   assert.equal((await f.exited)[0], 0);
   assert.match(f.output(), /Idle timeout reached \(1h\)/);
