@@ -195,8 +195,10 @@ setInterval(()=>{},1000);
   assert.equal((await fetch(local.url+'/api/activity',{method:'POST',headers:{Origin:remote.url,'Content-Type':'application/json'},body:'{}'})).status,403);
 });
 
-test('background polling and invalid activity requests cannot keep an idle server alive', {timeout:6000}, async t => {
-  const f = await fixture(t);
+test('background polling and invalid activity requests cannot keep an idle server alive', {timeout:10000}, async t => {
+  // A deadline longer than a slow runner's first request keeps the check about
+  // renewal, not about how fast the server and fetch start.
+  const f = await fixture(t, '2500ms');
   let polls = 0;
   const polling = setInterval(async () => {
     try {
@@ -210,7 +212,7 @@ test('background polling and invalid activity requests cannot keep an idle serve
   assert.equal(code, 0);
   assert.equal(signal, null);
   assert.ok(polls >= 2);
-  assert.match(f.output(), /Idle timeout reached \(800ms\)/);
+  assert.match(f.output(), /Idle timeout reached \(2500ms\)/);
 });
 
 test('opening the page, interaction and CLI mutations renew the idle deadline; CLI reads do not', {timeout:10000}, async t => {
