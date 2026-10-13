@@ -5,7 +5,7 @@ import {parseOptions, showHelp} from '../lib/cli-help.mjs';
 import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
-import {requestClaudeAction,handleClaudeToolHook,inspectClaudeRequest,claudeSessionStartContext} from '../lib/claude-actions.mjs';
+import {requestClaudeAction,requestClaudeJoin,handleClaudeToolHook,inspectClaudeRequest,claudeSessionStartContext} from '../lib/claude-actions.mjs';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -16,6 +16,12 @@ async function main() {
     const caller=await identifyClaudeCaller();
     const status=await readClaudeConnectionStatus({...caller.identity,contextId:caller.contextId});
     console.log(JSON.stringify({...caller,status}, null, 2));
+    return;
+  }
+  if(action==='join') {
+    const request=await requestClaudeJoin();
+    console.log(request.marker);
+    console.log('Pending main-session hook confirmation. A shell receipt alone does not connect this conversation.');
     return;
   }
   if(action==='request') {
