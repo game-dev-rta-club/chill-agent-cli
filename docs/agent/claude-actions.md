@@ -49,8 +49,8 @@ remain with Claude. No permission mode is changed by this protocol.
 A new Root stores `connection: {harnessId, sessionId, contextId}` and no Codex
 `threadId`. A child inherits its Root. Native-owned trees cannot be moved to
 another Root. Resume and compact retain the context ID; startup, clear and fork
-replace it. Every SessionStart rotates the shell generation, so old shell intents
-need explicit recovery even when the context is retained.
+replace it. Every SessionStart rotates the record's generation, so a request saved
+before it needs explicit recovery even when the context is retained.
 
 When Claude continues a conversation in a new session, for example after its
 context limit, the new session owns nothing. If the user asks it to continue a

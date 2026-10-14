@@ -49,9 +49,15 @@ test('a saved reply ends the waiter without offering it; the main-hook inbox sti
 });
 
 test('one waiter per context: a second exits, a stale one is replaced',async t=>{
- const f=await fixture(t),first=f.wait();await f.waiting();
- assert.deepEqual(await f.wait().done,{status:'already-running'});
+ const f=await fixture(t),first=f.wait({refreshMs:20});await f.waiting();
+ assert.deepEqual(await f.wait({livenessMs:300}).done,{status:'already-running'},'a live waiter keeps refreshing');
  assert.deepEqual(await first.stop(),{status:'stopped'});
+ assert.equal((await readJson(f.recordPath)).waiter,undefined,'a stopped waiter releases its record at once');
+ // A killed waiter leaves a fresh refresh behind; a new waiter sees it stop advancing and takes over.
+ const record=await readJson(f.recordPath),dead=randomUUID();
+ await writeJsonAtomically(f.recordPath,{...record,waiter:{id:dead,contextId:record.contextId,checkedAt:new Date().toISOString()}});
+ const takeover=f.wait({livenessMs:100});await f.until(async()=>(await readJson(f.recordPath)).waiter?.id!==dead);
+ assert.deepEqual(await takeover.stop(),{status:"stopped"});
  // Freshness decides liveness: a waiter that stopped refreshing can be replaced.
  const staleAt=Date.now()-120000,stale=f.wait({now:()=>staleAt});await f.waiting();
  const next=f.wait();assert.deepEqual(await stale.done,{status:'replaced'});await next.stop();
@@ -94,8 +100,8 @@ test('repeated SessionStart keeps one set of exports and preserves other hooks',
  const f=await fixture(t);await writeFile(f.envFile,`${await readFile(f.envFile,'utf8')}export OTHER_HOOK=1\n`);
  await f.start('resume');await f.start('compact');
  const lines=(await readFile(f.envFile,'utf8')).trim().split('\n');
- assert.equal(lines.filter(l=>l.startsWith('export CHILL_AGENT_CONNECTION_GENERATION=')).length,1);
- assert(lines.includes(`export CHILL_AGENT_CONNECTION_GENERATION='${f.env().CHILL_AGENT_CONNECTION_GENERATION}'`));
+ assert.equal(lines.filter(l=>l.startsWith('export CHILL_AGENT_SESSION_ID=')).length,1);
+ assert.equal(lines.filter(l=>l.startsWith('export CHILL_AGENT_CONNECTION_GENERATION=')).length,0,'agents never carry the generation');
  assert(lines.includes('export OTHER_HOOK=1'));
 });
 

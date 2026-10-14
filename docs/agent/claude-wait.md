@@ -47,10 +47,16 @@ natively and print nothing.
 ## One waiter per conversation
 
 A waiter records itself in the conversation's connection record and refreshes
-that record every 30 seconds. A second waiter for the same context exits at once.
-A record that has not been refreshed for 90 seconds is treated as stopped, so a
-killed waiter cannot hide the instruction for long and a reused process ID never
-counts as running. Compact keeps a running waiter; clear and fork start a new
+that record every 30 seconds. A waiter that is stopped (SIGTERM, SIGINT or
+SIGHUP, as a stopped background task receives) releases the record at once.
+
+A second waiter for the same context first checks that the recorded one is
+alive: it watches the refresh for up to 65 seconds and exits only if it advances.
+If it does not, the recorded waiter was killed without releasing it, and the new
+waiter takes over. So restarting the waiter right after stopping one never leaves
+the conversation without a waiter. Status treats a record that has not been
+refreshed for 90 seconds as stopped, and a reused process ID never counts as
+running. Compact keeps a running waiter; clear and fork start a new
 context, and an old waiter exits when its context changes.
 
 ## Why a background task
