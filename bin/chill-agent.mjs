@@ -4,7 +4,7 @@ import {workspacePort} from '../lib/project-workspace.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
-import { appendAgentComment, appendFeedback, closeLetter, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
+import { appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
 import { deliverFeedback, prepareDelivery, recordActivity } from '../lib/delivery.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import {assignGoal,selectWork} from '../lib/goal-execution.mjs';
@@ -44,6 +44,7 @@ async function main() {
     return output({...goal,nextActions:{message:'Review parent and ancestor success criteria. Mark only achieved Goals Done; otherwise leave them Open. This reminder does not require changing their state.',ancestors:path.slice(0,-1).reverse().map(({id,title,criteria,state})=>({id,title,criteria,state}))}});
   }
   if(command==='close-letter')return output(await closeLetter(id,Number(v['--event']),v['--reason']));
+  if(command==='delete-comment')return output(await deleteAgentComment(id,Number(v['--event'])));
   if(command==='deliverable') {
     const result=subcommand==='path'?await briefSource(id,v['--format']):await updateBrief(id,v['--format']);
     return output({...result,url:url(id,result.version)});
