@@ -305,3 +305,13 @@ test('goal work from a Claude conversation marks its Goal Running for the curren
   await writeFile(transcript,JSON.stringify({type:'system',subtype:'stop_hook_summary',uuid:'s1'})+'\n',{flag:'a'});
   assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
 });
+
+test('a request the main hook cannot confirm tells the agent why',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const event=await appendFeedback({goalId:goal.id,text:'Done already'});await deliverFeedback(event.changeId);
+  await s.act('inbox',{});
+  await s.act('activity',{eventId:event.changeId,state:'completed'});
+  const r=await s.request('reply',{eventId:event.changeId,text:'Late reply'});
+  const output=context(await handleClaudeToolHook(s.hook(r),{cwd:f.cwd}));
+  assert.match(output,/not confirmed: Feedback already has a terminal receipt/);
+});

@@ -76,9 +76,9 @@ test('working or uncertain Web receipts are not proof that feedback is complete'
 test('subagents and stale or missing native prompt identities cannot enable or continue',async t=>{
  const f=await fixture(t);
  await f.action('extension',{extension:'continuation',operation:'configure',input:{rootId:f.root.id,enabled:true}},{agent_id:'child'});assert.equal(await f.read(),null);
- await assert.rejects(f.action('extension',{extension:'continuation',operation:'configure',input:{rootId:f.root.id,enabled:true}},{prompt_id:null}),/prompt identity/);
+ assert.match(JSON.stringify(await f.action('extension',{extension:'continuation',operation:'configure',input:{rootId:f.root.id,enabled:true}},{prompt_id:null})),/prompt identity/,'the hook tells the agent why it was not confirmed');
  await f.configure();assert.equal(await f.stop({agent_id:'child'}),null);assert.equal(await f.stop({prompt_id:null}),null);
- await f.start('clear');assert.equal(await f.stop(),null);await assert.rejects(f.configure(),/Root conversation/);
+ await f.start('clear');assert.equal(await f.stop(),null);assert.match(JSON.stringify(await f.configure()),/Root conversation/,'the hook tells the agent why it was not confirmed');
 });
 test('an uncertain attempt in one Root does not create a second continuation in another Root',async t=>{
  const f=await fixture(t);await f.configure();await f.action('create-goal',{title:'Second Auto Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);
