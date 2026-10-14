@@ -1,6 +1,7 @@
 import {isRunning} from './goal-state.js';
 import {presenceMark,presenceLabel} from './agent-presence.js';
 import {extensionIcon} from './extension-buttons.js';
+import {confirmAction} from './confirmation-dialog.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const period=m=>m===null?'Usage':m%1440===0?`${m/1440}d`:m%60===0?`${m/60}h`:`${m}m`;
 const date=seconds=>new Intl.DateTimeFormat('en-US',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}).format(new Date(seconds*1000));
@@ -41,8 +42,7 @@ const extensionsMarkup=data=>data.extensions===null?'<section class="agent-secti
 // fields for every connection, so a new harness only supplies data.
 function claudeMarkup(s,approveAll){
  return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p title="${esc(s.detail)}">${esc(s.label)}${s.waiterCheckedAt||s.observedAt?` · ${timeMarkup(s.waiterCheckedAt||s.observedAt)}`:''}</p>`:''}
- <label class="agent-extension"><span>Approve all</span><input type="checkbox" role="switch" data-agent-approve-all aria-label="Approve all permission prompts" ${approveAll?'checked':''}></label>
- <p class="agent-muted">Answers Claude's permission prompts with Allow so unattended work keeps going. Prompts Claude Code never lets a hook approve still ask.</p><p class="extension-message" data-approve-message role="status"></p></section>`;
+ <label class="agent-extension"><span>Approve all</span><input type="checkbox" role="switch" data-agent-approve-all aria-label="Approve all permission prompts" ${approveAll?'checked':''}></label><p class="extension-message" data-approve-message role="status"></p></section>`;
 }
 function codexMarkup(data){
  return `<section class="agent-section agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</section>
@@ -152,6 +152,8 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  // Claude only: answer permission prompts automatically for this conversation.
  content.addEventListener('change',async event=>{
   const input=event.target.closest('[data-agent-approve-all]');if(!input||saving)return;
+  // Turning it on is consequential, so the explanation lives in a confirmation.
+  if(input.checked&&!await confirmAction({title:'Approve all',message:"Claude's permission prompts in this conversation will be answered with Allow, so unattended work keeps going without asking you. Prompts Claude Code never lets a hook approve, such as removing critical paths, still ask.",confirmLabel:'Turn on'})){input.checked=false;return;}
   const id=getGoalId(),snapshot=current,token=++request;controller?.abort();saving=true;input.disabled=true;
   const message=content.querySelector('[data-approve-message]');if(message)message.textContent='';
   try{
@@ -192,8 +194,10 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  function open(){if(!getGoalId())return;opened=true;focusBefore=document.activeElement;panel.hidden=false;button.setAttribute('aria-expanded','true');content.innerHTML='<p class="agent-empty">Loading…</p>';panel.querySelector('[data-agent-close]').focus({preventScroll:true});void refresh();timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);}
  button.addEventListener('click',()=>opened?close({restore:true}):open());
  panel.querySelector('[data-agent-close]').addEventListener('click',()=>close({restore:true}));refreshButton.addEventListener('click',refresh);
- document.addEventListener('pointerdown',e=>{if(opened&&!panel.contains(e.target)&&!button.contains(e.target))close();});
- document.addEventListener('focusin',e=>{if(opened&&!panel.contains(e.target)&&!button.contains(e.target))close();});
+ // A confirmation opened from the menu belongs to it.
+ const outside=e=>opened&&!panel.contains(e.target)&&!button.contains(e.target)&&!e.target.closest?.('.extension-confirm');
+ document.addEventListener('pointerdown',e=>{if(outside(e))close();});
+ document.addEventListener('focusin',e=>{if(outside(e))close();});
  document.addEventListener('keydown',e=>{if(opened&&e.key==='Escape'){e.preventDefault();close({restore:true});}});
  panel.addEventListener('click',e=>{if(e.target.closest('a'))close({restore:true});});
  window.addEventListener('blur',()=>setTimeout(()=>{if(opened&&document.activeElement?.tagName==='IFRAME')close();},0));
