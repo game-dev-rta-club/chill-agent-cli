@@ -46,17 +46,38 @@ test('reads do not expose credentials, endpoints or receipt tokens, and moved ro
  const f=fixture();await f.api.initialize();await f.on();const output=JSON.stringify(await f.api.read('2',device));for(const secret of ['private','endpoint','receipt'])assert.equal(output.includes(secret),false);
  await assert.rejects(f.api.configure({goalId:'2',rootId:'9',deviceId:device,enabled:true,subscription,origin:'https://phone.test'}),/moved/);
 });
-test('every Agent reply notifies by default; Letters only keeps Comments silent',async()=>{
- const f=fixture();await f.api.initialize();await f.on();
- assert.equal((await f.api.read('2',device)).scope,'replies');assert.deepEqual((await f.api.settings('2')).on,['comment','letter']);
+test('Letters and Replies are separate switches; both On by default, both Off turns the device off',async()=>{
+ const f=fixture();await f.api.initialize();
+ assert.deepEqual(await f.api.read('2',device).then(r=>[r.enabled,r.letters,r.replies]),[false,false,false]);
+ await f.on();assert.deepEqual(await f.api.read('2',device).then(r=>[r.letters,r.replies]),[true,true]);assert.deepEqual((await f.api.settings('2')).on,['comment','letter']);
  f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'Here is the result'});
  assert.equal((await f.api.prepare('2',2)).handled,true);assert.equal(f.sends.length,1);assert.equal(f.sends[0].title,'An outcome');assert.match(f.sends[0].url,/#\/goal\/2\/letter\/2$/);
- await f.api.choose({goalId:'2',rootId:'1',deviceId:device,scope:'letters'});
- assert.equal((await f.api.read('2',device)).scope,'letters');assert.deepEqual((await f.api.settings('2')).on,['letter']);
+ await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:true,replies:false});
+ assert.deepEqual((await f.api.settings('2')).on,['letter']);
  f.events.push({id:3,goalId:'2',author:'agent',type:'comment',text:'Progress'});assert.equal((await f.api.prepare('2',3)).handled,false);
  f.events.push({...f.events[0],id:4});await f.api.prepare('2',4);assert.equal(f.sends.length,2);
- await assert.rejects(f.api.choose({goalId:'2',rootId:'1',deviceId:device,scope:'all'}),/every reply or Letters only/);
- await assert.rejects(f.api.choose({goalId:'2',rootId:'1',deviceId:other,scope:'letters'}),/Turn notifications on/);
+ await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:false,replies:true});
+ f.events.push({...f.events[0],id:5},{id:6,goalId:'2',author:'agent',type:'comment',text:'Another result'});
+ assert.equal((await f.api.prepare('2',5)).handled,false);assert.equal((await f.api.prepare('2',6)).handled,true);
+ // Both Off is Off for this device, and a later first switch On registers it again.
+ const off=await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:false,replies:false});
+ assert.deepEqual([off.enabled,off.letters,off.replies],[false,false,false]);assert.equal((await f.api.settings('2')).enabled,false);
+ await f.api.configure({goalId:'2',rootId:'1',deviceId:device,enabled:true,subscription:{...subscription,endpoint:subscription.endpoint+device},origin:'https://phone.test',letters:false,replies:true});
+ assert.deepEqual(await f.api.read('2',device).then(r=>[r.enabled,r.letters,r.replies]),[true,false,true]);
+ // Registering again without switches keeps this device's choice.
+ await f.on();assert.deepEqual(await f.api.read('2',device).then(r=>[r.letters,r.replies]),[false,true]);
+ await assert.rejects(f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:'yes',replies:true}),/Choose Letters and Replies/);
+ await assert.rejects(f.api.kinds({goalId:'2',rootId:'1',deviceId:other,letters:true,replies:false}),/Turn notifications on/);
+ await assert.rejects(f.api.configure({goalId:'2',rootId:'1',deviceId:other,enabled:true,subscription,origin:'https://phone.test',letters:false,replies:false}),/Letters, Replies or both/);
+});
+
+test('earlier choices carry over: every reply keeps both, Letters only keeps Letters',async()=>{
+ for(const [scope,expected] of [['replies',[true,true]],['letters',[true,false]],[undefined,[true,true]]]){
+  const f=fixture({version:2,keys:{publicKey:'public',privateKey:'private'},devices:{[device]:{subscription,origin:'https://phone.test',expired:false}},roots:{'1':{devices:{[device]:{enabled:true,cutoff:0,...(scope?{scope}:{})}}}},jobs:{},claims:{}});
+  await f.api.initialize();assert.deepEqual(await f.api.read('2',device).then(r=>[r.letters,r.replies]),expected);
+  f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'A reply'});
+  assert.equal((await f.api.prepare('2',2)).handled,expected[1]);
+ }
 });
 
 test('Web sends new Agent replies by itself, once, for Codex and Claude alike',async()=>{
