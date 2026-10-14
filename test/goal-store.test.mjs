@@ -202,12 +202,12 @@ test('editable sources from before the Deliverable rename move to their new name
  const dir=join(f.root,'workspace/goals/1');
  const {rm:remove}=await import('node:fs/promises');await remove(join(dir,'deliverable.md'),{force:true});
  await writeFile(join(dir,'brief.md'),'# Earlier source');
- const {path}=await f.run('deliverable','path','--id','1');
+ const {path}=await f.run('deliverable','path','--id','1','--format','markdown');
  assert.equal(path,join(dir,'deliverable.md'));assert.equal(await readFile(path,'utf8'),'# Earlier source');
  await assert.rejects(readFile(join(dir,'brief.md'),'utf8'));
  // An existing new source is never overwritten by a leftover earlier one.
  await writeFile(join(dir,'brief.md'),'# Leftover');
- await f.run('deliverable','path','--id','1');
+ await f.run('deliverable','path','--id','1','--format','markdown');
  assert.equal(await readFile(path,'utf8'),'# Earlier source');
  await assert.rejects(f.invoke('brief','path','--id','1'),/renamed to goal deliverable/);
 });

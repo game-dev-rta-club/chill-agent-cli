@@ -16,7 +16,8 @@ test('HTML Deliverable isolates author styling and preserves only static content
 test('switching Deliverable formats keeps both originals, exact histories and HTML annotation coordinates',async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-brief-html-'));process.env.CHILL_AGENT_DATA_DIR=root;t.after(()=>rm(root,{recursive:true,force:true}));
  const goal=await createGoal({title:'Compare formats'});
- await writeFile(goal.briefPath,'# Markdown\n\nOriginal');const markdown=await updateBrief(goal.id);
+ assert.match(goal.briefPath,/deliverable.html$/,'a new Goal starts with an HTML source');
+ await writeFile((await briefSource(goal.id,'markdown')).path,'# Markdown\n\nOriginal');const markdown=await updateBrief(goal.id);
  const source=await briefSource(goal.id,'html');assert.match(source.path,/deliverable.html$/);assert.equal((await briefSource(goal.id)).format,'markdown');
  const html='<style>p {color:green}</style><h1>HTML</h1><p>Readable answer</p>';
  await writeFile(source.path,html);const saved=await updateBrief(goal.id,'html');assert.equal(saved.format,'html');assert.equal(saved.version,2);
@@ -38,4 +39,12 @@ test('one-time format conversion preserves snapshots, originals and conversation
  assert.deepEqual(JSON.parse(await readFile(join(result.backup,'goals/1/briefs/v1.json'))),old);
  assert.equal(await readFile(join(work,'goals/1/deliverable.md'),'utf8'),'# Edited');assert.equal(await readFile(join(work,'events/2.json'),'utf8'),'{}');
  assert.equal(JSON.parse(await readFile(join(work,'schema.json'))).version,7);await assert.rejects(migrateBriefFormats(root),/schema 6/);
+});
+
+test('agents see annotation sources named deliverable while stored ones keep the internal name',async()=>{
+ const {agentAnnotations}=await import('../lib/brief.mjs');
+ const stored=[{kind:'text',source:{kind:'brief',version:2}},{kind:'text',source:{kind:'comment',eventId:5}}];
+ assert.deepEqual(agentAnnotations(stored).map(n=>n.source.kind),['deliverable','comment']);
+ assert.equal(stored[0].source.kind,'brief','the stored record is not changed');
+ assert.equal(agentAnnotations(undefined),undefined);
 });

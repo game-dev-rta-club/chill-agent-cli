@@ -262,3 +262,15 @@ test('unclaimed hook notices never borrow the interrupted work output',async()=>
  const queued={threadId:thread,hookTurnId:turn,messageId:'pending',status:'deferred',history:[]};
  assert.equal(await workReader(client)(queued),null);
 });
+
+test('Claude feedback received in one response shares one live Think, and closes when the response ends',()=>{
+  const event=id=>({author:'user',changeId:id,goalId:'2'});
+  const claude=(status,work)=>({threadId:null,connection:{harnessId:'claude-code'},status,work:{source:'turn',turnId:'claude:p1',...work}});
+  const deliveries=new Map([[1,claude('completed',{status:'working',messages:[{id:'a',at:1,text:'First'}]})],
+    [2,claude('received',{status:'working',messages:[{id:'a',at:1,text:'First'},{id:'b',at:2,text:'Second'}]})]]);
+  let groups=workProgressGroups([event(1),event(2)],deliveries);
+  assert.equal(groups.size,1);assert.deepEqual(groups.get(2).eventIds,[1,2]);
+  assert.equal(groups.get(2).live,true,'transcript work keeps Think open while the delivery reads Received');
+  for(const d of deliveries.values())d.work.status='completed';
+  groups=workProgressGroups([event(1),event(2)],deliveries);assert.equal(groups.get(2).live,false);
+});

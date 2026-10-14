@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {appendFile,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {claudeModel,claudeRunning,claudeWork,validTranscriptPath} from '../lib/claude-transcript.mjs';
+import {claudeModel,claudeRunning,claudeTurn,claudeWork,validTranscriptPath} from '../lib/claude-transcript.mjs';
 
 const line=value=>JSON.stringify(value)+'\n';
 const assistant=(uuid,content,extra={})=>line({type:'assistant',uuid,timestamp:'2026-10-14T05:00:00.000Z',effort:'high',message:{model:'claude-opus-5-5',content},...extra});
@@ -31,6 +31,8 @@ test('the transcript gives the model and the public text of the response that re
  assert.equal(done.status,'completed');assert.equal(done.endedAt,'2026-10-14T05:01:00.000Z');
  assert.deepEqual(done.messages.map(m=>m.text),['Working on it','Done']);
  assert.equal((await claudeModel(path)).model,'claude-sonnet-5-5');
+ assert.equal(working.turnId,'claude:p0','the response is named by the prompt that started it');
+ assert.equal((await claudeTurn(path)).turnId,'claude:p1');
  assert.equal(await claudeWork(path,'00000000-0000-4000-8000-000000000000'),null);
 });
 

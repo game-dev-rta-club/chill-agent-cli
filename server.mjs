@@ -281,7 +281,7 @@ const server = createServer(async (request, response) => {
       return sendJson(response,summary?200:404,summary||{error:'Goal not found.'});
     }catch{return sendJson(response,500,{error:'Could not count Letters.'});}
   }
-  const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
+  const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
   if(briefSVGPath&&request.method==='GET'){
     try{
       const brief=await readBrief(briefSVGPath[1],Number(briefSVGPath[2]));
@@ -292,12 +292,12 @@ const server = createServer(async (request, response) => {
       return response.end(svg);
     }catch{return sendJson(response,500,{error:'Could not load Deliverable image.'});}
   }
-  const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)$/.exec(path);
+  const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)$/.exec(path);
   if(briefDataPath&&request.method==='GET'){
     try{const brief=await readBrief(briefDataPath[1],Number(briefDataPath[2]));return sendJson(response,brief?200:404,brief?webBrief(brief):{error:'Deliverable not found.'});}
     catch{return sendJson(response,500,{error:'Could not load Deliverable.'});}
   }
-  const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/document$/.exec(path);
+  const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/document$/.exec(path);
   if(briefDocumentPath&&request.method==='GET') {
     try {
       const brief=await readBrief(briefDocumentPath[1],Number(briefDocumentPath[2]));

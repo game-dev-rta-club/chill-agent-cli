@@ -213,7 +213,7 @@ function deliveryMarkup(event, work, continuedTo) {
   const delivery = deliveries.get(event.changeId);
   const activity=continuedTo?null:work?.activity||activityControls.forEvent(event.changeId);
   if (!delivery && !event.threadId && !activity) return '';
-  const state = activity?activity.status:continuedTo ? 'continued' : work?.status || delivery?.status || 'saved';
+  const state = activity?activity.status:continuedTo ? 'continued' : work?.status || (work?.live ? 'working' : '') || delivery?.status || 'saved';
   const labels = { saved: 'Saved', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
   const descriptions = { saved: delivery?.waiting===false?'Claude is not waiting for replies right now. It will read this when that conversation checks its inbox. If the work continues in another conversation, ask it there to take over this Goal.':'', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
   const retry = state === 'saved' || (state === 'failed' && !delivery?.mayHaveSent);
