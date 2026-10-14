@@ -8,7 +8,7 @@ function fixture(previous={enabled:false}) {
  const roots=[{id:'1',threadId:'chat-a'},{id:'2',threadId:'chat-b'}],items=[];
  const store={read:async()=>structuredClone(saved),write:async(_,v)=>{saved=structuredClone(v);},lock:(_,fn)=>{const result=queue.then(fn);queue=result.catch(()=>{});return result;}};
  const ctx=async id=>{const root=roots.find(r=>r.id===(id==='3'?'1':id));if(!root)throw Error('Unknown Goal');return {root,goal:{id,title:'Useful outcome'}};};
- const api=createNotifications({store,goals:async()=>roots,context:ctx,events:async()=>items,legacy:async()=>previous,disableLegacy:async()=>{previous={...previous,enabled:false};},url:async()=>null,now:()=>new Date(1700000000000+seq).toISOString(),uuid:()=>`notice-${++seq}`,thread:()=>currentThread,use:async()=>{}});
+ const api=createNotifications({store,goals:async()=>roots,context:ctx,events:async()=>items,legacy:async()=>previous,disableLegacy:async()=>{previous={...previous,enabled:false};},url:async()=>null,now:()=>new Date(1700000000000+seq).toISOString(),uuid:()=>`notice-${++seq}`,owns:async root=>Boolean(root.threadId)&&root.threadId===currentThread,agentKey:root=>root.threadId||null,use:async()=>{}});
  const add=(goalId='3',type='comment',text='A verified result')=>{const e={id:items.length+1,goalId,author:'agent',type,text};items.push(e);return e.id;};
  return {api,add,items,roots,state:()=>saved,legacy:()=>previous,thread:v=>currentThread=v};
 }
