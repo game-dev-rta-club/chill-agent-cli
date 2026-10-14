@@ -36,7 +36,11 @@ for this pane so they cannot compete with explicit position correction.
 | Receive Activity, refresh metadata, resize an iframe or render a diagram | Keep the visible message boundary in place; when reading a Deliverable, retain the vertical position | `preserve` around the DOM mutation |
 | Replace the current Deliverable asynchronously | Keep the current reading position unless the reader moves | `capture` before the replacement, restore after layout |
 
-A background update does not follow new output to the bottom. Position correction
+A background update does not follow new output to the bottom, with one exception:
+a wide Conversation column that the reader left at its very end (within 2px) stays
+at its end, so the newest lines stay in view; scrolled up even slightly, it keeps
+the visible message in place. Revealing a target in that column treats the area
+under the sticky composer as hidden. Position correction
 may change `scrollTop` to offset content growing above the reader; the evidence
 of stability is the visible content's viewport position, not an unchanged number.
 After an explicit move, its visible destination is the preferred anchor until

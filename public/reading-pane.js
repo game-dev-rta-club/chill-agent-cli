@@ -10,8 +10,15 @@ export function createReadingPane(pane, {rectOf = el => el.getBoundingClientRect
   const scrolls = el => el !== pane && getComputedStyle(el).overflowY !== 'visible';
   const nested = () => [...pane.querySelectorAll('[data-scroll-pane]')].filter(scrolls);
   const containerOf = target => { const own = target?.closest?.('[data-scroll-pane]'); return own && pane.contains(own) && scrolls(own) ? own : pane; };
+  // The sticky composer covers the bottom of a scrolling Conversation column.
+  const coveredBottom = container => {
+    const form = container === pane ? null : container.querySelector(':scope > .conversation-form, .conversation-form');
+    return form && getComputedStyle(form).position === 'sticky' ? form.offsetHeight : 0;
+  };
   function captureIn(container) {
     const top = container.scrollTop, bounds = container.getBoundingClientRect();
+    // A Conversation column read at its very end keeps showing the newest lines.
+    const atEnd = container !== pane && top + container.clientHeight >= container.scrollHeight - 2;
     const owner = pane.firstElementChild, revision = interaction;
     const inView = el => {
       if(!el?.isConnected)return false;
@@ -32,6 +39,7 @@ export function createReadingPane(pane, {rectOf = el => el.getBoundingClientRect
       // A re-rendered column is a new element; find it again by position.
       const target = container === pane ? pane : container.isConnected ? container : nested()[nestedIndex];
       if (!target) return;
+      if (atEnd) { target.scrollTop = target.scrollHeight; return; }
       const retained = id ? target.querySelector(`#${CSS.escape(id)}`) : first
         ? target.querySelector(`[data-gap-first="${first}"][data-gap-last="${last}"]`) : anchor;
       // Content below the viewport never becomes an anchor. Entry stays at zero.
@@ -62,7 +70,7 @@ export function createReadingPane(pane, {rectOf = el => el.getBoundingClientRect
     preferred = target.closest(anchors) || (pane.contains(target) ? target : null);
     // scrollIntoView can also move overflow:hidden ancestors and the fixed shell.
     const rect = rectOf(target), bounds = container.getBoundingClientRect();
-    const top = bounds.top + container.clientTop + 12, bottom = top + container.clientHeight - 24;
+    const top = bounds.top + container.clientTop + 12, bottom = top + container.clientHeight - 24 - coveredBottom(container);
     if (block === 'start' || (block === 'center' && rect.bottom - rect.top > bottom - top))
       container.scrollTop += rect.top - top;
     else if (block === 'center') container.scrollTop += (rect.top + rect.bottom - top - bottom) / 2;
