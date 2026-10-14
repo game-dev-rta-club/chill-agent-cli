@@ -12,10 +12,10 @@ async function fixture(t,quote='formatted') {
  await save(join(work,'schema.json'),{format:'goal-workspace',version:5});
  await writeFile(join(work,'goals/1/overview.md'),'Original');await save(join(work,'goals/1/overviews/v1.json'),{body:'Original',version:1});
  const text='A **formatted** sentence.';await save(join(work,'events/1.json'),{id:1,goalId:'1',text});
- await save(join(work,'events/2.json'),{id:2,goalId:'1',annotations:[{kind:'text',text:'Reply',source:{kind:'comment',eventId:1},anchor:{start:4,end:13,quote}},{kind:'text',text:'Brief reply',source:{kind:'overview',version:1},anchor:{start:0,end:8,quote:'Original'}}]});
+ await save(join(work,'events/2.json'),{id:2,goalId:'1',annotations:[{kind:'text',text:'Reply',source:{kind:'comment',eventId:1},anchor:{start:4,end:13,quote}},{kind:'text',text:'Deliverable reply',source:{kind:'overview',version:1},anchor:{start:0,end:8,quote:'Original'}}]});
  return {root,work,text};
 }
-test('one-time Brief conversion backs up data and relocates formatted comment annotations',async t=>{
+test('one-time Deliverable conversion backs up data and relocates formatted comment annotations',async t=>{
  const {root,work,text}=await fixture(t),result=await migrateBrief(root);
  assert.equal(result.annotations,2);assert.equal(await readFile(join(work,'goals/1/brief.md'),'utf8'),'Original');
  assert.equal(await readFile(join(result.backup,'goals/1/overview.md'),'utf8'),'Original');

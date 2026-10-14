@@ -150,10 +150,10 @@ test('Web collects before receipt and after activity completion, then freezes on
   const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
   const run=async args=>JSON.parse((await promisify(execFile)(process.execPath,[cli,...args],{env})).stdout.trim());
   const invoke=args=>promisify(execFile)(process.execPath,[cli,...args],{env});
-  const body=join(dir,'workspace/goals/1/brief.md');
+  const body=join(dir,'workspace/goals/1/deliverable.md');
   await invoke(['create','--title','Progress','--thread-id',thread]);
   await writeFile(body,'<p>Plan</p>');
-  await invoke(['brief','update','--id','1']);
+  await invoke(['deliverable','update','--id','1']);
   const input=join(dir,'feedback.json');await writeFile(input,JSON.stringify({text:'Go'}));
   await invoke(['feedback','--id','1','--input-file',input]);
   const delivery=JSON.parse(await readFile(join(dir,'workspace','deliveries','1.json'),'utf8'));

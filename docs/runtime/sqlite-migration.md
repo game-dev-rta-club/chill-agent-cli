@@ -32,11 +32,11 @@ Keep the source intact and use a new destination for the next attempt.
 
 | Item | Contents |
 | --- | --- |
-| `records/workspace.sqlite` | Goals, events and Brief versions with original IDs, change cursors, relations and exact original JSON bodies |
+| `records/workspace.sqlite` | Goals, events and Deliverable versions with original IDs, change cursors, relations and exact original JSON bodies |
 | `source.ndjson` | One entry per original file: relative path, permission bits, byte length, SHA-256 and base64 content |
 | `manifest.json` | Format/version, source inventory digest, archive digest, counts and `offline-review` state |
 
-The archive includes editable Brief files, images/attachments, delivery receipts,
+The archive includes editable Deliverable files, images/attachments, delivery receipts,
 requests, holds, connection state, extension state, lock history and other workspace
 files. It is intentionally inert: those entries do not live at active runtime
 paths. Empty directories, ownership and filesystem timestamps are not preserved;
@@ -80,7 +80,7 @@ node bin/chill-migrate.mjs verify-restored \
 ```
 
 Restoration first verifies the bundle and then writes a new private staging
-folder. It restores every original file, including JSON records, editable Briefs,
+folder. It restores every original file, including JSON records, editable Deliverables,
 attachments, receipts and historical leases. It compares contents, paths, sizes
 and permission bits against the captured inventory, and rechecks the bundle
 before publishing the destination. The verifier can be rerun in a separate process
@@ -109,8 +109,8 @@ node bin/chill-migrate.mjs verify-prepared --bundle /absolute/new-offline-bundle
 ```
 
 `prepare` builds a new `workspace/workspace.sqlite` from the verified archive.
-Goal, event and Brief bodies retain their exact original JSON, IDs and change
-cursors. Attachments, editable `goals/<id>/brief.md` or `brief.html`, and numbered
+Goal, event and Deliverable bodies retain their exact original JSON, IDs and change
+cursors. Attachments, editable `goals/<id>/deliverable.md` or `deliverable.html` (earlier `brief.*` files are renamed on first use), and numbered
 delivery receipts are copied with their bytes and permission bits intact.
 Completed and uncertain receipts keep their existing meaning; preparation never
 changes them to pending or retries a send.

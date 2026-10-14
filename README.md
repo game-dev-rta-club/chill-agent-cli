@@ -16,7 +16,7 @@ For the ready-to-use experience, start with [chill-agent](https://github.com/gam
 
 | This package owns | The integrating application owns |
 | --- | --- |
-| Goal hierarchy, Brief versions, Conversation, and Letters | How the agent plans and carries out work |
+| Goal hierarchy, Deliverable versions, Conversation, and Letters | How the agent plans and carries out work |
 | Local Web interface and feedback delivery | Skills and user onboarding |
 | Harness observations, queue coordination, and pause state | When to request more work |
 | Runtime preparation and extension hosting | Continuation policy and its configuration |
@@ -50,7 +50,7 @@ The foreground server prints the local Web URL. Goal data and runtime snapshots 
 [Find the right guide](docs/README.md) for workspace concepts, runtime updates,
 agent delivery and extension contracts. To inspect a project,
 [start with a one-line Goal index](docs/workspace/reading-goals.md), filter by
-state, then open the relevant Brief and recent conversation.
+state, then open the relevant Deliverable and recent conversation.
 
 ## Command reference
 

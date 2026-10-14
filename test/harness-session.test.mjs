@@ -29,7 +29,7 @@ for(const harness of ['codex-desktop','claude-code'])for(const running of [true,
   assert.equal(result.connectionVerified,false);assert.equal(result.interface.harnessId,harness);
   assert.equal(result.url,'http://127.0.0.1:51234');assert.equal(result.command,'stable-prefix');
   assert.notEqual(result.next,'legacy setup instructions');
-  assert(result.interface.activation.beforeCreate);assert(result.interface.onboarding.initialGoal.brief);
+  assert(result.interface.activation.beforeCreate);assert(result.interface.onboarding.initialGoal.welcome);
   assert.equal(calls.some(args=>args[2]==='start'),!running);
  }finally{await rm(project,{recursive:true,force:true});}
 });

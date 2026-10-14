@@ -31,7 +31,7 @@ Conversation.
 Web notices new replies by itself, for Codex and Claude alike, so no Agent command
 is needed. An Agent's `settings notice` request for the same reply sends nothing
 more: each reply reaches a device at most once. Your own comments, progress,
-Brief saves and AutoContinue checks do not send Web notifications. A reply saved
+Deliverable saves and AutoContinue checks do not send Web notifications. A reply saved
 while Web was stopped is not sent later if Web notices it more than 30 minutes
 after it was saved. The one-time confirmation after turning On is only a setup check. On does not replay old posts. Off cancels this device's pending
 notifications; a request already handed to the push service can still arrive.

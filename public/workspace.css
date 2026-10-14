@@ -372,7 +372,7 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 .runtime-update-button[aria-busy="true"] svg { animation:runtime-update-spin 1.5s linear infinite; }
 @keyframes runtime-update-spin { to { transform:rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .runtime-update-button[aria-busy="true"] svg { animation:none; } }
-/* Wide screens: read the Brief on the left while the Conversation scrolls on its own at the right. */
+/* Wide screens: read the Deliverable on the left while the Conversation scrolls on its own at the right. */
 @media(min-width:1180px) {
   .reading-pane>.goal-layout { max-width:1568px; display:grid; grid-template-columns:minmax(0,1fr) minmax(380px,40%); align-items:start; gap:32px; }
   .goal-layout>.conversation { position:sticky; top:0; max-height:calc(100dvh - 80px); overflow-y:auto; overscroll-behavior:contain; padding:14px 6px 0 2px; }

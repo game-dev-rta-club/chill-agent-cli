@@ -14,7 +14,7 @@ progress do not change just because activity was observed.
 
 Select the current work with `chill goal work --id <ID>`. This binds one Goal to
 the assigned chat's current unfinished turn. A new turn needs a new selection;
-publishing a Brief or acknowledging feedback does not switch it. Reopen a Done
+publishing a Deliverable or acknowledging feedback does not switch it. Reopen a Done
 Goal or resolve Waiting to `idle` before selecting it. `work --stop` stops tracking
 the selection; it is not the Web control that interrupts the agent.
 

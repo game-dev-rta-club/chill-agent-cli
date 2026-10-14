@@ -13,12 +13,12 @@ test('public Goal commands persist SQLite records, preserve Letter relationships
   const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   const goal=await run('create','--title','SQLite root');
-  assert.equal(await readFile(goal.briefPath,'utf8'),'');
+  assert.equal(await readFile(goal.deliverablePath,'utf8'),'');
   const child=await run('create','--title','Child','--parent','1');
   assert.equal(child.parentId,'1');
-  await writeFile(goal.briefPath,'# Plan\nSQLite content');
-  assert.equal((await run('brief','update','--id','1')).version,1);
-  assert.equal((await run('brief','update','--id','1')).changed,false);
+  await writeFile(goal.deliverablePath,'# Plan\nSQLite content');
+  assert.equal((await run('deliverable','update','--id','1')).version,1);
+  assert.equal((await run('deliverable','update','--id','1')).changed,false);
   const letter=await run('letter','--id','1','--title','Ready','--text','Question');
   await run('comment','--id','2','--text','Other goal');
   const input=join(root,'reply.json');
@@ -32,7 +32,7 @@ test('public Goal commands persist SQLite records, preserve Letter relationships
   const pending=await run('letter','--id','1','--title','Notice','--text','Result');
   await run('close-letter','--id','1','--event',String(pending.id));
   const shown=await run('show','--id','1');
-  assert.equal(shown.brief.body,'# Plan\nSQLite content');
+  assert.equal(shown.deliverable.body,'# Plan\nSQLite content');
   assert.equal(shown.letters.length,0);
   assert.ok(shown.conversation.some(e=>e.id===pending.id&&e.changeId>e.id));
   delete env.CHILL_AGENT_STORAGE;

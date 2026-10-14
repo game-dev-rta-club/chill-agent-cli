@@ -12,8 +12,8 @@ const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.
 async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chill-web-')),env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'0'};
  const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
- await run('create','--title','Goal');const body=join(root,'workspace/goals/1/brief.md');
- let count=0;const note=async()=>{await writeFile(body,`本文と注釈 ${++count}`);return run('brief','update','--id','1');};
+ await run('create','--title','Goal');const body=join(root,'workspace/goals/1/deliverable.md');
+ let count=0;const note=async()=>{await writeFile(body,`本文と注釈 ${++count}`);return run('deliverable','update','--id','1');};
  let server,url;
  const stop=async()=>{if(server?.exitCode===null){server.kill();await once(server,'exit');}};
  const start=async()=>{server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--local'],{env,stdio:['ignore','pipe','pipe']});
@@ -23,22 +23,22 @@ async function fixture(t){
  const get=path=>fetch(url+path),post=(input,origin=url)=>fetch(url+'/api/goals/1/feedback',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(input)});
  return {root,body,run,note,start,stop,get,post,url:()=>url};
 }
-test('Web accepts empty Goal conversation, serves Markdown Brief and persists after restart',async t=>{
+test('Web accepts empty Goal conversation, serves Markdown Deliverable and persists after restart',async t=>{
  const f=await fixture(t);
  const bundle=await f.get('/vendor/workspace-app.js');assert.equal(bundle.status,200);assert.match(bundle.headers.get('Cache-Control'),/private, no-cache/);
  const cached=await fetch(f.url()+'/vendor/workspace-app.js',{headers:{'If-None-Match':bundle.headers.get('ETag')}});assert.equal(cached.status,304);
  let [goal]=await(await f.get('/api/goals')).json();assert.deepEqual(goal.briefs,[]);
- assert.equal((await f.post({text:'Before Brief'})).status,201);
+ assert.equal((await f.post({text:'Before Deliverable'})).status,201);
  await f.note();[goal]=await(await f.get('/api/goals')).json();assert.match(goal.briefs[0].html,/<p>本文/);
  assert.equal((await f.get('/api/plans')).status,404);
  const page=await f.get('/');assert.match(page.headers.get('Content-Security-Policy'),/script-src 'self'/);
  assert.equal((await f.post({version:1,text:'Legacy'})).status,400);
  assert.equal((await f.post({text:'Cross origin'},'https://example.com')).status,403);
- await f.stop();await f.start();[goal]=await(await f.get('/api/goals')).json();assert.equal(goal.conversation[0].text,'Before Brief');
+ await f.stop();await f.start();[goal]=await(await f.get('/api/goals')).json();assert.equal(goal.conversation[0].text,'Before Deliverable');
  assert.equal((await f.get('/api/events?since=-1')).status,400);
  assert.equal((await f.get('/note-body.js')).status,404);assert.equal((await f.get('/brief-body.js')).status,200);
 });
-test('annotations reference exact replies; duplicates stay idempotent after an Brief update',async t=>{
+test('annotations reference exact replies; duplicates stay idempotent after a Deliverable update',async t=>{
  const f=await fixture(t);await f.note();await f.run('comment','--id','1','--text','返信の説明です');
  const annotation={kind:'text',source:{kind:'comment',eventId:1},anchor:{start:0,end:2,quote:'返信'},text:'詳しく'};
  const payload={annotations:[annotation],requestId:'reply-request-001'};
@@ -88,7 +88,7 @@ test('multiple images and rectangle annotations persist, reject foreign images a
 });
 test('Markdown annotations validate rendered text and API deltas render both authors',async t=>{
  const f=await fixture(t),source='## Result\n\nA **formatted** result.';
- await writeFile(f.body,source);await f.run('brief','update','--id','1');
+ await writeFile(f.body,source);await f.run('deliverable','update','--id','1');
  const agent=await f.run('comment','--id','1','--text','Choose **this option**.');
  const [goal]=await(await f.get('/api/goals')).json();
  assert.match(goal.briefs[0].html,/<details/);assert.match(goal.conversation[0].html,/<strong>this option/);
@@ -102,7 +102,7 @@ test('Markdown annotations validate rendered text and API deltas render both aut
  assert.equal((await f.get('/overview-body.js')).status,404);
 });
 
-test('compact Web snapshot keeps current content and Letters; older Briefs load separately',async t=>{
+test('compact Web snapshot keeps current content and Letters; older Deliverables load separately',async t=>{
  const f=await fixture(t);await f.note();await f.note();
  const letter=await f.run('letter','--id','1','--title','Question','--text','Choose **one**.');
  let [goal]=await(await f.get('/api/goals?view=web')).json();
@@ -148,15 +148,15 @@ test('HTML message bodies survive saving and restart, with safe rendering and te
 });
 
 test('HTML diagram annotations retain the exact version and reject missing or foreign images',async t=>{
- const f=await fixture(t),source=join(f.root,'workspace/goals/1/brief.html');
+ const f=await fixture(t),source=join(f.root,'workspace/goals/1/deliverable.html');
  await writeFile(source,'<style>.drawing{color:#243b3e}</style><h1>Before</h1><svg class="drawing" viewBox="0 0 100 100" onload="bad()"><text x="10" y="20">First</text><script>bad()</script></svg>');
- await f.run('brief','update','--id','1','--format','html');
+ await f.run('deliverable','update','--id','1','--format','html');
  const doc=await(await f.get('/api/goals/1/briefs/1/document')).text();assert.match(doc,/data-brief-svg="0"/);
  const svg=await f.get('/api/goals/1/briefs/1/svg/0');assert.equal(svg.status,200);assert.match(svg.headers.get('Content-Type'),/image\/svg\+xml/);
  const image=await svg.text();assert.match(image,/xmlns="http:\/\/www.w3.org\/2000\/svg"/);assert.match(image,/>First</);assert.doesNotMatch(image,/onload|<script|bad\(\)/);
  const note={kind:'image',source:{kind:'brief',version:1,svgIndex:0},rect:{x:.1,y:.1,width:.5,height:.5},imageName:'First diagram',text:'Diagram note'};
  const result=await f.post({annotations:[note]});assert.equal(result.status,201);assert.deepEqual((await result.json()).feedback.annotations[0].source,note.source);
- await writeFile(source,'<h1>After</h1><svg viewBox="0 0 100 100"><text>Replacement</text></svg>');await f.run('brief','update','--id','1','--format','html');
+ await writeFile(source,'<h1>After</h1><svg viewBox="0 0 100 100"><text>Replacement</text></svg>');await f.run('deliverable','update','--id','1','--format','html');
  assert.match(await(await f.get('/api/goals/1/briefs/1/svg/0')).text(),/>First</);
  for(const source of [{kind:'brief',version:1,svgIndex:1},{kind:'brief',version:2,svgIndex:-1},{kind:'brief',version:99,svgIndex:0},{kind:'comment',version:1,svgIndex:0}])assert.equal((await f.post({annotations:[{...note,source}]})).status,400);
  assert.equal((await f.get('/api/goals/1/briefs/1/svg/1')).status,404);

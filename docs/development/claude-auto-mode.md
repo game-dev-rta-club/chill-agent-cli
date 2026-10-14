@@ -65,7 +65,7 @@ be confirmed by the main hook; the response must then reach a matching Stop.
 Only both facts complete the attempt. A lost output or missing receipt is never
 blindly retried, even after a revision change or through another Root. One check
 consumes the allowance for that revision; comments, results and Off/On toggles
-do not create another allowance. Substantive Goal, Brief or user-input changes
+do not create another allowance. Substantive Goal, Deliverable or user-input changes
 can create the next one after the preceding attempt is resolved.
 
 Saved Web feedback detected by the CLI reply waiter stays pending until the inbox

@@ -62,7 +62,7 @@ that pending delivery and abstain. There is no second transport fallback or new
 Agent process.
 
 Use `connectionPolicyLock(connection, run)` to serialize a native policy journal.
-`continuationWorkspace(rootId)` supplies saved Goal, Brief and user-input revisions,
+`continuationWorkspace(rootId)` supplies saved Goal, Deliverable and user-input revisions,
 not live execution facts. `readDeliveryState` and `readFeedbackHold` let policy
 check saved input across the connection. Do not call entry-locking native actions
 from inside these callbacks. Native queue state, permissions and interruption

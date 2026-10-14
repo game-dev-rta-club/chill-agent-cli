@@ -11,9 +11,9 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=await mkdtemp(join(tmpdir(),'chill-markdown-web-')),env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'0'};
 const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
 const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
-await run('create','--title','Brief and Markdown');
+await run('create','--title','Deliverable and Markdown');
 const source='# What we will realize\n\nA short **shared outcome**.\n\n## Behavior\n\n- First option\n- Second option\n\n### Details\n\n| Item | Status |\n| --- | --- |\n| Table value | Ready |\n\n```mermaid\ngraph LR\n A[Question] --> B[Answer]\n```\n\nParagraph **after diagram**.\n\n## Other\n\n```js\nconst html = "<button>";\n```';
-await writeFile(join(root,'workspace/goals/1/brief.md'),source);await run('brief','update','--id','1');
+await writeFile(join(root,'workspace/goals/1/deliverable.md'),source);await run('deliverable','update','--id','1');
 const message='**Formatted** opening.\n\n## Supporting information\n\n### Table\n\n| Item | State |\n| --- | --- |\n| Choice | Ready |\n\n```mermaid\ngraph TD\n A --> B\n```\n\nUse [the guide](https://example.com) after this diagram.';
 const comment=await run('letter','--id','1','--title','Can you read this Letter?','--text',message);
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
@@ -43,7 +43,7 @@ try {
   await page.locator('.annotation-action').click();await page.locator('.annotation-form textarea').fill(reply);
   await page.locator('.annotation-form').getByRole('button',{name:'Save',exact:true}).click();
  }
- await annotate('.brief-body .detail-content p strong','after diagram','Brief after a diagram');
+ await annotate('.brief-body .detail-content p strong','after diagram','Deliverable after a diagram');
  await annotate(`#event-${comment.id} .event-text a`,'the guide','Letter formatted link');
  const sent=page.waitForResponse(r=>r.url().endsWith('/feedback')&&r.request().method()==='POST');
  await page.locator('.conversation-form').getByRole('button',{name:'Comment',exact:true}).click();const result=await sent;assert.equal(result.status(),201);const event=(await result.json()).feedback;

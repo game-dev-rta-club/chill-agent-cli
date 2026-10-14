@@ -36,7 +36,7 @@ The main Bash PostToolUse hook checks the saved intent against the current nativ
 session, context and generation, then returns the created Goal ID, saved feedback
 or receipt. Subagent hooks cannot commit an intent merely because their shell
 inherited the main session's environment. Other tools cannot confirm actions;
-interrupted Bash calls are ignored. Normal Goal read, Brief and Comment commands remain usable.
+interrupted Bash calls are ignored. Normal Goal read, Deliverable and Comment commands remain usable.
 `goal work` and live execution tracking are still Codex-specific.
 
 This is coordination between trusted same-user processes, not authentication.

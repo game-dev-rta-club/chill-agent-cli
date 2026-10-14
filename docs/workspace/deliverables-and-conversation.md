@@ -1,31 +1,35 @@
 ---
 keyPoints: >-
-  Edit the existing Brief source and publish a snapshot; comments preserve discussion.
-  Static HTML works in Messages; HTML Brief images and SVG diagrams support notes.
+  The Deliverable holds only a Goal's final output; plans and progress go to Conversation.
+  Edit its source and publish a snapshot; comments preserve discussion.
+  Static HTML works in Messages; HTML Deliverable images and SVG diagrams support notes.
   Letters distinguish questions from reply-free outcomes; neither answers nor viewing complete or unblock work.
 ---
 
-# Keep the explanation and discussion together
+# Keep the final output and the discussion apart
 
-The Brief is the current explanation of a Goal. Conversation keeps the
-discussion about it, including feedback tied to an older Brief version. Updating
-the explanation does not erase that history.
+The Deliverable holds only the final output of a Goal: the document, design or
+result it hands over, which may be a draft while the work goes on. Plans,
+progress and questions belong in Conversation, which also keeps feedback tied to
+an older Deliverable version. Updating the Deliverable does not erase that history.
+The editable source is `deliverable.md` or `deliverable.html`; files from before the
+rename (`brief.*`) are moved to the new name the first time the workspace opens.
 
-## Publish the Brief
+## Publish the Deliverable
 
 ```sh
-chill goal brief path --id 1
+chill goal deliverable path --id 1
 # Edit the returned file.
-chill goal brief update --id 1
+chill goal deliverable update --id 1
 ```
 
 Editing the file alone does not change Web. Publishing saves an immutable version
 when the body or format differs; identical content is a no-op. An empty source
-clears the Brief. The command does not create a Conversation message or complete
+clears the Deliverable. The command does not create a Conversation message or complete
 the Goal.
 
 Markdown supports lists, tables, code and Mermaid diagrams. For a custom layout,
-request `--format html` from `brief path` and publish with the same format. HTML
+request `--format html` from `deliverable path` and publish with the same format. HTML
 renders in an isolated frame; scripts, forms and remote assets do not run.
 Switching format keeps previous versions and both editable source files.
 
@@ -33,7 +37,7 @@ Upload images with `goal image` and use the returned `/api/images/<id>` referenc
 Text annotations retain their source version; image notes retain their attachment
 and location. Read the relevant version when responding to older feedback.
 HTML images have an annotation button. Inline SVG diagrams use the same area
-selector and retain their Brief version and SVG index, so changing a diagram
+selector and retain their Deliverable version and SVG index, so changing a diagram
 does not move an old note onto its replacement. The original diagram can be
 opened at `/api/goals/<id>/briefs/<version>/svg/<index>` (indices start at zero).
 Small SVG icons below 64 pixels in either dimension keep their display without
@@ -53,7 +57,7 @@ counts, so updating does not turn old results into new unanswered questions.
 Message bodies already accept static HTML such as paragraphs, lists, tables,
 links and disclosures, alongside Markdown. Both authors use the same sanitizer;
 scripts, forms, custom styles and remote images are removed. Use a standalone
-HTML Brief when the explanation needs its own layout or styling.
+HTML Deliverable when the explanation needs its own layout or styling.
 
 A direct user answer changes a Letter from open to answered; an unrelated
 comment leaves it open. If a question no longer needs an answer, explicitly use
@@ -64,5 +68,5 @@ A Letter answer is not automatically approval, an end to Waiting, or completion.
 Read the answer and decide what it changes within the agreed scope. The
 [layered reader](reading-goals.md) keeps the original question with its answers.
 
-Implementation: [Brief rendering](../../lib/brief.mjs),
+Implementation: [Deliverable rendering](../../lib/brief.mjs),
 [Letter state](../../public/letter-state.js), [event storage](../../lib/goal-store.mjs).

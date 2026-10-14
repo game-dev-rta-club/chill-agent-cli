@@ -26,7 +26,7 @@ export default {
    'Review native Hooks when required. If connection show reports no connection, run connection join; resuming is not needed. Do not clear, fork, fabricate identity variables or launch a second writer.',
    'Run connection show from main Bash to verify the handoff before creating a Root. Run each connection action separately; a shell receipt alone is not confirmation.',
    'There is no deferred Queue state or goal work route. Keep independent input in the current work plan. Saved Web feedback wakes an idle conversation only while the reply waiter runs; follow the connection results that ask to start it.',
-   'Children, Briefs, Comments, Letters and ordinary reads use the shared goal commands. Existing Root connections cannot be reassigned.'
+   'Children, Deliverables, Comments, Letters and ordinary reads use the shared goal commands. Existing Root connections cannot be reassigned.'
   ],
   constraints:[
    'Setup preserves native permissions, other Hooks and disablement; it never enables Auto mode.',
