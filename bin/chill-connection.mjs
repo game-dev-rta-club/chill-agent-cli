@@ -3,6 +3,7 @@ import '../lib/quiet-sqlite-warning.mjs';
 import {readFile} from 'node:fs/promises';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
 import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
+import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {requestClaudeAction,requestClaudeJoin,handleClaudeToolHook,inspectClaudeRequest,claudeSessionStartContext} from '../lib/claude-actions.mjs';
@@ -57,7 +58,10 @@ async function main() {
   let input;
   try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Error('Invalid Claude hook JSON.'); }
-  if(input?.hook_event_name==='SessionStart') {
+  if(input?.hook_event_name==='PreToolUse') {
+    const output=claudeRmGuard(input);
+    if(output)console.log(JSON.stringify(output));
+  } else if(input?.hook_event_name==='SessionStart') {
     const output=await claudeSessionStartContext(await captureClaudeEntry(input));
     if(output)console.log(JSON.stringify(output));
   } else {

@@ -18,9 +18,20 @@ node bin/chill-entry.mjs setup prepare --harness claude-code --project /absolute
 
 Codex remains the default when `--harness` is omitted. The Claude route does not
 look up Codex. It prepares the [stable runtime](../runtime/data-and-updates.md)
-and adds SessionStart, UserPromptSubmit, PostToolUse, Stop and SessionEnd hooks
-to `.claude/settings.local.json`. It does not start Claude or the Web server,
-enable Auto mode, assign an existing Goal, or change native permissions.
+and adds SessionStart, UserPromptSubmit, PreToolUse (Bash only), PostToolUse,
+Stop and SessionEnd hooks to `.claude/settings.local.json`. It does not start
+Claude or the Web server, enable Auto mode, assign an existing Goal, or change
+native permissions.
+
+The Bash PreToolUse hook keeps unattended work from stopping at a prompt. Claude
+Code asks a person before `rm` or `rmdir` whose target is a glob or trailing
+slash directly under a shell variable, such as `rm -f $DIR/*.png`, even in
+bypass mode, and no allow rule or hook may approve it (its
+[critical paths](https://code.claude.com/docs/en/permission-modes#critical-paths)
+check). The hook finds that form first and denies it with a reason asking Claude
+to rewrite it as `rm -f "${DIR:?}"/*.png` or with a literal path, which Claude
+Code accepts. It never approves a command. Other commands pass without output;
+the check adds about 0.15 seconds per Bash call.
 
 Each hook is the same shell command on every platform: it runs the short `chill`
 entry, which uses the recorded Node or, if that is gone, the Node on PATH. On
