@@ -85,10 +85,10 @@ test('continuation runs appear in common Activity with escaped Goal links and la
  assert.match(runOutputMarkup({work:null,error:'Offline'}),/Refresh log/);
 });
 
-test('a Claude Goal shows the AutoContinue switch beside its connection status',()=>{
+test('an agent shows the AutoContinue switch beside its connection status',()=>{
  const control={id:'continuation',label:'Auto-continue',rootId:'3',enabled:true,placement:'header',icon:'repeat',activity:{label:'AutoContinue',status:'Watching',runs:[]}};
- const html=agentMarkup({nativeConnection:{status:{label:'Connected',detail:'Replies reach this conversation.'},detail:'Some controls are unavailable.'},extensions:[control]});
+ const html=agentMarkup({connected:true,agent:{name:'Claude Code',status:{label:'Connected',detail:'Replies reach this conversation.'}},capabilities:{},extensions:[control]});
  assert.match(html,/<h3>Claude Code<\/h3>/);
  assert.match(html,/data-agent-extension="continuation"[^>]*aria-pressed="true"/);
- assert.match(agentMarkup({nativeConnection:{status:null,detail:''},extensions:null}),/Extensions unavailable/);
+ assert.match(agentMarkup({connected:true,agent:{name:'Agent'},capabilities:{},extensions:null}),/Extensions unavailable/);
 });

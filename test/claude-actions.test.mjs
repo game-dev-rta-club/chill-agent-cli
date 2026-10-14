@@ -63,8 +63,8 @@ test('shell request alone cannot bind a Root; native main hook commits once acro
   const g=(await listGoals())[0];assert.equal(g.threadId,null);assert.deepEqual(g.connection,{harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId});
   assert.match(context(outcomes.find(Boolean)),/Created Goal #1/);
   await s.confirm(s.hook(r));assert.equal((await listGoals()).length,1);
-  const status=await readAgentStatus(g.id);assert.equal(status.connected,false);assert.equal(status.nativeConnection.stage,'experimental');
-  assert(Object.values(status.capabilities).every(v=>v===false));
+  const status=await readAgentStatus(g.id);assert.equal(status.connected,true);assert.equal(status.agent.name,'Claude Code');
+  assert.deepEqual(status.capabilities,{settings:false,stop:false,resume:false,approveAll:true});
   assert.match(agentMarkup(status),/Claude Code/);assert.doesNotMatch(agentMarkup(status),/Codex account|data-agent-settings/);
 });
 
