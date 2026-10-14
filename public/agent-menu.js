@@ -16,7 +16,7 @@ function timeMarkup(at,seconds=false){
 function workMarkup(work,root={}){
  const active=isRunning(work?.status)||work?.status==='paused';
  const id=work?.goalId||root.rootId,title=work?.goalId?work.title:root.rootTitle;
- return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}${work?.goalId&&work.eventId?`/activity/${esc(work.eventId)}`:''}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
+ return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${!active&&work?.last?.goalId?`<a class="agent-work-link" href="#/goal/${esc(work.last.goalId)}${work.last.eventId?`/activity/${esc(work.last.eventId)}`:''}">Last · #${esc(work.last.goalId)} ${esc(work.last.title||'Goal')} →</a>`:''}${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}${work?.goalId&&work.eventId?`/activity/${esc(work.eventId)}`:''}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
 }
 function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div class="agent-auto-meta">${timeMarkup(entry.at)}<span>${esc(entry.result?.label||entry.status)}</span></div><p>${esc(entry.summary)}</p>${entry.detail?`<p class="agent-muted">${esc(entry.detail)}</p>`:''}${entry.message?`<details data-agent-detail="${esc(id)}"><summary>View message</summary><pre class="agent-auto-message">${esc(entry.message)}</pre></details>`:'<p class="agent-muted">Message not saved.</p>'}</article>`;}
 export function runActivityMarkup(controls){
