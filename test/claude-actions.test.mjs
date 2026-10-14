@@ -84,9 +84,9 @@ test('binding recovers a crash between Root and request completion without dupli
   const f=await fixture(t),s=await f.start(),r=await s.request('create-goal',goalInput);
   const connection={harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId};
   const first=await createClaudeRoot(goalInput,connection,r.requestId);
-  await rm(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/goals',first.id,'deliverable.md'));
+  await rm(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/goals',first.id,'deliverable.html'));
   assert.match(context(await s.confirm(s.hook(r))),/Created Goal #1/);
-  assert.equal((await listGoals()).length,1);assert.equal(await readFile(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/goals/1/deliverable.md'),'utf8'),'');
+  assert.equal((await listGoals()).length,1);assert.equal(await readFile(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/goals/1/deliverable.html'),'utf8'),'');
   await assert.rejects(createClaudeRoot({...goalInput,title:'changed'},connection,r.requestId),/changed/);
   await assert.rejects(updateGoal(first.id,{threadId:randomUUID()}),/reassigned/);
   await assert.rejects(assignGoal(first.id,null),/Reassignment/);

@@ -12,7 +12,7 @@ The Deliverable holds only the final output of a Goal: the document, design or
 result it hands over, which may be a draft while the work goes on. Plans,
 progress and questions belong in Conversation, which also keeps feedback tied to
 an older Deliverable version. Updating the Deliverable does not erase that history.
-The editable source is `deliverable.md` or `deliverable.html`; files from before the
+The editable source is `deliverable.html` or `deliverable.md`; files from before the
 rename (`brief.*`) are moved to the new name the first time the workspace opens.
 
 ## Publish the Deliverable
@@ -28,10 +28,12 @@ when the body or format differs; identical content is a no-op. An empty source
 clears the Deliverable. The command does not create a Conversation message or complete
 the Goal.
 
-Markdown supports lists, tables, code and Mermaid diagrams. For a custom layout,
-request `--format html` from `deliverable path` and publish with the same format. HTML
-renders in an isolated frame; scripts, forms and remote assets do not run.
-Switching format keeps previous versions and both editable source files.
+A new Deliverable starts as HTML (`deliverable.html`): a standalone document
+with inline CSS and SVG, rendered in an isolated frame where scripts, forms and
+remote assets do not run. Markdown remains available with `--format markdown`
+and supports lists, tables, code and Mermaid diagrams. Switching format keeps
+previous versions and both editable source files. How agents write a
+Deliverable is set by the agent guide, not by this CLI.
 
 Upload images with `goal image` and use the returned `/api/images/<id>` reference.
 Text annotations retain their source version; image notes retain their attachment
@@ -39,7 +41,7 @@ and location. Read the relevant version when responding to older feedback.
 HTML images have an annotation button. Inline SVG diagrams use the same area
 selector and retain their Deliverable version and SVG index, so changing a diagram
 does not move an old note onto its replacement. The original diagram can be
-opened at `/api/goals/<id>/briefs/<version>/svg/<index>` (indices start at zero).
+opened at `/api/goals/<id>/deliverables/<version>/svg/<index>` (indices start at zero).
 Small SVG icons below 64 pixels in either dimension keep their display without
 an overlaid annotation control.
 
