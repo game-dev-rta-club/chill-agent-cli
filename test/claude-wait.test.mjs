@@ -162,3 +162,15 @@ test('a Web pause holds feedback, refuses tool calls and survives compact; Resum
  const resumed=context(await f.action('inbox'));assert.match(resumed,/selected Resume/);assert.match(resumed,/sent while paused/);
  assert.doesNotMatch(context(await f.action('inbox')),/selected Resume/,'the resume notice is delivered once');
 });
+
+test('Approve all answers permission prompts for its conversation only while on, and survives compact',async t=>{
+ const {setClaudeApproveAll,readClaudeApproveAll,claudePermissionDecision}=await import('../lib/claude-permissions.mjs');
+ const f=await fixture(t),prompt=()=>claudePermissionDecision({hook_event_name:'PermissionRequest',session_id:f.connection.sessionId,tool_name:'mcp__computer-use__request_access'});
+ assert.equal(await prompt(),null,'prompts ask normally by default');
+ await setClaudeApproveAll(f.connection,true);
+ assert.equal((await prompt()).hookSpecificOutput.decision.behavior,'allow');
+ await f.start('compact');assert.equal(await readClaudeApproveAll(f.connection),true);
+ assert.equal(await claudePermissionDecision({hook_event_name:'PermissionRequest',session_id:'other-session',tool_name:'Bash'}),null);
+ await setClaudeApproveAll(f.connection,false);assert.equal(await prompt(),null);
+ await assert.rejects(setClaudeApproveAll(f.connection,'yes'),/On or Off/);
+});

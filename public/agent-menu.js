@@ -39,8 +39,10 @@ const extensionsMarkup=data=>data.extensions===null?'<section class="agent-secti
 // Only the top section is harness-specific (Claude's conversation status, or
 // Codex settings and usage). Activity, its controls and Queue read the same
 // fields for every connection, so a new harness only supplies data.
-function claudeMarkup(s){
- return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p title="${esc(s.detail)}">${esc(s.label)}${s.waiterCheckedAt||s.observedAt?` · ${timeMarkup(s.waiterCheckedAt||s.observedAt)}`:''}</p>`:''}</section>`;
+function claudeMarkup(s,approveAll){
+ return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p title="${esc(s.detail)}">${esc(s.label)}${s.waiterCheckedAt||s.observedAt?` · ${timeMarkup(s.waiterCheckedAt||s.observedAt)}`:''}</p>`:''}
+ <label class="agent-extension"><span>Approve all</span><input type="checkbox" role="switch" data-agent-approve-all aria-label="Approve all permission prompts" ${approveAll?'checked':''}></label>
+ <p class="agent-muted">Answers Claude's permission prompts with Allow so unattended work keeps going. Prompts Claude Code never lets a hook approve still ask.</p><p class="extension-message" data-approve-message role="status"></p></section>`;
 }
 function codexMarkup(data){
  return `<section class="agent-section agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</section>
@@ -52,7 +54,7 @@ function queueMarkup(queue){
 }
 export function agentMarkup(data) {
  if(!data.connected&&!data.nativeConnection)return '<p class="agent-empty">No agent connected.</p>';
- return `${data.nativeConnection?claudeMarkup(data.nativeConnection.status):codexMarkup(data)}
+ return `${data.nativeConnection?claudeMarkup(data.nativeConnection.status,data.nativeConnection.approveAll):codexMarkup(data)}
  ${currentMarkup(data,controlsMarkup(data))}
  ${queueMarkup(data.queue)}
  ${extensionsMarkup(data)}`;
@@ -137,7 +139,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   content.querySelectorAll('input,select,button').forEach(el=>el.disabled=true);
   const message=content.querySelector('[data-agent-control-message]');if(message)message.textContent=action==='stop'?'Pausing…':'Resuming…';
   try{
-   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'current',action,threadId:snapshot.threadId,turnId:snapshot.control.turnId,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
+   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'current',action,threadId:snapshot.threadId,turnId:snapshot.control?.turnId??null,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
    const result=await response.json();if(!response.ok)throw Error(result.error||'Action unconfirmed. Refresh to check.');
    if(opened&&id===getGoalId()&&token===request)render({...result,extensions:snapshot.extensions});
   }catch(error){
@@ -147,6 +149,18 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
    }
   }finally{saving=false;refreshButton.disabled=false;}
  }
+ // Claude only: answer permission prompts automatically for this conversation.
+ content.addEventListener('change',async event=>{
+  const input=event.target.closest('[data-agent-approve-all]');if(!input||saving)return;
+  const id=getGoalId(),snapshot=current,token=++request;controller?.abort();saving=true;input.disabled=true;
+  const message=content.querySelector('[data-approve-message]');if(message)message.textContent='';
+  try{
+   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'permissions',approveAll:input.checked}),signal:AbortSignal.timeout(30000)});
+   const result=await response.json();if(!response.ok)throw Error(result.error||'Could not save.');
+   if(opened&&id===getGoalId()&&token===request)render({...result,extensions:snapshot.extensions});
+  }catch(error){if(opened&&id===getGoalId()&&token===request){input.checked=!input.checked;input.disabled=false;const m=content.querySelector('[data-approve-message]');if(m)m.textContent=error.name==='TimeoutError'?'Save unconfirmed. Refresh to check.':error.message;}}
+  finally{saving=false;}
+ });
  content.addEventListener('change',async event=>{
   if(event.target.matches('[data-extension]')){
    void saveExtension(event.target.dataset.extension,event.target.checked,`[data-extension="${event.target.dataset.extension}"]`);return;

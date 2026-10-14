@@ -95,7 +95,7 @@ test('an exec-form hook from an earlier Windows setup is replaced by the shell f
  await writeFile(f.path,JSON.stringify(config));await writeFile(record,JSON.stringify(old));
  assert.equal((await configureClaudeHooks(f.project,f.options)).configured,true);
  const hooks=Object.values((await f.read()).hooks).flat().flatMap(g=>g.hooks);
- assert.equal(hooks.filter(h=>h.args).length,0);assert.equal(hooks.filter(h=>/ connection claude-hook$/.test(h.command)).length,6);
+ assert.equal(hooks.filter(h=>h.args).length,0);assert.equal(hooks.filter(h=>/ connection claude-hook$/.test(h.command)).length,7);
  // An unrecorded exec-form chill hook is still reported instead of overwritten.
  const foreign=await f.read();foreign.hooks.Stop.push(exec(foreign.hooks.Stop.find(g=>/claude-hook/.test(g.hooks[0].command))));await writeFile(f.path,JSON.stringify(foreign));
  assert.equal((await claudeSetupStatus(f.project,f.options)).conflict,true);

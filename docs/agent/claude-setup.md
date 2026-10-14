@@ -18,12 +18,12 @@ node bin/chill-entry.mjs setup prepare --harness claude-code --project /absolute
 
 Codex remains the default when `--harness` is omitted. The Claude route does not
 look up Codex. It prepares the [stable runtime](../runtime/data-and-updates.md)
-and adds SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
+and adds SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse,
 Stop and SessionEnd hooks to `.claude/settings.local.json`. It does not start
 Claude or the Web server, enable Auto mode, assign an existing Goal, or change
 native permissions.
 
-PreToolUse applies a [Web pause](claude-status.md#pause-resume-and-queue) to every tool call. For Bash it also keeps unattended work from stopping at a prompt. Claude
+PermissionRequest answers Claude's permission prompts with Allow only while the conversation's Approve all switch in the Agent menu is on (Claude only); otherwise prompts ask as usual. Prompts Claude Code never lets a hook approve still ask. PreToolUse applies a [Web pause](claude-status.md#pause-resume-and-queue) to every tool call. For Bash it also keeps unattended work from stopping at a prompt. Claude
 Code asks a person before `rm` or `rmdir` whose target is a glob or trailing
 slash directly under a shell variable, such as `rm -f $DIR/*.png`, even in
 bypass mode, and no allow rule or hook may approve it (its
