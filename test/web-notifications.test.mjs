@@ -11,7 +11,8 @@ function fixture(seed=null){let saved=seed,queue=Promise.resolve(),time=100000,m
  return {api,on,off,sends,events,state:()=>saved,time:v=>time=v,mode:v=>mode=v,origin:v=>origin=v};
 }
 test('invalid endpoints and key lengths cannot be used to send arbitrary network requests',()=>{
- for(const endpoint of ['http://fcm.googleapis.com/x','https://127.0.0.1/x','https://fcm.googleapis.com.evil.test/x','https://evil.test/x'])assert.throws(()=>validateSubscription({...subscription,endpoint}));
+ for(const endpoint of ['http://fcm.googleapis.com/x','https://127.0.0.1/x','https://fcm.googleapis.com.evil.test/x','https://google.com.evil.test/x','https://evil.test/x'])assert.throws(()=>validateSubscription({...subscription,endpoint}));
+ assert.equal(validateSubscription({...subscription,endpoint:'https://jmt17.google.com/fcm/send/test'}).endpoint,'https://jmt17.google.com/fcm/send/test','Chrome 156 endpoint');
  assert.throws(()=>validateSubscription({...subscription,keys:{...subscription.keys,auth:'short'}}));assert.deepEqual(validateSubscription(subscription),subscription);
 });
 test('each browser owns its switch; Off cancels only its pending notifications',async()=>{
