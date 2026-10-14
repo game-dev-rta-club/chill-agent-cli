@@ -12,7 +12,7 @@
     "server:status": "node bin/chill-server.mjs status",
     "hooks:install": "node bin/chill-hook.mjs --install",
     "setup": "node bin/chill-setup.mjs",
-    "check": "npm run web:build && node --check server.mjs && node --check lib/goal-store.mjs && node --check bin/chill-agent.mjs && node --check bin/chill-hook.mjs && node --check public/app.js && node --test test/*.test.mjs",
+    "check": "npm run web:build && node --check server.mjs && node --check lib/goal-store.mjs && node --check bin/chill-agent.mjs && node --check bin/chill-hook.mjs && node --check public/app.js && node --import ./test/isolate-env.mjs --test test/*.test.mjs",
     "web:build": "node scripts/build-web.mjs",
     "predev": "npm run web:build",
     "prestart": "npm run web:build",
