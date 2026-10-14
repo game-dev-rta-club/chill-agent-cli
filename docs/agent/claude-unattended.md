@@ -46,7 +46,7 @@ leaves these choices with the user.
 ## Try the work you will actually leave running
 
 Check that the Agent menu shows **Waiting for Web replies**. Then send one small
-Web request, for example: “Read the current Brief and report one next action; do
+Web request, for example: “Read the current Deliverable and report one next action; do
 not change files.” Check that Claude wakes, completes its receipt and replies on
 the Web. If Claude asks for a permission, review the actual operation there. Do
 not send the Web request again to clear a permission prompt.

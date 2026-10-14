@@ -110,7 +110,7 @@ test('real store: content revisions and internal results stay separate from Web 
   await updateGoal(root.id,{started:true});assert.equal((await observe()).revision,original);
   await updateGoal(root.id,{state:'done'});facts=await observe();
   assert.notEqual(facts.revision,original);assert.equal(continuationEligibility(facts),'idle');
-  await writeFile(join(dir,'workspace/goals',root.id,'brief.md'),'New brief');
+  await writeFile(join(dir,'workspace/goals',root.id,'deliverable.md'),'New brief');
   await updateBrief(root.id);const briefRevision=(await observe()).revision;
   assert.notEqual(briefRevision,facts.revision);await updateBrief(root.id);assert.equal((await observe()).revision,briefRevision);
   const {appendAgentComment}=await import('../lib/goal-store.mjs');

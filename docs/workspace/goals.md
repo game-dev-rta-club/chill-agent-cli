@@ -8,7 +8,7 @@ keyPoints: >-
 
 A Goal has a title, agreed scope and success criteria. Split it when there are
 separate outcomes to review. Keep refinements of the same outcome in its
-[Brief](briefs-and-conversation.md).
+[Deliverable](deliverables-and-conversation.md).
 
 ```sh
 chill goal create --title "Improve onboarding" --scope "First-run setup" --criteria "A new user can finish setup"
@@ -34,7 +34,7 @@ a Done child reopens Done ancestors.
 Progress counts leaf Goals equally. Two Done leaves out of three contribute 67%,
 regardless of how deeply they are nested. An unfinished Goal is capped at 99%:
 all leaves being complete still leaves the parent's own completion to confirm.
-Publishing a Brief, posting a Comment or acknowledging feedback adds no progress.
+Publishing a Deliverable, posting a Comment or acknowledging feedback adds no progress.
 
 Running and Paused are observed activity, not additional stored work states.
 A Done Goal can temporarily display Running without losing its completion.
@@ -47,7 +47,7 @@ Implementation: [Goal store](../../lib/goal-store.mjs),
 
 Use `chill goal update --id <root> --input-file archive.json` with
 `{"archived":true}` to remove an unused root and its descendants from normal
-lists and continuation discovery. This preserves their IDs, Briefs and
+lists and continuation discovery. This preserves their IDs, Deliverables and
 Conversation; it does not mark unfinished work Done. Restore the same ID with
 `{"archived":false}`. Archive only whole roots, so hiding a SubGoal cannot make
 an incomplete parent appear finished. Archiving is not a command to interrupt

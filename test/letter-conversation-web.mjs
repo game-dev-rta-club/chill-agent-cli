@@ -26,11 +26,11 @@ try {
  const main=()=>page.locator('.conversation-form');
  const readCard=card=>card.evaluate(el=>{const pane=document.querySelector('main');pane.scrollTop+=el.getBoundingClientRect().top-pane.getBoundingClientRect().top-24;});
  const send=async(form)=>{const response=page.waitForResponse(r=>r.url().endsWith('/feedback')&&r.request().method()==='POST');await form.getByRole('button',{name:'Comment',exact:true}).click();assert.equal((await response).status(),201);if(await form.getAttribute('data-form')==='annotation')await form.waitFor({state:'hidden'});else await page.waitForFunction(()=>!document.querySelector('.conversation-form textarea').value);};
- await go();assert.match(await page.locator('.brief-body').innerText(),/No Brief/);
- await main().locator('textarea').fill('Before the Brief');await send(main());
- const path=join(root,'workspace/goals/1/brief.md');
+ await go();assert.match(await page.locator('.brief-body').innerText(),/No Deliverable/);
+ await main().locator('textarea').fill('Before the Deliverable');await send(main());
+ const path=join(root,'workspace/goals/1/deliverable.md');
  await writeFile(path,'## Current plan\n\nKeep this explanation current.\n\n<script>window.badBrief=true</script>\n<img src="https://example.com/tracker" onerror="window.badBrief=true">');
- await run('brief','update','--id','1');
+ await run('deliverable','update','--id','1');
  const a=await run('letter','--id','1','--title','First choice','--text','Which direction should we take?');
  const b=await run('letter','--id','1','--title','Second choice','--text','Which color would you like?');
  await go();assert.equal(await page.evaluate(()=>window.badBrief),undefined);assert.equal(await page.locator('.brief-body img').count(),0);
@@ -66,9 +66,9 @@ try {
  assert.equal(await editor().locator('[data-editor-heading]').innerText(),'Answer');
  await editor().locator('textarea').fill('Edited answer');await send(editor());
  assert.equal((await pending()).length,0);assert.equal(await main().locator('.draft-note').count(),0);
- await writeFile(path,'## Result\n\nThe same Goal has been updated.');await run('brief','update','--id','1');
+ await writeFile(path,'## Result\n\nThe same Goal has been updated.');await run('deliverable','update','--id','1');
  await go('/v1');await page.locator('.brief-body summary').click();assert.match(await page.locator('.brief-body').innerText(),/Keep this explanation/);
- // Annotating an old Brief saves its exact history source in the Goal Conversation.
+ // Annotating an old Deliverable saves its exact history source in the Goal Conversation.
  await page.evaluate(()=>{const p=document.querySelector('.brief-body p'),r=document.createRange();r.setStart(p.firstChild,0);r.setEnd(p.firstChild,4);window.getSelection().removeAllRanges();window.getSelection().addRange(r);document.dispatchEvent(new Event('selectionchange'));});
  await page.locator('.annotation-action').waitFor();await page.locator('.annotation-action').click();
  await page.locator('.annotation-form textarea').fill('Keep this context');await page.locator('.annotation-form').getByRole('button',{name:'Save',exact:true}).click();
@@ -153,5 +153,5 @@ try {
   assert.equal(await page.locator('.letter-title').count(),0);
   await page.screenshot({path:join(root,`notice-${viewport.width}.png`)});
  }
- assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','Save draft','targeted answer','failure retry','bundled answers','Brief history','annotation source','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','Save draft','targeted answer','failure retry','bundled answers','Deliverable history','annotation source','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
 } finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true});}

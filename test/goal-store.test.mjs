@@ -16,23 +16,23 @@ async function fixture(t,storage){
  let serial=0;
  const update=async(id,patch)=>{const file=join(root,`patch-${serial++}.json`);await writeFile(file,JSON.stringify(patch));return run('update','--id',id,'--input-file',file);};
  const feedback=async(id,input)=>{const file=join(root,`feedback-${serial++}.json`);await writeFile(file,JSON.stringify(input));return (await invoke('feedback','--id',id,'--input-file',file)).stdout.trim().split('\n').map(JSON.parse)[0].feedback;};
- const brief=async(id,body)=>{const {path}=await run('brief','path','--id',id);await writeFile(path,body);return run('brief','update','--id',id);};
+ const brief=async(id,body)=>{const {path}=await run('deliverable','path','--id',id);await writeFile(path,body);return run('deliverable','update','--id',id);};
  return {root,run,invoke,update,feedback,brief};
 }
 test('empty Goals accept Conversation; stable Markdown updates only publish changes',async t=>{
  const f=await fixture(t),goal=await f.run('create','--title','Stable Goal');
- assert.equal(await readFile(goal.briefPath,'utf8'),'');
- assert.equal((await f.run('show','--id','1')).brief,null);
- await f.run('comment','--id','1','--text','Before Brief');
+ assert.equal(await readFile(goal.deliverablePath,'utf8'),'');
+ assert.equal((await f.run('show','--id','1')).deliverable,null);
+ await f.run('comment','--id','1','--text','Before Deliverable');
  const first=await f.brief('1','# Plan\n\nOriginal'),path=join(f.root,'workspace/goals/1/briefs/v1.json'),bytes=await readFile(path,'utf8');
  assert.equal(first.changed,true);
- const unchanged=await f.run('brief','update','--id','1');assert.equal(unchanged.changed,false);assert.equal(unchanged.version,1);
- await writeFile(goal.briefPath,'# Plan\n\nEdited');
- assert.equal((await f.run('show','--id','1')).brief.body,'# Plan\n\nOriginal','unpublished edits stay local');
- await f.run('brief','update','--id','1');
+ const unchanged=await f.run('deliverable','update','--id','1');assert.equal(unchanged.changed,false);assert.equal(unchanged.version,1);
+ await writeFile(goal.deliverablePath,'# Plan\n\nEdited');
+ assert.equal((await f.run('show','--id','1')).deliverable.body,'# Plan\n\nOriginal','unpublished edits stay local');
+ await f.run('deliverable','update','--id','1');
  await f.run('comment','--id','1','--text','After update');
  const past=await f.run('show','--id','1','--version','1');
- assert.equal(past.goal.title,'Stable Goal');assert.equal(past.brief.body,first.body);
+ assert.equal(past.goal.title,'Stable Goal');assert.equal(past.deliverable.body,first.body);
  assert.equal(past.conversation.length,2);assert.equal(past.latestVersion,2);
  assert.equal(await readFile(path,'utf8'),bytes);
 });
@@ -42,10 +42,10 @@ test('typed Agent posts require a title for Letters and no legacy entrypoints ar
  await assert.rejects(f.run('comment','--id','1','--title','title','--text','x'),/Unknown option/);
  for(const command of ['note','reply','reopen'])await assert.rejects(f.run(command,'--id','1'),/Unknown command/);
  await f.run('letter','--id','1','--title','Which way?','--text','Would you prefer A or B?');
- const page=await f.run('show','--id','1');assert.equal(page.letters.length,1);assert.equal(page.brief,null);
+ const page=await f.run('show','--id','1');assert.equal(page.letters.length,1);assert.equal(page.deliverable,null);
  assert.equal(page.conversation[0].type,'letter');assert.equal(page.conversation[0].version,undefined);
 });
-test('explicit answers close only targeted Letters; unrelated comments and Brief never close them',async t=>{
+test('explicit answers close only targeted Letters; unrelated comments and Deliverable never close them',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');
  const a=await f.run('letter','--id','1','--title','A','--text','A?'),b=await f.run('letter','--id','1','--title','B','--text','B?');
  await f.feedback('1',{text:'Just a comment'});await f.brief('1','Plan');
@@ -122,16 +122,16 @@ test('Agent receipt preserves the Letter and its annotation targets; counts and 
  assert.equal(answered.changed,false);assert.equal(answered.status,'answered');assert.equal(answered.receivedAt,undefined);
  assert.equal((await f.run('tree'))[0].letterCount,0);
 });
-test('concurrent Goal creation and identical Brief updates allocate without duplicates',async t=>{
+test('concurrent Goal creation and identical Deliverable updates allocate without duplicates',async t=>{
  const f=await fixture(t);const goals=await Promise.all(Array.from({length:4},()=>f.run('create','--title','Goal')));
  assert.deepEqual(goals.map(g=>g.id).sort(),['1','2','3','4']);
- await writeFile(goals.find(g=>g.id==='1').briefPath,'# Current');
- const saved=await Promise.all(Array.from({length:4},()=>f.run('brief','update','--id','1')));
+ await writeFile(goals.find(g=>g.id==='1').deliverablePath,'# Current');
+ const saved=await Promise.all(Array.from({length:4},()=>f.run('deliverable','update','--id','1')));
  assert.equal(saved.filter(s=>s.changed).length,1);assert.ok(saved.every(s=>s.version===1));
  await assert.rejects(f.update('1',{state:'working'}),/Live Working/);
  await assert.rejects(f.update('1',{state:'waiting'}),/Waiting reason/);
 });
-test('completed leaf count is independent of Brief, comments and Letter answers',async t=>{
+test('completed leaf count is independent of Deliverable, comments and Letter answers',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');
  for(const title of ['Done','Started','Waiting'])await f.run('create','--title',title,'--parent','1');
  await f.update('2',{state:'done'});await f.update('3',{started:true});await f.update('4',{state:'waiting',waitReason:'Input'});
@@ -195,4 +195,19 @@ test('legacy no-reply Letters preserve counts without exposing a separate messag
  assert.equal((await f.run('close-letter','--id','1','--event',String(notice.id))).changed,false);
  await assert.rejects(f.run('comment','--id','1','--no-reply','--text','x'),/Unknown option/);
  await assert.rejects(f.feedback('1',{type:'letter',replyRequired:false,title:'x',text:'x'}),/replyRequired/);
+});
+
+test('editable sources from before the Deliverable rename move to their new names once',async t=>{
+ const f=await fixture(t);await f.run('create','--title','Renamed');
+ const dir=join(f.root,'workspace/goals/1');
+ const {rm:remove}=await import('node:fs/promises');await remove(join(dir,'deliverable.md'),{force:true});
+ await writeFile(join(dir,'brief.md'),'# Earlier source');
+ const {path}=await f.run('deliverable','path','--id','1');
+ assert.equal(path,join(dir,'deliverable.md'));assert.equal(await readFile(path,'utf8'),'# Earlier source');
+ await assert.rejects(readFile(join(dir,'brief.md'),'utf8'));
+ // An existing new source is never overwritten by a leftover earlier one.
+ await writeFile(join(dir,'brief.md'),'# Leftover');
+ await f.run('deliverable','path','--id','1');
+ assert.equal(await readFile(path,'utf8'),'# Earlier source');
+ await assert.rejects(f.invoke('brief','path','--id','1'),/renamed to goal deliverable/);
 });

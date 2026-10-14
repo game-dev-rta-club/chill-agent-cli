@@ -26,7 +26,7 @@ export async function migrateBrief(directory) {
     source=markdownText(target.text);note.anchor.quote=markdownText(note.anchor.quote).trim();
    } else if(note.source.kind==='brief') {
     const snapshot=await readJson(join(workspace,'goals',event.goalId,'overviews',`v${note.source.version}.json`));
-    if(!snapshot)throw new Error(`Missing Brief snapshot in event ${event.id}.`);
+    if(!snapshot)throw new Error(`Missing Deliverable snapshot in event ${event.id}.`);
     source=markdownText(snapshot.body);
    } else throw new Error(`Unknown annotation source in event ${event.id}.`);
    const quote=note.anchor.quote,start=source.indexOf(quote);

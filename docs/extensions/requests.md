@@ -30,7 +30,7 @@ outcomes before deciding to send anything else.
 
 ## What the observation establishes
 
-`observe(rootId, pending?)` requires an assigned root. It reads current Goal/Brief
+`observe(rootId, pending?)` requires an assigned root. It reads current Goal/Deliverable
 content, unanswered Letters, user feedback, chat execution, the complete native
 queue, pause evidence and recent work heartbeat. It checks the latest turn again
 after reading the queue so a changing turn cannot appear idle.
@@ -41,7 +41,7 @@ positive evidence of a completed or failed latest turn. An empty queue or missin
 turn by itself is insufficient. Done Goals and unanswered Letters are context
 for policy, not host-level reasons to suppress a request.
 
-The `revision` covers the root subtree's Goal content, latest Brief bodies and
+The `revision` covers the root subtree's Goal content, latest Deliverable bodies and
 latest user-feedback change. Agent comments, execution bookkeeping and a policy's
 internal results do not reset it. `context.goals` adds compact subtree counts for
 current hosts; older protocol-v1 hosts may lack that optional field. Consumers

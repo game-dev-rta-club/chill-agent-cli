@@ -12,7 +12,10 @@ import {readConnectedTree,readGoalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
 import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
 
-const output=value=>console.log(JSON.stringify(value,null,2));
+// Agents see the Deliverable by that name; stored records keep their internal names.
+const agentNames={brief:'deliverable',briefs:'deliverables',briefPath:'deliverablePath'};
+const forAgents=value=>Array.isArray(value)?value.map(forAgents):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([key,item])=>[agentNames[key]||key,key==='kind'&&item==='brief'?'deliverable':forAgents(item)])):value;
+const output=value=>console.log(JSON.stringify(forAgents(value),null,2));
 const url=(id,version)=>`http://127.0.0.1:${workspacePort()}/#/goal/${id}${version?`/v${version}`:''}`;
 async function input(path) {
   let raw='';
@@ -25,7 +28,8 @@ async function main() {
   const args=process.argv.slice(2);
   if(showHelp('goal',args.length?args:['--help'])) return;
   const [command,...rest]=args;
-  const subcommand=command==='brief'?rest.shift():null;
+  if(command==='brief')throw Error('goal brief was renamed to goal deliverable.');
+  const subcommand=command==='deliverable'?rest.shift():null;
   const v=parseOptions(`goal ${command}${subcommand?` ${subcommand}`:''}`,rest);
   await initializeStore();
   const id=v['--id'];
@@ -40,7 +44,7 @@ async function main() {
     return output({...goal,nextActions:{message:'Review parent and ancestor success criteria. Mark only achieved Goals Done; otherwise leave them Open. This reminder does not require changing their state.',ancestors:path.slice(0,-1).reverse().map(({id,title,criteria,state})=>({id,title,criteria,state}))}});
   }
   if(command==='close-letter')return output(await closeLetter(id,Number(v['--event']),v['--reason']));
-  if(command==='brief') {
+  if(command==='deliverable') {
     const result=subcommand==='path'?await briefSource(id,v['--format']):await updateBrief(id,v['--format']);
     return output({...result,url:url(id,result.version)});
   }
@@ -53,11 +57,11 @@ async function main() {
   if(command==='show') {
     const text=v['--format']==='text',full=Boolean(v['--full']);
     if(full&&v['--limit']!==undefined)throw Error('Use --full or --limit, not both.');
-    if(!text&&(v['--section']||v['--brief-offset']))throw Error('--section and --brief-offset require --format text.');
+    if(!text&&(v['--section']||v['--deliverable-offset']))throw Error('--section and --deliverable-offset require --format text.');
     // Explicit --since is the feedback delivery boundary: do not silently drop newer instructions.
     const limit=v['--limit']!==undefined?Number(v['--limit']):text&&!full&&v['--since']===undefined?5:undefined;
     const page=await readGoalPage(id,{version:v['--version']===undefined?undefined:Number(v['--version']),since:Number(v['--since']??0),before:v['--before']===undefined?undefined:Number(v['--before']),limit});
-    return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--brief-offset']??0)})):output(page);
+    return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--deliverable-offset']??0)})):output(page);
   }
   if(command==='comment'||command==='letter') {
     const event=await appendAgentComment({goalId:id,type:command,...(command==='letter'?{title:v['--title'],...(v['--no-reply']?{replyRequired:false}:{})}:{ }),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});

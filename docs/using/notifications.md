@@ -22,7 +22,7 @@ blocked, change the browser's site settings before trying again.
 ## Control interruptions
 
 The Agent notifies saved Letters using `settings notice`. Comments, progress,
-Brief saves and AutoContinue checks do not send Web notifications, even if the
+Deliverable saves and AutoContinue checks do not send Web notifications, even if the
 Agent asks to notify a Comment. The one-time confirmation after turning On is
 only a setup check. On does not replay old posts. Off cancels this device's pending
 notifications; a request already handed to the push service can still arrive.

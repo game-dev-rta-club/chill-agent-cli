@@ -1,4 +1,4 @@
-// Count completed leaf Goals equally, independently of Brief and Conversation.
+// Count completed leaf Goals equally, independently of Deliverable and Conversation.
 export function ownGoalProgress(goal) {
   return goal.state==='done'?1:0;
 }

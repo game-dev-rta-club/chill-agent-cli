@@ -17,13 +17,13 @@ AppData writes redirected to a private folder that other processes cannot see.
 
 | Area | Purpose |
 | --- | --- |
-| `workspace/` | Goals, Brief versions, Conversation, attachments and coordination records |
+| `workspace/` | Goals, Deliverable versions, Conversation, attachments and coordination records |
 | `settings/` | Shared notification and remote-access preferences |
 | `runtime/` | Prepared code snapshots, installation pointer and server records |
 
 These paths explain ownership, not a storage API. Use CLI commands and the
 [public extension API](../extensions.md), rather than editing internal JSON.
-The editable Brief path returned by `goal brief path` is the intended exception.
+The editable Deliverable path returned by `goal deliverable path` is the intended exception.
 
 ## Prepare once, use the stable command
 

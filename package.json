@@ -3,7 +3,7 @@
   "version": "0.4.0",
   "private": false,
   "type": "module",
-  "description": "A local Goal workspace with editable Briefs and Letters in Conversation.",
+  "description": "A local Goal workspace with editable Deliverables and Letters in Conversation.",
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",

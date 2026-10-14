@@ -12,7 +12,7 @@ keyPoints: >-
 **Partly implemented: Codex boundaries and an experimental Claude busy-delivery path; broader Claude support remains in qualification.**
 A user should be able to start using chill
 from Codex Desktop or, later, Claude Code, and keep working in that harness's
-conversation. Goal pages, Briefs and Letters provide the shared workspace. The
+conversation. Goal pages, Deliverables and Letters provide the shared workspace. The
 connected conversation retains its own history and context throughout the work.
 
 This scope does not include transferring an existing Goal to a different agent,
@@ -35,7 +35,7 @@ Codex Desktop conversation       Claude Code conversation
           \                       /
        chill: assignment, feedback receipts and holds
                          |
-           Goals / Briefs / Letters / Auto mode
+           Goals / Deliverables / Letters / Auto mode
 ```
 
 Setup recognizes the calling harness and binds its conversation. Web feedback

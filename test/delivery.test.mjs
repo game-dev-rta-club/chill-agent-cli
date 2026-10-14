@@ -35,10 +35,10 @@ async function fixture() {
   const run = (args, extra = {}) => execute(process.execPath, [cli, ...args], { env: { ...env, ...extra } });
   const json = async path => JSON.parse(await readFile(join(root, path), 'utf8'));
   const assign=async chat=>{const file=join(root,'owner.json');await writeFile(file,JSON.stringify({threadId:chat}));await run(['update','--id','1','--input-file',file]);};
-  const body = join(root, 'workspace/goals/1/brief.md');
+  const body = join(root, 'workspace/goals/1/deliverable.md');
   await run(['create', '--title', 'Delivery','--thread-id',thread]);
   let updates=0;
-  const publish = async (chat = thread) => {await assign(chat);await writeFile(body,`通知テスト ${++updates}`);return run(['brief','update','--id','1']);};
+  const publish = async (chat = thread) => {await assign(chat);await writeFile(body,`通知テスト ${++updates}`);return run(['deliverable','update','--id','1']);};
   await publish();
   const select=async(goalId='1',turnId=turn,chatId=thread,stoppedAt=null)=>{
     await mkdir(join(root,'workspace/executions'),{recursive:true});
@@ -54,7 +54,7 @@ async function fixture() {
   return {root,env,run,json,body,publish,feedback,assign,select};
 }
 
-test('root chat owns Goal conversation before and after Brief edits',async()=>{
+test('root chat owns Goal conversation before and after Deliverable edits',async()=>{
   const f=await fixture();await f.publish();
   const [{feedback},{delivery}]=await f.feedback();
   assert.equal(feedback.threadId,thread);assert.equal(delivery.threadId,thread);
@@ -213,7 +213,7 @@ test('notifications separate exact user content from the protocol and next actio
   assert.match(actions,/activity --event 1 --state completed/);
 });
 
-test('delivery remains Goal-scoped when Brief changes before retry',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
+test('delivery remains Goal-scoped when Deliverable changes before retry',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
   const f=await fixture();await f.feedback({text:'Earlier discussion'}, {CHILL_AGENT_CODEX_PATH:join(f.root,'missing-codex')});
   await f.publish();await f.run(['retry','--event','1']);
   const sent=(await f.json('fake-queue.json'))[0].input[0].text;
