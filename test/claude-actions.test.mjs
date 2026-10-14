@@ -107,7 +107,7 @@ test('saved requests can be inspected and deliberately recovered after resume, n
   assert.equal((await listGoals()).length,1);
   const clear=await f.start(s.record.sessionId,'clear');
   await assert.rejects(inspectClaudeRequest(r.requestId,{env:clear.env,retry:true}),/another conversation context/);
-  await assert.rejects(inspectClaudeRequest(r.requestId,{env:s.env}),/stale/);
+  await assert.rejects(inspectClaudeRequest(r.requestId,{env:s.env}),/another conversation context/);
 });
 
 test('two Roots and a child return feedback to the same main conversation with durable receipts',async t=>{

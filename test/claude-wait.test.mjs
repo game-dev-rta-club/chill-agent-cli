@@ -100,8 +100,8 @@ test('repeated SessionStart keeps one set of exports and preserves other hooks',
  const f=await fixture(t);await writeFile(f.envFile,`${await readFile(f.envFile,'utf8')}export OTHER_HOOK=1\n`);
  await f.start('resume');await f.start('compact');
  const lines=(await readFile(f.envFile,'utf8')).trim().split('\n');
- assert.equal(lines.filter(l=>l.startsWith('export CHILL_AGENT_CONNECTION_GENERATION=')).length,1);
- assert(lines.includes(`export CHILL_AGENT_CONNECTION_GENERATION='${f.env().CHILL_AGENT_CONNECTION_GENERATION}'`));
+ assert.equal(lines.filter(l=>l.startsWith('export CHILL_AGENT_SESSION_ID=')).length,1);
+ assert.equal(lines.filter(l=>l.startsWith('export CHILL_AGENT_CONNECTION_GENERATION=')).length,0,'agents never carry the generation');
  assert(lines.includes('export OTHER_HOOK=1'));
 });
 

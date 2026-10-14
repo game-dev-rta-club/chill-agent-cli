@@ -1,8 +1,8 @@
 ---
 keyPoints: >-
-  A development-only SessionStart handshake passes Claude's native session and
-  a fresh generation to the CLI. It rejects stale or mixed identities without
-  assigning Goals or advertising delivery, authentication or live controls.
+  The CLI finds the calling Claude conversation from the session ID Claude Code
+  sets in every shell and that session's current record. Agents carry no token,
+  so nothing goes stale after compact or resume.
 ---
 
 # Identify the calling Claude session
@@ -32,8 +32,7 @@ A conversation that was already running when the hooks were written has no
 SessionStart record. `connection join` fills it: the shell records the session
 ID that Claude Code exports as `CLAUDE_CODE_SESSION_ID`, and the same session's
 main PostToolUse hook (never a subagent's) writes the record with a fresh
-generation. Later shells without the exported variables identify the caller by
-that session ID and the saved record. An existing record is kept unchanged.
+generation. An existing record is kept unchanged.
 
 An explicit [Claude setup option](claude-setup.md) installs the project-local
 hooks. The default Codex setup does not. Use the probe below to try the handshake
@@ -42,18 +41,25 @@ without modifying the user's environment.
 ## Keep different conversations separate
 
 Records live under `workspace/connections/claude-code/`. Native session IDs are
-opaque and hashed for filenames. The hook exports the harness, session ID and
-a new connection generation. `show` requires all three to match the saved
-record. A missing field, another data directory or an old generation fails;
-there is no Codex or directory-based fallback.
+opaque and hashed for filenames. A shell command finds its conversation from
+`CLAUDE_CODE_SESSION_ID`, which Claude Code sets in every shell, and reads that
+session's current record. The hook also exports the harness and session ID as a
+fallback; earlier versions exported a connection generation, which is now
+removed from the file and ignored. Another data directory or a missing record
+fails; there is no Codex or directory-based fallback.
 
-Every accepted SessionStart rotates the generation, including resume, clear,
-compact and fork. A separate context ID survives resume and compact when a
-valid previous record exists; startup, clear and fork create a new context ID.
-Root ownership uses this context ID so clear cannot inherit previous Goals. Earlier shell environments for the same session become stale.
-Starts for distinct native IDs stay separate even in the same folder. Concurrent
-starts for one ID leave only one current generation; consumers must recheck it
-before future mutations. Subagent hooks and events other than SessionStart
+Agents never carry the generation, so a compact or resume cannot leave a
+command or a running reply waiter with a stale identity. That was the cause of a
+lost waiter in superhookgirl: an agent copied an earlier exported generation
+into a command, saw it rejected and stopped a healthy waiter. Every accepted
+SessionStart still rotates the generation inside the record, where the CLI and
+the main-session hook use it to pair a request with its confirmation. A
+separate context ID survives resume and compact when a valid previous record
+exists; startup, clear and fork create a new context ID. Root ownership uses
+this context ID so clear cannot inherit previous Goals, and requests saved in an
+earlier context cannot be recovered after clear. Starts for distinct native IDs
+stay separate even in the same folder; a fork that inherits its parent's exports
+is still identified by its own session ID. Subagent hooks and events other than SessionStart
 cannot replace the record. An export failure leaves the old registration intact.
 
 This is coordination between trusted local processes, not an authentication
