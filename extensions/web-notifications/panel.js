@@ -1,12 +1,12 @@
 const bytes=key=>Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-key.length%4)%4)),c=>c.charCodeAt(0));
 export async function mount({element,control,goalId,clientId:deviceId,api,changed,signal}){
  if(!deviceId){element.textContent='Allow site storage to set up notifications.';return;}
- element.innerHTML=`<label class="agent-extension"><span>On / Off</span><input type="checkbox" role="switch" aria-label="Notifications" disabled></label><p class="extension-message" data-scope hidden>On for this device</p><p class="extension-message" role="status"></p>`;
- const toggle=element.querySelector('input'),message=element.querySelector('[role="status"]'),scope=element.querySelector('[data-scope]');
+ element.innerHTML=`<label class="agent-extension"><span>On / Off</span><input type="checkbox" role="switch" aria-label="Notifications" disabled></label><p class="extension-message" data-scope hidden>On for this device</p><label class="agent-extension" data-replies hidden><span>Notify me of</span><select aria-label="Notify me of"><option value="replies">Every reply</option><option value="letters">Letters only</option></select></label><p class="extension-message" role="status"></p>`;
+ const toggle=element.querySelector('input'),message=element.querySelector('[role="status"]'),scope=element.querySelector('[data-scope]'),replies=element.querySelector('[data-replies]'),choice=replies.querySelector('select');
  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
  const supported=isSecureContext&&'Notification' in window&&'serviceWorker' in navigator&&'PushManager' in window;
  let registration,state,saving=false;
- function render(s){state=s;toggle.checked=s.enabled;toggle.disabled=saving;scope.hidden=!s.enabled;}
+ function render(s){state=s;toggle.checked=s.enabled;toggle.disabled=saving;scope.hidden=!s.enabled;replies.hidden=!s.enabled;choice.disabled=saving;if(document.activeElement!==choice)choice.value=s.scope||'replies';}
  async function refresh(){if(saving||signal.aborted)return;try{render(await api('state',{goalId,deviceId}));}catch(error){if(!signal.aborted)message.textContent=error.message;}}
  await refresh();if(!state||signal.aborted)return;
  toggle.onchange=async()=>{
@@ -31,6 +31,13 @@ export async function mount({element,control,goalId,clientId:deviceId,api,change
    message.textContent=enabled?'A confirmation will arrive shortly.':'';changed();
   }catch(error){if(!signal.aborted){toggle.checked=state.enabled;message.textContent=error.message;}}
   finally{saving=false;toggle.disabled=false;}
+ };
+ // Which Agent posts reach this device: every reply, or only Letters.
+ choice.onchange=async()=>{
+  saving=true;choice.disabled=true;message.textContent='';
+  try{render(await api('scope',{goalId,rootId:control.rootId,deviceId,scope:choice.value}));changed();}
+  catch(error){if(!signal.aborted){choice.value=state.scope||'replies';message.textContent=error.message;}}
+  finally{saving=false;choice.disabled=false;}
  };
  const timer=setInterval(refresh,2500);signal.addEventListener('abort',()=>clearInterval(timer),{once:true});return ()=>clearInterval(timer);
 }

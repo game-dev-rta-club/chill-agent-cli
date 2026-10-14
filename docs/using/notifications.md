@@ -1,14 +1,15 @@
 ---
 keyPoints: >-
-  Each browser receives Letters for a Root. On sends one setup confirmation; Off
-  leaves other devices unchanged. Changing the public URL retires old registrations.
+  Each browser receives every Agent reply for a Root, or only Letters. On sends one
+  setup confirmation; Off leaves other devices unchanged. Changing the public URL
+  retires old registrations.
 ---
 
 # Hear when your attention matters
 
 Open a Goal and choose **More → Notifications**. Turn On and allow the browser's
 permission request. A confirmation arrives a few seconds later. Tap it to return
-to the Goal. This browser will receive Letters for that project (the
+to the Goal. This browser will receive the Agent's replies for that project (the
 Root Goal and its children).
 
 Each device has its own switch. Turn Off on your phone to stop phone alerts;
@@ -21,10 +22,18 @@ blocked, change the browser's site settings before trying again.
 
 ## Control interruptions
 
-The Agent notifies saved Letters using `settings notice`. Comments, progress,
-Brief saves and AutoContinue checks do not send Web notifications, even if the
-Agent asks to notify a Comment. The one-time confirmation after turning On is
-only a setup check. On does not replay old posts. Off cancels this device's pending
+By default each device receives every reply the Agent posts in a Conversation:
+Comments, including Claude conversation replies, and Letters. Under the switch,
+choose **Letters only** to hear only when a reply, choice or permission is needed;
+each device keeps its own choice. Opening a notification shows that reply in its
+Conversation.
+
+Web notices new replies by itself, for Codex and Claude alike, so no Agent command
+is needed. An Agent's `settings notice` request for the same reply sends nothing
+more: each reply reaches a device at most once. Your own comments, progress,
+Brief saves and AutoContinue checks do not send Web notifications. A reply saved
+while Web was stopped is not sent later if Web notices it more than 30 minutes
+after it was saved. The one-time confirmation after turning On is only a setup check. On does not replay old posts. Off cancels this device's pending
 notifications; a request already handed to the push service can still arrive.
 It retains the registration and browser permission for later use.
 
@@ -49,7 +58,7 @@ remain independent; the app does not guess which physical device a browser is.
 A fixed URL avoids that change.
 
 Registering the same push subscription again keeps a single recipient, even if
-site storage was reset. Preparing the same Letter more than once also sends it
+site storage was reset. Preparing the same reply more than once also sends it
 only once per subscription. A single phone using separate browser profiles can
 still have separate registrations; turn Off in any profile you do not want.
 
