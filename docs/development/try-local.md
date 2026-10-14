@@ -1,8 +1,9 @@
 ---
 keyPoints: >-
   Run this checkout, uncommitted changes included, in one project's own Web in
-  seconds: npm run try-local -- --project <dir>. No GitHub, CI or project file
-  changes; --reset returns to the recorded version file. Publish through PRs
+  seconds: npm run try-local -- --project <dir>, then press the Web's update
+  button. No GitHub, CI or project file changes; --reset returns to the recorded
+  version file. Publish through PRs
   only when another project or machine needs the change.
 ---
 
@@ -23,8 +24,10 @@ npm run try-local -- --project /path/to/project
    package, so an unchanged build is reused.
 2. Only that project's data points at the package. The project's own
    `cli.json` and its Git checkout stay unchanged.
-3. The project's Web restarts on the package. Each run appends its pack and
-   restart times to `runtime/local/timings.jsonl`.
+3. The project's Web shows its update button. It switches when someone presses
+   the button, never in the middle of running work. `--restart` restarts the
+   Web immediately instead. Each run appends its times to
+   `runtime/local/timings.jsonl`.
 
 The three newest packages are kept. The project must have run setup with a
 version file first.
@@ -33,8 +36,8 @@ version file first.
 npm run try-local -- --project /path/to/project --reset
 ```
 
-`--reset` returns the project to the version file its setup recorded and
-restarts the Web. Running setup again in the project also returns it.
+`--reset` returns the project to the version file its setup recorded; press the
+update button if the Web shows one. Running setup again in the project also returns it.
 
 The package skips CI, so a change that only breaks Windows or a clean install
 appears when it is published. Run the relevant tests before trying, and the
