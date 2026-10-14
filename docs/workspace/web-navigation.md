@@ -27,6 +27,11 @@ receipts remove a Letter; ordinary comments do not. When there are none, the
 count prefix disappears. A failed count request keeps the last known value;
 returning to the tab refreshes the workspace immediately.
 
+While the agent works on the open Goal, the tab icon gains a small amber dot;
+the title keeps its space for the Letter count. A hidden tab checks the agent
+every 10 seconds instead of every 2, so a background tab still shows when work
+starts and ends.
+
 The snapshot includes earlier Deliverables' version numbers and dates, not their full
 bodies. Opening one loads `GET /api/goals/:id/briefs/:version` and keeps it in memory
 for that visit. HTML Deliverables still load in their isolated document frames. The

@@ -12,6 +12,8 @@ import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-
 import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversation-window.js';
 import { createReadingPane } from './reading-pane.js';
 import {createRuntimeUpdate} from './runtime-update.js';
+import {createTabIcon} from './tab-icon.js';
+import {isRunning} from './goal-state.js';
 
 history.scrollRestoration='manual';
 const briefsByGoal = new Map();
@@ -80,6 +82,8 @@ let currentRoute = '';
 let activeGoalId = null;
 const agentButton=document.getElementById('agent-button');
 agentButton.innerHTML=agentAvatar(true);
+const tabIcon=createTabIcon();
+window.addEventListener('chill-agent-presence',event=>tabIcon.set(event.detail.routeGoalId===activeGoalId&&isRunning(event.detail.status)));
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
 const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel')});
