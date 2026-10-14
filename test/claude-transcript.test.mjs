@@ -56,3 +56,26 @@ test('only absolute .jsonl transcript paths are read',async()=>{
  assert.equal(await claudeModel('/missing/session.jsonl'),null);
  assert.equal(await claudeWork(undefined,'x'),null);
 });
+
+test('an AutoContinue run is the response after the Stop that carried its request',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'chill-transcript-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const attempt='99999999-2222-4333-8444-555555555555',other='88888888-2222-4333-8444-555555555555';
+ const request=id=>`Continue the Goal.\nchill monitor result --id 1 --attempt ${id} --outcome worked`;
+ const path=join(dir,'session.jsonl');
+ await writeFile(path,[
+  assistant('a0',[{type:'text',text:'First answer'}]),
+  line({type:'system',subtype:'stop_hook_summary',uuid:'s0',hookInfos:[{command:'chill'}],reason:request(attempt),timestamp:'2026-10-14T05:00:30.000Z'}),
+  assistant('a1',[{type:'text',text:'Continued work'}]),
+  assistant('a2',[{type:'tool_use',name:'Bash',input:{command:`chill monitor result --id 1 --attempt ${attempt} --outcome worked`}}]),
+  line({type:'user',uuid:'r2',toolUseResult:{stdout:`--attempt ${attempt}`},message:{role:'user',content:[{type:'tool_result',content:'ok'}]}}),
+  assistant('a3',[{type:'text',text:'Finished'}]),
+  line({type:'system',subtype:'stop_hook_summary',uuid:'s1',timestamp:'2026-10-14T05:02:00.000Z'}),
+  // A request written as its own message after the Stop also starts the run.
+  line({type:'user',uuid:'p2',isMeta:true,message:{role:'user',content:`Stop hook feedback:\n${request(other)}`}}),
+  assistant('a4',[{type:'text',text:'Second run'}]),
+ ].join(''));
+ const first=await claudeWork(path,attempt);
+ assert.deepEqual(first.messages.map(m=>m.text),['Continued work','Finished']);assert.equal(first.status,'completed');
+ const second=await claudeWork(path,other);
+ assert.deepEqual(second.messages.map(m=>m.text),['Second run']);assert.equal(second.status,'working');
+});

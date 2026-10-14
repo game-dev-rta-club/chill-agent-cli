@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createExtensionHost} from '../lib/server-extensions.mjs';
 import {createContinuationExtension,continuationKeepsAlive,continuationActivity} from '../lib/continuation-extension.mjs';
+import {codexContinuation} from '../lib/agents/codex-continuation.mjs';
+import {claudeContinuation} from '../lib/agents/claude-continuation.mjs';
 const idle=()=>({queue:[],pendingFeedback:[],stable:true,harnessState:'idle',turn:{completedAt:1},revision:'r'});
 const exhausted=()=>({enabled:true,threadId:'t',revision:'r',attempts:[{completedAt:1},{completedAt:2}]});
 test('monitor enablement is not a keepalive; actual work and unspent nudges are',()=>{
@@ -25,7 +27,8 @@ test('host does not overlap ticks, waits for running work on stop, and rejects f
 });
 test('child control maps to its Root; existing state/counters survive toggle and old process retires once',async()=>{
  const state=exhausted(),retired=[],ticks=[];
- const ext=createContinuationExtension({roots:async()=>[{id:'1'}],context:async()=>({root:{id:'1',threadId:'t'}}),read:async()=>state,configure:async(id,on)=>{assert.equal(id,'1');state.enabled=on;},tick:async id=>ticks.push(id),retireLegacy:async id=>retired.push(id),touch:async()=>{},observe:async()=>idle()});
+ const codex=root=>codexContinuation(root,{read:async()=>({...state,threadId:'t'}),configure:async(id,on)=>{assert.equal(id,'1');state.enabled=on;},tick:async id=>ticks.push(id),retireLegacy:async id=>retired.push(id),observe:async()=>idle()});
+ const ext=createContinuationExtension({roots:async()=>[{id:'1',threadId:'t'}],context:async()=>({root:{id:'1',threadId:'t'}}),continuation:codex,token:()=>'t',touch:async()=>{}});
  await ext.start();await ext.tick();await ext.tick();assert.deepEqual(retired,['1']);assert.equal(ticks.length,2);
  const control=await ext.read('2');assert.equal(control.rootId,'1');
  assert.equal(control.activity,undefined,'header reads omit message history');
@@ -43,7 +46,7 @@ test('activity is a bounded read-only journal, independent of enablement and sta
  assert.equal(continuationActivity({...state,enabled:true,checkedAt:'2020-01-01'}).status,'Checking');
 });
 test('reassigned chat never exposes a previous owner’s continuation history',async()=>{
- const ext=createContinuationExtension({context:async()=>({root:{id:'1',threadId:'new'}}),read:async()=>({threadId:'old',enabled:true,attempts:[{message:'Old private request'}]})});
+ const ext=createContinuationExtension({context:async()=>({root:{id:'1',threadId:'new'}}),token:()=>'new',continuation:root=>codexContinuation(root,{read:async()=>({threadId:'old',enabled:true,attempts:[{message:'Old private request'}]})})});
  const value=await ext.read('1',{activity:true});assert.equal(value.enabled,false);assert.deepEqual(value.activity.runs,[]);
 });
 test('empty registry works, isolated tick failure does not stop other extensions',async()=>{
@@ -69,7 +72,7 @@ test('run logs read only the stored request in the current Root and never enqueu
  const id='00000000-0000-0000-0000-000000000123',calls=[];
  let owner='t';
  const state={rootId:'1',threadId:'t',enabled:false,history:[{id,at:'2026-10-06',goalId:'4',goalTitle:'Work',message:'Exact request',phase:'completed'}]};
- const ext=createContinuationExtension({context:async()=>({root:{id:'1',threadId:owner}}),read:async()=>state,output:async input=>{calls.push(input);return {turnId:'native-run',endedAt:'2026-10-06',messages:[{text:'Finished'}]};}});
+ const ext=createContinuationExtension({context:async()=>({root:{id:'1',threadId:owner}}),token:root=>root.threadId,continuation:root=>codexContinuation(root,{read:async()=>state,output:async input=>{calls.push(input);return {turnId:'native-run',endedAt:'2026-10-06',messages:[{text:'Finished'}]};}})});
  const entry=(await ext.read('4',{activity:true})).activity.runs[0];assert.equal(entry.goalId,'4');
  const result=await ext.request({method:'GET',path:`activity/${id}`,query:{goalId:'4'}});
  assert.equal(result.status,200);assert.equal(result.body.work.messages[0].text,'Finished');assert.equal(result.body.message,'Exact request');
@@ -79,10 +82,10 @@ test('run logs read only the stored request in the current Root and never enqueu
 });
 
 test('a Claude Root uses the same AutoContinue control, switched through its own conversation record',async()=>{
- const calls=[];let state=null;
- const claude={read:async id=>{assert.equal(id,'3');return state;},configure:async(id,enabled)=>{calls.push([id,enabled]);state={...state,enabled,attempts:state?.attempts||[]};}};
- const ext=createContinuationExtension({context:async()=>({root:{id:'3',connection:{harnessId:'claude-code',sessionId:'s',contextId:'c'}}}),claude,
-  read:async()=>{throw Error('Codex records are not read for a Claude Root');},configure:async()=>{throw Error('Codex is not configured');},retireLegacy:async()=>{throw Error('no legacy service');},touch:async()=>{}});
+ const calls=[],reads=[];let state=null;
+ const claude=root=>claudeContinuation(root,{read:async id=>{assert.equal(id,'3');return state;},configure:async(id,enabled)=>{calls.push([id,enabled]);state={...state,enabled,attempts:state?.attempts||[]};},
+  transcript:async()=>'/tmp/claude.jsonl',work:async(path,id)=>{reads.push([path,id]);return {source:'turn',endedAt:'2026-10-13T00:03:00Z',messages:[{id:'m',text:'Continued'}]};}});
+ const ext=createContinuationExtension({context:async()=>({root:{id:'3',connection:{sessionId:'s',contextId:'c'}}}),continuation:claude,token:()=>'k',touch:async()=>{}});
  assert.deepEqual(await ext.read('4'),{rootId:'3',enabled:false,placement:'header',icon:'repeat'});
  assert.equal((await ext.read('4',{activity:true})).activity.status,'Off');
  await ext.set('4',{rootId:'3',enabled:true});assert.deepEqual(calls,[['3',true]]);
@@ -91,7 +94,10 @@ test('a Claude Root uses the same AutoContinue control, switched through its own
  state={...state,paused:false,status:'awaiting-receipt',attempts:[{id:'11111111-1111-4111-8111-111111111111',at:'2026-10-13T00:00:00Z',phase:'uncertain',message:'Continue the Goal',summary:'Automatic check'},{id:'22222222-2222-4222-8222-222222222222',at:'2026-10-13T00:01:00Z',phase:'assignment-changed',completedAt:'2026-10-13T00:02:00Z'}]};
  const activity=(await ext.read('4',{activity:true})).activity;
  assert.equal(activity.status,'Awaiting confirmation');assert.deepEqual(activity.runs.map(r=>r.status),['Agent changed','Delivery unconfirmed']);
- assert.deepEqual(await ext.request({method:'GET',path:'activity/11111111-1111-4111-8111-111111111111',query:{goalId:'4'}}),{status:200,body:{work:null,message:'Continue the Goal',error:null}});
+ const log=await ext.request({method:'GET',path:'activity/11111111-1111-4111-8111-111111111111',query:{goalId:'4'}});
+ assert.equal(log.status,200);assert.equal(log.body.message,'Continue the Goal');assert.equal(log.body.work.messages[0].text,'Continued','the run output comes from its transcript, like a Codex run');
+ assert.deepEqual(reads,[['/tmp/claude.jsonl','11111111-1111-4111-8111-111111111111']]);
  assert.equal((await ext.request({method:'GET',path:'activity/33333333-3333-4333-8333-333333333333',query:{goalId:'4'}})).status,404);
  await assert.rejects(ext.set('4',{rootId:'9',enabled:false}),/Goal moved/);
+ assert.equal(await ext.busy(),false,'nothing polls an agent that continues itself');
 });

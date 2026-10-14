@@ -13,7 +13,7 @@ const adapter=file=>/^lib\/agents\/(?!index\.mjs)|^lib\/(claude-|codex-|desktop-
 const pending=new Set([
  'bin/chill-hook.mjs','bin/chill-monitor.mjs','bin/chill-setup.mjs',
  'lib/agent-connection.mjs','lib/agent-observation.mjs','lib/cli-help.mjs',
- 'lib/continuation-extension.mjs','lib/continuation-monitor.mjs','lib/extension-api.mjs',
+ 'lib/continuation-monitor.mjs',
  'lib/goal-execution.mjs','lib/goal-store.mjs',
 ]);
 const names=/claude-code|codex-desktop|CODEX_THREAD_ID|nativeConnection|harnessId/;

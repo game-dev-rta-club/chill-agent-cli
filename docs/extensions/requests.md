@@ -68,7 +68,7 @@ the policy journal with `storage(namespace)` and serialize policy decisions with
 `listGoals` and `readGoalContext` provide workspace facts; `touch()` records
 genuine use when needed, not routine polling.
 
-For an on-demand public log, `readRunOutput({threadId, id, at, turnId?, matchText?})`
+For an on-demand public log of a Codex chat, `readRunOutput({threadId, id, at, turnId?, matchText?})`
 uses the same turn reader without observing scheduling eligibility or enqueueing.
 Pass only a request from the extension's own saved journal after checking the
 current Root owner. Keep its Goal association at send time; do not derive an old

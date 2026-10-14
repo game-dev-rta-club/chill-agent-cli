@@ -268,3 +268,16 @@ test('goal activity from a Claude conversation becomes a hook-confirmed receipt'
   assert.match(context(await s.confirm(s.hook({marker:pending.pending}))),/working/);
   assert.equal((await readDeliveryState(event.changeId)).status,'working');
 });
+
+test('the Activity row under a Claude message pauses and resumes its conversation',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const {readAgentActivityRow,controlAgent}=await import('../lib/agent-status.mjs');
+  const event=await appendFeedback({goalId:goal.id,text:'Later'});await deliverFeedback(event.changeId);
+  const saved=await readAgentActivityRow(goal.id);
+  assert.equal(saved.eventId,event.changeId);assert.equal(saved.status,'saved');assert.deepEqual(saved.capabilities,{stop:true,resume:false});
+  await assert.rejects(controlAgent(goal.id,{action:'stop',token:'other',eventId:event.changeId}),/Agent changed/);
+  const paused=await controlAgent(goal.id,{action:'stop',token:saved.token,eventId:event.changeId});
+  assert.equal(paused.status,'paused');assert.deepEqual(paused.capabilities,{stop:false,resume:true});
+  const resumed=await controlAgent(goal.id,{action:'resume',token:saved.token,eventId:event.changeId});
+  assert.equal(resumed.status,'saved');
+});
