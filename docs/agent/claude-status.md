@@ -10,8 +10,8 @@ keyPoints: >-
 Open the Agent menu on a Claude-owned Goal to see the last recorded connection
 evidence. `connection show` exposes the same status from the conversation's
 exported shell environment. Child Goals use their Root's original connection.
-The display explains a missing reply without guessing whether Claude is
-currently running or idle.
+The connection status explains a missing reply; whether Claude is responding
+right now comes from its transcript (below).
 
 | Status | Meaning |
 | --- | --- |
@@ -46,3 +46,11 @@ response that received it, from the hook offer until that response stops or the
 user starts another prompt, as a Codex turn does. Thinking, tool input and output,
 and subagent text are never shown. The transcript is read incrementally and only
 for conversations whose hooks reported it.
+
+## See whether Claude is responding now
+
+The Agent button and the browser tab icon show Running while the conversation's
+transcript has an open response: a user or assistant entry after the last Stop
+summary or interrupt. Subagent entries do not count. A transcript with no write
+for 10 minutes counts as Idle, so a closed app does not stay Running. Without a
+reported transcript the state is unknown.
