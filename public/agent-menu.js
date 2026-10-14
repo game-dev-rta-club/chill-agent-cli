@@ -36,18 +36,25 @@ export function activityMarkup(controls){
 // Codex and Claude Roots share the same extension sections, such as AutoContinue.
 const currentMarkup=(data,controls='')=>`<section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current" data-markup="${esc(workMarkup(data.work,data))}">${workMarkup(data.work,data)}</div>${controls}</div></section>`;
 const extensionsMarkup=data=>data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions);
-export function agentMarkup(data) {
- if(data.nativeConnection){
-  const s=data.nativeConnection.status;
-  return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p title="${esc(s.detail)}">${esc(s.label)}${s.waiterCheckedAt||s.observedAt?` · ${timeMarkup(s.waiterCheckedAt||s.observedAt)}`:''}</p>`:''}</section>
- ${currentMarkup(data)}${extensionsMarkup(data)}`;
- }
- if(!data.connected)return '<p class="agent-empty">No agent connected.</p>';
- const work=data.work,queue=data.queue;
+// Only the top section is harness-specific (Claude's conversation status, or
+// Codex settings and usage). Activity, its controls and Queue read the same
+// fields for every connection, so a new harness only supplies data.
+function claudeMarkup(s){
+ return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p title="${esc(s.detail)}">${esc(s.label)}${s.waiterCheckedAt||s.observedAt?` · ${timeMarkup(s.waiterCheckedAt||s.observedAt)}`:''}</p>`:''}</section>`;
+}
+function codexMarkup(data){
  return `<section class="agent-section agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</section>
- <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>
- ${currentMarkup(data,`<div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div>`)}
- <section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>
+ <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>`;
+}
+const controlsMarkup=data=>`<div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div>`;
+function queueMarkup(queue){
+ return `<section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>`;
+}
+export function agentMarkup(data) {
+ if(!data.connected&&!data.nativeConnection)return '<p class="agent-empty">No agent connected.</p>';
+ return `${data.nativeConnection?claudeMarkup(data.nativeConnection.status):codexMarkup(data)}
+ ${currentMarkup(data,controlsMarkup(data))}
+ ${queueMarkup(data.queue)}
  ${extensionsMarkup(data)}`;
 }
 export function createAgentMenu({button,panel,content,getGoalId}) {

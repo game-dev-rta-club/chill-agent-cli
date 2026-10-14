@@ -145,3 +145,20 @@ test('reply posts on the Web and completes the receipt in one confirmed action',
  await assert.rejects(f.action('reply',{eventId:reply.changeId,text:'Again'}),/terminal receipt/);
  assert.equal((await readFeedback()).filter(e=>e.author==='agent').length,1,'a rejected reply posts nothing');
 });
+
+test('a Web pause holds feedback, refuses tool calls and survives compact; Resume wakes once',async t=>{
+ const {setClaudePause,readClaudePause,claudePauseGuard}=await import('../lib/claude-pause.mjs');
+ const f=await fixture(t),tool=name=>claudePauseGuard({hook_event_name:'PreToolUse',session_id:f.connection.sessionId,tool_name:name});
+ assert.equal(await tool('Read'),null,'nothing is refused before a pause');
+ await setClaudePause(f.connection,true);
+ await appendFeedback({goalId:f.root.id,text:'sent while paused'});
+ assert.equal(await hasSavedClaudeFeedback(f.connection),false,'the waiter does not wake for held feedback');
+ assert.doesNotMatch(context(await f.action('inbox')),/sent while paused/);
+ assert.equal((await tool('Read')).hookSpecificOutput.permissionDecision,'deny');
+ await f.start('compact');assert.equal((await readClaudePause({...f.connection})).paused,true,'compact keeps the pause');
+ await setClaudePause(f.connection,false);
+ assert.equal(await tool('Bash'),null);
+ assert.equal(await hasSavedClaudeFeedback(f.connection),true,'Resume wakes the conversation');
+ const resumed=context(await f.action('inbox'));assert.match(resumed,/selected Resume/);assert.match(resumed,/sent while paused/);
+ assert.doesNotMatch(context(await f.action('inbox')),/selected Resume/,'the resume notice is delivered once');
+});
