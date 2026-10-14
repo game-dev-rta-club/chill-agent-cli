@@ -4,6 +4,8 @@ import {readFile} from 'node:fs/promises';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
 import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
 import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
+import {claudePauseGuard} from '../lib/claude-pause.mjs';
+import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {requestClaudeAction,requestClaudeJoin,handleClaudeToolHook,inspectClaudeRequest,claudeSessionStartContext} from '../lib/claude-actions.mjs';
@@ -58,8 +60,11 @@ async function main() {
   let input;
   try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Error('Invalid Claude hook JSON.'); }
-  if(input?.hook_event_name==='PreToolUse') {
-    const output=claudeRmGuard(input);
+  if(input?.hook_event_name==='PermissionRequest') {
+    const output=await claudePermissionDecision(input);
+    if(output)console.log(JSON.stringify(output));
+  } else if(input?.hook_event_name==='PreToolUse') {
+    const output=await claudePauseGuard(input)??claudeRmGuard(input);
     if(output)console.log(JSON.stringify(output));
   } else if(input?.hook_event_name==='SessionStart') {
     const output=await claudeSessionStartContext(await captureClaudeEntry(input));

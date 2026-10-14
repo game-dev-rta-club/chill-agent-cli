@@ -63,3 +63,17 @@ that received no Web feedback shows Running without a Goal.
 After the work stops, Activity keeps a link to the last Goal: for Claude, the
 Goal whose feedback the conversation last received; for Codex, the last
 selected Goal.
+
+## Pause, Resume and Queue
+
+The Agent menu shows the same Activity controls and Queue for Claude as for
+Codex. Claude Desktop has no way to interrupt a running response from outside,
+so Pause works through the conversation's own hooks
+([claude-pause](../../lib/claude-pause.mjs)): its next tool call, in the main
+conversation or a subagent, is refused with a reason to stop and end the
+response; AutoContinue does not continue; new Web feedback is held and listed in
+Queue, and the reply waiter does not wake for it. A running command finishes
+first. The pause survives compact and resume. Resume clears it and wakes the
+conversation once with a notice to continue, together with the held feedback.
+
+Queue lists feedback saved for the conversation that it has not received yet.

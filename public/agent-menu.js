@@ -1,6 +1,7 @@
 import {isRunning} from './goal-state.js';
 import {presenceMark,presenceLabel} from './agent-presence.js';
 import {extensionIcon} from './extension-buttons.js';
+import {confirmAction} from './confirmation-dialog.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const period=m=>m===null?'Usage':m%1440===0?`${m/1440}d`:m%60===0?`${m/60}h`:`${m}m`;
 const date=seconds=>new Intl.DateTimeFormat('en-US',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}).format(new Date(seconds*1000));
@@ -36,18 +37,26 @@ export function activityMarkup(controls){
 // Codex and Claude Roots share the same extension sections, such as AutoContinue.
 const currentMarkup=(data,controls='')=>`<section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current" data-markup="${esc(workMarkup(data.work,data))}">${workMarkup(data.work,data)}</div>${controls}</div></section>`;
 const extensionsMarkup=data=>data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions);
-export function agentMarkup(data) {
- if(data.nativeConnection){
-  const s=data.nativeConnection.status;
-  return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p title="${esc(s.detail)}">${esc(s.label)}${s.waiterCheckedAt||s.observedAt?` · ${timeMarkup(s.waiterCheckedAt||s.observedAt)}`:''}</p>`:''}</section>
- ${currentMarkup(data)}${extensionsMarkup(data)}`;
- }
- if(!data.connected)return '<p class="agent-empty">No agent connected.</p>';
- const work=data.work,queue=data.queue;
+// Only the top section is harness-specific (Claude's conversation status, or
+// Codex settings and usage). Activity, its controls and Queue read the same
+// fields for every connection, so a new harness only supplies data.
+function claudeMarkup(s,approveAll){
+ return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p title="${esc(s.detail)}">${esc(s.label)}${s.waiterCheckedAt||s.observedAt?` · ${timeMarkup(s.waiterCheckedAt||s.observedAt)}`:''}</p>`:''}
+ <label class="agent-extension"><span>Approve all</span><input type="checkbox" role="switch" data-agent-approve-all aria-label="Approve all permission prompts" ${approveAll?'checked':''}></label><p class="extension-message" data-approve-message role="status"></p></section>`;
+}
+function codexMarkup(data){
  return `<section class="agent-section agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</section>
- <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>
- ${currentMarkup(data,`<div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div>`)}
- <section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>
+ <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>`;
+}
+const controlsMarkup=data=>`<div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div>`;
+function queueMarkup(queue){
+ return `<section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>`;
+}
+export function agentMarkup(data) {
+ if(!data.connected&&!data.nativeConnection)return '<p class="agent-empty">No agent connected.</p>';
+ return `${data.nativeConnection?claudeMarkup(data.nativeConnection.status,data.nativeConnection.approveAll):codexMarkup(data)}
+ ${currentMarkup(data,controlsMarkup(data))}
+ ${queueMarkup(data.queue)}
  ${extensionsMarkup(data)}`;
 }
 export function createAgentMenu({button,panel,content,getGoalId}) {
@@ -130,7 +139,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   content.querySelectorAll('input,select,button').forEach(el=>el.disabled=true);
   const message=content.querySelector('[data-agent-control-message]');if(message)message.textContent=action==='stop'?'Pausing…':'Resuming…';
   try{
-   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'current',action,threadId:snapshot.threadId,turnId:snapshot.control.turnId,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
+   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'current',action,threadId:snapshot.threadId,turnId:snapshot.control?.turnId??null,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
    const result=await response.json();if(!response.ok)throw Error(result.error||'Action unconfirmed. Refresh to check.');
    if(opened&&id===getGoalId()&&token===request)render({...result,extensions:snapshot.extensions});
   }catch(error){
@@ -140,6 +149,20 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
    }
   }finally{saving=false;refreshButton.disabled=false;}
  }
+ // Claude only: answer permission prompts automatically for this conversation.
+ content.addEventListener('change',async event=>{
+  const input=event.target.closest('[data-agent-approve-all]');if(!input||saving)return;
+  // Turning it on is consequential, so the explanation lives in a confirmation.
+  if(input.checked&&!await confirmAction({title:'Approve all',message:"Claude's permission prompts in this conversation will be answered with Allow, so unattended work keeps going without asking you. Prompts Claude Code never lets a hook approve, such as removing critical paths, still ask.",confirmLabel:'Turn on'})){input.checked=false;return;}
+  const id=getGoalId(),snapshot=current,token=++request;controller?.abort();saving=true;input.disabled=true;
+  const message=content.querySelector('[data-approve-message]');if(message)message.textContent='';
+  try{
+   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'permissions',approveAll:input.checked}),signal:AbortSignal.timeout(30000)});
+   const result=await response.json();if(!response.ok)throw Error(result.error||'Could not save.');
+   if(opened&&id===getGoalId()&&token===request)render({...result,extensions:snapshot.extensions});
+  }catch(error){if(opened&&id===getGoalId()&&token===request){input.checked=!input.checked;input.disabled=false;const m=content.querySelector('[data-approve-message]');if(m)m.textContent=error.name==='TimeoutError'?'Save unconfirmed. Refresh to check.':error.message;}}
+  finally{saving=false;}
+ });
  content.addEventListener('change',async event=>{
   if(event.target.matches('[data-extension]')){
    void saveExtension(event.target.dataset.extension,event.target.checked,`[data-extension="${event.target.dataset.extension}"]`);return;
@@ -171,8 +194,10 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  function open(){if(!getGoalId())return;opened=true;focusBefore=document.activeElement;panel.hidden=false;button.setAttribute('aria-expanded','true');content.innerHTML='<p class="agent-empty">Loading…</p>';panel.querySelector('[data-agent-close]').focus({preventScroll:true});void refresh();timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);}
  button.addEventListener('click',()=>opened?close({restore:true}):open());
  panel.querySelector('[data-agent-close]').addEventListener('click',()=>close({restore:true}));refreshButton.addEventListener('click',refresh);
- document.addEventListener('pointerdown',e=>{if(opened&&!panel.contains(e.target)&&!button.contains(e.target))close();});
- document.addEventListener('focusin',e=>{if(opened&&!panel.contains(e.target)&&!button.contains(e.target))close();});
+ // A confirmation opened from the menu belongs to it.
+ const outside=e=>opened&&!panel.contains(e.target)&&!button.contains(e.target)&&!e.target.closest?.('.extension-confirm');
+ document.addEventListener('pointerdown',e=>{if(outside(e))close();});
+ document.addEventListener('focusin',e=>{if(outside(e))close();});
  document.addEventListener('keydown',e=>{if(opened&&e.key==='Escape'){e.preventDefault();close({restore:true});}});
  panel.addEventListener('click',e=>{if(e.target.closest('a'))close({restore:true});});
  window.addEventListener('blur',()=>setTimeout(()=>{if(opened&&document.activeElement?.tagName==='IFRAME')close();},0));
