@@ -16,7 +16,7 @@ function timeMarkup(at,seconds=false){
 function workMarkup(work,root={}){
  const active=isRunning(work?.status)||work?.status==='paused';
  const id=work?.goalId||root.rootId,title=work?.goalId?work.title:root.rootTitle;
- return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
+ return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}${work?.goalId&&work.eventId?`/activity/${esc(work.eventId)}`:''}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
 }
 function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div class="agent-auto-meta">${timeMarkup(entry.at)}<span>${esc(entry.result?.label||entry.status)}</span></div><p>${esc(entry.summary)}</p>${entry.detail?`<p class="agent-muted">${esc(entry.detail)}</p>`:''}${entry.message?`<details data-agent-detail="${esc(id)}"><summary>View message</summary><pre class="agent-auto-message">${esc(entry.message)}</pre></details>`:'<p class="agent-muted">Message not saved.</p>'}</article>`;}
 export function runActivityMarkup(controls){
@@ -34,18 +34,19 @@ export function activityMarkup(controls){
  }).join('');
 }
 // Codex and Claude Roots share the same extension sections, such as AutoContinue.
+const currentMarkup=(data,controls='')=>`<section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current" data-markup="${esc(workMarkup(data.work,data))}">${workMarkup(data.work,data)}</div>${controls}</div></section>`;
 const extensionsMarkup=data=>data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions);
 export function agentMarkup(data) {
  if(data.nativeConnection){
   const s=data.nativeConnection.status;
   return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p title="${esc(s.detail)}">${esc(s.label)}${s.waiterCheckedAt||s.observedAt?` · ${timeMarkup(s.waiterCheckedAt||s.observedAt)}`:''}</p>`:''}</section>
- ${extensionsMarkup(data)}`;
+ ${currentMarkup(data)}${extensionsMarkup(data)}`;
  }
  if(!data.connected)return '<p class="agent-empty">No agent connected.</p>';
  const work=data.work,queue=data.queue;
  return `<section class="agent-section agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</section>
  <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>
- <section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current">${workMarkup(work,data)}</div><div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div></div></section>
+ ${currentMarkup(data,`<div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div>`)}
  <section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>
  ${extensionsMarkup(data)}`;
 }
@@ -178,9 +179,11 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  document.addEventListener('visibilitychange',()=>{if(opened&&document.visibilityState==='visible')void refresh();});
  window.addEventListener('chill-extensions-changed',()=>{if(opened)void refresh();});
  window.addEventListener('chill-agent-presence',event=>{
-  if(!opened||event.detail.routeGoalId!==getGoalId()||!current?.connected)return;
+  if(!opened||event.detail.routeGoalId!==getGoalId()||!(current?.connected||current?.nativeConnection))return;
   current.work=event.detail;const target=content.querySelector('.agent-current');
-  if(target&&!target.contains(document.activeElement))target.innerHTML=workMarkup(event.detail,current);
+  const markup=workMarkup(event.detail,current);
+  // Redraw only on change, so a link under the pointer stays clickable.
+  if(target&&!target.contains(document.activeElement)&&target.dataset.markup!==markup){target.innerHTML=markup;target.dataset.markup=markup;}
  });
  return {routeChanged(){close();current=null;button.hidden=!getGoalId();},close};
 }

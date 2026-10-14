@@ -17,7 +17,8 @@ export function workProgressGroups(events, deliveries, activity=null) {
     group.eventIds.push(event.changeId);
     group.owner = event.changeId;
     if(activity&&activity.turnId===turnId&&activity.threadId===state.threadId&&activity.goalId===event.goalId)group.activity=activity;
-    group.live ||= state.status === 'working';
+    // Claude reports a running response through its transcript work, not the delivery status.
+    group.live ||= state.status === 'working' || state.work?.source === 'turn' && state.work.status === 'working';
     group.error ||= Boolean(state.workError);
     group.truncated ||= Boolean(state.work?.truncated);
     for (const message of state.work?.messages || []) {

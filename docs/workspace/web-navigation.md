@@ -28,7 +28,7 @@ count prefix disappears. A failed count request keeps the last known value;
 returning to the tab refreshes the workspace immediately.
 
 While the agent works on the open Goal, the tab icon's sunrise takes color (a
-warm sky, an orange sun and a blue sea); the title keeps its space for the
+warm sky, a filled orange sun and a blue sea); the title keeps its space for the
 Letter count. A hidden tab checks the agent
 every 10 seconds instead of every 2, so a background tab still shows when work
 starts and ends.

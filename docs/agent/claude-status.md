@@ -49,8 +49,14 @@ for conversations whose hooks reported it.
 
 ## See whether Claude is responding now
 
-The Agent button and the browser tab icon show Running while the conversation's
-transcript has an open response: a user or assistant entry after the last Stop
-summary or interrupt. Subagent entries do not count. A transcript with no write
-for 10 minutes counts as Idle, so a closed app does not stay Running. Without a
-reported transcript the state is unknown.
+Claude and Codex Roots show the same running state. The Agent button, the
+browser tab icon, the Goal list and the Agent menu's Activity show Running while
+the conversation's transcript has an open response: a user or assistant entry
+after the last Stop summary or interrupt. Subagent entries do not count. A
+transcript with no write for 10 minutes counts as Idle, so a closed app does not
+stay Running. Without a reported transcript the state is unknown.
+
+The running Goal is the one whose feedback that response received. Activity
+links to that feedback, and feedback received within one response shares one
+Think, which opens while the response runs and closes when it stops. A response
+that received no Web feedback shows Running without a Goal.
