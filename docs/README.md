@@ -18,6 +18,7 @@ The integrating application decides what work to pursue and when to continue it.
 | Understand page loading, live updates and Deliverable history | [Web navigation](workspace/web-navigation.md) |
 | Separate projects, ports and extension choices | [Project workspaces](runtime/projects.md) |
 | Choose branches, commit milestones and prepare a PR | [Development workflow](development/workflow.md) |
+| Try a local CLI change in a project's Web, without GitHub | [Try a local change](development/try-local.md) |
 | Try an unreleased CLI commit in another project | [Use a development version](development/use-development-version.md) |
 | Add a host or change host-specific setup and operation guidance | [Harness boundaries](development/harness-boundaries.md) |
 | Qualify Auto mode continuation in a native Claude conversation | [Claude Auto mode](development/claude-auto-mode.md) |

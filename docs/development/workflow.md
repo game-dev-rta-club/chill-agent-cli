@@ -46,6 +46,10 @@ source, regression coverage and its explanation together when they form a usable
 change. Never include generated bundles, personal runtime data or secrets. A
 checkpoint is not a release. Shared history is not force-pushed as routine cleanup.
 
+While dogfooding in a project's own Web, [try local changes](try-local.md) there
+without a PR per change. Open the PR when another project or machine needs the
+change, batching what was already tried.
+
 ## Finish through the integration gate
 
 1. Open a focused PR targeting `develop`. Keep incomplete work Draft and describe
