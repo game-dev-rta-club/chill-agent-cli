@@ -71,7 +71,8 @@ const imageReads = new Map();
 const openDetails = new Set();
 const openReplies = new Set();
 const conversationWindow = createConversationWindow();
-const conversationFor = id => events.filter(event => event.goalId === id);
+// Deleted agent comments arrive as tombstones and are not shown.
+const conversationFor = id => events.filter(event => event.goalId === id && !event.deletedAt);
 function letterTitle(id) {return events.find(e=>e.id===id)?.title||`Letter #${id}`;}
 let pendingUpdateId = null;
 const hasNewBrief = createBriefArrivalTracker();

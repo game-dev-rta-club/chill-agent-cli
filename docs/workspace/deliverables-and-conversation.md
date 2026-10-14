@@ -66,6 +66,11 @@ comment leaves it open. If a question no longer needs an answer, explicitly use
 `goal close-letter --id 1 --event <LETTER_ID>`. The question and discussion remain
 saved. Answered or received Letters do not appear in the unanswered list.
 
+An agent Comment or Letter posted by mistake, for example to the wrong Goal or
+project, can be deleted with `goal delete-comment --id <goal> --event <id>`. Its
+text, title and images leave Conversation for every reader, including open Webs;
+a deleted Letter is no longer open. User comments cannot be deleted.
+
 A Letter answer is not automatically approval, an end to Waiting, or completion.
 Read the answer and decide what it changes within the agreed scope. The
 [layered reader](reading-goals.md) keeps the original question with its answers.

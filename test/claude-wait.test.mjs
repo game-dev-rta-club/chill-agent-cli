@@ -174,3 +174,12 @@ test('Approve all answers permission prompts for its conversation only while on,
  await setClaudeApproveAll(f.connection,false);assert.equal(await prompt(),null);
  await assert.rejects(setClaudeApproveAll(f.connection,'yes'),/On or Off/);
 });
+
+test('Claude feedback lists open Letters with their close command, as Codex delivery does',async t=>{
+ const {appendAgentComment}=await import('../lib/goal-store.mjs');
+ const f=await fixture(t);
+ const letter=await appendAgentComment({goalId:f.root.id,type:'letter',title:'Pick one',text:'A or B?'});
+ await appendFeedback({goalId:f.root.id,text:'B, thanks'});
+ const text=context(await f.action('inbox'));
+ assert.match(text,/Open Letters/);assert.match(text,new RegExp(`goal close-letter --id ${f.root.id} --event ${letter.id}`));
+});

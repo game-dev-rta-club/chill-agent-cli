@@ -1,6 +1,6 @@
 // User answers and Agent receipt are explicit; ordinary comments leave Letters alone.
 export function letterState(letter, conversation = []) {
-  if (letter?.type !== 'letter' || letter.author !== 'agent') return null;
+  if (letter?.type !== 'letter' || letter.author !== 'agent' || letter.deletedAt) return null;
   // Compatibility: historical no-reply records must not become unanswered.
   if (letter.replyRequired === false) return {status: 'notice', lastAnswerId: null};
   const answer = conversation.findLast(entry => entry.goalId === letter.goalId && entry.author === 'user'

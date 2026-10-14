@@ -211,3 +211,20 @@ test('editable sources from before the Deliverable rename move to their new name
  assert.equal(await readFile(path,'utf8'),'# Earlier source');
  await assert.rejects(f.invoke('brief','path','--id','1'),/renamed to goal deliverable/);
 });
+
+test('an agent Comment or Letter posted by mistake can be deleted; user comments cannot',async t=>{
+ const f=await fixture(t);await f.run('create','--title','Root');
+ const kept=await f.run('comment','--id','1','--text','Keep this');
+ const wrong=await f.run('comment','--id','1','--text','Posted to the wrong project');
+ const letter=await f.run('letter','--id','1','--title','Wrong question','--text','Which one?');
+ const user=await f.feedback('1',{text:'A user comment'});
+ const deleted=await f.run('delete-comment','--id','1','--event',String(wrong.id));assert.equal(deleted.changed,true);
+ await f.run('delete-comment','--id','1','--event',String(letter.id));
+ assert.equal((await f.run('delete-comment','--id','1','--event',String(wrong.id))).changed,false,'deleting again changes nothing');
+ const text=(await f.invoke('show','--id','1','--format','text')).stdout;
+ assert.match(text,/Keep this/);assert.doesNotMatch(text,/wrong project|Wrong question/);
+ assert.equal((await f.run('show','--id','1')).letters.length,0,'a deleted Letter is not open');
+ await assert.rejects(f.invoke('delete-comment','--id','1','--event',String(user.id)),/Only agent/);
+ await assert.rejects(f.invoke('delete-comment','--id','1','--event','999'),/not found/);
+ assert.ok(kept.id);
+});
