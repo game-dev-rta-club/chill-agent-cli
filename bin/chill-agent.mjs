@@ -80,7 +80,12 @@ async function main() {
     const image=await saveAttachment(await readFile(v['--file']),mimeType);
     return output({...image,src:`/api/images/${image.id}`});
   }
-  if(command==='activity') return output({delivery:await recordActivity(v['--event'],v['--state'])});
+  if(command==='activity') {
+    const result=await recordActivity(v['--event'],v['--state']);
+    // An agent that confirms receipts itself reads this line from the output.
+    if(result.pending){console.log(result.pending);console.log(result.note);return;}
+    return output({delivery:result});
+  }
   if(command==='retry') return console.log(JSON.stringify({delivery:await deliverFeedback(v['--event'])}));
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1;});

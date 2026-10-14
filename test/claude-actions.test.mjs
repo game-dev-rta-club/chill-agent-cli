@@ -242,3 +242,29 @@ test('an automatic inbox failure does not hide an already confirmed action',asyn
   assert.match(context(result),/Created Goal #1/);assert.match(context(result),/Automatic feedback could not be checked/);
   assert.equal((await listGoals()).length,1);
 });
+
+test('one Bash output confirms every chill request it carries',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const first=await appendFeedback({goalId:goal.id,text:'First'}),second=await appendFeedback({goalId:goal.id,text:'Second'});
+  for(const event of [first,second])await deliverFeedback(event.changeId);
+  await s.act('inbox',{});
+  const a=await s.request('activity',{eventId:first.changeId,state:'working'}),b=await s.request('activity',{eventId:second.changeId,state:'completed'});
+  const output=context(await s.confirm(s.hook(a,{tool_response:{stdout:`${a.marker}\nnoise\n${b.marker}\n${a.marker}`,interrupted:false}})));
+  assert.match(output,new RegExp(`Feedback #${first.changeId}: working`));
+  assert.match(output,new RegExp(`Feedback #${second.changeId}: completed`));
+  assert.equal((await readDeliveryState(first.changeId)).status,'working');
+  assert.equal((await readDeliveryState(second.changeId)).status,'completed');
+});
+
+test('goal activity from a Claude conversation becomes a hook-confirmed receipt',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const event=await appendFeedback({goalId:goal.id,text:'Longer work'});await deliverFeedback(event.changeId);
+  await s.act('inbox',{});
+  const {recordActivity}=await import('../lib/delivery.mjs');
+  await assert.rejects(recordActivity(event.changeId,'deferred',s.env),/native Queue/);
+  const pending=await recordActivity(event.changeId,'working',s.env);
+  assert.match(pending.pending,/^\[chill-claude-request:[0-9a-f-]{36}\]$/);
+  assert.notEqual((await readDeliveryState(event.changeId)).status,'working');
+  assert.match(context(await s.confirm(s.hook({marker:pending.pending}))),/working/);
+  assert.equal((await readDeliveryState(event.changeId)).status,'working');
+});
