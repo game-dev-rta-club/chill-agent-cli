@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {agentPresence,readPresenceSnapshot} from '../lib/agent-presence.mjs';
-import {displayPresence} from '../lib/agent-observation.mjs';
+import {displayPresence} from '../lib/agents/codex-observation.mjs';
 import {presenceLabel,presenceMark} from '../public/agent-presence.js';
 import {activityMarkup,agentMarkup,runActivityMarkup,runOutputMarkup} from '../public/agent-menu.js';
 
