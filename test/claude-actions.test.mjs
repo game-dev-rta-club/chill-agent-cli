@@ -281,3 +281,26 @@ test('the Activity row under a Claude message pauses and resumes its conversatio
   const resumed=await controlAgent(goal.id,{action:'resume',token:saved.token,eventId:event.changeId});
   assert.equal(resumed.status,'saved');
 });
+
+test('goal work from a Claude conversation marks its Goal Running for the current response',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs');
+  const {selectAgentWork,agentFor}=await import('../lib/agents/index.mjs');
+  const {createGoal}=await import('../lib/goal-store.mjs');
+  const child=await createGoal({title:'Child work',parentId:goal.id});
+  const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
+  await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
+  await writeFile(transcript,JSON.stringify({type:'user',uuid:'p1',message:{role:'user',content:'Do the work'}})+'\n');
+  await assert.rejects(selectAgentWork(child.id,{env:{}}),/handshake|assigned chat/);
+  const work=await selectAgentWork(child.id,{env:s.env});
+  assert.equal(work.goalId,child.id);
+  const presence=await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence();
+  assert.equal(presence.status,'working');assert.equal(presence.goalId,child.id);
+  assert.equal((await readGoal(child.id)).started,true);
+  await selectAgentWork(child.id,{stop:true,env:s.env});
+  assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
+  // The selection ends with the response that made it.
+  await selectAgentWork(child.id,{env:s.env});
+  await writeFile(transcript,JSON.stringify({type:'system',subtype:'stop_hook_summary',uuid:'s1'})+'\n',{flag:'a'});
+  assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
+});

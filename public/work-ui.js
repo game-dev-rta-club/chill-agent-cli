@@ -1,4 +1,4 @@
-// Several feedback entries can be handled in one Codex turn. Show their
+// Several feedback entries can be handled in one agent turn. Show their
 // shared public output once, attached to the last related entry on this page.
 export function workProgressGroups(events, deliveries, activity=null) {
   const groups = new Map();
@@ -17,7 +17,7 @@ export function workProgressGroups(events, deliveries, activity=null) {
     group.eventIds.push(event.changeId);
     group.owner = event.changeId;
     if(activity&&activity.turnId===turnId&&activity.threadId===state.threadId&&activity.goalId===event.goalId)group.activity=activity;
-    // Claude reports a running response through its transcript work, not the delivery status.
+    // Some agents report a running response through its work, not the delivery status.
     group.live ||= state.status === 'working' || state.work?.source === 'turn' && state.work.status === 'working';
     group.error ||= Boolean(state.workError);
     group.truncated ||= Boolean(state.work?.truncated);

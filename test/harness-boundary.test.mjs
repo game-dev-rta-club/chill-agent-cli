@@ -14,7 +14,7 @@ const pending=new Set([
  'bin/chill-hook.mjs','bin/chill-monitor.mjs','bin/chill-setup.mjs',
  'lib/agent-connection.mjs','lib/agent-observation.mjs','lib/cli-help.mjs',
  'lib/continuation-monitor.mjs',
- 'lib/goal-execution.mjs','lib/goal-store.mjs',
+ 'lib/goal-store.mjs',
 ]);
 const names=/claude-code|codex-desktop|CODEX_THREAD_ID|nativeConnection|harnessId/;
 

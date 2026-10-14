@@ -8,7 +8,7 @@ import {startSession} from '../lib/harness-session.mjs';
 test('selected interfaces preserve different receipt and completion semantics',()=>{
  const a=harnessGuidance('codex-desktop'),b=harnessGuidance('claude-code');
  assert(a.operations.receipt.states.includes('deferred'));assert(a.operations.selectWork);
- assert(!b.operations.receipt.states.includes('deferred'));assert.equal(b.operations.selectWork,null);
+ assert(!b.operations.receipt.states.includes('deferred'));assert.match(b.operations.selectWork.command,/goal work/);
  assert.match(b.operations.createRoot.confirmation,/PostToolUse/);
  a.operations.receipt.states.push('invented');assert(!harnessGuidance('codex-desktop').operations.receipt.states.includes('invented'));
  assert.throws(()=>harnessGuidance('unknown'),/no fallback/);
