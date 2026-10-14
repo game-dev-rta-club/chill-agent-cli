@@ -31,7 +31,10 @@ async function main() {
     return;
   }
   if(action==='wait') {
-    console.log(waitResultText(await waitForClaudeFeedback()));
+    // A stopped background task releases its refresh, so a new waiter starts at once.
+    const controller=new AbortController();
+    for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
+    console.log(waitResultText(await waitForClaudeFeedback({signal:controller.signal})));
     return;
   }
   if(['create-goal','adopt','inbox','activity','reply'].includes(action)) {
