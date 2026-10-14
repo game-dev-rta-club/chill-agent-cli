@@ -12,7 +12,7 @@ const root=fileURLToPath(new URL('..',import.meta.url));
 const adapter=file=>/^lib\/agents\/(?!index\.mjs)|^lib\/(claude-|codex-|desktop-settings)|^extensions\/harnesses\//.test(file);
 const pending=new Set([
  'bin/chill-hook.mjs','bin/chill-monitor.mjs','bin/chill-setup.mjs',
- 'lib/agent-connection.mjs','lib/agent-observation.mjs','lib/agent-presence.mjs','lib/cli-help.mjs',
+ 'lib/agent-connection.mjs','lib/agent-observation.mjs','lib/cli-help.mjs',
  'lib/continuation-extension.mjs','lib/continuation-monitor.mjs','lib/delivery.mjs','lib/extension-api.mjs',
  'lib/goal-execution.mjs','lib/goal-store.mjs','lib/notifications.mjs','lib/web-notifications.mjs',
 ]);
