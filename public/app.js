@@ -1019,6 +1019,22 @@ main.addEventListener('toggle', event => {
   else openDetails.delete(key);
 }, true);
 
+// On wide screens the composer sticks to the bottom of the Conversation column.
+// When typing grows it, move the column by the same amount so the messages
+// above stay visible instead of disappearing under the composer.
+let composerHeight = null;
+main.addEventListener('beforeinput', event => {
+  if (event.target.dataset?.input === 'comment') composerHeight = event.target.closest('form')?.offsetHeight ?? null;
+}, true);
+function keepMessagesAboveComposer(input) {
+  const form = input.closest('form'), column = form?.closest('[data-scroll-pane]'), before = composerHeight;
+  composerHeight = null;
+  if (!form || !column || before === null || getComputedStyle(form).position !== 'sticky') return;
+  const delta = form.offsetHeight - before;
+  // Shrinking needs nothing: the browser already clamps the shorter column.
+  if (delta > 0) column.scrollTop += delta;
+}
+
 main.addEventListener('input', event => {
   const input = event.target;
   if (input.dataset.input === 'annotation') {
@@ -1027,6 +1043,7 @@ main.addEventListener('input', event => {
     commentDrafts.set(formKey(activeGoalId, 'comment'), input.value);
     writeDraft('comment', activeGoalId, input.value);
     updateComposerState();
+    keepMessagesAboveComposer(input);
   }
 });
 

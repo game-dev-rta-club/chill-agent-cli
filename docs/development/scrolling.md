@@ -18,7 +18,8 @@ Use [reading-pane.js](../../public/reading-pane.js) for programmatic changes to
 the main pane. On screens at least 1180px wide, a Goal's Conversation is a second
 column that scrolls by itself (`data-scroll-pane`) beside the Goal and Deliverable; the
 same rules apply inside it, it opens at its newest message, and the composer stays
-at its bottom. Narrower screens keep one column. Keep the header and window fixed. Do not add `scrollIntoView`,
+at its bottom. When typing makes the composer taller, the column moves up by the
+same amount so the messages above it stay visible (an input handler, not an observer). Narrower screens keep one column. Keep the header and window fixed. Do not add `scrollIntoView`,
 smooth scroll retries, bottom-follow timers or another anchoring observer for
 page content. Browser scroll restoration and native scroll anchoring are disabled
 for this pane so they cannot compete with explicit position correction.

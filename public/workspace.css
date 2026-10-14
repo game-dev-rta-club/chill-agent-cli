@@ -351,7 +351,9 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
  .goal-heading h1 { font-size:22px; }
 }
 
-.agent-panel,.extension-panel { right:max(12px,calc((100vw - 1120px)/2 + 20px)); }
+/* Menus open under the header's right edge, which follows the page content width. */
+.agent-panel,.extension-panel { right:max(12px,calc((100vw - 1040px)/2 + 20px)); }
+@media(min-width:1180px) { body:has(.reading-pane>.goal-layout) :is(.agent-panel,.extension-panel) { right:max(12px,calc((100vw - 1608px)/2 + 20px)); } }
 
 .header-letters { position:relative; display:flex; align-items:center; justify-content:center; width:var(--header-control-size); height:var(--header-control-size); border-radius:10px; color:var(--muted); }
 .header-letters>svg { width:var(--header-icon-size); height:var(--header-icon-size); }
