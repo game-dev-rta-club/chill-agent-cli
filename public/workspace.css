@@ -320,7 +320,8 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 
 
 
-.header-inner { max-width:1120px; width:100%; margin:auto; padding:0 20px; }
+/* The header spans the same width as the page content below it. */
+.header-inner { max-width:calc(1000px + 40px); width:100%; margin:auto; padding:0 20px; }
 .reading-pane { padding-top:8px; }
 .reading-pane>* { max-width:1000px; }
 .header-actions { gap:8px; }
@@ -374,6 +375,7 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 @media(prefers-reduced-motion:reduce) { .runtime-update-button[aria-busy="true"] svg { animation:none; } }
 /* Wide screens: read the Deliverable on the left while the Conversation scrolls on its own at the right. */
 @media(min-width:1180px) {
+  body:has(.reading-pane>.goal-layout) .header-inner { max-width:calc(1568px + 40px); }
   .reading-pane>.goal-layout { max-width:1568px; display:grid; grid-template-columns:minmax(0,1fr) minmax(380px,40%); align-items:start; gap:32px; }
   .goal-layout>.conversation { position:sticky; top:0; max-height:calc(100dvh - 80px); overflow-y:auto; overscroll-behavior:contain; padding:14px 6px 0 2px; }
   .goal-layout>.conversation .conversation-form { position:sticky; bottom:0; z-index:1; padding-bottom:12px; background:linear-gradient(transparent,var(--canvas) 18px); }
