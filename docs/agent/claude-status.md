@@ -34,5 +34,15 @@ result names the waiter to start again. Do not create a replacement conversation
 to recover an existing Goal.
 
 The menu exposes labels and timestamps, not session tokens, working directories,
-prompts or transcripts. Model settings, usage and execution controls stay
-unavailable.
+prompts or transcripts. It also shows the model and effort the conversation last
+answered with, read from the transcript path its hooks report. Changing the model,
+usage and execution controls stay unavailable: Claude Code offers no route to change
+a running conversation's model from outside it.
+
+## Follow the response that received feedback
+
+Under a delivered message, Activity shows the public text the agent wrote in the
+response that received it, from the hook offer until that response stops or the
+user starts another prompt, as a Codex turn does. Thinking, tool input and output,
+and subagent text are never shown. The transcript is read incrementally and only
+for conversations whose hooks reported it.
