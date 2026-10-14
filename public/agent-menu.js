@@ -38,7 +38,7 @@ const extensionsMarkup=data=>data.extensions===null?'<section class="agent-secti
 export function agentMarkup(data) {
  if(data.nativeConnection){
   const s=data.nativeConnection.status;
-  return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p>${esc(s.label)}</p><p class="agent-muted">${esc(s.detail)}</p>${s.waiterCheckedAt?`<p class="agent-muted">Waiter checked ${timeMarkup(s.waiterCheckedAt,true)}</p>`:''}${s.observedAt?`<p class="agent-muted">Last contact ${timeMarkup(s.observedAt)}</p>`:''}`:''}<p class="agent-muted">${esc(data.nativeConnection.detail)}</p></section>
+  return `<section class="agent-section"><h3>Claude Code</h3>${s?.settings?.model?`<p class="agent-muted">${esc(s.settings.model)}${s.settings.reasoning?` · ${esc(s.settings.reasoning)}`:''}</p>`:''}${s?`<p title="${esc(s.detail)}">${esc(s.label)}${s.waiterCheckedAt||s.observedAt?` · ${timeMarkup(s.waiterCheckedAt||s.observedAt)}`:''}</p>`:''}</section>
  ${extensionsMarkup(data)}`;
  }
  if(!data.connected)return '<p class="agent-empty">No agent connected.</p>';
