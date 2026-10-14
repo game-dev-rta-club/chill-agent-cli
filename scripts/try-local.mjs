@@ -10,7 +10,7 @@ import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {projectDirectory} from '../lib/project-workspace.mjs';
-import {readVersionSource,recordVersionSource} from '../lib/version-source.mjs';
+import {npmCommand,readVersionSource,recordVersionSource} from '../lib/version-source.mjs';
 import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 
 const usage=`Usage: npm run try-local -- --project <directory> [--reset]
@@ -26,7 +26,8 @@ export async function tryLocal({project,reset=false,repo=fileURLToPath(new URL('
   const source=await readVersionSource(directory);
   if(!source)throw Error('This project has no recorded version file. Run chill setup in the project first.');
   const recorded=await readJson(saved);
-  const restart=()=>{const started=now();run(join(directory,'runtime','chill'),['server','restart','--configured'],{stdio:'inherit'});return now()-started;};
+  // Node runs the launcher directly, so this also works where the shell launcher does not (Windows).
+  const restart=()=>{const started=now();run(process.execPath,[join(directory,'runtime','chill.mjs'),'server','restart','--configured'],{stdio:'inherit'});return now()-started;};
   if(reset){
     if(!recorded)return {reset:false,note:'The project already uses its recorded version file.'};
     await recordVersionSource(directory,recorded);await rm(saved,{force:true});
@@ -38,7 +39,8 @@ export async function tryLocal({project,reset=false,repo=fileURLToPath(new URL('
   const git=args=>run('git',args,{cwd:repo,encoding:'utf8'}).trim();
   const sha=git(['rev-parse','--short','HEAD']),dirty=git(['status','--porcelain','--untracked-files=no'])!=='';
   const packStarted=now();
-  const name=JSON.parse(run('npm',['pack','--json','--pack-destination',local],{cwd:repo,encoding:'utf8',stdio:['ignore','pipe','inherit']}))[0].filename;
+  const npm=npmCommand();
+  const name=JSON.parse(run(npm.file,[...npm.args,'pack','--json','--pack-destination',local],{cwd:repo,encoding:'utf8',stdio:['ignore','pipe','inherit']}))[0].filename;
   const hash=createHash('sha256').update(await readFile(join(local,name))).digest('hex').slice(0,10);
   // A new file name per build gives a new package spec, so the Web installs it.
   const tarball=join(local,`chill-agent-cli-${sha}-${hash}.tgz`);await rename(join(local,name),tarball);
