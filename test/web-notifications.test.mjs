@@ -5,7 +5,7 @@ const device='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-00
 const subscription={endpoint:'https://fcm.googleapis.com/fcm/send/test',keys:{auth:Buffer.alloc(16).toString('base64url'),p256dh:Buffer.concat([Buffer.from([4]),Buffer.alloc(64)]).toString('base64url')}};
 function fixture(seed=null){let saved=seed,queue=Promise.resolve(),time=100000,mode='ok',origin=null;const sends=[],events=[{id:1,goalId:'2',author:'agent',type:'letter',title:'Choose',text:'A decision'}];
  const store={read:async()=>structuredClone(saved),write:async(_,s)=>saved=structuredClone(s),lock:(_,run)=>{const result=queue.then(run);queue=result.catch(()=>{});return result;}};
- const api=createWebNotifications({store,context:async id=>({root:{id:'1',threadId:'chat'},goal:{id,title:'An outcome'}}),events:async()=>events,publicOrigin:async()=>origin,thread:()=> 'chat',use:async()=>{},now:()=>time,generateKeys:()=>({publicKey:'public',privateKey:'private'}),send:async(s,p)=>{sends.push({endpoint:s.endpoint,...JSON.parse(p)});if(mode==='expired')throw {statusCode:410};}});
+ const api=createWebNotifications({store,context:async id=>({root:{id:'1',threadId:'chat'},goal:{id,title:'An outcome'}}),events:async()=>events,eventsSince:async since=>({cursor:Math.max(0,...events.map(e=>e.id)),events:events.filter(e=>e.id>since)}),publicOrigin:async()=>origin,thread:()=> 'chat',use:async()=>{},now:()=>time,generateKeys:()=>({publicKey:'public',privateKey:'private'}),send:async(s,p)=>{sends.push({endpoint:s.endpoint,...JSON.parse(p)});if(mode==='expired')throw {statusCode:410};}});
  const on=(id=device)=>api.configure({goalId:'2',rootId:'1',deviceId:id,enabled:true,subscription:{...subscription,endpoint:subscription.endpoint+id},origin:'https://phone.test'});
  const off=(id=device)=>api.configure({goalId:'2',rootId:'1',deviceId:id,enabled:false});
  return {api,on,off,sends,events,state:()=>saved,time:v=>time=v,mode:v=>mode=v,origin:v=>origin=v};
@@ -46,12 +46,33 @@ test('reads do not expose credentials, endpoints or receipt tokens, and moved ro
  const f=fixture();await f.api.initialize();await f.on();const output=JSON.stringify(await f.api.read('2',device));for(const secret of ['private','endpoint','receipt'])assert.equal(output.includes(secret),false);
  await assert.rejects(f.api.configure({goalId:'2',rootId:'9',deviceId:device,enabled:true,subscription,origin:'https://phone.test'}),/moved/);
 });
-test('only Letters create notification jobs; even explicitly selected Comments remain silent',async()=>{
+test('every Agent reply notifies by default; Letters only keeps Comments silent',async()=>{
  const f=fixture();await f.api.initialize();await f.on();
- f.events.push({...f.events[0],id:2,type:'comment'});
- assert.equal((await f.api.prepare('2',2)).handled,false);assert.equal(f.sends.length,0);assert.equal(Object.keys(f.state().jobs).length,1);
- assert.deepEqual((await f.api.settings('2')).on,['letter']);
- f.events.push({...f.events[0],id:3});await f.api.prepare('2',3);assert.equal(f.sends.length,1);
+ assert.equal((await f.api.read('2',device)).scope,'replies');assert.deepEqual((await f.api.settings('2')).on,['comment','letter']);
+ f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'Here is the result'});
+ assert.equal((await f.api.prepare('2',2)).handled,true);assert.equal(f.sends.length,1);assert.equal(f.sends[0].title,'An outcome');assert.match(f.sends[0].url,/#\/goal\/2\/letter\/2$/);
+ await f.api.choose({goalId:'2',rootId:'1',deviceId:device,scope:'letters'});
+ assert.equal((await f.api.read('2',device)).scope,'letters');assert.deepEqual((await f.api.settings('2')).on,['letter']);
+ f.events.push({id:3,goalId:'2',author:'agent',type:'comment',text:'Progress'});assert.equal((await f.api.prepare('2',3)).handled,false);
+ f.events.push({...f.events[0],id:4});await f.api.prepare('2',4);assert.equal(f.sends.length,2);
+ await assert.rejects(f.api.choose({goalId:'2',rootId:'1',deviceId:device,scope:'all'}),/every reply or Letters only/);
+ await assert.rejects(f.api.choose({goalId:'2',rootId:'1',deviceId:other,scope:'letters'}),/Turn notifications on/);
+});
+
+test('Web sends new Agent replies by itself, once, for Codex and Claude alike',async()=>{
+ const f=fixture();f.time(Date.parse('2026-10-14T00:00:00Z'));const at=new Date(Date.parse('2026-10-14T00:00:00Z')).toISOString();
+ f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'Saved before Web started',updatedAt:at});
+ await f.api.initialize();await f.on();f.time(Date.parse('2026-10-14T00:00:06Z'));await f.api.drain();
+ assert.deepEqual(f.sends.map(s=>s.body),['Notifications are on for this device.'],'nothing older than the cursor is sent');
+ f.events.push({id:3,goalId:'2',author:'user',type:'comment',text:'Mine',updatedAt:at},{id:4,goalId:'2',author:'agent',type:'comment',text:'A reply from Claude',updatedAt:at},{id:5,goalId:'2',author:'agent',type:'letter',title:'Pick one',text:'A or B',updatedAt:at});
+ await Promise.all([f.api.drain(),f.api.drain()]);
+ assert.deepEqual(f.sends.slice(1).map(s=>[s.title,s.body]),[['An outcome','A reply from Claude'],['Pick one','A or B']]);
+ assert.equal((await f.api.prepare('2',4)).handled,false,'an Agent request for the same reply sends nothing more');
+ // A reply saved long before Web noticed it (Web was stopped) is not sent late.
+ f.events.push({id:6,goalId:'2',author:'agent',type:'comment',text:'Old',updatedAt:new Date(Date.parse(at)-31*60*1000).toISOString()});
+ await f.api.drain();assert.equal(f.sends.length,3);
+ // Off stops replies for this device.
+ await f.off();f.events.push({id:7,goalId:'2',author:'agent',type:'comment',text:'After Off',updatedAt:at});await f.api.drain();assert.equal(f.sends.length,3);
 });
 test('a new public URL retires old registrations and pending jobs, retaining all devices on the current URL',async()=>{
  const third='00000000-0000-0000-0000-000000000003';
