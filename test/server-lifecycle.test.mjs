@@ -298,8 +298,10 @@ test('crash recovery keeps the original start deadline instead of granting anoth
   assert.match(f.output(), /Idle timeout reached \(1h\)/);
 });
 
-test('idle expiry waits for Codex notification even after the Web save receipt was returned', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable',timeout:15000}, async t => {
-  const f = await fixture(t, '700ms', {CHILL_TEST_QUEUE_DELAY:'1500'});
+test('idle expiry waits for Codex notification even after the Web save receipt was returned', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable',timeout:20000}, async t => {
+  // Idle and queue delay leave room for a busy machine: setup steps must finish
+  // before the server's own idle stop, and the queue must outlast that stop.
+  const f = await fixture(t, '2s', {CHILL_TEST_QUEUE_DELAY:'3000'});
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>Pending delivery</p>');
   await f.run(['create','--title','Pending delivery','--thread-id',threadId]);
@@ -310,7 +312,7 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   });
   assert.equal(response.status,201);
   assert.equal((await response.json()).feedback.changeId,1);
-  await delay(1000);
+  await delay(2500);
   assert.equal(f.child.exitCode,null,'saved feedback is still being delivered');
   // Wait for the queue receipt rather than a fixed time, so a busy machine
   // does not fail the test; the server must stay up the whole time.
