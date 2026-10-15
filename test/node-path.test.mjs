@@ -40,9 +40,9 @@ test('the short chill entry runs the launcher and falls back to Node on PATH',as
  const env=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^(path|chill_agent_data_dir)$/i.test(key)));
  env.PATH=bash?[dirname(process.execPath),join(dirname(dirname(bash)),'usr','bin')].join(';'):`${dirname(process.execPath)}:/usr/bin:/bin`;
  const run=()=>bash?execFileSync(bash,['-c',`'${prepared.entry.replaceAll("'","'\\''")}' connection --help`],{env,encoding:'utf8'}):execFileSync(prepared.entry,['connection','--help'],{env,encoding:'utf8'});
- assert.match(run(),/Wait in the background/);
+ assert.match(run(),/Watch a Claude conversation/);
  // Simulate an upgrade that removed the recorded binary.
  const script=await readFile(prepared.entry,'utf8');
  await writeFile(prepared.entry,script.replace(/^node=.*$/m,bash?"node='C:\\missing\\node.exe'":"node='/missing/bin/node'"),{mode:0o700});
- assert.match(run(),/Wait in the background/);
+ assert.match(run(),/Watch a Claude conversation/);
 });

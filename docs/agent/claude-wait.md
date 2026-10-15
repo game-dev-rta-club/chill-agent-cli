@@ -1,87 +1,66 @@
 ---
 keyPoints: >-
-  The agent keeps `connection wait` running as a Claude background task. It exits
-  when Web feedback is saved, which wakes an idle conversation; the agent claims it
-  through the inbox and starts the waiter again. chill outputs name the waiter only
-  when none is running. A live task also keeps Claude Desktop from evicting the session.
+  The watcher hook (connection claude-watch, asyncRewake on SessionStart and
+  Stop) waits in the background while a Claude conversation owns Goals. When Web
+  feedback is saved it claims it and exits 2, so Claude Code wakes the model with
+  the feedback; a due connection wake check wakes it the same way. The agent
+  never starts, reads or restarts it. connection wait remains for older setups.
 ---
 
 # Receive Web replies while Claude is idle
 
-A Claude conversation hears about Web replies through a small background task:
+chill installs a second command on the SessionStart and Stop hooks:
 
 ```text
-agent starts `chill connection wait` as a background task
-        ↓ (waits; nothing is sent to the model)
+response ends (Stop) or a session starts (SessionStart)
+        ↓ Claude Code runs `chill connection claude-watch` in the background
+          (asyncRewake); nothing is sent to the model while it waits
 user saves feedback on the Web
         ↓
-waiter exits and prints the next actions
+watcher claims it, as a tool hook would, and exits 2 with the feedback text
         ↓
-Claude Code reports the finished task; an idle conversation starts a new turn
+Claude Code wakes the model with that text
         ↓
-agent runs `connection inbox` and starts the waiter again in one response,
-then answers with `connection reply`
+agent works and answers with `connection reply`; the response's Stop starts
+the next watcher
 ```
 
-The agent need not read the finished task's output: the inbox shows saved
-feedback and any due check. While a checked-in response is still calling tools,
-the waiter does not end for feedback; the next tool hook offers it instead.
+The agent is not told about the watcher and never handles it. It sees Web
+feedback the same way whether it was working (a tool hook offers it) or idle
+(the watcher wakes it). Claude Code shows the user `chill-agent: Web input` in
+the terminal when the watcher wakes the conversation.
 
-The waiter only detects saved feedback for its own conversation context. It
-never offers or marks feedback itself: the [main-hook inbox](claude-actions.md)
-claims it, so holds, ownership checks and uncertain offers behave as in any
-other delivery. Feedback saved while the waiter was not running stays saved and
-wakes the next waiter immediately.
+## What the watcher does
 
-## How the agent learns to start it
+- It watches only while the conversation owns a Root Goal. A conversation that
+  owns none ends its watcher at once; its next Stop starts one again, for
+  example after it creates a Goal.
+- Feedback is claimed through the same inbox as tool hooks, so holds, a Web
+  pause, ownership checks and Resume behave as in any other delivery.
+- A `connection wake` check that is due wakes the conversation with its reason
+  and is cleared, so it wakes once.
+- It ends itself before the hook timeout (7 days) with a short routine check;
+  the response that wakes starts the next watcher.
 
-No skill text is required. chill tells the agent at the moment it is relevant:
+## One watcher per conversation
 
-| When | Where the instruction appears |
-| --- | --- |
-| A Root is created, or an inbox / receipt action is confirmed, and no waiter runs | That action's hook result |
-| The waiter has just exited with feedback | The waiter's own output |
-| A resumed or compacted conversation owns Goals and no waiter runs | The SessionStart hook context |
+A watcher records itself in the conversation's connection record and refreshes
+that record every 30 seconds. One that is stopped (SIGTERM, SIGINT or SIGHUP)
+releases the record at once. Every Stop starts a watcher; while one is alive,
+the new one checks that the recorded watcher still refreshes (up to 65 seconds)
+and exits. A watcher killed without releasing its record is taken over. Status
+treats a record that has not been refreshed for 90 seconds as stopped.
 
-Conversations that own no Goals never see these instructions. The wording lives
-in one place in the Claude adapter (`waiterAction` in
-[claude-actions](../../lib/claude-actions.mjs)); other connections deliver
-natively and print nothing.
+The watcher follows its session: compact keeps it, and after clear or fork it
+watches the new context, ending if that context owns no Goal.
 
-## One waiter per conversation
+## Setups without the watcher hook
 
-A waiter records itself in the conversation's connection record and refreshes
-that record every 30 seconds. A waiter that is stopped (SIGTERM, SIGINT or
-SIGHUP, as a stopped background task receives) releases the record at once.
+Hooks installed by an earlier setup have no watcher until setup prepare or a
+runtime update refreshes them. There, `connection wait` is the older route: the
+agent starts it as a background task, it exits when feedback is saved or a check
+is due, and the agent claims feedback with `connection inbox` and starts it
+again. chill names it only while the project's hooks lack the watcher. A watcher
+hook takes over from a running `connection wait` task.
 
-A second waiter for the same context first checks that the recorded one is
-alive: it watches the refresh for up to 65 seconds and exits only if it advances.
-If it does not, the recorded waiter was killed without releasing it, and the new
-waiter takes over. So restarting the waiter right after stopping one never leaves
-the conversation without a waiter. Status treats a record that has not been
-refreshed for 90 seconds as stopped, and a reused process ID never counts as
-running. Compact keeps a running waiter; clear and fork start a new
-context, and an old waiter exits when its context changes.
-
-## Why a background task
-
-Claude Code wakes an idle conversation when one of its background tasks
-finishes, and the task has no time limit. Claude Desktop also stops idle
-sessions under memory pressure but keeps sessions that have a live background
-task. The waiter therefore needs no expiry, renewal or extra user setting.
-
-It cannot outlive the Claude process. Quitting Claude or the computer sleeping
-stops it; saved replies wait for the conversation to be resumed, when the
-SessionStart instruction applies. The [connection status](claude-status.md)
-shows whether a waiter is currently recorded.
-
-## Scheduled checks
-
-Something outside chill, such as CI finishing, wakes nobody by itself, and Auto
-mode rests after a check finds no work. Before ending a response that waits for
-such a thing, the conversation runs `connection wake --in <minutes> --reason
-<text>`. The check is kept in the conversation's record. The waiter ends when it
-is due, which wakes the conversation with the reason, and clears it so it wakes
-once. The next `connection inbox` names the due check once, too. One check is kept per conversation; `--cancel` removes it.
-
-Implementation: [waiter](../../lib/claude-wait.mjs), [scheduled checks](../../lib/claude-wake.mjs), [entry record](../../lib/claude-entry.mjs).
+Implementation: [watcher](../../lib/claude-wait.mjs), [hooks](../../lib/claude-setup.mjs), [scheduled checks](../../lib/claude-wake.mjs), [entry record](../../lib/claude-entry.mjs).
