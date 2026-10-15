@@ -13,7 +13,7 @@ import { cloudflaredPath, tunnelStatePath } from '../lib/tunnel.mjs';
 import {stopManagedTunnel} from '../lib/managed-tunnel.mjs';
 import { readMessageSettings } from '../lib/message-settings.mjs';
 import { stableNodePath } from '../lib/node-path.mjs';
-import { prepareRuntime } from '../lib/runtime-package.mjs';
+import { prepareWithOwnInstaller } from '../lib/runtime-package.mjs';
 import { prepareSelectedPackage } from '../lib/version-source.mjs';
 import { launchdWebService } from '../lib/web-service-launchd.mjs';
 import { windowsWebService } from '../lib/web-service-windows.mjs';
@@ -22,7 +22,7 @@ import { windowsWebService } from '../lib/web-service-windows.mjs';
 // different package, start that package's own server command instead.
 async function followVersionFile(directory) {
   if (process.env.CHILL_AGENT_VERSION_SWITCHED === '1') return false;
-  const installed = await prepareSelectedPackage(directory, fileURLToPath(new URL('../', import.meta.url)), { prepare: prepareRuntime, log: message => console.error(message) });
+  const installed = await prepareSelectedPackage(directory, fileURLToPath(new URL('../', import.meta.url)), { prepare: prepareWithOwnInstaller, log: message => console.error(message) });
   if (!installed) return false;
   await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [join(installed.root, 'bin/chill-server.mjs'), ...process.argv.slice(2)], { stdio: 'inherit', env: { ...process.env, CHILL_AGENT_VERSION_SWITCHED: '1' } });
