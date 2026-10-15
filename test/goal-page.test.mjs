@@ -62,6 +62,9 @@ test('context handoff retains agreement and all new corrections while deferring 
  assert.doesNotMatch(output,/LONG BRIEF/);
  assert.match(output,/--version 3 --format text --section deliverable/);
  assert.match(output,/goal review --id 2 --letters/);
+ // One read shows the direct Split Goals and where to edit and publish the Deliverable.
+ assert.match(output,/Split Goals \(current, direct children; full index: chill goal review --id 2\)\n#3 Goal 3 — Open/);
+ assert.match(output,/Editable Markdown: \/goals\/2\/deliverable.md\nAfter editing, publish: chill goal deliverable update --id 2 --format markdown/);
  assert.match(renderGoalPage(page,{section:'deliverable'}),/LONG BRIEF/);
  assert.deepEqual(page.conversation.map(e=>e.id),[2,3,4,5,6,7,8],'rendering does not consume feedback');
 });

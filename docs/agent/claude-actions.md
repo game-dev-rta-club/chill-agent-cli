@@ -31,13 +31,15 @@ Use the prepared runtime's `runtime/chill` entry in place of `chill`.
 completed receipt in one confirmation. Answering each message as it arrives is
 fine; when one answer covers several messages of one Goal, `--event 12,13,14`
 closes them together; a retry of the same request does not post
-twice. `goal activity --event 1 --state working|failed`, the same receipt command
-Codex uses, records other receipt states, for example before long work
-(`connection activity` is the older name and still works). Claude has no native
-Queue, so `deferred` is refused.
+twice. Work within the response that received the feedback needs no receipt
+first: the Web shows it Running while that response is open.
+`goal activity --event 1 --state working|failed`, the same receipt command
+Codex uses, records other receipt states, for example when the work continues
+after the response ends (`connection activity` is the older name and still
+works). Claude has no native Queue, so `deferred` is refused.
 When a response ends while feedback it marked `working` is not recorded as done,
-the Stop hook blocks once for that response and names the feedback, so a
-forgotten receipt is closed instead of staying open. Auto mode waits only for
+or while feedback it was offered has no reply, the Stop hook blocks once for
+that response and names the feedback, so it is closed instead of staying open. Auto mode waits only for
 feedback the conversation has not seen; unfinished receipts are named in its
 continuation request instead of holding it back.
 Each command saves an intent and prints a request marker; this is not success.
