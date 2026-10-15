@@ -109,3 +109,30 @@ test('Git Bash is found as Claude Code finds it: the override, then above git on
  assert.equal(findGitBash({env:{CLAUDE_CODE_GIT_BASH_PATH:'D:\\missing\\bash.exe',PATH:'C:\\Program Files\\Git\\cmd'},exists}),null);
  assert.equal(findGitBash({env:{PATH:'C:\\Windows'},exists}),null);
 });
+
+test('an update brings recorded hooks up to the new version, leaving other hooks and edited or removed setups alone',async t=>{
+ const {refreshRecordedClaudeHooks,claudeHookGroups}=await import('../lib/claude-setup.mjs');
+ const f=await fixture(t);
+ await configureClaudeHooks(f.project,f.options);
+ // Simulate a project set up by an older version that handled fewer events.
+ const {createHash}=await import('node:crypto');const {realpath}=await import('node:fs/promises');
+ const record=join(f.data,'settings/claude-projects',`${createHash('sha256').update(await realpath(f.project)).digest('hex')}.json`);
+ const older=claudeHookGroups(f.options).filter(e=>e.event!=='PermissionRequest');
+ const settings=await f.read();delete settings.hooks.PermissionRequest;await writeFile(f.path,JSON.stringify(settings));
+ await writeFile(record,JSON.stringify({project:await realpath(f.project),owned:older,pending:false}));
+ const results=await refreshRecordedClaudeHooks(f.options);
+ assert.deepEqual(results.map(r=>r.changed),[true]);
+ const updated=await f.read();
+ assert.equal(updated.hooks.PermissionRequest.length,1,'the newly handled event is added');
+ assert.deepEqual(updated.permissions,f.config.permissions);assert.equal(updated.hooks.PostToolUse.filter(g=>g.matcher==='Read').length,1,'other hooks are kept');
+ assert.deepEqual((await refreshRecordedClaudeHooks(f.options)).map(r=>r.changed),[false],'a second update changes nothing');
+ // A hand-edited chill hook is reported and left as it is.
+ const edited=await f.read();edited.hooks.Stop[0].hooks[0].timeout=99;await writeFile(f.path,JSON.stringify(edited));
+ const refused=await refreshRecordedClaudeHooks(f.options);
+ assert.match(refused[0].error,/untracked or edited/);assert.equal((await f.read()).hooks.Stop[0].hooks[0].timeout,99);
+ // A project whose hooks were removed is not set up again.
+ edited.hooks.Stop[0].hooks[0].timeout=15;await writeFile(f.path,JSON.stringify(edited));
+ await configureClaudeHooks(f.project,{...f.options,remove:true});
+ assert.deepEqual(await refreshRecordedClaudeHooks(f.options),[]);
+ assert.equal((await f.read()).hooks?.SessionStart,undefined);
+});

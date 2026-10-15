@@ -87,6 +87,13 @@ Node on PATH if that binary disappears. Runtime updates keep that entry usable. 
 checkout invocations keep their own entry; they do not borrow a different store's
 installation.
 
+A version update (the Web's Update button, or a changed version file at server
+start) also brings the hooks setup recorded for each project up to the new
+version, for example when it handles a new event. Only chill's own recorded
+groups are replaced. A project whose hooks were removed, or whose chill hook was
+edited by hand, is left as it is. So a teammate only pulls the project and
+presses Update; setup is needed once per machine.
+
 ## Allow the operations you intend to delegate
 
 Claude may ask to read the plugin's references and run chill commands. These are

@@ -5,7 +5,7 @@
 // project to its recorded version file. Nothing in the project is changed.
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {appendFile,mkdir,readdir,readFile,rename,rm,stat} from 'node:fs/promises';
+import {appendFile,mkdir,readdir,readFile,rename,rm,stat,writeFile} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
@@ -19,7 +19,8 @@ Packs this checkout (uncommitted changes included) and selects the package for
 that project's Web. The Web then shows its update button; switching happens
 when someone presses it, so nothing restarts in the middle of running work.
 --reset returns the project to the version file its setup recorded.
---restart restarts the Web immediately instead.`;
+--restart restarts the Web immediately instead; if it does not start, the previous
+runtime is restored.`;
 const keep=3;
 
 export async function tryLocal({project,reset=false,restartWeb=false,repo=fileURLToPath(new URL('../',import.meta.url)),base,run=execFileSync,now=Date.now}) {
@@ -47,9 +48,21 @@ export async function tryLocal({project,reset=false,restartWeb=false,repo=fileUR
   // A new file name per build gives a new package spec, so the Web installs it.
   const tarball=join(local,`chill-agent-cli-${sha}-${hash}.tgz`);await rename(join(local,name),tarball);
   const packMs=now()-packStarted,versionFile=join(local,'cli.json'),spec=`file:${tarball}`;
+  // What a failed restart returns to: the selected file, its source and the installed runtime.
+  const installation=join(directory,'runtime','installation.json');
+  const before={versionFile:await readFile(versionFile,'utf8').catch(()=>null),installation:await readJson(installation)};
   await writeJsonAtomically(versionFile,{package:spec});
   await recordVersionSource(directory,{versionFile,...(source.agentGuide?{agentGuide:source.agentGuide}:{})});
-  const restartMs=restart();
+  let restartMs;
+  try{restartMs=restart();}
+  catch(error){
+    // Like the Web's update button: a package whose Web cannot start is not left selected.
+    if(before.versionFile===null)await rm(versionFile,{force:true});else await writeFile(versionFile,before.versionFile);
+    await recordVersionSource(directory,source);
+    if(before.installation)await writeJsonAtomically(installation,before.installation);
+    run(process.execPath,[join(directory,'runtime','chill.mjs'),'server','restart','--configured'],{stdio:'inherit',env:{...process.env,CHILL_AGENT_VERSION_SWITCHED:'1'}});
+    throw Error(`The new package's Web did not start, so the previous runtime was restored. ${error.message}`);
+  }
   // Keep the newest packages; the Web runs from its own installed copy.
   const old=await Promise.all((await readdir(local)).filter(f=>f.endsWith('.tgz')&&join(local,f)!==tarball).map(async f=>({f,at:(await stat(join(local,f))).mtimeMs})));
   for(const {f} of old.sort((a,b)=>b.at-a.at).slice(keep-1))await rm(join(local,f),{force:true});

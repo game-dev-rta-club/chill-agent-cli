@@ -68,3 +68,20 @@ test('the installed runtime starts its Web server',{timeout:60000},async t=>{
  }
  assert.equal(status,200,`installed server did not answer: ${stderr.slice(-800)}`);
 });
+
+test('installing a new package with its own installer also brings recorded Claude hooks up to it',{timeout:60000},async t=>{
+ const {fileURLToPath}=await import('node:url');const {prepareWithOwnInstaller}=await import('../lib/runtime-package.mjs');
+ const {configureClaudeHooks,claudeHookGroups}=await import('../lib/claude-setup.mjs');
+ const repo=fileURLToPath(new URL('..',import.meta.url));
+ const dir=await mkdtemp(join(tmpdir(),'chill-own-installer-hooks-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const project=join(dir,'project'),data=join(dir,'data');await mkdir(project,{recursive:true});
+ const entry=join(data,'runtime','chill');
+ await configureClaudeHooks(project,{entry,directory:data});
+ // An older version did not handle Stop.
+ const path=join(project,'.claude','settings.local.json'),settings=JSON.parse(await readFile(path,'utf8'));delete settings.hooks.Stop;await writeFile(path,JSON.stringify(settings));
+ const {createHash}=await import('node:crypto');const {realpath}=await import('node:fs/promises');const root=await realpath(project);
+ await writeFile(join(data,'settings/claude-projects',`${createHash('sha256').update(root).digest('hex')}.json`),JSON.stringify({project:root,owned:claudeHookGroups({entry}).filter(e=>e.event!=='Stop'),pending:false}));
+ const result=await prepareWithOwnInstaller(repo,data);
+ assert.deepEqual(result.hooks,[{project:root,changed:true}]);
+ assert.equal(JSON.parse(await readFile(path,'utf8')).hooks.Stop.length,1);
+});

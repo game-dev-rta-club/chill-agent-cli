@@ -37,3 +37,13 @@ test('Task lists retain completion as static marks without form controls',()=>{
  assert.match(html,/☑/);assert.match(html,/☐/);assert.doesNotMatch(html,/<input/);
  assert.equal(markdownText('- [x] Done\n- [ ] To do'),textOf(parseFragment(html)));
 });
+
+test('an autolink inside Japanese text stops at the URL and keeps the text unchanged', () => {
+  const source = '(Web http://127.0.0.1:58404)は、また試すときのために残してあります。';
+  const html = markdownHTML(source);
+  assert.match(html, /<a href="http:\/\/127\.0\.0\.1:58404">http:\/\/127\.0\.0\.1:58404<\/a>\)は、また/);
+  assert.equal(markdownText(source).trim(), source, 'annotation text offsets are unchanged');
+  assert.match(markdownHTML('see https://example.com/a_(b) now'), /href="https:\/\/example\.com\/a_\(b\)"/);
+  assert.match(markdownHTML('https://example.com/path.'), /href="https:\/\/example\.com\/path">https:\/\/example\.com\/path<\/a>\./);
+  assert.match(markdownHTML('[ラベル](https://example.com/y)'), /href="https:\/\/example\.com\/y">ラベル</);
+});
