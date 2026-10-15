@@ -151,7 +151,22 @@ test('feedback taken up but never recorded as done does not stop Auto mode; the 
  const f=await fixture(t);await f.configure();
  const reply=await appendFeedback({goalId:f.root.id,text:'Long work'});
  await f.action('inbox',{});await f.action('activity',{eventId:reply.changeId,state:'working'});
+ // The receipt reminder comes first; ending again, Auto mode continues.
+ assert.match((await f.stop()).reason,/not recorded as done/);await f.action('inbox',{});
  const response=await f.stop();
  assert.equal(response?.decision,'block','the response ended with the work unfinished, so Auto mode continues');
  assert.match(response.reason,new RegExp(`took up but have not recorded as done: #${reply.changeId} \\(Goal #${f.root.id}\\)`));
+});
+
+test('a receipt left as working is reminded once when the response ends, even with Auto mode off',async t=>{
+ const f=await fixture(t);
+ const reply=await appendFeedback({goalId:f.root.id,text:'Some work'});
+ await f.action('inbox',{});await f.action('activity',{eventId:reply.changeId,state:'working'});
+ const first=await f.stop();
+ assert.equal(first?.decision,'block');assert.match(first.reason,new RegExp(`not recorded as done: #${reply.changeId} \\(Goal #${f.root.id}\\)`));
+ // After a tool call the same response may end without a second reminder.
+ await f.action('inbox',{});assert.equal(await f.stop(),null);
+ // Once recorded as done, a new response ends without any reminder.
+ await f.newPrompt();await f.action('activity',{eventId:reply.changeId,state:'completed'});
+ assert.equal(await f.stop(),null);
 });

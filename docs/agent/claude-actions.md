@@ -33,6 +33,11 @@ twice. `goal activity --event 1 --state working|failed`, the same receipt comman
 Codex uses, records other receipt states, for example before long work
 (`connection activity` is the older name and still works). Claude has no native
 Queue, so `deferred` is refused.
+When a response ends while feedback it marked `working` is not recorded as done,
+the Stop hook blocks once for that response and names the feedback, so a
+forgotten receipt is closed instead of staying open. Auto mode waits only for
+feedback the conversation has not seen; unfinished receipts are named in its
+continuation request instead of holding it back.
 Each command saves an intent and prints a request marker; this is not success.
 One Bash call may print several markers; each is confirmed on its own, and one
 that fails does not drop the others (retry it with `connection request --id <id> --retry`).
