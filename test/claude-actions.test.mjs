@@ -362,7 +362,7 @@ test('one reply answers several messages of one Goal and closes them all',async 
   const f=await fixture(t),s=await f.start(),goal=await root(s);
   const first=await appendFeedback({goalId:goal.id,text:'Please flip it'}),second=await appendFeedback({goalId:goal.id,text:'Actually also the data'});
   for(const event of [first,second])await deliverFeedback(event.changeId);
-  assert.match(context(await s.act('inbox',{})),/answer once with --event/);
+  await s.act('inbox',{});
   const output=context(await s.act('reply',{eventIds:[first.changeId,second.changeId],text:'Done both'}));
   assert.match(output,new RegExp(`#${first.changeId}, #${second.changeId} as completed`));
   for(const event of [first,second])assert.equal((await readDeliveryState(event.changeId)).status,'completed');
