@@ -279,6 +279,7 @@ test('the Activity row under a Claude message pauses and resumes its conversatio
   await assert.rejects(controlAgent(goal.id,{action:'stop',token:'other',eventId:event.changeId}),/Agent changed/);
   const paused=await controlAgent(goal.id,{action:'stop',token:saved.token,eventId:event.changeId});
   assert.equal(paused.status,'paused');assert.deepEqual(paused.capabilities,{stop:false,resume:true});
+  assert.equal(paused.eventId,event.changeId,'the row stays on the paused message');
   const resumed=await controlAgent(goal.id,{action:'resume',token:saved.token,eventId:event.changeId});
   assert.equal(resumed.status,'saved');
 });

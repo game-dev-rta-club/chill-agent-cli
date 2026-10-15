@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import '../lib/quiet-sqlite-warning.mjs';
 import {readFile} from 'node:fs/promises';
+import {listGoals} from '../lib/goal-store.mjs';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
 import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
 import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
@@ -16,9 +17,12 @@ async function main() {
   const [action, ...options] = args;
   const values=parseOptions(`connection ${action}`, options);
   if (action === 'show') {
-    const caller=await identifyClaudeCaller();
-    const status=await readClaudeConnectionStatus({...caller.identity,contextId:caller.contextId});
-    console.log(JSON.stringify({...caller,status}, null, 2));
+    const {identity,contextId,observedAt,source}=await identifyClaudeCaller();
+    const status=await readClaudeConnectionStatus({...identity,contextId});
+    // Several conversations can share one project; name the Roots this one owns.
+    const roots=(await listGoals()).filter(g=>!g.parentId&&g.connection?.sessionId===identity.sessionId&&g.connection.contextId===contextId)
+      .map(({id,title,state})=>({id,title,state}));
+    console.log(JSON.stringify({identity,contextId,observedAt,source,roots,status}, null, 2));
     return;
   }
   if(action==='join') {
