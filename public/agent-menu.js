@@ -1,6 +1,6 @@
 import {isRunning} from './goal-state.js';
 import {presenceMark,presenceLabel} from './agent-presence.js';
-import {extensionIcon} from './extension-buttons.js';
+import {extensionIcon,announceControls} from './extension-buttons.js';
 import {confirmAction} from './confirmation-dialog.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const period=m=>m===null?'Usage':m%1440===0?`${m/1440}d`:m%60===0?`${m/60}h`:`${m}m`;
@@ -67,6 +67,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  function render(data){
   const expanded=new Set([...content.querySelectorAll('details[open][data-agent-detail]')].map(d=>d.dataset.agentDetail)),scroll=panel.scrollTop;
   current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>c.placement!=='header'&&!c.activity));
+  if(data.extensions)announceControls(data.extensions);
   for(const d of content.querySelectorAll('details[data-agent-detail]'))d.open=expanded.has(d.dataset.agentDetail);
   panel.scrollTop=scroll;
   for(const c of data.extensions||[]){if(c.setup&&setupRequests.get(setupKey(getGoalId(),c))?.done){const b=content.querySelector(`[data-extension-setup="${c.id}"]`);if(b){b.textContent='Requested';b.disabled=true;}}}

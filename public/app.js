@@ -2,7 +2,7 @@ import {createLettersMenu} from './letters-menu.js';
 import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence} from './agent-presence.js';
-import {createExtensionButtons} from './extension-buttons.js';
+import {createExtensionButtons,extensionIcon} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
 import { workProgressGroups, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
@@ -82,7 +82,12 @@ const viewUpdate = document.querySelector('#view-update');
 let currentRoute = '';
 let activeGoalId = null;
 const agentButton=document.getElementById('agent-button');
-agentButton.innerHTML=agentAvatar(true);
+agentButton.innerHTML=agentAvatar(true)+`<span class="agent-auto-mark" aria-hidden="true">${extensionIcon('repeat')}</span>`;
+// A small coffee at the Agent's lower left while AutoContinue is on for this Goal.
+window.addEventListener('chill-extension-controls',event=>{
+  const on=event.detail.controls.some(c=>c.id==='continuation'&&c.enabled);
+  agentButton.toggleAttribute('data-autocontinue',on);
+});
 const tabIcon=createTabIcon();
 window.addEventListener('chill-agent-presence',event=>tabIcon.set(event.detail.routeGoalId===activeGoalId&&isRunning(event.detail.status)));
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
