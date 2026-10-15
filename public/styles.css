@@ -150,17 +150,11 @@
 .annotatable-image { position: relative; display: inline-block; max-width: 100%; vertical-align: middle; }
 .annotatable-image img { display: block; max-width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
 .image-annotate { position: absolute; z-index: 1; top: 8px; right: 8px; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--theme-line,#909a92); border-radius: 50%; color: var(--theme-ink,#35443a); background: var(--surface); box-shadow: 0 2px 8px #1521171a; }
-.image-viewer { width: min(1400px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 8px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--surface); }
-.image-viewer::backdrop { background: #1b252ccc; }
-.image-viewer-bar { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 0 4px 8px; }
-.image-viewer-stage { display: flex; justify-content: center; align-items: center; overflow: auto; max-height: calc(100dvh - 90px); }
-.image-viewer-stage img { display: block; max-width: 100%; max-height: calc(100dvh - 90px); width: auto; height: auto; }
-.image-viewer-stage img.is-vector { width: 100%; height: auto; object-fit: contain; }
 .image-area-stage.is-vector { display: block; width: 100%; }
 .image-area-stage.is-vector img { width: 100%; max-height: none; }
 .annotatable-image.is-fluid { display: block; }
 .annotatable-image.is-fluid > svg, .annotatable-image.is-fluid > img { display: block; width: 100%; height: auto; }
-.brief-body .annotatable-image, .event-image-link { cursor: zoom-in; }
+.brief-body .annotatable-image:has(.image-annotate) { cursor: zoom-in; }
 .image-area-dialog { width: min(1100px, calc(100vw - 20px)); max-height: calc(100dvh - 20px); padding: 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--surface); }
 .image-area-dialog::backdrop { background: #1b252ccc; }
 .image-area-hint { margin: 6px 0 12px; font-size: 12px; color: var(--muted); }
