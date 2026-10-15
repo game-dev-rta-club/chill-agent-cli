@@ -105,13 +105,28 @@ Experimental project hooks can be installed through [explicit setup](claude-setu
 [connection hooks](../extensions/connection-hooks.md) now support the product Auto
 mode policy; its packaged native Stop probe passes.
 
-| Current code | Intended boundary |
+### One agent interface
+
+Core code reaches an agent only through [`lib/agents/index.mjs`](../../lib/agents/index.mjs).
+`agentFor(root)` returns the Root's agent connection, or none. Core never learns
+which harness it is: the agent's name and model come back as display strings, and
+`capabilities` says what the Web may offer (settings, Pause, Resume, Approve all).
+
+| The interface provides | Used for |
 | --- | --- |
-| Setup, hook input and Root `threadId` | Calling-harness identity and a backward-compatible binding |
-| `lib/codex-client.mjs`, `lib/desktop-settings.mjs` | Existing Codex Desktop adapter; retain supported-path checks |
-| `lib/agent-status.mjs`, `public/agent-menu.js` | Connection facts and dynamic settings, preserving the current UI |
-| `lib/delivery.mjs`, `lib/agent-control.mjs` | Shared receipts/holds and native transport/reconciliation |
-| `lib/agent-observation.mjs`, `lib/extension-api.mjs` | Provider-neutral facts, request identity and fresh validation |
+| `status`, `presence`, `activity` | Agent menu, Goal list Running marks, the Activity row under a message |
+| `control`, `controlActivity`, `setApproveAll`, `saveSettings` | Pause/Resume of the run or one message's run, permissions, model settings |
+| `isCaller`, `token` | Whether a command runs in the agent's own conversation; a key that changes on reassignment |
+| `continuation` | AutoContinue: read, switch, show a run's output; polled agents also tick |
+| `deliveryCarrier(state)` | How a saved feedback is sent and how its receipts are recorded |
+
+Each adapter lives in `lib/agents/` (`codex*.mjs`, `claude*.mjs`). Codex pushes
+feedback into the chat's native Queue and is polled for AutoContinue. Claude
+receives feedback through its hooks and reply waiter, confirms receipts on its
+next tool result, and continues at its own Stop. Behavior that a harness cannot
+offer is a capability set to false, not a branch in core code.
+[`test/harness-boundary.test.mjs`](../../test/harness-boundary.test.mjs) fails
+if core code names a harness outside a shrinking list of files still being moved.
 
 First wrap and verify the working Codex path. For Claude, qualify the entry point,
 caller identity and return path to the **same** conversation before choosing a

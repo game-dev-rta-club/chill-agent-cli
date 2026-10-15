@@ -18,7 +18,7 @@ can return `hookSpecificOutput.additionalContext` to that conversation.
 
 ## Request, confirm, then use the result
 
-Run one connection action per main-session Bash tool call:
+Run connection actions from the main-session Bash tool:
 
 ```sh
 chill connection create-goal --title 'The agreed outcome' --scope 'Scope' --criteria 'Evidence of success'
@@ -29,15 +29,20 @@ chill connection reply --event 1 --text 'What I did'
 Use the prepared runtime's `runtime/chill` entry in place of `chill`.
 `reply` posts the answer in the feedback's Goal Conversation and records the
 completed receipt in one confirmation; a retry of the same request does not post
-twice. `connection activity --event 1 --state working|failed` records other
-receipt states, for example before long work.
+twice. `goal activity --event 1 --state working|failed`, the same receipt command
+Codex uses, records other receipt states, for example before long work
+(`connection activity` is the older name and still works). Claude has no native
+Queue, so `deferred` is refused.
 Each command saves an intent and prints a request marker; this is not success.
+One Bash call may print several markers; each is confirmed on its own, and one
+that fails does not drop the others (retry it with `connection request --id <id> --retry`).
 The main Bash PostToolUse hook checks the saved intent against the current native
 session, context and generation, then returns the created Goal ID, saved feedback
 or receipt. Subagent hooks cannot commit an intent merely because their shell
 inherited the main session's environment. Other tools cannot confirm actions;
 interrupted Bash calls are ignored. Normal Goal read, Deliverable and Comment commands remain usable.
-`goal work` and live execution tracking are still Codex-specific.
+`goal work --id <GOAL>` marks the Goal the current response works on, as in a
+Codex turn; the mark ends with that response.
 
 This is coordination between trusted same-user processes, not authentication.
 The marker is a local capability backed by a saved request; do not treat parsing

@@ -82,7 +82,14 @@ const viewUpdate = document.querySelector('#view-update');
 let currentRoute = '';
 let activeGoalId = null;
 const agentButton=document.getElementById('agent-button');
-agentButton.innerHTML=agentAvatar(true);
+// The AutoContinue cup, set on a saucer.
+const coffeeOnSaucer='<svg class="monitor-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(1.5 1) scale(.88)"><path class="coffee-fill" d="M3 6h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6z"/><path d="M17 8h2a3 3 0 0 1 0 6h-2"/><path class="coffee-steam" d="M7 4c-2-1 2-2 0-3m6 3c-2-1 2-2 0-3"/></g><path d="M1.5 18.6c2.5 2.2 16.5 2.2 19 0"/></svg>';
+agentButton.innerHTML=agentAvatar(true)+`<span class="agent-auto-mark" aria-hidden="true">${coffeeOnSaucer}</span>`;
+// A small coffee at the Agent's lower left while AutoContinue is on for this Goal.
+window.addEventListener('chill-extension-controls',event=>{
+  const on=event.detail.controls.some(c=>c.id==='continuation'&&c.enabled);
+  agentButton.toggleAttribute('data-autocontinue',on);
+});
 const tabIcon=createTabIcon();
 window.addEventListener('chill-agent-presence',event=>tabIcon.set(event.detail.routeGoalId===activeGoalId&&isRunning(event.detail.status)));
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
@@ -216,7 +223,7 @@ function deliveryMarkup(event, work, continuedTo) {
   if (!delivery && !event.threadId && !activity) return '';
   const state = activity?activity.status:continuedTo ? 'continued' : work?.status || (work?.live ? 'working' : '') || delivery?.status || 'saved';
   const labels = { saved: 'Saved', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
-  const descriptions = { saved: delivery?.waiting===false?'Claude is not waiting for replies right now. It will read this when that conversation checks its inbox. If the work continues in another conversation, ask it there to take over this Goal.':'', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
+  const descriptions = { saved: delivery?.notice||'', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
   const retry = state === 'saved' || (state === 'failed' && !delivery?.mayHaveSent);
   const check = state === 'unknown';
   const history = delivery?.history || [];
@@ -411,6 +418,9 @@ function mountHTMLBrief(id,version) {
       const mark=event.target.closest('.annotation-mark, .image-note-box');
       if(mark){event.preventDefault();openNoteReference(mark.dataset.noteRef);return;}
       const image=event.target.closest('[data-action="annotate-image"]');if(image){event.preventDefault();openImageSelection(image.dataset.imageId,image.dataset.svgIndex);return;}
+      // Clicking the image or diagram itself opens the same annotation screen, shown large.
+      const picture=event.target.closest('.annotatable-image')?.querySelector(':scope > [data-action="annotate-image"]');
+      if(picture&&!event.target.closest('button')){event.preventDefault();openImageSelection(picture.dataset.imageId,picture.dataset.svgIndex);return;}
       const link=event.target.closest('a[href]');if(link){event.preventDefault();window.open(link.href,'_blank','noopener,noreferrer');}
     });
     doc.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches('.annotation-mark')){event.preventDefault();event.target.click();}});
@@ -679,6 +689,8 @@ function openImageSelection(imageId,svgIndex) {
   imageAreaWhole.disabled = true;
   imageAreaDialog.querySelector('.image-area-hint').textContent = 'Drag to select. Drag again to redraw.';
   imageAreaImage.alt = imageSelection.imageName;
+  // A diagram served as an image may have no size of its own; it fills the dialog.
+  imageAreaStage.classList.toggle('is-vector', Boolean(source));
   imageAreaImage.src = source?`/api/goals/${activeGoalId}/briefs/${activeVersion}/svg/${source.svgIndex}`:`/api/images/${imageId}`;
   updateImageSelection();
   imageAreaDialog.showModal();
@@ -815,6 +827,10 @@ function renderAnnotations(openingEditor=false) {
     if (!matching.length && !editable) return;
     const wrapper = document.createElement('span');
     wrapper.className = 'annotatable-image';
+    // A width relative to the page (or an SVG without one) would shrink inside
+    // the wrapper; the wrapper takes that width instead.
+    const width = (img.getAttribute('width') || img.style.width || '').trim();
+    if (width.endsWith('%') || svgIndex !== null && !width) { wrapper.classList.add('is-fluid'); wrapper.style.width = width || '100%'; }
     img.replaceWith(wrapper);
     wrapper.append(img);
     for (const entry of matching) {

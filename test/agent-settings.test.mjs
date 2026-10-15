@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAgentSettingsStore} from '../lib/agent-settings.mjs';
-import {resolveAgentConnection,connectionKey} from '../lib/agent-connection.mjs';
+import {resolveAgentConnection,connectionKey} from '../lib/agents/connection.mjs';
 import {createCodexDesktopConnection} from '../lib/codex-desktop-connection.mjs';
 
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};

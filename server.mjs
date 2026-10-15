@@ -3,7 +3,6 @@ import {readWorkspaceTheme,saveWorkspaceTheme} from './lib/workspace-theme.mjs';
 import {join} from 'node:path';
 import {writeJsonAtomically} from './lib/storage.mjs';
 import {projectProfile,selectProjectPort,projectExtensionEnabled} from './lib/project-workspace.mjs';
-import {readAgentActivity} from './lib/agent-activity.mjs';
 import {createExtensionHost} from './lib/server-extensions.mjs';
 import {registeredExtensions} from './lib/extension-registry.mjs';
 import { showHelp } from './lib/cli-help.mjs';
@@ -17,17 +16,17 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listStoredGoals, listGoals, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
-import { listDeliveries, refreshWorkOutputs } from './lib/delivery.mjs';
+import { listDeliveries } from './lib/delivery.mjs';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
 import { createTunnelController } from './lib/tunnel-controller.mjs';
 import { readMessageSettings } from './lib/message-settings.mjs';
 import {renderedEvent} from './lib/markdown.mjs';
 import {briefDocument,briefSVG} from './lib/brief.mjs';
-import {readAgentStatus,saveAgentSettings,controlAgent} from './lib/agent-status.mjs';
+import {readAgentStatus,saveAgentSettings,controlAgent,readAgentActivityRow} from './lib/agent-status.mjs';
 import {readAgentPresence} from './lib/agent-presence.mjs';
+import {deliveriesWithWork} from './lib/agents/index.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
-import { withClaudeReception } from './lib/claude-status.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
@@ -250,7 +249,7 @@ const server = createServer(async (request, response) => {
   }
   const activityPath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/activity$/.exec(path);
   if(activityPath&&request.method==='GET'){
-    try{return sendJson(response,200,await readAgentActivity(activityPath[1]));}
+    try{return sendJson(response,200,await readAgentActivityRow(activityPath[1]));}
     catch{return sendJson(response,503,{error:'Could not read activity controls.'});}
   }
   const controlPath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/control$/.exec(path);
@@ -349,8 +348,7 @@ const server = createServer(async (request, response) => {
   }
   if (deliveryPath) {
     try {
-      await refreshWorkOutputs(deliveryPath[1]);
-      return sendJson(response, 200, await withClaudeReception(await listDeliveries(deliveryPath[1])));
+      return sendJson(response, 200, await deliveriesWithWork(deliveryPath[1]));
     }
     catch { return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
   }

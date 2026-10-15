@@ -1,33 +1,36 @@
 #!/usr/bin/env node
 import '../lib/quiet-sqlite-warning.mjs';
-import {configureMonitor,readMonitor,tickMonitor,reportMonitorResult} from '../lib/continuation-monitor.mjs';
+import {configureMonitor,readMonitor,tickMonitor} from '../lib/continuation-monitor.mjs';
+import {agentContinuation} from '../lib/agents/index.mjs';
 import {monitorService} from '../lib/continuation-service.mjs';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
-import {touch as hostTouch,requestNativeAction,workspacePort,resolveWorkspacePort} from '../lib/extension-api.mjs';
+import {touch as hostTouch,workspacePort,resolveWorkspacePort,readGoalContext} from '../lib/extension-api.mjs';
 const [command,...args]=process.argv.slice(2);
+let continuation;
 const usage='Optional continuation checks with durable attempt limits.\nUsage: chill monitor <start|stop|enable|disable|status|tick|watch|result> --id <ROOT>\nOpt-in continuation: at most 1 combined continuation and stopping-review nudge per user/Goal/Deliverable revision. The hosted extension checks every 30s, without fixed idle/cooldown delays. start runs monitoring inside the Web server; stop disables only this Root monitor. Web remains available. watch is retired; use start. CLI-only servers may disable extensions with CHILL_AGENT_EXTENSIONS=none. Unknown/paused/queued states never send. enable preserves attempts. disable stops future sends, not a message already queued.\nResult: chill monitor result --id <ROOT> --attempt <UUID> --outcome <worked|no-work>. Saves internal results only; requires the assigned Codex thread or experimental native main-hook confirmation.\nExperimental Claude: enable/disable and result use main-hook actions. pause/resume hold only future continuations, not native execution. A verified main Stop drives checking; start/tick/watch are unsupported. Native tool permissions remain unchanged.';
 try{
  if(!command||command==='--help'||args.includes('--help'))console.log(usage);
- else if(process.env.CHILL_AGENT_HARNESS==='claude-code'){
-  let operation,input;
+ else if(!/^[1-9][0-9]*$/.test(args[1]||''))throw Error(usage);
+ else if(command==='status'&&args.length===2&&args[0]==='--id')console.log(JSON.stringify(await readMonitor(args[1]),null,2));
+ else if((continuation=agentContinuation((await readGoalContext(args[1]).catch(()=>null))?.root||{}))?.confirmed){
+  // This agent confirms monitor commands in its own conversation (its main hook).
+  let input;
   if(command==='result'){
    if(args.length!==6||args[0]!=='--id'||args[2]!=='--attempt'||args[4]!=='--outcome')throw Error(usage);
-   operation='result';input={rootId:args[1],attemptId:args[3],outcome:args[5]};
+   input={rootId:args[1],attemptId:args[3],outcome:args[5]};
   }else {
    if(args.length!==2||args[0]!=='--id')throw Error(usage);
-   if(command==='status'){console.log(JSON.stringify(await readMonitor(args[1]),null,2));process.exit(0);}
-   if(['enable','disable'].includes(command)){operation='configure';input={rootId:args[1],enabled:command==='enable'};}
-   else if(['pause','resume'].includes(command)){operation='pause';input={rootId:args[1],paused:command==='pause'};}
-   else throw Error('The experimental Claude adapter uses monitor enable/disable and its main Stop hook; start/tick/watch are not supported. pause/resume hold only future automatic continuations, not native execution.');
+   input={rootId:args[1]};
   }
-  const request=await requestNativeAction('extension',{extension:'continuation',operation,input});
-  console.log(request.marker);console.log('Pending native main-hook confirmation. This shell response alone is not confirmation.');
+  const request=await continuation.confirmed(command,input);
+  console.log(request.pending);console.log(request.note);
  }
  else if(command==='result'){
   if(args.length!==6||args[0]!=='--id'||args[2]!=='--attempt'||args[4]!=='--outcome')throw Error(usage);
-  console.log(JSON.stringify(await reportMonitorResult(args[1],args[3],args[5]),null,2));
+  if(!continuation?.report)throw Error('Result must come from the assigned chat.');
+  console.log(JSON.stringify(await continuation.report(args[3],args[5]),null,2));
  }
  else{
   if(args.length!==2||args[0]!=='--id'||! /^[1-9][0-9]*$/.test(args[1])||!['start','stop','enable','disable','status','tick','watch'].includes(command))throw Error(usage);

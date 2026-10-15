@@ -145,6 +145,9 @@ h1,h2,h3,p { margin:0; }
 .agent-trigger { position:relative; width:var(--header-control-size,44px); height:var(--header-control-size,44px); padding:7px; border-radius:10px; display:grid; place-items:center; }
 .agent-trigger:hover,.agent-trigger[aria-expanded=true] { background:var(--theme-surface,#ffffff85); }
 .agent-trigger .agent-avatar { width:29px; height:29px; overflow:visible; transform:translateY(-2px); }
+.agent-auto-mark { position:absolute; left:2px; bottom:2px; width:18px; height:18px; display:none; pointer-events:none; }
+.agent-trigger[data-autocontinue] .agent-auto-mark { display:block; }
+.agent-auto-mark .monitor-logo { width:100%; height:100%; display:block; }
 .agent-panel { position:fixed; z-index:60; top:60px; right:16px; width:360px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 76px); overflow:auto; overscroll-behavior:contain; border:1px solid var(--theme-line,#a9bdb0); border-radius:12px; background:var(--theme-surface,white); box-shadow:0 10px 32px #274c3326; padding:0 19px 18px; font-size:13px; }
 .agent-panel-heading { position:sticky; top:0; background:var(--theme-surface,white); display:flex; align-items:center; justify-content:space-between; padding:15px 0 11px; z-index:1; }
 .agent-panel-heading h2 { font-size:17px; }

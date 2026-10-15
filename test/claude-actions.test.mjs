@@ -8,7 +8,8 @@ import {promisify} from 'node:util';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {requestClaudeAction,confirmClaudeAction,inspectClaudeRequest,handleClaudeToolHook} from '../lib/claude-actions.mjs';
-import {initializeStore,createGoal,createClaudeRoot,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
+import {initializeStore,createGoal,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
+import {createClaudeRoot} from '../lib/claude-roots.mjs';
 import {assignGoal} from '../lib/goal-execution.mjs';
 import {deliverFeedback,readDeliveryState,updateDelivery} from '../lib/delivery.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
@@ -63,8 +64,8 @@ test('shell request alone cannot bind a Root; native main hook commits once acro
   const g=(await listGoals())[0];assert.equal(g.threadId,null);assert.deepEqual(g.connection,{harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId});
   assert.match(context(outcomes.find(Boolean)),/Created Goal #1/);
   await s.confirm(s.hook(r));assert.equal((await listGoals()).length,1);
-  const status=await readAgentStatus(g.id);assert.equal(status.connected,false);assert.equal(status.nativeConnection.stage,'experimental');
-  assert(Object.values(status.capabilities).every(v=>v===false));
+  const status=await readAgentStatus(g.id);assert.equal(status.connected,true);assert.equal(status.agent.name,'Claude Code');
+  assert.deepEqual(status.capabilities,{settings:false,stop:false,resume:false,approveAll:true});
   assert.match(agentMarkup(status),/Claude Code/);assert.doesNotMatch(agentMarkup(status),/Codex account|data-agent-settings/);
 });
 
@@ -241,4 +242,76 @@ test('an automatic inbox failure does not hide an already confirmed action',asyn
   const result=await handleClaudeToolHook(s.hook(r,{prompt_id:randomUUID()}),{cwd:f.cwd});
   assert.match(context(result),/Created Goal #1/);assert.match(context(result),/Automatic feedback could not be checked/);
   assert.equal((await listGoals()).length,1);
+});
+
+test('one Bash output confirms every chill request it carries',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const first=await appendFeedback({goalId:goal.id,text:'First'}),second=await appendFeedback({goalId:goal.id,text:'Second'});
+  for(const event of [first,second])await deliverFeedback(event.changeId);
+  await s.act('inbox',{});
+  const a=await s.request('activity',{eventId:first.changeId,state:'working'}),b=await s.request('activity',{eventId:second.changeId,state:'completed'});
+  const output=context(await s.confirm(s.hook(a,{tool_response:{stdout:`${a.marker}\nnoise\n${b.marker}\n${a.marker}`,interrupted:false}})));
+  assert.match(output,new RegExp(`Feedback #${first.changeId}: working`));
+  assert.match(output,new RegExp(`Feedback #${second.changeId}: completed`));
+  assert.equal((await readDeliveryState(first.changeId)).status,'working');
+  assert.equal((await readDeliveryState(second.changeId)).status,'completed');
+});
+
+test('goal activity from a Claude conversation becomes a hook-confirmed receipt',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const event=await appendFeedback({goalId:goal.id,text:'Longer work'});await deliverFeedback(event.changeId);
+  await s.act('inbox',{});
+  const {recordActivity}=await import('../lib/delivery.mjs');
+  await assert.rejects(recordActivity(event.changeId,'deferred',s.env),/native Queue/);
+  const pending=await recordActivity(event.changeId,'working',s.env);
+  assert.match(pending.pending,/^\[chill-claude-request:[0-9a-f-]{36}\]$/);
+  assert.notEqual((await readDeliveryState(event.changeId)).status,'working');
+  assert.match(context(await s.confirm(s.hook({marker:pending.pending}))),/working/);
+  assert.equal((await readDeliveryState(event.changeId)).status,'working');
+});
+
+test('the Activity row under a Claude message pauses and resumes its conversation',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const {readAgentActivityRow,controlAgent}=await import('../lib/agent-status.mjs');
+  const event=await appendFeedback({goalId:goal.id,text:'Later'});await deliverFeedback(event.changeId);
+  const saved=await readAgentActivityRow(goal.id);
+  assert.equal(saved.eventId,event.changeId);assert.equal(saved.status,'saved');assert.deepEqual(saved.capabilities,{stop:true,resume:false});
+  await assert.rejects(controlAgent(goal.id,{action:'stop',token:'other',eventId:event.changeId}),/Agent changed/);
+  const paused=await controlAgent(goal.id,{action:'stop',token:saved.token,eventId:event.changeId});
+  assert.equal(paused.status,'paused');assert.deepEqual(paused.capabilities,{stop:false,resume:true});
+  const resumed=await controlAgent(goal.id,{action:'resume',token:saved.token,eventId:event.changeId});
+  assert.equal(resumed.status,'saved');
+});
+
+test('goal work from a Claude conversation marks its Goal Running for the current response',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs');
+  const {selectAgentWork,agentFor}=await import('../lib/agents/index.mjs');
+  const {createGoal}=await import('../lib/goal-store.mjs');
+  const child=await createGoal({title:'Child work',parentId:goal.id});
+  const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
+  await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
+  await writeFile(transcript,JSON.stringify({type:'user',uuid:'p1',message:{role:'user',content:'Do the work'}})+'\n');
+  await assert.rejects(selectAgentWork(child.id,{env:{}}),/handshake|assigned chat/);
+  const work=await selectAgentWork(child.id,{env:s.env});
+  assert.equal(work.goalId,child.id);
+  const presence=await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence();
+  assert.equal(presence.status,'working');assert.equal(presence.goalId,child.id);
+  assert.equal((await readGoal(child.id)).started,true);
+  await selectAgentWork(child.id,{stop:true,env:s.env});
+  assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
+  // The selection ends with the response that made it.
+  await selectAgentWork(child.id,{env:s.env});
+  await writeFile(transcript,JSON.stringify({type:'system',subtype:'stop_hook_summary',uuid:'s1'})+'\n',{flag:'a'});
+  assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
+});
+
+test('a request the main hook cannot confirm tells the agent why',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const event=await appendFeedback({goalId:goal.id,text:'Done already'});await deliverFeedback(event.changeId);
+  await s.act('inbox',{});
+  await s.act('activity',{eventId:event.changeId,state:'completed'});
+  const r=await s.request('reply',{eventId:event.changeId,text:'Late reply'});
+  const output=context(await handleClaudeToolHook(s.hook(r),{cwd:f.cwd}));
+  assert.match(output,/not confirmed: Feedback already has a terminal receipt/);
 });

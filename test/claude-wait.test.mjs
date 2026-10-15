@@ -135,14 +135,14 @@ test('CLI wait prints the next actions once feedback is saved',async t=>{
 
 test('reply posts on the Web and completes the receipt in one confirmed action',async t=>{
  const f=await fixture(t),reply=await appendFeedback({goalId:f.root.id,text:'Please summarize'});
- await assert.rejects(f.action('reply',{eventId:reply.changeId,text:'Too early'}),/connection inbox first/);
+ assert.match(JSON.stringify(await f.action('reply',{eventId:reply.changeId,text:'Too early'})),/connection inbox first/,'the hook tells the agent why it was not confirmed');
  assert.match(context(await f.action('inbox')),/connection reply --event <eventId>/);
  const done=context(await f.action('reply',{eventId:reply.changeId,text:'Here is the summary.'}));
  assert.match(done,new RegExp(`recorded feedback #${reply.changeId} as completed`));
  const state=await readDeliveryState(reply.changeId);assert.equal(state.status,'completed');assert.equal(state.agentReported,true);
  const posted=(await readFeedback()).filter(e=>e.author==='agent'&&e.goalId===f.root.id);
  assert.deepEqual(posted.map(e=>e.text),['Here is the summary.']);
- await assert.rejects(f.action('reply',{eventId:reply.changeId,text:'Again'}),/terminal receipt/);
+ assert.match(JSON.stringify(await f.action('reply',{eventId:reply.changeId,text:'Again'})),/terminal receipt/,'the hook tells the agent why it was not confirmed');
  assert.equal((await readFeedback()).filter(e=>e.author==='agent').length,1,'a rejected reply posts nothing');
 });
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAgentObservationStore,agentPresence} from '../lib/agent-observation.mjs';
+import {createAgentObservationStore,agentPresence} from '../lib/agents/codex-observation.mjs';
 import {createCodexDesktopConnection} from '../lib/codex-desktop-connection.mjs';
 
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};

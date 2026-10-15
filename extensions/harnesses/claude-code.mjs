@@ -7,8 +7,8 @@ export default {
    inspect:{command:'connection show',confirmation:'Run through the main Bash tool. Verify the identity handoff; existing Root session AND context must match.'},
    join:{command:'connection join',confirmation:'When connection show reports no connection, run it once through the main Bash tool. Only its main PostToolUse confirmation connects this conversation; resuming is not needed.'},
    createRoot:{command:'connection create-goal --help',confirmation:'A request marker is pending. Only main PostToolUse confirmation establishes the saved Root.'},
-   receipt:{command:'connection activity --event <ID> --state <STATE>',states:['working','completed','failed'],confirmation:'Use separate main Bash calls and preserve stdout. Wait for main-hook confirmation; inspect connection request --id <ID> for uncertain results before any retry.'},
-   selectWork:null,
+   receipt:{command:'goal activity --event <ID> --state <STATE>',states:['working','completed','failed'],confirmation:'Use separate main Bash calls and preserve stdout. Wait for main-hook confirmation; inspect connection request --id <ID> for uncertain results before any retry.'},
+   selectWork:{command:'goal work --id <GOAL>',confirmation:'Marks the Goal this response works on for the Web until the response ends. A receipt does not select work or complete the Goal.'},
    adopt:{command:'connection adopt --goal <ID>',confirmation:'Only when the user asks this conversation to continue a Goal owned by an earlier conversation (for example after Claude continued the chat in a new session). Wait for the main PostToolUse confirmation; refused while the owner still waits for Web replies.'},
    inbox:{command:'connection inbox',confirmation:'Recover pending input or establish a verified prompt through the main hook before expecting ordinary tool hooks to receive input.'},
    reply:{command:'connection reply --event <ID> --text <TEXT>',confirmation:'Posts the Web answer and records the completed receipt in one main-hook confirmation; a retry of the same request does not post twice.'},
@@ -25,13 +25,13 @@ export default {
    'Use the actual native project directory. A linked Git worktree shares its main checkout\'s project, Web and local settings. Do not substitute the skill installation directory.',
    'Review native Hooks when required. If connection show reports no connection, run connection join; resuming is not needed. Do not clear, fork, fabricate identity variables or launch a second writer.',
    'Run connection show from main Bash to verify the handoff before creating a Root. Run each connection action separately; a shell receipt alone is not confirmation.',
-   'There is no deferred Queue state or goal work route. Keep independent input in the current work plan. Saved Web feedback wakes an idle conversation only while the reply waiter runs; follow the connection results that ask to start it.',
+   'There is no deferred Queue state. Keep independent input in the current work plan; select the Goal being worked on with goal work. Saved Web feedback wakes an idle conversation only while the reply waiter runs; follow the connection results that ask to start it.',
    'Children, Deliverables, Comments, Letters and ordinary reads use the shared goal commands. Existing Root connections cannot be reassigned.'
   ],
   constraints:[
    'Setup preserves native permissions, other Hooks and disablement; it never enables Auto mode.',
    'Reception after a response needs the original conversation open with the reply waiter running as a background task. A closed Claude process receives nothing until it is resumed.',
-   'Pause holds future continuation, not native execution. Model settings, usage, live execution status and cancellation remain native controls.'
+   'Pause from the Web refuses the next tool call and holds new feedback and continuation until Resume. Model settings, usage and cancellation remain native controls.'
   ]
  }
 };

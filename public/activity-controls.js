@@ -31,7 +31,7 @@ export function createActivityControls({main,getGoalId,onChange}){
   pending=true;message=action==='stop'?'Pausing…':'Resuming…';onChange();
   ++sequence;refreshingGoal=null;
   try{
-   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,threadId:snapshot.threadId,turnId:snapshot.turnId,holdId:snapshot.holdId,eventId:snapshot.eventId,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
+   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,token:snapshot.token,threadId:snapshot.threadId,turnId:snapshot.turnId,holdId:snapshot.holdId,eventId:snapshot.eventId,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
    const result=await response.json();if(!response.ok)throw Error(result.error||'Action unconfirmed.');
    if(id===getGoalId()){data=result;goalId=id;message=result?.status==='unknown'?'Unconfirmed. Refresh to check.':'';uncertain=result?.status==='unknown';}
   }catch(error){if(id===getGoalId()){message=error.name==='TimeoutError'?'Unconfirmed. Refresh to check.':error.message;uncertain=true;}}
@@ -39,9 +39,9 @@ export function createActivityControls({main,getGoalId,onChange}){
  });
  return {refresh,current,
   saved(id,delivery){
-   if(id!==getGoalId()||pending||!delivery?.threadId||delivery.status!=='saved'||delivery.mayHaveSent||delivery.heldBy)return;
+   if(id!==getGoalId()||pending||delivery?.status!=='saved'||delivery.mayHaveSent||delivery.heldBy)return;
    ++sequence;refreshingGoal=null;goalId=id;message='';uncertain=false;
-   data={threadId:delivery.threadId,goalId:id,targetGoalId:id,eventId:delivery.eventId,turnId:null,status:'saved',capabilities:{stop:true,resume:false}};onChange();
+   data={threadId:delivery.threadId??null,goalId:id,targetGoalId:id,eventId:delivery.eventId,turnId:null,status:'saved',capabilities:{stop:true,resume:false}};onChange();
   },
   forEvent(eventId){const d=current();return d?.eventId===eventId?d:null;},
   markup(eventId){return activityControlMarkup(this.forEvent(eventId),{pending,message,uncertain});},

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {agentMarkup} from '../public/agent-menu.js';
 
 test('Activity keeps a link to the last Goal after the agent stops',()=>{
- const base={goalId:'2',rootId:'1',rootTitle:'Root',nativeConnection:{harnessId:'claude-code',status:{state:'waiting',label:'Waiting'}},extensions:[]};
+ const base={goalId:'2',rootId:'1',rootTitle:'Root',connected:true,agent:{name:'Claude Code',status:{label:'Waiting'}},capabilities:{},extensions:[]};
  const idle=agentMarkup({...base,work:{status:'idle',goalId:null,last:{goalId:'2',title:'Tune',eventId:115}}});
  assert.match(idle,/href="#\/goal\/2\/activity\/115">Last · #2 Tune →/);
  const running=agentMarkup({...base,work:{status:'working',goalId:'2',title:'Tune',eventId:115,last:{goalId:'2',title:'Tune',eventId:115}}});
@@ -11,9 +11,9 @@ test('Activity keeps a link to the last Goal after the agent stops',()=>{
  assert.doesNotMatch(agentMarkup({...base,work:{status:'idle',goalId:null,last:null}}),/agent-work-link/);
 });
 
-test('only Claude connections show the Approve all switch',()=>{
- const claude=agentMarkup({goalId:'2',rootId:'1',nativeConnection:{harnessId:'claude-code',status:{state:'waiting',label:'Waiting'},approveAll:true},work:{status:'idle'},queue:{items:[],truncated:false},extensions:[]});
- assert.match(claude,/data-agent-approve-all[^>]*checked/);assert.match(claude,/<h3>Queue/);
- const codex=agentMarkup({goalId:'2',rootId:'1',connected:true,capabilities:{},settings:{},models:[],work:{status:'idle'},queue:null,extensions:[]});
- assert.doesNotMatch(codex,/data-agent-approve-all/);
+test('the Approve all switch appears only when the agent can answer prompts',()=>{
+ const able=agentMarkup({goalId:'2',rootId:'1',connected:true,agent:{name:'A'},capabilities:{approveAll:true},approveAll:true,work:{status:'idle'},queue:{items:[],truncated:false},extensions:[]});
+ assert.match(able,/data-agent-approve-all[^>]*checked/);assert.match(able,/<h3>Queue/);
+ const other=agentMarkup({goalId:'2',rootId:'1',connected:true,agent:{name:'B'},capabilities:{},settings:{},models:[],work:{status:'idle'},queue:null,extensions:[]});
+ assert.doesNotMatch(other,/data-agent-approve-all/);
 });
