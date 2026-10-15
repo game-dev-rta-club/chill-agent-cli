@@ -52,6 +52,8 @@ test('the continued native prompt still receives Web input on its next ordinary 
  const received=await handleClaudeToolHook(hook,{cwd:f.cwd});assert.match(received.hookSpecificOutput.additionalContext,/Correction while Auto mode is working/);
  assert.equal((await readDeliveryState(reply.changeId)).status,'unknown');
  assert.equal(await handleClaudeToolHook(hook,{cwd:f.cwd}),null,'tool delivery is not duplicated');
+ assert.match((await f.stop()).reason,/no reply yet/,'offered feedback without a reply is reminded first');
+ await f.action('inbox',{});
  assert.equal(await f.stop(),null,'the unresolved Auto request is not resent');
 });
 test('Off and explicit continuation Pause preserve the attempt history',async t=>{
@@ -156,6 +158,19 @@ test('feedback taken up but never recorded as done does not stop Auto mode; the 
  const response=await f.stop();
  assert.equal(response?.decision,'block','the response ended with the work unfinished, so Auto mode continues');
  assert.match(response.reason,new RegExp(`took up but have not recorded as done: #${reply.changeId} \\(Goal #${f.root.id}\\)`));
+});
+
+test('offered feedback is reminded once if the response ends without a reply; a reply needs no receipt first',async t=>{
+ const f=await fixture(t);
+ const reply=await appendFeedback({goalId:f.root.id,text:'Short work'});
+ await f.action('inbox',{});
+ const first=await f.stop();
+ assert.equal(first?.decision,'block');assert.match(first.reason,new RegExp(`no reply yet: #${reply.changeId} \\(Goal #${f.root.id}\\)`));
+ assert.match(first.reason,/--state working instead/);assert.doesNotMatch(first.reason,/marked working/);
+ await f.action('inbox',{});assert.equal(await f.stop(),null,'shown once for this response');
+ await f.newPrompt();await f.action('reply',{eventId:reply.changeId,text:'Done'});
+ assert.equal((await readDeliveryState(reply.changeId)).status,'completed');
+ assert.equal(await f.stop(),null,'a reply in the same response closes it without a working receipt');
 });
 
 test('a receipt left as working is reminded once when the response ends, even with Auto mode off',async t=>{

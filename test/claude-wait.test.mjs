@@ -199,7 +199,7 @@ test('a scheduled check wakes the conversation through its waiter when it is due
  clock+=600000;
  assert.deepEqual(await w.done,{status:'wake',reason:'CI of PR #91'});
  assert.equal((await readJson(f.recordPath)).wake,undefined,'a due check is cleared, so it wakes once');
- assert.match(waitResultText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*connection wake[\s\S]*connection wait/);
+ assert.match(waitResultText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*connection wait[\s\S]*connection wake/);
  // Cancelling removes a scheduled check.
  await scheduleClaudeWake({minutes:5,env:f.env(),now});
  assert.deepEqual(await scheduleClaudeWake({cancel:true,env:f.env(),now}),{wake:null});
@@ -213,8 +213,9 @@ test('feedback saved while a response is running waits for its next tool hook, n
  assert.equal((await readJson(f.recordPath)).waiter!=null,true,'the waiter keeps waiting while the response runs');
  assert.match(context(await f.tool()),/arrived mid-response/,'the next tool hook offers it');
  assert.equal((await readDeliveryState(reply.changeId)).status,'unknown');
- // After the response ends, new feedback wakes the conversation as before.
- await f.stop();const late=await appendFeedback({goalId:f.root.id,text:'after Stop'});
+ // After the response replies and ends, new feedback wakes the conversation as before.
+ await f.action('reply',{eventId:reply.changeId,text:'Handled'});
+ assert.equal(await f.stop(),null,'a reply leaves nothing to remind at Stop');const late=await appendFeedback({goalId:f.root.id,text:'after Stop'});
  assert.deepEqual(await w.done,{status:'feedback'});
  assert.equal(await readDeliveryState(late.changeId),null,'detecting is not offering');
 });
