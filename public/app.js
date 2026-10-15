@@ -2,7 +2,7 @@ import {createLettersMenu} from './letters-menu.js';
 import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence} from './agent-presence.js';
-import {createExtensionButtons,extensionIcon} from './extension-buttons.js';
+import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
 import { workProgressGroups, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
@@ -82,7 +82,9 @@ const viewUpdate = document.querySelector('#view-update');
 let currentRoute = '';
 let activeGoalId = null;
 const agentButton=document.getElementById('agent-button');
-agentButton.innerHTML=agentAvatar(true)+`<span class="agent-auto-mark" aria-hidden="true">${extensionIcon('repeat')}</span>`;
+// The AutoContinue cup, set on a saucer.
+const coffeeOnSaucer='<svg class="monitor-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(1.5 1) scale(.88)"><path class="coffee-fill" d="M3 6h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6z"/><path d="M17 8h2a3 3 0 0 1 0 6h-2"/><path class="coffee-steam" d="M7 4c-2-1 2-2 0-3m6 3c-2-1 2-2 0-3"/></g><path d="M1.5 18.6c2.5 2.2 16.5 2.2 19 0"/></svg>';
+agentButton.innerHTML=agentAvatar(true)+`<span class="agent-auto-mark" aria-hidden="true">${coffeeOnSaucer}</span>`;
 // A small coffee at the Agent's lower left while AutoContinue is on for this Goal.
 window.addEventListener('chill-extension-controls',event=>{
   const on=event.detail.controls.some(c=>c.id==='continuation'&&c.enabled);
