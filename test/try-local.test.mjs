@@ -39,3 +39,25 @@ test('try-local points only the project data at a packed checkout and --reset re
  assert.equal(reset.reset,true);assert.equal((await readVersionSource(directory)).versionFile,versionFile);assert.equal((await readVersionSource(directory)).agentGuide,guide);
  assert.equal((await tryLocal({project,base,run,reset:true})).reset,false,'a second reset has nothing to restore');
 });
+
+test('try-local --restart restores the previous runtime when the new Web does not start',async t=>{
+ const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-try-local-'))); t.after(()=>rm(dir,{recursive:true,force:true}));
+ const project=join(dir,'project'),base=join(dir,'base'),versionFile=join(project,'cli.json');
+ await mkdir(project,{recursive:true});await writeFile(versionFile,JSON.stringify({package:'github:org/cli#abc'}));
+ const directory=await projectDirectory(project,base);await recordVersionSource(directory,{versionFile});
+ const installed={root:join(directory,'runtime','packages','old'),id:'old'};
+ await mkdir(join(directory,'runtime'),{recursive:true});await writeFile(join(directory,'runtime','installation.json'),JSON.stringify(installed));
+ const restarts=[];
+ const run=(file,args,options={})=>{
+  if(file==='git')return args[0]==='rev-parse'?'1234567\n':'';
+  if(args.includes('pack')){writeFileSync(join(args[args.indexOf('--pack-destination')+1],'cli-0.0.0.tgz'),'broken');return JSON.stringify([{filename:'cli-0.0.0.tgz'}]);}
+  restarts.push(options.env?.CHILL_AGENT_VERSION_SWITCHED||'switch');
+  // The new package's Web fails and leaves its broken install selected.
+  if(restarts.length===1){writeFileSync(join(directory,'runtime','installation.json'),JSON.stringify({root:'broken',id:'broken'}));throw Error('Server did not stay running.');}
+  return '';
+ };
+ await assert.rejects(tryLocal({project,base,run,restartWeb:true}),/previous runtime was restored.*did not stay running/);
+ assert.deepEqual(restarts,['switch','1'],'the previous runtime restarts without switching again');
+ assert.equal((await readVersionSource(directory)).versionFile,versionFile,'the previous version file is selected again');
+ assert.deepEqual(JSON.parse(await readFile(join(directory,'runtime','installation.json'),'utf8')),installed);
+});
