@@ -51,7 +51,7 @@ async function main() {
     const payload=action==='create-goal'?{title:values['--title'],scope:values['--scope']||'',criteria:values['--criteria']||''}:
       action==='adopt'?{goalId:values['--goal']}:
       action==='activity'?{eventId:Number(values['--event']),state:values['--state']}:
-      action==='reply'?{eventId:Number(values['--event']),text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
+      action==='reply'?{eventIds:String(values['--event']).split(',').map(Number),text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
     const request=await requestClaudeAction(action,payload);
     console.log(request.marker);
     console.log('Pending main-session hook confirmation. A shell receipt alone does not confirm this action.');

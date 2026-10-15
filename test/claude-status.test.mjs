@@ -61,3 +61,12 @@ test('saved Claude replies say whether a waiter will wake the conversation; othe
  await writeFile(f.recordPath,JSON.stringify({...record,waiter:{id:randomUUID(),contextId:record.contextId,checkedAt:new Date().toISOString()}}));
  [a]=await withClaudeReception([saved],{now:()=>Date.now()});assert.equal(a.waiting,true);
 });
+
+test('a message offered to the conversation shows Received, not Unconfirmed, until its receipt',async t=>{
+ const f=await fixture(t),connection=f.root.connection;
+ const offered={eventId:4,status:'unknown',connection,nativeOfferId:randomUUID(),mayHaveSent:true,error:'Awaiting the Claude agent receipt.'};
+ const [a]=await withClaudeReception([offered],{now:()=>Date.now()});
+ assert.equal(a.status,'received');assert.equal(a.reportedStatus,'unknown');assert.equal(a.error,null);
+ const [b]=await withClaudeReception([{...offered,status:'completed',agentReported:true}],{now:()=>Date.now()});
+ assert.equal(b.status,'completed','a recorded receipt is shown as it is');
+});
