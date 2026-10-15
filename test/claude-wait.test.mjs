@@ -32,12 +32,15 @@ async function fixture(t) {
  const wait=(opts={})=>{const controller=new AbortController();const done=waitForClaudeFeedback({env,pollMs:10,signal:controller.signal,...opts});return {done,stop:()=>{controller.abort();return done;}};};
  const until=async check=>{for(let i=0;i<200;i++){if(await check())return;await new Promise(r=>setTimeout(r,10));}throw Error('Timed out');};
  const waiting=()=>until(async()=>!!(await readJson(recordPath))?.waiter);
- return {dir,data,cwd,root,created,event,start,action,wait,waiting,until,recordPath,envFile,env:()=>env,connection:{harnessId:'claude-code',sessionId,contextId:record.contextId}};
+ // The response that created the Goal ends, as a real one does before the user replies.
+ const stop=()=>handleClaudeToolHook(event('Stop'),{cwd});
+ const tool=(patch={})=>handleClaudeToolHook(event('PostToolUse',{tool_name:'Bash',tool_use_id:randomUUID(),tool_response:{stdout:'work'},...patch}),{cwd});
+ return {dir,data,cwd,root,created,event,start,action,stop,tool,wait,waiting,until,recordPath,envFile,env:()=>env,connection:{harnessId:'claude-code',sessionId,contextId:record.contextId}};
 }
 const context=output=>output?.hookSpecificOutput?.additionalContext||'';
 
 test('a saved reply ends the waiter without offering it; the main-hook inbox still claims it once',async t=>{
- const f=await fixture(t),w=f.wait();await f.waiting();
+ const f=await fixture(t);await f.stop();const w=f.wait();await f.waiting();
  const reply=await appendFeedback({goalId:f.root.id,text:'after the response ended'});
  assert.deepEqual(await w.done,{status:'feedback'});
  assert.equal(await readDeliveryState(reply.changeId),null,'detecting is not offering');
@@ -125,7 +128,7 @@ test('cached history still observes manual holds and ownership changes',async t=
 });
 
 test('CLI wait prints the next actions once feedback is saved',async t=>{
- const f=await fixture(t),entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
+ const f=await fixture(t);await f.stop();const entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
  const p=spawn(process.execPath,[entry,'wait'],{cwd:f.cwd,env:{...process.env,...f.env()},stdio:['ignore','pipe','pipe']});let stdout='',stderr='';
  p.stdout.on('data',b=>stdout+=b);p.stderr.on('data',b=>stderr+=b);
  await f.waiting();await appendFeedback({goalId:f.root.id,text:'from the Web'});
@@ -201,4 +204,27 @@ test('a scheduled check wakes the conversation through its waiter when it is due
  await scheduleClaudeWake({minutes:5,env:f.env(),now});
  assert.deepEqual(await scheduleClaudeWake({cancel:true,env:f.env(),now}),{wake:null});
  assert.equal((await readJson(f.recordPath)).wake,undefined);
+});
+
+test('feedback saved while a response is running waits for its next tool hook, not a wake',async t=>{
+ const f=await fixture(t),w=f.wait();await f.waiting();
+ const reply=await appendFeedback({goalId:f.root.id,text:'arrived mid-response'});
+ await new Promise(r=>setTimeout(r,80));
+ assert.equal((await readJson(f.recordPath)).waiter!=null,true,'the waiter keeps waiting while the response runs');
+ assert.match(context(await f.tool()),/arrived mid-response/,'the next tool hook offers it');
+ assert.equal((await readDeliveryState(reply.changeId)).status,'unknown');
+ // After the response ends, new feedback wakes the conversation as before.
+ await f.stop();const late=await appendFeedback({goalId:f.root.id,text:'after Stop'});
+ assert.deepEqual(await w.done,{status:'feedback'});
+ assert.equal(await readDeliveryState(late.changeId),null,'detecting is not offering');
+});
+
+test('a response that stops calling tools no longer holds feedback back',async t=>{
+ const f=await fixture(t);let clock=Date.now();const now=()=>clock;
+ const w=f.wait({now,activeMs:60000});await f.waiting();
+ await appendFeedback({goalId:f.root.id,text:'after an interrupt'});
+ await new Promise(r=>setTimeout(r,50));
+ assert.equal((await readJson(f.recordPath)).waiter!=null,true,'a recent tool call still counts as running');
+ clock+=61000;
+ assert.deepEqual(await w.done,{status:'feedback'},'an interrupted response without Stop is not waited on for long');
 });
