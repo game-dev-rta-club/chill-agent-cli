@@ -199,6 +199,10 @@ test('a scheduled check wakes the conversation through its waiter when it is due
  clock+=600000;
  assert.deepEqual(await w.done,{status:'wake',reason:'CI of PR #91'});
  assert.equal((await readJson(f.recordPath)).wake,undefined,'a due check is cleared, so it wakes once');
+ // The inbox names the due check once, so the task output need not be read.
+ assert.match(context(await f.action('inbox')),/check you scheduled is due \(CI of PR #91\)/);
+ assert.equal((await readJson(f.recordPath)).dueCheck,undefined);
+ assert.doesNotMatch(context(await f.action('inbox')),/check you scheduled/);
  assert.match(waitResultText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*connection wait[\s\S]*connection wake/);
  // Cancelling removes a scheduled check.
  await scheduleClaudeWake({minutes:5,env:f.env(),now});

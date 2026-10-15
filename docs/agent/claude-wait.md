@@ -19,9 +19,13 @@ waiter exits and prints the next actions
         ↓
 Claude Code reports the finished task; an idle conversation starts a new turn
         ↓
-agent reads it with `connection inbox`, answers with `connection reply`,
-and starts the waiter again
+agent runs `connection inbox` and starts the waiter again in one response,
+then answers with `connection reply`
 ```
+
+The agent need not read the finished task's output: the inbox shows saved
+feedback and any due check. While a checked-in response is still calling tools,
+the waiter does not end for feedback; the next tool hook offers it instead.
 
 The waiter only detects saved feedback for its own conversation context. It
 never offers or marks feedback itself: the [main-hook inbox](claude-actions.md)
@@ -78,6 +82,6 @@ mode rests after a check finds no work. Before ending a response that waits for
 such a thing, the conversation runs `connection wake --in <minutes> --reason
 <text>`. The check is kept in the conversation's record. The waiter ends when it
 is due, which wakes the conversation with the reason, and clears it so it wakes
-once. One check is kept per conversation; `--cancel` removes it.
+once. The next `connection inbox` names the due check once, too. One check is kept per conversation; `--cancel` removes it.
 
 Implementation: [waiter](../../lib/claude-wait.mjs), [scheduled checks](../../lib/claude-wake.mjs), [entry record](../../lib/claude-entry.mjs).
