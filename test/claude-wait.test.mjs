@@ -220,7 +220,7 @@ const watch=(f,opts={})=>{const controller=new AbortController();const done=watc
 
 test('the watcher hook claims saved feedback and wakes the model with it',async t=>{
  const f=await fixture(t);await f.stop();const w=watch(f);await f.waiting();
- assert.equal((await readJson(f.recordPath)).waiter.kind,'hook');
+ assert.equal((await readJson(f.recordPath)).waiter.kind,'hook');assert.equal((await readJson(f.recordPath)).hookWatcher,true);
  const reply=await appendFeedback({goalId:f.root.id,text:'from the Web'});
  const result=await w.done;
  assert.equal(result.status,'feedback');assert.match(watcherWakeText(result),/from the Web/);assert.match(result.text,/connection reply --event/);
