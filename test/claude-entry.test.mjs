@@ -31,8 +31,7 @@ test('native entry reaches the CLI through shell exports, without Goal assignmen
     'chill-test', f.envFile, process.execPath, entry], {cwd:f.cwd, env:{...process.env, CHILL_AGENT_DATA_DIR:f.data}});
   const result = JSON.parse(stdout);
   assert.deepEqual(result.identity, {harnessId:'claude-code', sessionId:f.input.session_id, generation:record.generation});
-  assert.equal(result.stage, 'entry-only');
-  assert(Object.values(result.capabilities).every(value => value === false));
+  assert.deepEqual(result.roots, [], 'an entry alone owns no Goal');
   assert.doesNotMatch(JSON.stringify(record), /transcript|prompt|unverified-model|turnId|threadId/);
   assert.deepEqual(await readdir(join(f.data, 'workspace')), ['connections','coordination.sqlite']);
   const files = await readdir(join(f.data, 'workspace/connections/claude-code'));

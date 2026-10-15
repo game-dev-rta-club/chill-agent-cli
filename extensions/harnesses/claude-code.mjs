@@ -26,7 +26,8 @@ export default {
    'Review native Hooks when required. If connection show reports no connection, run connection join; resuming is not needed. Do not clear, fork, fabricate identity variables or launch a second writer.',
    'Run connection show from main Bash to verify the handoff before creating a Root. Run each connection action separately; a shell receipt alone is not confirmation.',
    'There is no deferred Queue state. Keep independent input in the current work plan; select the Goal being worked on with goal work. Saved Web feedback wakes an idle conversation only while the reply waiter runs; follow the connection results that ask to start it.',
-   'Children, Deliverables, Comments, Letters and ordinary reads use the shared goal commands. Existing Root connections cannot be reassigned.'
+   'Children, Deliverables, Comments, Letters and ordinary reads use the shared goal commands. Existing Root connections cannot be reassigned.',
+   'Other conversations may work in the same project at the same time, often in other Git worktrees; each owns its own Root. Work only on Goals under your own Root and change only your own working folder. Read other Roots only when the user asks.'
   ],
   constraints:[
    'Setup preserves native permissions, other Hooks and disablement; it never enables Auto mode.',

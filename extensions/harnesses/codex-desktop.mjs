@@ -18,6 +18,7 @@ export default {
   nextActions:[
    'For first use, follow onboarding in order, including opening Web. Use activation only for an actual native connection step.',
    'Use the supplied stable prefix with these command suffixes. Use installed --help for arguments.',
+   'Other conversations may work in the same project at the same time, often in other Git worktrees; each owns its own Root. Work only on Goals under your own Root and change only your own working folder. Read other Roots only when the user asks.',
    'For independent later input, defer only if its Queue entry is verified. If deferment fails, inspect current state; do not promise redelivery or blindly enqueue again.'
   ],
   constraints:['Preserve native trust, manual pauses, other queues and the existing conversation. Never assign another Root merely because its project matches.']

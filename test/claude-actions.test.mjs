@@ -279,6 +279,7 @@ test('the Activity row under a Claude message pauses and resumes its conversatio
   await assert.rejects(controlAgent(goal.id,{action:'stop',token:'other',eventId:event.changeId}),/Agent changed/);
   const paused=await controlAgent(goal.id,{action:'stop',token:saved.token,eventId:event.changeId});
   assert.equal(paused.status,'paused');assert.deepEqual(paused.capabilities,{stop:false,resume:true});
+  assert.equal(paused.eventId,event.changeId,'the row stays on the paused message');
   const resumed=await controlAgent(goal.id,{action:'resume',token:saved.token,eventId:event.changeId});
   assert.equal(resumed.status,'saved');
 });
@@ -314,4 +315,45 @@ test('a request the main hook cannot confirm tells the agent why',async t=>{
   const r=await s.request('reply',{eventId:event.changeId,text:'Late reply'});
   const output=context(await handleClaudeToolHook(s.hook(r),{cwd:f.cwd}));
   assert.match(output,/not confirmed: Feedback already has a terminal receipt/);
+});
+
+test('two Claude conversations in one project, each with its own Root, never receive or control each other',async t=>{
+  const f=await fixture(t),a=await f.start('session-a'),b=await f.start('session-b');
+  const rootA=await root(a),rootB=await root(b);
+  assert.notEqual(rootA.id,rootB.id);
+  const {readAgentStatus,controlAgent,readAgentActivityRow}=await import('../lib/agent-status.mjs');
+  const {agentFor,callerOwns,selectAgentWork}=await import('../lib/agents/index.mjs');
+  const {hasSavedClaudeFeedback}=await import('../lib/claude-actions.mjs');
+  const {claudePermissionDecision}=await import('../lib/claude-permissions.mjs');
+  const connection=s=>({harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId});
+  const forA=await appendFeedback({goalId:rootA.id,text:'For A'}),forB=await appendFeedback({goalId:rootB.id,text:'For B'});
+  for(const event of [forA,forB])await deliverFeedback(event.changeId);
+  // Each conversation's waiter and inbox see only its own Root's feedback.
+  assert.equal(await hasSavedClaudeFeedback(connection(a)),true);assert.equal(await hasSavedClaudeFeedback(connection(b)),true);
+  const inboxA=context(await a.act('inbox',{}));
+  assert.match(inboxA,/For A/);assert.doesNotMatch(inboxA,/For B/);
+  assert.equal(await hasSavedClaudeFeedback(connection(b)),true,'A reading its inbox leaves B\'s feedback waiting');
+  const inboxB=context(await b.act('inbox',{}));
+  assert.match(inboxB,/For B/);assert.doesNotMatch(inboxB,/For A/);
+  // A cannot record a receipt for B's feedback.
+  await assert.rejects(a.act('activity',{eventId:forB.changeId,state:'completed'}),/another conversation/);
+  assert.notEqual((await readDeliveryState(forB.changeId)).status,'completed');
+  // Agent menu and caller identity are per Root.
+  const [statusA,statusB]=await Promise.all([readAgentStatus(rootA.id),readAgentStatus(rootB.id)]);
+  assert.notEqual(statusA.token,statusB.token);
+  const rootOf=async id=>(await listGoals()).find(g=>g.id===id);
+  assert.equal(await callerOwns(await rootOf(rootA.id),a.env),true);assert.equal(await callerOwns(await rootOf(rootA.id),b.env),false);
+  assert.equal(await agentFor(await rootOf(rootB.id)).isCaller(a.env),false);
+  // goal work from B on A's Goal is refused.
+  await assert.rejects(selectAgentWork(rootA.id,{env:b.env}),/assigned chat/);
+  // Pause and Approve all on A leave B alone.
+  const second=await appendFeedback({goalId:rootA.id,text:'A again'});await deliverFeedback(second.changeId);
+  const row=await readAgentActivityRow(rootA.id);
+  await controlAgent(rootA.id,{action:'stop',token:row.token,eventId:row.eventId});
+  assert.equal((await readAgentStatus(rootA.id)).capabilities.resume,true);
+  assert.equal((await readAgentStatus(rootB.id)).capabilities.resume,false);
+  await controlAgent(rootA.id,{scope:'permissions',token:statusA.token,approveAll:true});
+  const ask=s=>claudePermissionDecision({hook_event_name:'PermissionRequest',session_id:s.record.sessionId,tool_name:'Bash',tool_input:{command:'ls'}});
+  assert.equal(await ask(b),null,'B still asks for its own permissions');
+  assert.equal((await readAgentStatus(rootB.id)).approveAll,false);
 });
