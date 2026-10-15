@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import '../lib/quiet-sqlite-warning.mjs';
 import {readFile} from 'node:fs/promises';
-import {listGoals} from '../lib/goal-store.mjs';
+import {existsSync} from 'node:fs';
+import {join} from 'node:path';
+import {listGoals,workspaceDirectory} from '../lib/goal-store.mjs';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
 import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
 import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
@@ -20,7 +22,8 @@ async function main() {
     const {identity,contextId,observedAt,source}=await identifyClaudeCaller();
     const status=await readClaudeConnectionStatus({...identity,contextId});
     // Several conversations can share one project; name the Roots this one owns.
-    const roots=(await listGoals()).filter(g=>!g.parentId&&g.connection?.sessionId===identity.sessionId&&g.connection.contextId===contextId)
+    // Read-only: a project without saved Goals is not created here.
+    const roots=(existsSync(join(workspaceDirectory(),'workspace.sqlite'))?await listGoals():[]).filter(g=>!g.parentId&&g.connection?.sessionId===identity.sessionId&&g.connection.contextId===contextId)
       .map(({id,title,state})=>({id,title,state}));
     console.log(JSON.stringify({identity,contextId,observedAt,source,roots,status}, null, 2));
     return;
