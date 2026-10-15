@@ -418,6 +418,12 @@ function mountHTMLBrief(id,version) {
       const mark=event.target.closest('.annotation-mark, .image-note-box');
       if(mark){event.preventDefault();openNoteReference(mark.dataset.noteRef);return;}
       const image=event.target.closest('[data-action="annotate-image"]');if(image){event.preventDefault();openImageSelection(image.dataset.imageId,image.dataset.svgIndex);return;}
+      const picture=event.target.closest('.annotatable-image');
+      if(picture&&!event.target.closest('button')){
+        const shown=picture.querySelector(':scope > img, :scope > svg');
+        if(shown?.dataset.briefSvg!==undefined){event.preventDefault();openImageViewer(`/api/goals/${activeGoalId}/briefs/${activeVersion}/svg/${Number(shown.dataset.briefSvg)}`,shown.getAttribute('aria-label')||'Diagram',{vector:true});return;}
+        if(shown?.src){event.preventDefault();openImageViewer(shown.src,shown.alt||'Image');return;}
+      }
       const link=event.target.closest('a[href]');if(link){event.preventDefault();window.open(link.href,'_blank','noopener,noreferrer');}
     });
     doc.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches('.annotation-mark')){event.preventDefault();event.target.click();}});
@@ -654,6 +660,25 @@ function closeAnnotation() {
   renderAnnotations();
 }
 
+// Click an image or diagram to see it large in a floating viewer.
+const imageViewer = document.createElement('dialog');
+imageViewer.className = 'image-viewer';
+imageViewer.setAttribute('aria-label', 'Image');
+imageViewer.innerHTML = `<div class="image-viewer-bar"><a class="text-button" target="_blank" rel="noopener">Open in new tab</a><button type="button" class="text-button" data-viewer-close aria-label="Close image" autofocus>✕</button></div><div class="image-viewer-stage"><img alt=""></div>`;
+document.body.append(imageViewer);
+const imageViewerImage = imageViewer.querySelector('img');
+function openImageViewer(src, name = 'Image', {vector = false} = {}) {
+  imageViewerImage.src = src;
+  imageViewerImage.alt = name;
+  imageViewerImage.classList.toggle('is-vector', vector);
+  imageViewer.querySelector('a').href = src;
+  imageViewer.showModal();
+}
+imageViewer.addEventListener('click', event => {
+  if (event.target.closest('[data-viewer-close]') || event.target === imageViewer || event.target.classList.contains('image-viewer-stage')) imageViewer.close();
+});
+imageViewer.addEventListener('close', () => imageViewerImage.removeAttribute('src'));
+
 const imageAreaDialog = document.createElement('dialog');
 imageAreaDialog.className = 'image-area-dialog';
 imageAreaDialog.setAttribute('aria-labelledby', 'image-area-heading');
@@ -686,6 +711,8 @@ function openImageSelection(imageId,svgIndex) {
   imageAreaWhole.disabled = true;
   imageAreaDialog.querySelector('.image-area-hint').textContent = 'Drag to select. Drag again to redraw.';
   imageAreaImage.alt = imageSelection.imageName;
+  // A diagram served as an image may have no size of its own; it fills the dialog.
+  imageAreaStage.classList.toggle('is-vector', Boolean(source));
   imageAreaImage.src = source?`/api/goals/${activeGoalId}/briefs/${activeVersion}/svg/${source.svgIndex}`:`/api/images/${imageId}`;
   updateImageSelection();
   imageAreaDialog.showModal();
@@ -822,6 +849,10 @@ function renderAnnotations(openingEditor=false) {
     if (!matching.length && !editable) return;
     const wrapper = document.createElement('span');
     wrapper.className = 'annotatable-image';
+    // A width relative to the page (or an SVG without one) would shrink inside
+    // the wrapper; the wrapper takes that width instead.
+    const width = (img.getAttribute('width') || img.style.width || '').trim();
+    if (width.endsWith('%') || svgIndex !== null && !width) { wrapper.classList.add('is-fluid'); wrapper.style.width = width || '100%'; }
     img.replaceWith(wrapper);
     wrapper.append(img);
     for (const entry of matching) {
@@ -884,6 +915,12 @@ function openNoteReference(ref, scroll = false) {
   }
 }
 
+main.addEventListener('click', event => {
+  const link = event.target.closest('.event-image-link');
+  if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
+  event.preventDefault();
+  openImageViewer(link.getAttribute('href'), 'Attached image');
+});
 main.addEventListener('click', event => {
   const mark = event.target.closest('.annotation-mark, .image-note-box');
   if (mark) { event.preventDefault(); openNoteReference(mark.dataset.noteRef); return; }
