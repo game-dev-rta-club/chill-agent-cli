@@ -52,14 +52,15 @@ test('a new package is installed by its own installer, in a separate process',as
 test('the installed runtime starts its Web server',{timeout:60000},async t=>{
  const {fileURLToPath}=await import('node:url');const {spawn}=await import('node:child_process');const {createServer}=await import('node:net');
  const repo=fileURLToPath(new URL('..',import.meta.url));
- const dir=await mkdtemp(join(tmpdir(),'chill-installed-web-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-installed-web-'));
  const target=join(dir,'runtime');await mkdir(target);await copyRuntime(repo,target);
  const port=await new Promise(resolve=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const {port}=s.address();s.close(()=>resolve(port));});});
  const env={...process.env,PORT:String(port),CHILL_AGENT_DATA_DIR:join(dir,'data')};
  const child=spawn(process.execPath,[join(target,'server.mjs')],{cwd:target,env,stdio:['ignore','ignore','pipe']});
  let stderr='';child.stderr.on('data',d=>stderr+=d);
  // Always stop the server, or its open handles keep the whole test run waiting.
- t.after(async()=>{if(child.exitCode===null&&child.signalCode===null){const exited=new Promise(r=>child.once('exit',r));child.kill('SIGKILL');await exited;}child.stderr.destroy();});
+ // Stop it before removing its folder: Windows cannot remove a folder a process still uses.
+ t.after(async()=>{if(child.exitCode===null&&child.signalCode===null){const exited=new Promise(r=>child.once('exit',r));child.kill('SIGKILL');await exited;}child.stderr.destroy();await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:200});});
  let status=null;
  for(let i=0;i<100&&status===null&&child.exitCode===null;i++){
   status=await fetch(`http://127.0.0.1:${port}/api/goals`).then(r=>r.status).catch(()=>null);
