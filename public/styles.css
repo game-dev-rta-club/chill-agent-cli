@@ -161,13 +161,13 @@
 .image-area-workspace { display: flex; justify-content: center; align-items: center; min-height: 64px; }
 .image-area-stage { position: relative; display: inline-block; max-width: 100%; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
 .image-area-stage img { display: block; max-width: 100%; max-height: calc(100dvh - 180px); width: auto; height: auto; -webkit-user-drag: none; }
-.image-area-rect { position: absolute; border: 2px solid var(--accent); background: var(--theme-soft,#43d3c426); box-shadow: 0 0 0 9999px #1b252c55; pointer-events: none; }
+.image-area-rect { position: absolute; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: 0 0 0 9999px #1b252c55; pointer-events: none; }
 .image-area-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; }
 .image-area-actions > button { min-height: 44px; }
 .brief-body .image-stage .image-annotate svg { position: static; width: 20px; height: 20px; }
 .brief-body .image-stage .annotatable-image { width: 100%; }
 .brief-body .image-stage .annotatable-image img { width: 100%; }
-.image-note-box { position: absolute; padding: 0; border: 2px solid var(--accent); border-radius: 3px; background: var(--theme-soft,#43d3c426); }
+.image-note-box { position: absolute; padding: 0; border: 2px solid var(--accent); border-radius: 3px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .image-note-box.is-draft { border-style: dashed; }
 .annotation-preview { position: fixed; z-index: 12; width: min(340px, calc(100vw - 12px)); max-height: 55dvh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); box-shadow: 0 8px 28px #1e221c30; }
 .annotation-preview .annotation-quote { margin-bottom: 9px; }
