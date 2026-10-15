@@ -22,3 +22,19 @@ test('dependencies hoisted above an installed package are copied to their lockfi
  assert.equal(await readFile(join(target,'node_modules/dep/index.js'),'utf8'),'hoisted');
  assert.equal(await readFile(join(target,'node_modules/dep/node_modules/inner/index.js'),'utf8'),'nested');
 });
+
+test('every module the runtime imports is copied into it, including subfolders',async()=>{
+ const {fileURLToPath}=await import('node:url');const {posix}=await import('node:path');
+ const repo=fileURLToPath(new URL('..',import.meta.url));
+ const files=new Set(await runtimeFiles(repo));
+ assert.ok(files.has('lib/agents/index.mjs'));
+ const missing=[];
+ for(const file of [...files].filter(f=>/^(bin|lib)\/.*\.mjs$|^server\.mjs$/.test(f))){
+  const text=await readFile(join(repo,file),'utf8');
+  for(const [,spec] of text.matchAll(/(?:from\s*|import\(\s*)'(\.{1,2}\/[^']+\.mjs)'/g)){
+   const target=posix.normalize(posix.join(posix.dirname(file),spec));
+   if(!files.has(target))missing.push(`${file} -> ${target}`);
+  }
+ }
+ assert.deepEqual(missing,[]);
+});
