@@ -5,7 +5,7 @@ import {existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {listGoals,workspaceDirectory} from '../lib/goal-store.mjs';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
-import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
+import {waitForClaudeFeedback,waitResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
 import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
 import {claudePauseGuard} from '../lib/claude-pause.mjs';
 import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
@@ -72,6 +72,15 @@ async function main() {
   let input;
   try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Error('Invalid Claude hook JSON.'); }
+  if(action==='claude-watch') {
+    // An asyncRewake hook: exit 2 makes Claude Code wake the model with stderr.
+    if(input?.agent_id!=null||!['SessionStart','Stop'].includes(input?.hook_event_name)||typeof input.session_id!=='string')return;
+    const controller=new AbortController();
+    for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
+    const text=watcherWakeText(await watchClaudeConversation({sessionId:input.session_id,hook:true,signal:controller.signal}));
+    if(text){process.stderr.write(`${text}\n`);process.exitCode=2;}
+    return;
+  }
   if(input?.hook_event_name==='PermissionRequest') {
     const output=await claudePermissionDecision(input);
     if(output)console.log(JSON.stringify(output));

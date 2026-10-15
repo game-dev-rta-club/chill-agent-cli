@@ -7,7 +7,7 @@ import {execFile,execFileSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {prepareRuntime} from '../lib/runtime-package.mjs';
-import {configureClaudeHooks,claudeSetupStatus,findGitBash} from '../lib/claude-setup.mjs';
+import {configureClaudeHooks,claudeSetupStatus,findGitBash,claudeWatcherInstalled} from '../lib/claude-setup.mjs';
 const execute=promisify(execFile);
 // Claude Code runs Bash commands and shell-form hooks with sh, or Git Bash on Windows.
 const posixShell=()=>process.platform==='win32'?findGitBash():'/bin/sh';
@@ -96,6 +96,10 @@ test('an exec-form hook from an earlier Windows setup is replaced by the shell f
  assert.equal((await configureClaudeHooks(f.project,f.options)).configured,true);
  const hooks=Object.values((await f.read()).hooks).flat().flatMap(g=>g.hooks);
  assert.equal(hooks.filter(h=>h.args).length,0);assert.equal(hooks.filter(h=>/ connection claude-hook$/.test(h.command)).length,7);
+ // The watcher runs in the background from SessionStart and Stop and wakes the model itself.
+ const watchers=Object.entries((await f.read()).hooks).flatMap(([event,groups])=>groups.flatMap(g=>g.hooks.filter(h=>/ connection claude-watch$/.test(h.command)).map(h=>({event,...h}))));
+ assert.deepEqual(watchers.map(h=>[h.event,h.asyncRewake,h.timeout]),[['SessionStart',true,604800],['Stop',true,604800]]);
+ assert.equal(await claudeWatcherInstalled(f.project),true);
  // An unrecorded exec-form chill hook is still reported instead of overwritten.
  const foreign=await f.read();foreign.hooks.Stop.push(exec(foreign.hooks.Stop.find(g=>/claude-hook/.test(g.hooks[0].command))));await writeFile(f.path,JSON.stringify(foreign));
  assert.equal((await claudeSetupStatus(f.project,f.options)).conflict,true);

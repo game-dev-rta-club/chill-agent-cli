@@ -8,7 +8,7 @@ import {randomUUID} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
 import {requestClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessionStartContext} from '../lib/claude-actions.mjs';
-import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
+import {waitForClaudeFeedback,waitResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
 import {readDeliveryState,prepareDelivery,updateDelivery} from '../lib/delivery.mjs';
@@ -136,6 +136,16 @@ test('CLI wait prints the next actions once feedback is saved',async t=>{
  assert.equal(code,0);assert.equal(stderr,'');assert.match(stdout,/new Web feedback[\s\S]*connection inbox[\s\S]*connection wait/);
 });
 
+test('the claude-watch hook exits 2 with the feedback, which Claude Code shows the model',async t=>{
+ const f=await fixture(t);await f.stop();const entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
+ const p=spawn(process.execPath,[entry,'claude-watch'],{cwd:f.cwd,env:process.env,stdio:['pipe','pipe','pipe']});let stdout='',stderr='';
+ p.stdout.on('data',b=>stdout+=b);p.stderr.on('data',b=>stderr+=b);
+ p.stdin.end(JSON.stringify(f.event('Stop')));
+ await f.waiting();await appendFeedback({goalId:f.root.id,text:'from the Web'});
+ const code=await new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});
+ assert.equal(code,2);assert.equal(stdout,'');assert.match(stderr,/from the Web[\s\S]*connection reply --event/);
+});
+
 test('reply posts on the Web and completes the receipt in one confirmed action',async t=>{
  const f=await fixture(t),reply=await appendFeedback({goalId:f.root.id,text:'Please summarize'});
  assert.match(JSON.stringify(await f.action('reply',{eventId:reply.changeId,text:'Too early'})),/connection inbox first/,'the hook tells the agent why it was not confirmed');
@@ -199,37 +209,57 @@ test('a scheduled check wakes the conversation through its waiter when it is due
  clock+=600000;
  assert.deepEqual(await w.done,{status:'wake',reason:'CI of PR #91'});
  assert.equal((await readJson(f.recordPath)).wake,undefined,'a due check is cleared, so it wakes once');
- // The inbox names the due check once, so the task output need not be read.
- assert.match(context(await f.action('inbox')),/check you scheduled is due \(CI of PR #91\)/);
- assert.equal((await readJson(f.recordPath)).dueCheck,undefined);
- assert.doesNotMatch(context(await f.action('inbox')),/check you scheduled/);
- assert.match(waitResultText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*connection wait[\s\S]*connection wake/);
+ assert.match(waitResultText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*connection wake[\s\S]*connection wait/);
  // Cancelling removes a scheduled check.
  await scheduleClaudeWake({minutes:5,env:f.env(),now});
  assert.deepEqual(await scheduleClaudeWake({cancel:true,env:f.env(),now}),{wake:null});
  assert.equal((await readJson(f.recordPath)).wake,undefined);
 });
 
-test('feedback saved while a response is running waits for its next tool hook, not a wake',async t=>{
- const f=await fixture(t),w=f.wait();await f.waiting();
- const reply=await appendFeedback({goalId:f.root.id,text:'arrived mid-response'});
- await new Promise(r=>setTimeout(r,80));
- assert.equal((await readJson(f.recordPath)).waiter!=null,true,'the waiter keeps waiting while the response runs');
- assert.match(context(await f.tool()),/arrived mid-response/,'the next tool hook offers it');
- assert.equal((await readDeliveryState(reply.changeId)).status,'unknown');
- // After the response replies and ends, new feedback wakes the conversation as before.
- await f.action('reply',{eventId:reply.changeId,text:'Handled'});
- assert.equal(await f.stop(),null,'a reply leaves nothing to remind at Stop');const late=await appendFeedback({goalId:f.root.id,text:'after Stop'});
- assert.deepEqual(await w.done,{status:'feedback'});
- assert.equal(await readDeliveryState(late.changeId),null,'detecting is not offering');
+const watch=(f,opts={})=>{const controller=new AbortController();const done=watchClaudeConversation({sessionId:f.connection.sessionId,hook:true,pollMs:10,signal:controller.signal,...opts});return {done,stop:()=>{controller.abort();return done;}};};
+
+test('the watcher hook claims saved feedback and wakes the model with it',async t=>{
+ const f=await fixture(t);await f.stop();const w=watch(f);await f.waiting();
+ assert.equal((await readJson(f.recordPath)).waiter.kind,'hook');
+ const reply=await appendFeedback({goalId:f.root.id,text:'from the Web'});
+ const result=await w.done;
+ assert.equal(result.status,'feedback');assert.match(watcherWakeText(result),/from the Web/);assert.match(result.text,/connection reply --event/);
+ assert.equal((await readDeliveryState(reply.changeId)).status,'unknown','offered, as by a tool hook');
+ assert.equal((await readJson(f.recordPath)).waiter,undefined);
+ assert.equal(await hasSavedClaudeFeedback(f.connection),false,'the next watcher does not wake for it again');
 });
 
-test('a response that stops calling tools no longer holds feedback back',async t=>{
+test('a hook watcher takes over from a connection wait task; a second hook watcher exits',async t=>{
+ const f=await fixture(t),task=f.wait();await f.waiting();
+ const w=watch(f,{refreshMs:20});
+ assert.deepEqual(await task.done,{status:'replaced'});
+ assert.deepEqual(await watch(f,{livenessMs:200}).done,{status:'already-running'},'a live hook watcher keeps its claim');
+ assert.deepEqual(await w.stop(),{status:'stopped'});
+});
+
+test('the watcher hook follows a cleared context and ends when the conversation owns no Goal',async t=>{
+ const f=await fixture(t),w=watch(f);await f.waiting();
+ await f.start('clear');
+ assert.deepEqual(await w.done,{status:'not-owner'},'a fresh context owns nothing to wait for');
+ assert.equal((await readJson(f.recordPath)).waiter,undefined);
+});
+
+test('the watcher hook wakes for a due check and ends itself before its hook timeout',async t=>{
+ const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
  const f=await fixture(t);let clock=Date.now();const now=()=>clock;
- const w=f.wait({now,activeMs:60000});await f.waiting();
- await appendFeedback({goalId:f.root.id,text:'after an interrupt'});
- await new Promise(r=>setTimeout(r,50));
- assert.equal((await readJson(f.recordPath)).waiter!=null,true,'a recent tool call still counts as running');
- clock+=61000;
- assert.deepEqual(await w.done,{status:'feedback'},'an interrupted response without Stop is not waited on for long');
+ await scheduleClaudeWake({minutes:1,reason:'CI',env:f.env(),now});
+ const w=watch(f,{now});await f.waiting();clock+=60000;
+ const due=await w.done;assert.deepEqual(due,{status:'wake',reason:'CI'});assert.match(watcherWakeText(due),/due \(CI\)\. Do it now/);
+ const idle=await watch(f,{maxMs:50}).done;
+ assert.deepEqual(idle,{status:'idle'});assert.match(watcherWakeText(idle),/Nothing to do/);
+});
+
+test('with the watcher hook installed, nothing tells the agent to start a waiter',async t=>{
+ const f=await fixture(t);
+ assert.match(context(await f.action('inbox')),/connection wait/,'older setups still name the waiter');
+ await mkdir(join(f.cwd,'.claude'),{recursive:true});
+ await writeFile(join(f.cwd,'.claude/settings.local.json'),JSON.stringify({hooks:{Stop:[{hooks:[{type:'command',command:"'/x/chill' connection claude-watch",asyncRewake:true,timeout:604800}]}]}}));
+ assert.equal(await claudeSessionStartContext(await f.start('resume')),null);
+ assert.equal((await readJson(f.recordPath)).hookWatcher,true);
+ assert.doesNotMatch(context(await f.action('inbox')),/connection wait/);
 });
