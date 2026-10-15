@@ -28,7 +28,9 @@ chill connection reply --event 1 --text 'What I did'
 
 Use the prepared runtime's `runtime/chill` entry in place of `chill`.
 `reply` posts the answer in the feedback's Goal Conversation and records the
-completed receipt in one confirmation; a retry of the same request does not post
+completed receipt in one confirmation. Answering each message as it arrives is
+fine; when one answer covers several messages of one Goal, `--event 12,13,14`
+closes them together; a retry of the same request does not post
 twice. `goal activity --event 1 --state working|failed`, the same receipt command
 Codex uses, records other receipt states, for example before long work
 (`connection activity` is the older name and still works). Claude has no native

@@ -357,3 +357,17 @@ test('two Claude conversations in one project, each with its own Root, never rec
   assert.equal(await ask(b),null,'B still asks for its own permissions');
   assert.equal((await readAgentStatus(rootB.id)).approveAll,false);
 });
+
+test('one reply answers several messages of one Goal and closes them all',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const first=await appendFeedback({goalId:goal.id,text:'Please flip it'}),second=await appendFeedback({goalId:goal.id,text:'Actually also the data'});
+  for(const event of [first,second])await deliverFeedback(event.changeId);
+  await s.act('inbox',{});
+  const output=context(await s.act('reply',{eventIds:[first.changeId,second.changeId],text:'Done both'}));
+  assert.match(output,new RegExp(`#${first.changeId}, #${second.changeId} as completed`));
+  for(const event of [first,second])assert.equal((await readDeliveryState(event.changeId)).status,'completed');
+  const {readEvent}=await import('../lib/goal-store.mjs');
+  const commentId=Number(/comment #(\d+)/.exec(output)[1]);
+  assert.equal((await readEvent(commentId)).text,'Done both');assert.equal(await readEvent(commentId+1),null,'the reply is posted once');
+  await assert.rejects(s.request('reply',{eventIds:[first.changeId,first.changeId],text:'x'}),/Invalid reply/);
+});
