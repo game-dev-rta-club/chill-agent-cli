@@ -52,7 +52,7 @@ test('the continued native prompt still receives Web input on its next ordinary 
  const received=await handleClaudeToolHook(hook,{cwd:f.cwd});assert.match(received.hookSpecificOutput.additionalContext,/Correction while Auto mode is working/);
  assert.equal((await readDeliveryState(reply.changeId)).status,'unknown');
  assert.equal(await handleClaudeToolHook(hook,{cwd:f.cwd}),null,'tool delivery is not duplicated');
- assert.match((await f.stop()).reason,/no reply yet/,'offered feedback without a reply is reminded first');
+ assert.match((await f.stop()).reason,/without a reply/,'offered feedback without a reply is reminded first');
  await f.action('inbox',{});
  assert.equal(await f.stop(),null,'the unresolved Auto request is not resent');
 });
@@ -154,34 +154,26 @@ test('feedback taken up but never recorded as done does not stop Auto mode; the 
  const reply=await appendFeedback({goalId:f.root.id,text:'Long work'});
  await f.action('inbox',{});await f.action('activity',{eventId:reply.changeId,state:'working'});
  // The receipt reminder comes first; ending again, Auto mode continues.
- assert.match((await f.stop()).reason,/not recorded as done/);await f.action('inbox',{});
+ assert.match((await f.stop()).reason,/without a reply/);await f.action('inbox',{});
  const response=await f.stop();
  assert.equal(response?.decision,'block','the response ended with the work unfinished, so Auto mode continues');
  assert.match(response.reason,new RegExp(`took up but have not recorded as done: #${reply.changeId} \\(Goal #${f.root.id}\\)`));
 });
 
-test('offered feedback is reminded once if the response ends without a reply; a reply needs no receipt first',async t=>{
+test('feedback without a reply is named once when a response ends, offered or marked working; a reply needs no receipt',async t=>{
  const f=await fixture(t);
- const reply=await appendFeedback({goalId:f.root.id,text:'Short work'});
- await f.action('inbox',{});
+ const short=await appendFeedback({goalId:f.root.id,text:'Short work'}),long=await appendFeedback({goalId:f.root.id,text:'Long work'});
+ await f.action('inbox',{});await f.action('activity',{eventId:long.changeId,state:'working'});
  const first=await f.stop();
- assert.equal(first?.decision,'block');assert.match(first.reason,new RegExp(`no reply yet: #${reply.changeId} \\(Goal #${f.root.id}\\)`));
- assert.match(first.reason,/--state working instead/);assert.doesNotMatch(first.reason,/marked working/);
- await f.action('inbox',{});assert.equal(await f.stop(),null,'shown once for this response');
- await f.newPrompt();await f.action('reply',{eventId:reply.changeId,text:'Done'});
- assert.equal((await readDeliveryState(reply.changeId)).status,'completed');
- assert.equal(await f.stop(),null,'a reply in the same response closes it without a working receipt');
-});
-
-test('a receipt left as working is reminded once when the response ends, even with Auto mode off',async t=>{
- const f=await fixture(t);
- const reply=await appendFeedback({goalId:f.root.id,text:'Some work'});
- await f.action('inbox',{});await f.action('activity',{eventId:reply.changeId,state:'working'});
- const first=await f.stop();
- assert.equal(first?.decision,'block');assert.match(first.reason,new RegExp(`not recorded as done: #${reply.changeId} \\(Goal #${f.root.id}\\)`));
- // After a tool call the same response may end without a second reminder.
- await f.action('inbox',{});assert.equal(await f.stop(),null);
- // Once recorded as done, a new response ends without any reminder.
- await f.newPrompt();await f.action('activity',{eventId:reply.changeId,state:'completed'});
- assert.equal(await f.stop(),null);
+ assert.equal(first?.decision,'block');
+ assert.match(first.reason,new RegExp(`without a reply: #${short.changeId} \\(Goal #${f.root.id}\\), #${long.changeId} \\(Goal #${f.root.id}\\)`));
+ assert.match(first.reason,/you can end now/);assert.doesNotMatch(first.reason,/--state/);
+ await f.action('inbox',{});assert.equal(await f.stop(),null,'the same response may end');
+ // Work that continues over later responses is not reminded again.
+ await f.newPrompt();await f.action('inbox',{});assert.equal(await f.stop(),null,'shown once per feedback');
+ await f.newPrompt();await f.action('reply',{eventId:short.changeId,text:'Done'});
+ assert.equal((await readDeliveryState(short.changeId)).status,'completed');
+ // New feedback is named on its own.
+ const later=await appendFeedback({goalId:f.root.id,text:'Later'});await f.action('inbox',{});
+ const next=await f.stop();assert.match(next.reason,new RegExp(`without a reply: #${later.changeId} \\(Goal #${f.root.id}\\)\\.`));
 });
