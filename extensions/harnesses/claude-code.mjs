@@ -25,6 +25,7 @@ export default {
    'Use the actual native project directory. A linked Git worktree shares its main checkout\'s project, Web and local settings. Do not substitute the skill installation directory.',
    'Review native Hooks when required. If connection show reports no connection, run connection join; resuming is not needed. Do not clear, fork, fabricate identity variables or launch a second writer.',
    'Run connection show from main Bash to verify the handoff before creating a Root. Run each connection action separately; a shell receipt alone is not confirmation.',
+   'Before ending a response that waits for something outside chill (CI, a build), schedule a check with connection wake --in <minutes> --reason <text>; finished CI wakes nobody, and the reply waiter ends at that time to wake this conversation.',
    'There is no deferred Queue state. Keep independent input in the current work plan; select the Goal being worked on with goal work. Saved Web feedback wakes an idle conversation only while the reply waiter runs; follow the connection results that ask to start it.',
    'Children, Deliverables, Comments, Letters and ordinary reads use the shared goal commands. Existing Root connections cannot be reassigned.',
    'Other conversations may work in the same project at the same time, often in other Git worktrees; each owns its own Root. Work only on Goals under your own Root and change only your own working folder. Read other Roots only when the user asks.'
