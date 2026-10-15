@@ -58,7 +58,8 @@ test('the installed runtime starts its Web server',{timeout:60000},async t=>{
  const env={...process.env,PORT:String(port),CHILL_AGENT_DATA_DIR:join(dir,'data')};
  const child=spawn(process.execPath,[join(target,'server.mjs')],{cwd:target,env,stdio:['ignore','ignore','pipe']});
  let stderr='';child.stderr.on('data',d=>stderr+=d);
- t.after(()=>child.kill());
+ // Always stop the server, or its open handles keep the whole test run waiting.
+ t.after(async()=>{if(child.exitCode===null&&child.signalCode===null){const exited=new Promise(r=>child.once('exit',r));child.kill('SIGKILL');await exited;}child.stderr.destroy();});
  let status=null;
  for(let i=0;i<100&&status===null&&child.exitCode===null;i++){
   status=await fetch(`http://127.0.0.1:${port}/api/goals`).then(r=>r.status).catch(()=>null);
