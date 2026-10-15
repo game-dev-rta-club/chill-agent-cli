@@ -1,7 +1,7 @@
 import {createLettersMenu} from './letters-menu.js';
 import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
-import {createAgentPresence} from './agent-presence.js';
+import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
 import { workProgressGroups, workDisclosure } from './work-ui.js';
@@ -943,7 +943,25 @@ async function refreshLetterCount(){
   }catch{/* Keep the last known count until the connection returns. */}
   finally{letterCountRequest=false;}
 }
-function renderIndex(){updateTabTitle();main.innerHTML=goalView().index();}
+// Each Root's own agent, so several agents in one project can be told apart.
+const rootAgents=new Map();
+function rootAgentMarkup(data){
+  if(!data)return '';
+  return `${presenceMark(data.status)}<span>${escapeHTML(data.connected===false||!data.name?'No agent':data.name)} · ${escapeHTML(presenceLabel(data.status))}</span>`;
+}
+function fillRootAgents(){
+  for(const slot of main.querySelectorAll('[data-root-agent]')){
+    const id=slot.dataset.rootAgent,known=rootAgents.get(id);
+    if(known)slot.innerHTML=rootAgentMarkup(known.data);
+    if(known&&Date.now()-known.at<10000)continue;
+    rootAgents.set(id,{data:known?.data,at:Date.now()});
+    fetch(`/api/goals/${id}/agent/presence`,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(data=>{
+      if(!data)return;rootAgents.set(id,{data,at:Date.now()});
+      const target=main.querySelector(`[data-root-agent="${CSS.escape(id)}"]`);if(target)target.innerHTML=rootAgentMarkup(data);
+    }).catch(()=>{});
+  }
+}
+function renderIndex(){updateTabTitle();main.innerHTML=goalView().index();fillRootAgents();}
 let stepFocus=null,routeReady=Promise.resolve();
 function renderRoute() {
   hasNewBrief.dismiss();

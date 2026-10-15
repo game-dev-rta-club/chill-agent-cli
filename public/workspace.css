@@ -385,3 +385,5 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
   .goal-layout>.conversation { position:sticky; top:0; max-height:calc(100dvh - 80px); overflow-y:auto; overscroll-behavior:contain; padding:14px 6px 0 2px; }
   .goal-layout>.conversation .conversation-form { position:sticky; bottom:0; z-index:1; padding-bottom:12px; background:linear-gradient(transparent,var(--canvas) 18px); }
 }
+.root-agent { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--theme-muted,#5d6b67); }
+.root-agent:empty { display:none; }
