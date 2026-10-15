@@ -40,6 +40,11 @@ async function main() {
     console.log(JSON.stringify(result));
     return;
   }
+  if(action==='wake') {
+    const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
+    console.log(JSON.stringify(await scheduleClaudeWake({minutes:values['--in']===undefined?undefined:Number(values['--in']),reason:values['--reason']||'',cancel:values['--cancel']===true}),null,2));
+    return;
+  }
   if(action==='wait') {
     // A stopped background task releases its refresh, so a new waiter starts at once.
     const controller=new AbortController();

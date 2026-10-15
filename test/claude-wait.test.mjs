@@ -183,3 +183,22 @@ test('Claude feedback lists open Letters with their close command, as Codex deli
  const text=context(await f.action('inbox'));
  assert.match(text,/Open Letters/);assert.match(text,new RegExp(`goal close-letter --id ${f.root.id} --event ${letter.id}`));
 });
+
+test('a scheduled check wakes the conversation through its waiter when it is due, once',async t=>{
+ const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
+ const f=await fixture(t);let clock=Date.now();const now=()=>clock;
+ await assert.rejects(scheduleClaudeWake({minutes:0,env:f.env()}),/whole minutes/);
+ const {wake}=await scheduleClaudeWake({minutes:10,reason:'CI of PR #91',env:f.env(),now});
+ assert.equal(Date.parse(wake.at)-clock,600000);
+ const w=f.wait({now});await f.waiting();
+ await new Promise(r=>setTimeout(r,50));
+ assert.equal((await readJson(f.recordPath)).wake.reason,'CI of PR #91','not due yet: the waiter keeps waiting');
+ clock+=600000;
+ assert.deepEqual(await w.done,{status:'wake',reason:'CI of PR #91'});
+ assert.equal((await readJson(f.recordPath)).wake,undefined,'a due check is cleared, so it wakes once');
+ assert.match(waitResultText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*connection wake[\s\S]*connection wait/);
+ // Cancelling removes a scheduled check.
+ await scheduleClaudeWake({minutes:5,env:f.env(),now});
+ assert.deepEqual(await scheduleClaudeWake({cancel:true,env:f.env(),now}),{wake:null});
+ assert.equal((await readJson(f.recordPath)).wake,undefined);
+});

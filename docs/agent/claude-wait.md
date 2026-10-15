@@ -71,4 +71,13 @@ stops it; saved replies wait for the conversation to be resumed, when the
 SessionStart instruction applies. The [connection status](claude-status.md)
 shows whether a waiter is currently recorded.
 
-Implementation: [waiter](../../lib/claude-wait.mjs), [entry record](../../lib/claude-entry.mjs).
+## Scheduled checks
+
+Something outside chill, such as CI finishing, wakes nobody by itself, and Auto
+mode rests after a check finds no work. Before ending a response that waits for
+such a thing, the conversation runs `connection wake --in <minutes> --reason
+<text>`. The check is kept in the conversation's record. The waiter ends when it
+is due, which wakes the conversation with the reason, and clears it so it wakes
+once. One check is kept per conversation; `--cancel` removes it.
+
+Implementation: [waiter](../../lib/claude-wait.mjs), [scheduled checks](../../lib/claude-wake.mjs), [entry record](../../lib/claude-entry.mjs).
