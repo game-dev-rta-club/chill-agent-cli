@@ -35,7 +35,7 @@ test('skills named in feedback come with the file to read, user skills included'
   ['grilling','user',join(home,'.claude','skills','grilling','SKILL.md')],
   ['review','project',join(project,'.claude','commands','review.md')],
  ]);
- assert.match(skillLines(found),/\/grilling \(user\): .*grilling\/SKILL\.md/);
+ assert.ok(skillLines(found).includes(`/grilling (user): ${join(home,'.claude','skills','grilling','SKILL.md')}`));
  assert.deepEqual(await mentionedSkills(['no skill here'],{project,home}),[]);
  assert.equal(skillLines([]),'');
 });
