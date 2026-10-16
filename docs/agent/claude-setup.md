@@ -61,9 +61,8 @@ excludes, user settings or managed policy.
 
 Review the configured hooks when Claude asks. A conversation started after setup
 receives its identity at SessionStart. A conversation that was already running
-connects with `connection join`: Claude names its session in every shell, and the
-same session's main PostToolUse hook confirms the claim, so a subagent cannot
-connect for it. Claude loads hooks written during a conversation for its next
+connects with `connection join`: Claude names its session in every shell.
+Claude loads hooks written during a conversation for its next
 tool call, so no resume is needed. Do not clear, fork or launch a concurrent copy
 as a connection repair.
 
@@ -75,9 +74,9 @@ chill connection join        # only when show reports no connection
 chill connection create-goal --title 'The agreed outcome'
 ```
 
-`show` verifies only the current native identity handoff. The main hook confirms
-the new Root separately. Keep its returned command and identity; the project
-directory alone never selects a conversation. See [main-hook actions](claude-actions.md)
+`show` verifies only the current native identity handoff; `create-goal` creates
+the Root at once. The project directory alone never selects a conversation. See
+[connection actions](claude-actions.md)
 for feedback and receipt handling. Native policy, hook disablement or permissions
 may still prevent activation; setup does not override them.
 

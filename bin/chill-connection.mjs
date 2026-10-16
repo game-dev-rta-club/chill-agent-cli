@@ -11,7 +11,7 @@ import {claudePauseGuard} from '../lib/claude-pause.mjs';
 import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
-import {requestClaudeAction,requestClaudeJoin,handleClaudeToolHook,inspectClaudeRequest,claudeSessionStartContext} from '../lib/claude-actions.mjs';
+import {runClaudeAction,joinClaudeConversation,handleClaudeToolHook,claudeSessionStartContext} from '../lib/claude-actions.mjs';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -29,15 +29,7 @@ async function main() {
     return;
   }
   if(action==='join') {
-    const request=await requestClaudeJoin();
-    console.log(request.marker);
-    console.log('Pending main-session hook confirmation. A shell receipt alone does not connect this conversation.');
-    return;
-  }
-  if(action==='request') {
-    const result=await inspectClaudeRequest(values['--id'],{retry:values['--retry']===true});
-    if(result.marker)console.log(result.marker);
-    console.log(JSON.stringify(result));
+    console.log(await joinClaudeConversation());
     return;
   }
   if(action==='wake') {
@@ -57,18 +49,11 @@ async function main() {
       action==='adopt'?{goalId:values['--goal']}:
       action==='activity'?{eventId:Number(values['--event']),state:values['--state']}:
       action==='reply'?{eventIds:String(values['--event']).split(',').map(Number),text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
-    const request=await requestClaudeAction(action,payload);
-    console.log(request.marker);
-    console.log('Pending main-session hook confirmation. A shell receipt alone does not confirm this action.');
+    console.log((await runClaudeAction(action,payload)).text);
     return;
   }
   const chunks = [];
-  let bytes = 0;
-  for await (const chunk of process.stdin) {
-    bytes += chunk.length;
-    if (bytes > 65536) throw Error('Claude hook input is too large.');
-    chunks.push(chunk);
-  }
+  for await (const chunk of process.stdin) chunks.push(chunk);
   let input;
   try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Error('Invalid Claude hook JSON.'); }

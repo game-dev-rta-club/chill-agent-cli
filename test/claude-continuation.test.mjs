@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
-import {requestClaudeAction,handleClaudeToolHook,collectClaudeHookFeedback,handleClaudeStopExtensions} from '../lib/claude-actions.mjs';
+import {runClaudeAction,handleClaudeToolHook,collectClaudeHookFeedback,handleClaudeStop} from '../lib/claude-actions.mjs';
 import {listGoals,createGoal,appendFeedback,updateGoal,readGoal} from '../lib/goal-store.mjs';
 import {transferClaudeRoot} from '../lib/claude-roots.mjs';
 import {readForWeb,configureFromWeb,onStop} from '../lib/claude-continuation.mjs';
@@ -20,8 +20,8 @@ async function fixture(t){
  const envFile=join(dir,'env');await writeFile(envFile,'');
  const sessionId=randomUUID();let promptId=randomUUID(),env;
  const event=(name,patch={})=>({hook_event_name:name,session_id:sessionId,prompt_id:promptId,cwd,...patch});
- async function start(source='startup'){const r=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CHILL_AGENT_CONNECTION_GENERATION:r.generation};}
- async function action(action,payload,patch={}){const r=await requestClaudeAction(action,payload,{env});return handleClaudeToolHook(event('PostToolUse',{tool_name:'Bash',tool_use_id:randomUUID(),tool_response:{stdout:r.marker},...patch}),{cwd});}
+ async function start(source='startup'){const r=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId};}
+ async function action(action,payload){const r=await runClaudeAction(action,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await start();await action('create-goal',{title:'Native Auto mode',scope:'One verified continuation',criteria:'No duplicate or lost input'});const root=(await listGoals())[0];
  const configure=(enabled=true)=>action('extension',{extension:'continuation',operation:'configure',input:{rootId:root.id,enabled}});
  const pause=paused=>action('extension',{extension:'continuation',operation:'pause',input:{rootId:root.id,paused}});
@@ -81,12 +81,10 @@ test('working or uncertain Web receipts are not proof that feedback is complete'
  await done.action('inbox',{});await done.action('activity',{eventId:other.changeId,state:'completed'});
  const next=await done.stop();assert.equal(next.decision,'block');assert.doesNotMatch(next.reason,/took up but have not recorded/);
 });
-test('subagents and stale or missing native prompt identities cannot enable or continue',async t=>{
+test('a subagent Stop never continues, and a cleared context cannot control the earlier Root',async t=>{
  const f=await fixture(t);
- await f.action('extension',{extension:'continuation',operation:'configure',input:{rootId:f.root.id,enabled:true}},{agent_id:'child'});assert.equal(await f.read(),null);
- assert.match(JSON.stringify(await f.action('extension',{extension:'continuation',operation:'configure',input:{rootId:f.root.id,enabled:true}},{prompt_id:null})),/prompt identity/,'the hook tells the agent why it was not confirmed');
- await f.configure();assert.equal(await f.stop({agent_id:'child'}),null);assert.equal(await f.stop({prompt_id:null}),null);
- await f.start('clear');assert.equal(await f.stop(),null);assert.match(JSON.stringify(await f.configure()),/Root conversation/,'the hook tells the agent why it was not confirmed');
+ await f.configure();assert.equal(await f.stop({agent_id:'child'}),null);assert.equal((await f.read()).attempts.length,0);
+ await f.start('clear');assert.equal(await f.stop(),null);await assert.rejects(f.configure(),/Root conversation/);
 });
 test('an uncertain attempt in one Root does not create a second continuation in another Root',async t=>{
  const f=await fixture(t);await f.configure();await f.action('create-goal',{title:'Second Auto Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);

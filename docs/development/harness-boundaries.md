@@ -1,15 +1,14 @@
 ---
 keyPoints: >-
   Shared skills own outcome decisions; trusted runtime adapters select setup and
-  operation guidance. Native CLI implementations retain identity and confirmation
-  enforcement. Add a harness through one registry, not host branches in references.
+  operation guidance. Native CLI implementations retain identity enforcement. Add a harness through one registry, not host branches in references.
 ---
 
 # Separate harness behavior from the skill
 
 The audit found host branches in connection setup, Goal creation, feedback intake,
 work selection and the standalone starter. The shared skill should not need to
-know which host has a durable Queue or a main-tool confirmation protocol.
+know which host has a durable Queue or delivers input through hooks.
 
 | Layer | Responsibility |
 | --- | --- |
@@ -32,8 +31,8 @@ or change the saved Root's owner.
 
 Read `session guide` before first use. Use its operation command suffix with the
 established stable prefix. `operations` names creation, receipt, inspection and
-work-selection routes; absent/null operations are unsupported. A pending marker
-is not success: follow each operation's confirmation rule. Next actions cover
+work-selection routes; absent/null operations are unsupported. Follow each
+operation's confirmation rule. Next actions cover
 native activation; constraints retain the connection's operational limits.
 `onboarding` supplies the shared ordered welcome, initial discovery Goal and
 short message templates. Each adapter's `activation` supplies native prerequisites,
@@ -44,16 +43,16 @@ the running Web. The same initial Goal evolves into the user's concrete outcome.
 
 `connectionVerified:false` means preparation did not test the native route; it
 does not mean permission is missing. A Codex Root's verified conversation owner
-is separate from PostToolUse Hook trust. Claude still requires its main-hook
-identity and creation confirmation. The composed `session start` replaces the
+is separate from PostToolUse Hook trust. Claude still requires its recorded
+conversation identity before creation. The composed `session start` replaces the
 lower-level setup `next` with this experience's next step; old setup commands
 remain compatible and do not own the welcome.
 
 The agent still identifies its actual calling host and native project directory.
 The runtime does not infer identity from a model name, current Goal or directory.
 
-Codex supports durable deferred receipts and work selection. Claude requires
-main-session confirmation and has no deferred Queue or work heartbeat. Those
+Codex supports durable deferred receipts and work selection. Claude has no
+deferred Queue or work heartbeat. Those
 are meaningful differences, so the interface exposes them rather than pretending
 both hosts share the same side effects. Current incoming feedback already carries
 host-selected receipt commands; references follow those instructions without

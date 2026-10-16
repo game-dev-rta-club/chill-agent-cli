@@ -11,12 +11,12 @@ The experimental `connection` command qualifies the first step of the
 [Claude connection](claude-conversation.md): getting the calling conversation's
 identity into chill without substituting a Codex thread or looking up a Goal
 by its directory. It is not a complete Claude integration. The development-only
-[main-hook actions](claude-actions.md) now add explicit new-Root creation, inbox
+[connection actions](claude-actions.md) now add explicit new-Root creation, inbox
 reads and receipts on top of this identity.
 
 In an isolated development session, configure `connection claude-hook` as a
-native `SessionStart` command. The hook checks the main-session input and
-writes its identity variables to Claude's
+native `SessionStart` command. The hook records the main session and, when
+Claude provides one, writes its identity variables to Claude's
 [environment handoff file](https://code.claude.com/docs/en/hooks#persist-environment-variables),
 replacing its own earlier lines and keeping other hooks' lines.
 Use the same chill data directory when invoking `connection show` from that
@@ -52,21 +52,19 @@ Agents never carry the generation, so a compact or resume cannot leave a
 command or a running reply waiter with a stale identity. That was the cause of a
 lost waiter in superhookgirl: an agent copied an earlier exported generation
 into a command, saw it rejected and stopped a healthy waiter. Every accepted
-SessionStart still rotates the generation inside the record, where the CLI and
-the main-session hook use it to pair a request with its confirmation. A
+SessionStart still rotates the generation inside the record. A
 separate context ID survives resume and compact when a valid previous record
 exists; startup, clear and fork create a new context ID. Root ownership uses
-this context ID so clear cannot inherit previous Goals, and requests saved in an
-earlier context cannot be recovered after clear. Starts for distinct native IDs
+this context ID so clear cannot inherit previous Goals. Starts for distinct native IDs
 stay separate even in the same folder; a fork that inherits its parent's exports
 is still identified by its own session ID. Subagent hooks and events other than SessionStart
 cannot replace the record. An export failure leaves the old registration intact.
 
 This is coordination between trusted local processes, not an authentication
 boundary. Environment variables may be inherited, including by subprocesses or
-subagents, and same-user processes can alter local files. Goal binding
-and delivery additionally use the [main-hook action protocol](claude-actions.md);
-this does not protect against a malicious same-user process.
+subagents, and same-user processes can alter local files. Delivery
+uses main-session hooks, which never run for a subagent; this does not protect
+against a malicious same-user process.
 The record may outlive the process: it never proves that a conversation is open,
 running or idle. Model data, prompts and transcript contents are not read.
 
@@ -92,11 +90,9 @@ shell quoting and failure handling are covered by `test/claude-entry.test.mjs`.
 
 `connection show` reports the identity stage with capability flags false and a
 separate [recorded connection status](claude-status.md). It distinguishes a running
-reply waiter and recorded session exit without enabling controls. Its exported
-shell environment cannot establish a main-session return path.
-Explicit main-hook actions have separate persisted confirmations. A confirmed
-native prompt can also receive feedback on ordinary tool hooks; SessionStart
-identity alone does not enable that route. Settings and execution controls remain
-unavailable. Replies after a response ends use the [reply waiter](claude-wait.md),
-which a compact in the same context keeps. The broader
+watcher and recorded session exit without enabling controls. Its exported
+shell environment cannot establish a main-session return path. The conversation
+receives feedback on ordinary main tool hooks. Settings and execution controls remain
+unavailable. Replies after a response ends use the [watcher hook](claude-wait.md),
+which follows compact and clear. The broader
 qualification checks remain in the [connection proposal](claude-conversation.md#qualify-before-exposing-controls).
