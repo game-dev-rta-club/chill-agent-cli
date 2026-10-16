@@ -161,3 +161,14 @@ test('HTML diagram annotations retain the exact version and reject missing or fo
  for(const source of [{kind:'brief',version:1,svgIndex:1},{kind:'brief',version:2,svgIndex:-1},{kind:'brief',version:99,svgIndex:0},{kind:'comment',version:1,svgIndex:0}])assert.equal((await f.post({annotations:[{...note,source}]})).status,400);
  assert.equal((await f.get('/api/goals/1/briefs/1/svg/1')).status,404);
 });
+test('files other than images attach with their name; only PDFs open inline',async t=>{
+ const f=await fixture(t);
+ const upload=(body,type,name)=>fetch(f.url()+'/api/images',{method:'POST',headers:{Origin:f.url(),'Content-Type':type,'X-File-Name':encodeURIComponent(name)},body});
+ const pdf=await upload('%PDF-1.4 test','application/pdf','報告 report.pdf');assert.equal(pdf.status,201);const saved=await pdf.json();
+ assert.equal(saved.name,'報告 report.pdf');
+ assert.deepEqual(await(await f.get('/api/attachments/'+saved.id)).json(),{id:saved.id,mimeType:'application/pdf',name:'報告 report.pdf',image:false});
+ const served=await f.get('/api/images/'+saved.id);assert.equal(served.headers.get('content-type'),'application/pdf');assert.match(served.headers.get('content-disposition'),/^inline;/);assert.equal(await served.text(),'%PDF-1.4 test');
+ const html=await(await upload('<script>alert(1)</script>','text/html','../page.html')).json();assert.equal(html.name,'..page.html');
+ const download=await f.get('/api/images/'+html.id);assert.equal(download.headers.get('content-type'),'application/octet-stream');assert.match(download.headers.get('content-disposition'),/^attachment;/);
+ assert.equal((await upload('','text/plain','empty.txt')).status,400);
+});
