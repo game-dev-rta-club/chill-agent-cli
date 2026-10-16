@@ -1184,11 +1184,6 @@ main.addEventListener('click', async event => {
     }
     return;
   }
-  const letterId=Number(button.dataset.letterId);
-  if(button.dataset.action==='answer-letter') {
-    const saved=notesFor().find(note=>note.kind==='letter'&&note.source.eventId===letterId);
-    openNoteEditor(saved||{id:crypto.randomUUID(),kind:'letter',source:{kind:'comment',eventId:letterId},text:''});return;
-  }
   if (button.dataset.action === 'locate-note') {
     event.preventDefault();
     const entry=visibleNotes.get(button.dataset.noteRef);
