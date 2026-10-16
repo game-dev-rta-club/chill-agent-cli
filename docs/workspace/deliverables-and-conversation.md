@@ -50,7 +50,8 @@ an overlaid annotation control.
 Use `goal comment --id 1 --text-file result.txt` for results, completion reports or routine progress. Use
 `goal letter --id 1 --title "Choose a direction" --text-file question.txt` only when a user reply, choice or permission is needed. Files preserve multiline text without shell escaping.
 
-Letter has one presentation and one Answer action. Do not create a Letter just
+Users answer a Letter with an ordinary Comment; there is no separate Answer
+button. Do not create a Letter just
 to ask the user to acknowledge a report. Pending replies block only the actions
 that actually depend on them; continue independent authorized work. The old
 `--no-reply` option is compatibility-only; historical records stay out of pending
@@ -61,9 +62,11 @@ links and disclosures, alongside Markdown. Both authors use the same sanitizer;
 scripts, forms, custom styles and remote images are removed. Use a standalone
 HTML Deliverable when the explanation needs its own layout or styling.
 
-A direct user answer changes a Letter from open to answered; an unrelated
-comment leaves it open. If a question no longer needs an answer, explicitly use
-`goal close-letter --id 1 --event <LETTER_ID>`. The question and discussion remain
+When a delivered Comment answers a Letter, the agent records it before other
+work with `goal close-letter --id 1 --event <LETTER_ID> --answer <COMMENT_ID>`,
+and the Letter shows as Replied. Each delivery lists the open Letters with that
+command as a reminder. An unrelated comment leaves the Letter open. If a
+question no longer needs an answer, use `close-letter` without `--answer`. The question and discussion remain
 saved. Answered or received Letters do not appear in the unanswered list.
 
 An agent Comment or Letter posted by mistake, for example to the wrong Goal or

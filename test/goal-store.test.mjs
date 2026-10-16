@@ -233,3 +233,16 @@ test('large titles and feedback are accepted instead of hitting small caps',asyn
  assert.equal((await f.run('create','--title',title)).title,title);
  assert.equal((await f.feedback('1',{text})).text.length,text.length);
 });
+test('a Letter answered by an ordinary Comment is recorded with --answer and shows as Replied',async t=>{
+ const f=await fixture(t);await f.run('create','--title','Root');
+ const before=await f.feedback('1',{text:'Earlier note'});
+ const letter=await f.run('letter','--id','1','--title','Go ahead?','--text','May I proceed?');
+ const reply=await f.feedback('1',{text:'Yes, go ahead.'});
+ await assert.rejects(f.run('close-letter','--id','1','--event',String(letter.id),'--answer',String(before.id)),/after the Letter/);
+ await assert.rejects(f.run('close-letter','--id','1','--event',String(letter.id),'--answer',String(letter.id)),/user Comment/);
+ const closed=await f.run('close-letter','--id','1','--event',String(letter.id),'--answer',String(reply.id));
+ assert.equal(closed.status,'answered');assert.equal(closed.answeredBy,reply.id);
+ assert.equal((await f.run('show','--id','1')).letters.length,0);
+ const {letterState}=await import('../public/letter-state.js');
+ assert.deepEqual(letterState(closed,[]),{status:'answered',lastAnswerId:reply.id});
+});

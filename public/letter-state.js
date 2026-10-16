@@ -1,10 +1,12 @@
-// User answers and Agent receipt are explicit; ordinary comments leave Letters alone.
+// The agent records which user Comment answered a Letter (answeredBy), or that it
+// no longer needs an answer (receivedAt). Older answers used a Letter annotation.
 export function letterState(letter, conversation = []) {
   if (letter?.type !== 'letter' || letter.author !== 'agent' || letter.deletedAt) return null;
   // Compatibility: historical no-reply records must not become unanswered.
   if (letter.replyRequired === false) return {status: 'notice', lastAnswerId: null};
   const answer = conversation.findLast(entry => entry.goalId === letter.goalId && entry.author === 'user'
     && entry.annotations?.some(note => note.kind === 'letter' && note.source?.kind === 'comment' && note.source.eventId === letter.id));
+  if (letter.answeredBy) return {status: 'answered', lastAnswerId: letter.answeredBy};
   return {status: letter.receivedAt ? 'received' : letter.letterStatus?.status || (answer ? 'answered' : 'open'), lastAnswerId: Math.max(answer?.id || 0, letter.letterStatus?.lastAnswerId || 0) || null};
 }
 
