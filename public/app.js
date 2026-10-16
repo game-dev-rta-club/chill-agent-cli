@@ -151,7 +151,7 @@ function notesPanelMarkup(id) {
   const count = selectedNotes(id).length;
   return `<div class="notes-panel"><div class="notes-heading"><strong>Annotations <span>${count}/${notes.length}</span></strong>
     <label class="note-check"><input type="checkbox" data-note-all ${count === notes.length ? 'checked' : ''}>All</label></div>
-    <ol>${notes.map(note => `<li class="draft-note ${note.selected === false ? 'is-excluded' : ''}">
+    <ol>${notes.map(note => `<li class="draft-note ${note.selected === false ? 'is-excluded' : ''}" data-draft-note="${escapeHTML(note.id)}">
       <label class="note-check"><input type="checkbox" data-note-toggle="${escapeHTML(note.id)}" ${note.selected === false ? '' : 'checked'} aria-label="Send note: ${escapeHTML(noteLabel(note))}"></label>
       <button type="button" data-action="edit-draft-note" data-note-id="${escapeHTML(note.id)}" title="Open note"><span class="note-target">${escapeHTML(noteSourceLabel(note) + noteLabel(note))}</span><span class="note-summary">${escapeHTML(note.text || (attachmentIdsFor(note).length ? 'Image' : ''))}</span>${noteImageMarkup(note)}${icon('open')}</button>
       <button type="button" class="note-remove" data-action="delete-draft-note" data-note-id="${escapeHTML(note.id)}" aria-label="Delete note: ${escapeHTML(noteLabel(note))}" title="Delete note">${icon('close')}</button></li>`).join('')}</ol></div>`;
@@ -162,8 +162,10 @@ function updateComposerState() {
   const busy = submitting.has(formKey(activeGoalId, 'comment')) || annotationSaves.has(notesKey()) || imageReads.has(formKey(activeGoalId, 'comment'));
   form.querySelector('fieldset').disabled = busy;
   const empty = !form.querySelector('textarea').value.trim() && !imagesFor('comment').length && !selectedNotes().length;
+  // A darker button says the comment has something to send.
   form.querySelectorAll('[data-submit-mode]').forEach(button => {
     button.disabled = busy;
+    button.classList.toggle('ready', !busy && !empty);
   });
   if (!empty) {
     form.querySelector('.empty-reply')?.remove();
@@ -172,7 +174,9 @@ function updateComposerState() {
   const all = form.querySelector('[data-note-all]');
   if (all) all.indeterminate = selectedNotes().length > 0 && selectedNotes().length < notesFor().length;
 }
-function updateNotesPanel() {
+// added: the ID of a note just added, which glows briefly so it is easy to find.
+function updateNotesPanel(added = null) {
+  const form = main.querySelector('.conversation-form'), before = form?.offsetHeight ?? null;
   const focused = document.activeElement;
   const focusNoteId = focused?.dataset.noteToggle;
   const focusAll = focused?.hasAttribute('data-note-all');
@@ -182,6 +186,8 @@ function updateNotesPanel() {
     : [...(slot?.querySelectorAll('[data-note-toggle]') || [])].find(input => input.dataset.noteToggle === focusNoteId);
   nextFocus?.focus({preventScroll: true});
   updateComposerState();
+  if (form) keepMessagesAboveComposer(form, before);
+  if (added) [...(slot?.querySelectorAll('[data-draft-note]') || [])].find(item => item.dataset.draftNote === added)?.classList.add('note-added');
 }
 
 function savedNotesMarkup(event) {
@@ -1052,13 +1058,13 @@ main.addEventListener('toggle', event => {
 // On wide screens the composer sticks to the bottom of the Conversation column.
 // When typing grows it, move the column by the same amount so the messages
 // above stay visible instead of disappearing under the composer.
+// Adding an annotation grows it the same way.
 let composerHeight = null;
 main.addEventListener('beforeinput', event => {
   if (event.target.dataset?.input === 'comment') composerHeight = event.target.closest('form')?.offsetHeight ?? null;
 }, true);
-function keepMessagesAboveComposer(input) {
-  const form = input.closest('form'), column = form?.closest('[data-scroll-pane]'), before = composerHeight;
-  composerHeight = null;
+function keepMessagesAboveComposer(form, before) {
+  const column = form?.closest('[data-scroll-pane]');
   if (!form || !column || before === null || getComputedStyle(form).position !== 'sticky') return;
   const delta = form.offsetHeight - before;
   // Shrinking needs nothing: the browser already clamps the shorter column.
@@ -1073,7 +1079,9 @@ main.addEventListener('input', event => {
     commentDrafts.set(formKey(activeGoalId, 'comment'), input.value);
     writeDraft('comment', activeGoalId, input.value);
     updateComposerState();
-    keepMessagesAboveComposer(input);
+    const before = composerHeight;
+    composerHeight = null;
+    keepMessagesAboveComposer(input.closest('form'), before);
   }
 });
 
@@ -1269,7 +1277,7 @@ main.addEventListener('submit', async event => {
       saveNotes(notes, id);
       if (activeGoalId === id && form.isConnected) {
         if (editingNote === editor) closeAnnotation();
-        renderAnnotations(); updateNotesPanel();
+        renderAnnotations(); updateNotesPanel(sendNow ? null : note.id);
         if(sendNow) {
           updateTimeline(id);refreshGoalFrame();renderAnnotations();
           scrollInReadingPane(document.getElementById(`event-${entry.id}`),'nearest');
