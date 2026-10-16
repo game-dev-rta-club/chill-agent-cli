@@ -272,3 +272,27 @@ test('with the watcher hook installed, nothing tells the agent to start a waiter
  assert.equal((await readJson(f.recordPath)).hookWatcher,true);
  assert.doesNotMatch(context(await f.action('inbox')),/connection wait/);
 });
+
+test('in Claude Desktop the agent runs the waiter as a task, which the watcher hook gives way to',async t=>{
+ const f=await fixture(t);
+ await mkdir(join(f.cwd,'.claude'),{recursive:true});
+ await writeFile(join(f.cwd,'.claude/settings.local.json'),JSON.stringify({hooks:{Stop:[{hooks:[{type:'command',command:"'/x/chill' connection claude-watch",asyncRewake:true,timeout:604800}]}]}}));
+ process.env.CLAUDE_CODE_ENTRYPOINT='claude-desktop';t.after(()=>{delete process.env.CLAUDE_CODE_ENTRYPOINT;});
+ // Desktop pauses an idle conversation with only the hook watching, so the agent is asked for a task.
+ assert.match(context(await claudeSessionStartContext(await f.start('resume'))),/owns chill-agent Goals[\s\S]*connection wait/);
+ const hook=watch(f,{refreshMs:20});await f.waiting();
+ assert.match(context(await f.action('inbox')),/run_in_background[\s\S]*connection wait/);
+ const stop=await f.stop();assert.equal(stop.decision,'block');assert.match(stop.reason,/run_in_background[\s\S]*connection wait/);
+ assert.equal(await handleClaudeToolHook(f.event('Stop',{stop_hook_active:true}),{cwd:f.cwd}),null,'asked once per stop');
+ // The task takes over; the hook ends quietly, and a later hook stands by.
+ const task=f.wait({refreshMs:20});
+ assert.deepEqual(await hook.done,{status:'replaced'});assert.equal(watcherWakeText({status:'replaced'}),'');
+ await f.until(async()=>(await readJson(f.recordPath)).waiter?.kind===undefined);
+ assert.deepEqual(await watch(f,{livenessMs:200}).done,{status:'already-running'});
+ assert.doesNotMatch(context(await f.action('inbox')),/connection wait/);
+ assert.equal(await f.stop(),null);
+ assert.equal(await claudeSessionStartContext(await f.start('compact')),null,'a running task survives compact');
+ // Feedback ends the task, which tells the agent to read it and start the waiter again.
+ await appendFeedback({goalId:f.root.id,text:'from the Web'});
+ const result=await task.done;assert.equal(result.status,'feedback');assert.match(waitResultText(result),/connection inbox[\s\S]*connection wait/);
+});
