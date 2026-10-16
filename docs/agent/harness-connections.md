@@ -93,9 +93,9 @@ That refactor alone does not enable a Claude native return path.
 
 The [Claude entry handshake](claude-entry.md) now passes native session identity
 and a connection generation to the CLI in isolated qualification sessions.
-Experimental [main-hook actions](claude-actions.md) add new-Root ownership,
-explicit inbox reads and receipts, with request IDs for crash recovery. A verified
-native prompt also receives new input on ordinary main-session tool hooks. Context
+Experimental [connection actions](claude-actions.md) add new-Root ownership,
+explicit inbox reads and receipts. The conversation also receives new input on
+ordinary main-session tool hooks. Context
 IDs separate clear/fork from resume/compact. Local protocol tests and authenticated
 print-mode probes pass. The [reply waiter](claude-wait.md) wakes an idle
 conversation through a background task; chill's results tell the agent when to
@@ -122,8 +122,8 @@ which harness it is: the agent's name and model come back as display strings, an
 
 Each adapter lives in `lib/agents/` (`codex*.mjs`, `claude*.mjs`). Codex pushes
 feedback into the chat's native Queue and is polled for AutoContinue. Claude
-receives feedback through its hooks and reply waiter, confirms receipts on its
-next tool result, and continues at its own Stop. Behavior that a harness cannot
+receives feedback through its hooks and watcher, records receipts at once, and
+continues at its own Stop. Behavior that a harness cannot
 offer is a capability set to false, not a branch in core code.
 [`test/harness-boundary.test.mjs`](../../test/harness-boundary.test.mjs) fails
 if core code names a harness outside a shrinking list of files still being moved.

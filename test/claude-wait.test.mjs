@@ -7,7 +7,7 @@ import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
-import {requestClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessionStartContext} from '../lib/claude-actions.mjs';
+import {runClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessionStartContext} from '../lib/claude-actions.mjs';
 import {waitForClaudeFeedback,waitResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
@@ -25,7 +25,7 @@ async function fixture(t) {
  let record,env;const sessionId=randomUUID(),promptId=randomUUID();
  const event=(name,patch={})=>({hook_event_name:name,session_id:sessionId,prompt_id:promptId,cwd,...patch});
  async function start(source='startup'){record=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CHILL_AGENT_CONNECTION_GENERATION:record.generation};return record;}
- async function action(name,payload={}) {const r=await requestClaudeAction(name,payload,{env});return handleClaudeToolHook(event('PostToolUse',{tool_name:'Bash',tool_use_id:randomUUID(),tool_response:{stdout:r.marker}}),{cwd});}
+ async function action(name,payload={}) {const r=await runClaudeAction(name,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await start();const created=await action('create-goal',{title:'Wait receipt',scope:'Test',criteria:'No duplicate'});const root=(await listGoals())[0];
  const recordPath=claudeEntryPaths(data,sessionId).record;
  // Waiters run until feedback; tests stop the ones that should keep waiting.
@@ -75,7 +75,7 @@ test('the waiter refreshes its record; status reports it and falls back when it 
  // A waiter that was killed leaves its last refresh behind until it is stale.
  const record=await readJson(f.recordPath);await writeJsonAtomically(f.recordPath,{...record,waiter:{id:randomUUID(),contextId:record.contextId,checkedAt:new Date(clock).toISOString()}});
  clock+=60000;assert.equal((await readClaudeConnectionStatus(f.connection,{now})).state,'waiting');
- clock+=31000;status=await readClaudeConnectionStatus(f.connection,{now});assert.notEqual(status.state,'waiting');assert.match(status.detail,/No reply waiter is running/);
+ clock+=31000;status=await readClaudeConnectionStatus(f.connection,{now});assert.notEqual(status.state,'waiting');assert.match(status.detail,/No watcher is running/);
 });
 
 test('the next action names the waiter only while none is running',async t=>{
@@ -129,7 +129,7 @@ test('cached history still observes manual holds and ownership changes',async t=
 
 test('CLI wait prints the next actions once feedback is saved',async t=>{
  const f=await fixture(t);await f.stop();const entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
- const p=spawn(process.execPath,[entry,'wait'],{cwd:f.cwd,env:{...process.env,...f.env()},stdio:['ignore','pipe','pipe']});let stdout='',stderr='';
+ const p=spawn(process.execPath,[entry,'wait'],{cwd:f.cwd,env:{...process.env,CLAUDE_CODE_SESSION_ID:f.env().CHILL_AGENT_SESSION_ID,...f.env()},stdio:['ignore','pipe','pipe']});let stdout='',stderr='';
  p.stdout.on('data',b=>stdout+=b);p.stderr.on('data',b=>stderr+=b);
  await f.waiting();await appendFeedback({goalId:f.root.id,text:'from the Web'});
  const code=await new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});
@@ -146,16 +146,16 @@ test('the claude-watch hook exits 2 with the feedback, which Claude Code shows t
  assert.equal(code,2);assert.equal(stdout,'');assert.match(stderr,/from the Web[\s\S]*connection reply --event/);
 });
 
-test('reply posts on the Web and completes the receipt in one confirmed action',async t=>{
+test('reply posts on the Web and completes the receipt in one action',async t=>{
  const f=await fixture(t),reply=await appendFeedback({goalId:f.root.id,text:'Please summarize'});
- assert.match(JSON.stringify(await f.action('reply',{eventId:reply.changeId,text:'Too early'})),/connection inbox first/,'the hook tells the agent why it was not confirmed');
+ await assert.rejects(f.action('reply',{eventId:reply.changeId,text:'Too early'}),/connection inbox first/);
  assert.match(context(await f.action('inbox')),/connection reply --event <eventId>/);
  const done=context(await f.action('reply',{eventId:reply.changeId,text:'Here is the summary.'}));
  assert.match(done,new RegExp(`recorded feedback #${reply.changeId} as completed`));
  const state=await readDeliveryState(reply.changeId);assert.equal(state.status,'completed');assert.equal(state.agentReported,true);
  const posted=(await readFeedback()).filter(e=>e.author==='agent'&&e.goalId===f.root.id);
  assert.deepEqual(posted.map(e=>e.text),['Here is the summary.']);
- assert.match(JSON.stringify(await f.action('reply',{eventId:reply.changeId,text:'Again'})),/terminal receipt/,'the hook tells the agent why it was not confirmed');
+ await assert.rejects(f.action('reply',{eventId:reply.changeId,text:'Again'}),/terminal receipt/);
  assert.equal((await readFeedback()).filter(e=>e.author==='agent').length,1,'a rejected reply posts nothing');
 });
 

@@ -1,14 +1,15 @@
 ---
 keyPoints: >-
-  Trusted composed extensions may confirm native actions and return a continuation
-  from a verified main Stop. Policy owns durable reservations; the CLI owns identity,
-  hook output and coordination with feedback. This does not establish live control.
+  Trusted composed extensions may run actions for a Claude conversation and
+  return a continuation from its main Stop. Policy owns durable reservations;
+  the CLI owns identity, hook output and coordination with feedback. This does
+  not establish live control.
 ---
 
 # Extend a verified native connection
 
 Protocol v1's optional `connection-hooks` capability lets a packaged extension
-participate in the experimental [Claude main-hook protocol](../agent/claude-actions.md).
+participate in the experimental [Claude connection](../agent/claude-actions.md).
 The standalone CLI contains no Auto mode policy. Register trusted modules in the
 composed runtime's `extensions.json`:
 
@@ -21,44 +22,40 @@ Workspace content and hook payloads cannot choose executable paths.
 `CHILL_AGENT_EXTENSIONS=none` disables this loading. Native hook configuration
 remains a separate opt-in; declaring a provider does not install hooks.
 
-## Confirm an action
+## Run an action
 
-An extension command calls `requestNativeAction('extension', {extension,
-operation, input})` and prints the returned marker. The shell only stages intent.
-The main Bash hook validates session, context and generation, then invokes:
+An extension command calls `runNativeAction('extension', {extension,
+operation, input})` and prints the returned `text`. The host finds the calling
+conversation, as it does for every Claude command, then invokes:
 
 ```js
 export async function confirmAction({requestId, connection, generation,
   promptId, operation, input}) {
-  // Validate ownership and payload; persist an idempotent effect.
-  return {result: {saved: true}, context: 'The confirmed result for the Agent.'};
+  // Validate ownership and payload; persist the effect.
+  return {result: {saved: true}, context: 'The result for the Agent.'};
 }
 ```
 
-Require `promptId` when the action needs native prompt evidence. Validate the
-provider's payload; the host only bounds its JSON size and envelope. Subagents
-cannot confirm actions. A completed request is silent on replay. A deliberately
-recovered incomplete request keeps its ID, so the provider must make its mutation
-idempotent across a crash between its write and the host's completion record.
+`promptId` is null: a shell command has no native prompt identity. Validate the
+provider's payload; the host checks only its envelope.
 
-## Decide at a verified Stop
+## Decide at Stop
 
 `onStop({connection, generation, promptId, checkpointId})` runs under the native
-entry lock after a verified main prompt ends. Return `null` to abstain or a reason
-string to continue. The host emits native `decision: "block"` once and removes
-the Stop checkpoint. The next ordinary tool in the
-same continued prompt can receive saved Web feedback again; a repeated Stop
-without intervening tools does not create another checkpoint.
+entry lock when a main response ends; a subagent Stop never calls it. Return
+`null` to abstain or a reason string to continue. The host emits native
+`decision: "block"` with a fresh checkpoint ID each Stop; the provider's own
+reservation decides whether a repeated Stop continues again.
 
 Persist a reservation **before** returning a reason. A lost hook output is an
 uncertain request, not permission to resend. Each provider owns its allowance,
 Off/Pause handling, result receipts and reconciliation. A result alone is not
-proof of response completion; a matching later main Stop can supply that fact.
+proof of response completion; a later main Stop supplies that fact.
 An unresolved request must not be bypassed through another Root in the same chat.
 
-Saved Web input that the [reply waiter](../agent/claude-wait.md) has detected
-stays pending until the inbox claims it, so the continuation policy must observe
-that pending delivery and abstain. There is no second transport fallback or new
+Saved Web input that the [watcher hook](../agent/claude-wait.md) has detected
+stays pending until a hook or the inbox offers it, so the continuation policy
+must observe that pending delivery and abstain. There is no second transport fallback or new
 Agent process.
 
 Use `connectionPolicyLock(connection, run)` to serialize a native policy journal.
@@ -69,5 +66,5 @@ from inside these callbacks. Native queue state, permissions and interruption
 remain Claude's responsibility; a Stop is not a general live-status signal.
 
 Implementation: [provider loading](../../lib/connection-extensions.mjs),
-[main-hook coordination](../../lib/claude-actions.mjs). Product-specific commands
+[Claude actions and hooks](../../lib/claude-actions.mjs). Product-specific commands
 and qualification belong to the integrating extension's documentation.

@@ -1,6 +1,6 @@
 ---
 keyPoints: >-
-  Experimental Claude Auto mode continues through a verified main Stop, once per
+  Experimental Claude Auto mode continues through a main Stop, once per
   meaningful revision. It preserves Off, continuation Pause, pending feedback and
   uncertain reservations. Native packaged qualification passes; explicit project hook setup is available.
 ---
@@ -17,7 +17,7 @@ advertised as a supported Claude Web control, apart from the AutoContinue switch
 
 Prepare the composed runtime in an isolated data directory. Configure the CLI's
 `connection claude-hook` for SessionStart, UserPromptSubmit, PostToolUse, Stop and
-SessionEnd. Create a new Root through its main-hook action protocol. In that same
+SessionEnd. Create a new Root with connection create-goal. In that same
 main conversation, using the prepared launcher:
 
 ```sh
@@ -27,7 +27,7 @@ chill monitor pause --id <ROOT>
 chill monitor resume --id <ROOT>
 ```
 
-Each mutation needs native main-hook confirmation. `pause` holds **future automatic
+Each command acts at once for the calling conversation. `pause` holds **future automatic
 continuations**; it does not interrupt Claude. Enabling does not release a pause
 or reset history. The existing Web polling scheduler, `start`, `tick` and `watch`
 do not drive this experimental route. No new native process is launched.
@@ -45,7 +45,7 @@ conversation. Pause/Resume remain conversation commands.
 
 When a continued conversation takes a Root over with `connection adopt`, its
 On/Off and Pause move to the new conversation, because they describe the Goal's
-work rather than one session. A request the earlier conversation never confirmed
+work rather than one session. A request the earlier conversation never answered
 is closed as Agent changed and never resent. The Root's owner is part of the
 revision, so the new conversation receives its own single check, as a reassigned
 Codex Root does. A record of an owner the Root never had reads as Off and is not
@@ -53,16 +53,15 @@ overwritten.
 
 ## Continue once and account for the result
 
-At a verified main Stop, the extension checks saved feedback and holds across
+At a main Stop, the extension checks saved feedback and holds across
 every Root in this native connection. Off, Pause, unprocessed input and uncertain
 prior requests suppress continuation. The extension saves one attempt before the
 CLI returns a native Stop decision. It links the packaged combined continuation
 and stopping-review guide, without claiming that native input queues are empty.
 Claude retains its input ordering and tool permission policy.
 
-The Agent reports the exact attempt through `monitor result`. That receipt must
-be confirmed by the main hook; the response must then reach a matching Stop.
-Only both facts complete the attempt. A lost output or missing receipt is never
+The Agent reports the exact attempt through `monitor result`; the response must
+then reach a Stop. Only both facts complete the attempt. A lost output or missing receipt is never
 blindly retried, even after a revision change or through another Root. One check
 consumes the allowance for that revision; comments, results and Off/On toggles
 do not create another allowance. Substantive Goal, Deliverable or user-input changes

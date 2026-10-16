@@ -9,7 +9,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
-import {requestClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
+import {runClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
 import {listGoals,readFeedback,appendAgentComment} from '../lib/goal-store.mjs';
 import {readDeliveryState} from '../lib/delivery.mjs';
 
@@ -24,7 +24,7 @@ test('composed SQLite runtime carries Web feedback through native hook receipts 
  const event=(hook_event_name,patch={})=>({hook_event_name,session_id:sessionId,prompt_id:promptId,cwd,...patch});
  const entry=await captureClaudeEntry(event('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});
  const env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CHILL_AGENT_CONNECTION_GENERATION:entry.generation};
- async function action(name,payload){const result=await requestClaudeAction(name,payload,{env});return handleClaudeToolHook(event('PostToolUse',{tool_name:'Bash',tool_use_id:randomUUID(),tool_response:{stdout:result.marker}}),{cwd});}
+ async function action(name,payload) {const r=await runClaudeAction(name,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await action('create-goal',{title:'SQLite roundtrip',scope:'One isolated Web conversation',criteria:'Web input and reply persist'});
  const [goal]=await listGoals();assert.equal(goal.connection.sessionId,sessionId);
  server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--local'],{cwd,env:{...process.env,PORT:'0'},stdio:['ignore','pipe','pipe']});exit=once(server,'exit');

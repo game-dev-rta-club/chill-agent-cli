@@ -28,10 +28,10 @@ Our adapter should separate these abilities:
 
 | Need | Proposed behavior |
 | --- | --- |
-| Start using chill | Bind a Root to the verified main conversation, not to its directory or a subagent. |
+| Start using chill | Bind a Root to the conversation Claude Code names in its shell, not to its directory. |
 | Receive feedback during work | Return pending input from all Goals assigned to that connection, preserving manual holds. |
-| Continue when a response ends | A composed connection extension reserves one request and returns it through a verified main Stop; the packaged print-mode qualification passes. |
-| Receive input after becoming idle | The agent keeps the [reply waiter](claude-wait.md) running as a background task; its exit wakes the conversation. |
+| Continue when a response ends | A composed connection extension reserves one request and returns it through a main Stop; the packaged print-mode qualification passes. |
+| Receive input after becoming idle | The [watcher hook](claude-wait.md) waits in the background and wakes the conversation. |
 | Read or change settings | Expose observed model data separately from the ability to change it. Never turn a launch flag into a claim of live control. |
 | Pause and resume | Holding future input is separate from cancelling a running response. Advertise cancellation only after it is verified. |
 
@@ -67,13 +67,12 @@ saved Web input / eligible Auto mode request
       offered -> agent receipt -> completed / failed
 ```
 
-The [development main-hook actions](claude-actions.md) implement new-Root ownership,
-explicit inbox reads, receipts and automatic busy delivery within a verified
-native prompt. They store an offer as `unknown` until the Agent claims it.
+The [development actions](claude-actions.md) implement new-Root ownership,
+explicit inbox reads, receipts and automatic busy delivery through main tool
+hooks. They store an offer as `unknown` until the Agent records a receipt.
 Ordinary tool hooks offer only newly saved input; explicit inbox recovers an
-unconfirmed offer. Stop clears busy-prompt verification and leaves a checkpoint for
-connection extensions. The waiter never offers input itself, so both routes use the
-same uncertain-offer records. Optional
+offer without a receipt. The watcher offers input as a tool hook does, so all
+routes use the same uncertain-offer records. Optional
 [connection hooks](../extensions/connection-hooks.md) support continuation policy
 without adding it to the standalone CLI. The product extension has passed a
 packaged native Stop roundtrip.
@@ -112,8 +111,8 @@ unavailable until their evidence is sufficient.
 
 The [entry handshake](claude-entry.md) now implements a separate Claude namespace
 and a generation checked by the CLI. Its native environment-handoff probe passed
-with Claude Code 2.1.289. The separate main-hook action protocol can create a
-new Root and confirm an explicit inbox/receipt call. With explicitly selected
+with Claude Code 2.1.289. The connection actions can create a new Root and run
+an explicit inbox/receipt call. With explicitly selected
 native authentication, both the inbox and automatic busy-delivery model probes
 passed in disposable print-mode conversations on 2026-10-06. Read those guides
 for implementation, credential isolation, limitations and probes.
@@ -142,7 +141,7 @@ that those fields are absent from an interactive run.
 
 Consequently, a startup record must tolerate unavailable model/run observations;
 it cannot mark an execution running or authenticate a Root binding merely from
-the directory. Binding now also requires the main-hook action confirmation; the init-only and local tests
+the directory. Binding uses connection create-goal from that conversation; the init-only and local tests
 do not establish native model conversation continuity.
 Do not synthesize a Codex turn ID from a Claude session ID.
 

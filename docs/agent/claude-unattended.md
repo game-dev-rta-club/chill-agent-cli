@@ -63,9 +63,9 @@ place: the affected action may wait while independent work continues.
 | A native approval prompt | Review it in the original Claude conversation; changing chill Auto mode will not answer it |
 | No reply waiter is running | Ask that same conversation to check `connection inbox`; its result names the waiter to start |
 | Claude closed | Resume the same native session |
-| A request or delivery is uncertain | Inspect its existing request/receipt; do not create a replacement Root or resend the message |
+| A delivery is uncertain | Read `connection inbox` in the same conversation; do not create a replacement Root or resend the message |
 | A manual hold | Preserve it until the user resumes that work |
 
 The [connection status](claude-status.md) reports recorded evidence, not
-guaranteed availability. Follow [main-hook recovery](claude-actions.md) using
-the prepared CLI prefix and separate main Bash calls.
+guaranteed availability. Recover with the [connection actions](claude-actions.md)
+using the prepared CLI prefix.

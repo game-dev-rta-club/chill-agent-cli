@@ -83,8 +83,8 @@ async function main() {
   }
   if(command==='activity') {
     const result=await recordActivity(v['--event'],v['--state']);
-    // An agent that confirms receipts itself reads this line from the output.
-    if(result.pending){console.log(result.pending);console.log(result.note);return;}
+    // A Claude conversation reads the receipt as text.
+    if(typeof result.text==='string'){console.log(result.text);return;}
     return output({delivery:result});
   }
   if(command==='retry') return console.log(JSON.stringify({delivery:await deliverFeedback(v['--event'])}));

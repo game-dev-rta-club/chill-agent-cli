@@ -9,6 +9,8 @@ import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs'
 import {fileURLToPath} from 'node:url';
 
 const execute = promisify(execFile);
+// The test may itself run inside Claude Code, which names its own session.
+const {CLAUDE_CODE_SESSION_ID:_, ...shellEnv} = process.env;
 const entry = fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'chill-claude-test-'));
@@ -28,7 +30,7 @@ async function fixture(t) {
 test('native entry reaches the CLI through shell exports, without Goal assignment or controls', {skip:process.platform === 'win32'}, async t => {
   const f = await fixture(t), record = await captureClaudeEntry(f.input, f.options);
   const {stdout} = await execute('/bin/sh', ['-c', '. "$1"; test "$EXISTING_HOOK_VALUE" = preserved || exit 1; exec "$2" "$3" show',
-    'chill-test', f.envFile, process.execPath, entry], {cwd:f.cwd, env:{...process.env, CHILL_AGENT_DATA_DIR:f.data}});
+    'chill-test', f.envFile, process.execPath, entry], {cwd:f.cwd, env:{...shellEnv, CHILL_AGENT_DATA_DIR:f.data}});
   const result = JSON.parse(stdout);
   assert.deepEqual(result.identity, {harnessId:'claude-code', sessionId:f.input.session_id, generation:record.generation});
   assert.deepEqual(result.roots, [], 'an entry alone owns no Goal');
@@ -43,7 +45,7 @@ test('opaque native IDs cannot traverse paths or inject shell commands', {skip:p
   f.input.session_id = "../../a'$(printf injected)'`echo injected`";
   const record = await captureClaudeEntry(f.input, f.options);
   const {stdout} = await execute('/bin/sh', ['-c', '. "$1"; exec "$2" "$3" show',
-    'chill-test', f.envFile, process.execPath, entry], {env:{...process.env, CHILL_AGENT_DATA_DIR:f.data}});
+    'chill-test', f.envFile, process.execPath, entry], {env:{...shellEnv, CHILL_AGENT_DATA_DIR:f.data}});
   assert.equal(JSON.parse(stdout).identity.sessionId, record.sessionId);
   assert.equal((await readdir(join(f.data, 'workspace/connections/claude-code'))).filter(name => name.endsWith('.json')).length, 1);
 });
@@ -82,11 +84,14 @@ test('subagent or non-start hooks cannot consume feedback or replace a registrat
   assert.equal((await identifyClaudeCaller(f.caller(record))).identity.generation, record.generation);
 });
 
-test('incomplete input, wrong directory and failed exports never establish identity', async t => {
+test('incomplete input and failed exports never establish identity; the export file is optional', async t => {
   const f = await fixture(t);
-  for (const patch of [{session_id:null}, {session_id:'\nx'}, {source:'unknown'}, {cwd:tmpdir()}])
+  for (const patch of [{session_id:null}, {session_id:'\nx'}, {source:'unknown'}])
     await assert.rejects(captureClaudeEntry({...f.input, ...patch}, f.options));
-  await assert.rejects(captureClaudeEntry(f.input, {...f.options, env:{}}), /handoff/);
+  // Claude Code names the conversation in every shell, so the handoff file is a convenience.
+  assert.equal((await captureClaudeEntry(f.input, {...f.options, env:{}})).sessionId, f.input.session_id);
+  // A hook input naming another directory, such as a worktree, still connects.
+  assert.equal((await captureClaudeEntry({...f.input, cwd:tmpdir()}, f.options)).sessionId, f.input.session_id);
   const first = await captureClaudeEntry(f.input, f.options);
   await assert.rejects(captureClaudeEntry(f.input, {...f.options, env:{CLAUDE_ENV_FILE:f.cwd}}));
   assert.equal((await identifyClaudeCaller(f.caller(first))).identity.generation, first.generation);

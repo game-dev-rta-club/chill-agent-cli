@@ -15,7 +15,7 @@ try{
  else if(!/^[1-9][0-9]*$/.test(args[1]||''))throw Error(usage);
  else if(command==='status'&&args.length===2&&args[0]==='--id')console.log(JSON.stringify(await readMonitor(args[1]),null,2));
  else if((continuation=agentContinuation((await readGoalContext(args[1]).catch(()=>null))?.root||{}))?.confirmed){
-  // This agent confirms monitor commands in its own conversation (its main hook).
+  // This agent records monitor commands for its own conversation.
   let input;
   if(command==='result'){
    if(args.length!==6||args[0]!=='--id'||args[2]!=='--attempt'||args[4]!=='--outcome')throw Error(usage);
@@ -24,8 +24,7 @@ try{
    if(args.length!==2||args[0]!=='--id')throw Error(usage);
    input={rootId:args[1]};
   }
-  const request=await continuation.confirmed(command,input);
-  console.log(request.pending);console.log(request.note);
+  console.log((await continuation.confirmed(command,input)).text);
  }
  else if(command==='result'){
   if(args.length!==6||args[0]!=='--id'||args[2]!=='--attempt'||args[4]!=='--outcome')throw Error(usage);
