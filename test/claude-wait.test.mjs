@@ -237,6 +237,15 @@ test('a hook watcher takes over from a connection wait task; a second hook watch
  assert.deepEqual(await w.stop(),{status:'stopped'});
 });
 
+test('a watcher whose Claude Code process ended leaves feedback unclaimed',async t=>{
+ const f=await fixture(t);let attached=true;const w=watch(f,{attached:()=>attached});await f.waiting();
+ attached=false;
+ assert.deepEqual(await w.done,{status:'detached'});
+ const reply=await appendFeedback({goalId:f.root.id,text:'nobody is listening'});
+ assert.equal(await readDeliveryState(reply.changeId),null,'still saved for the next conversation');
+ assert.equal((await readJson(f.recordPath)).waiter,undefined);
+});
+
 test('the watcher hook follows a cleared context and ends when the conversation owns no Goal',async t=>{
  const f=await fixture(t),w=watch(f);await f.waiting();
  await f.start('clear');

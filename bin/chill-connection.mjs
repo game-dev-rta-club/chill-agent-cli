@@ -77,7 +77,9 @@ async function main() {
     if(input?.agent_id!=null||!['SessionStart','Stop'].includes(input?.hook_event_name)||typeof input.session_id!=='string')return;
     const controller=new AbortController();
     for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
-    const text=watcherWakeText(await watchClaudeConversation({sessionId:input.session_id,hook:true,signal:controller.signal}));
+    // Claude Code is the parent; when it exits this process is reparented.
+    const parent=process.ppid;
+    const text=watcherWakeText(await watchClaudeConversation({sessionId:input.session_id,hook:true,signal:controller.signal,attached:()=>process.ppid===parent}));
     if(text){process.stderr.write(`${text}\n`);process.exitCode=2;}
     return;
   }
