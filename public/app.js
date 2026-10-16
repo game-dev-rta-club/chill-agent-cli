@@ -14,6 +14,7 @@ import { createReadingPane } from './reading-pane.js';
 import {createRuntimeUpdate} from './runtime-update.js';
 import {createTabIcon} from './tab-icon.js';
 import {isRunning} from './goal-state.js';
+import {createSkillMenu} from './skill-menu.js';
 
 history.scrollRestoration='manual';
 const briefsByGoal = new Map();
@@ -62,6 +63,7 @@ const fileMarkup = (src, name, className) => src
 const main = document.querySelector('#main');
 const readingPane = createReadingPane(main,{rectOf:viewportRect});
 const keepReadingPosition = readingPane.preserve;
+createSkillMenu({root:main, goalId:()=>activeGoalId, escapeHTML});
 const announcement = document.querySelector('#announcement');
 let toastTimer;
 function showToast(text) {

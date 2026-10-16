@@ -21,6 +21,7 @@ import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-li
 import { createTunnelController } from './lib/tunnel-controller.mjs';
 import { readMessageSettings } from './lib/message-settings.mjs';
 import {renderedEvent} from './lib/markdown.mjs';
+import {goalSkills} from './lib/skill-catalog.mjs';
 import {briefDocument,briefSVG} from './lib/brief.mjs';
 import {readAgentStatus,saveAgentSettings,controlAgent,readAgentActivityRow} from './lib/agent-status.mjs';
 import {readAgentPresence} from './lib/agent-presence.mjs';
@@ -237,6 +238,11 @@ const server = createServer(async (request, response) => {
   if(presencePath&&request.method==='GET'){
     try{return sendJson(response,200,await readAgentPresence(presencePath[1]));}
     catch{return sendJson(response,503,{error:'Could not read Agent status.'});}
+  }
+  const skillsPath=/^\/api\/goals\/([1-9][0-9]*)\/skills$/.exec(path);
+  if(skillsPath&&request.method==='GET'){
+    try{return sendJson(response,200,await goalSkills(skillsPath[1]));}
+    catch(error){return sendJson(response,error.message?.includes('not found')?404:500,{error:'Could not read skills.'});}
   }
   const agentPath=/^\/api\/goals\/([1-9][0-9]*)\/agent$/.exec(path);
   if(agentPath&&request.method==='GET') {

@@ -18,6 +18,7 @@ export default {
   nextActions:[
    'For first use, follow onboarding in order, including opening Web. Use activation only for an actual native connection step.',
    'Use the supplied stable prefix with these command suffixes. Use installed --help for arguments.',
+   'A Web comment that starts with /name asks you to use that skill. If it is not loaded by name, read its SKILL.md in .claude/skills, .agents/skills or .codex/skills of the project or home folder.',
    'Other conversations may work in the same project at the same time, often in other Git worktrees; each owns its own Root. Work only on Goals under your own Root and change only your own working folder. Read other Roots only when the user asks.',
    'For independent later input, defer only if its Queue entry is verified. If deferment fails, inspect current state; do not promise redelivery or blindly enqueue again.'
   ],
