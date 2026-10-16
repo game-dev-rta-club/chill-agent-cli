@@ -12,4 +12,7 @@ test('Claude feedback points to the recorded project guide, as Codex delivery do
  const previous=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');t.after(()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;});
  const {feedbackContext}=await import('../lib/claude-actions.mjs');
  assert.match(feedbackContext([]),new RegExp(`Workflow: ${JSON.stringify(guide).replace(/[\\\\^$.*+?()[\]{}|]/g,'\\$&')}`));
+ // Skills named in the feedback come with the file to read.
+ assert.match(feedbackContext([],[],[{name:'grilling',scope:'user',file:'/h/.claude/skills/grilling/SKILL.md'}]),/Skills named in the feedback[^\n]*\n\/grilling \(user\): \/h\/\.claude\/skills\/grilling\/SKILL\.md/);
+ assert.doesNotMatch(feedbackContext([]),/Skills named/);
 });
