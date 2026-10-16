@@ -70,19 +70,19 @@ test('Next Actions and hook fallback list current open Letters, with deliberate 
  await f.feedback({text:'Discussion continues'});
  const text=(await f.json('fake-queue.json')).at(-1).input[0].text;
  assert.match(text,new RegExp(`Goal #1 · Letter #${own.id}`));assert.match(text,new RegExp(`Goal #2 · Letter #${child.id}`));
- assert.match(text,/no additional user reply is needed/);
- assert.match(text,/A reply is not automatically authorization or completion/);
+ assert.match(text,/Users answer them with an ordinary Comment/);
+ assert.match(text,/An answer is not automatically authorization/);
  assert.match(text,new RegExp(`close-letter --id 2 --event ${child.id}`));
  const input=join(f.root,'child-feedback.json');await writeFile(input,JSON.stringify({text:'Child discussion'}));
  await f.run(['feedback','--id','2','--input-file',input]);
  const childText=(await f.json('fake-queue.json')).at(-1).input[0].text;
  assert.match(childText,new RegExp(`Letter #${child.id}`));assert.doesNotMatch(childText,new RegExp(`Letter #${own.id} `));
  const hookContext=JSON.parse((await runHook(f)).stdout).hookSpecificOutput.additionalContext;
- assert.match(hookContext,/no additional user reply is needed/);assert.match(hookContext,new RegExp(`close-letter --id 2 --event ${child.id}`));
+ assert.match(hookContext,/Users answer them with an ordinary Comment/);assert.match(hookContext,new RegExp(`close-letter --id 2 --event ${child.id}`));
  await f.run(['close-letter','--id','1','--event',String(own.id)]);
  await f.run(['close-letter','--id','2','--event',String(child.id)]);
  await f.feedback({text:'No pending questions'});
- assert.doesNotMatch((await f.json('fake-queue.json')).at(-1).input[0].text,/Open Letters \(recheck/);
+ assert.doesNotMatch((await f.json('fake-queue.json')).at(-1).input[0].text,/Open Letters\. Users answer/);
 });
 
 test('retries and concurrent retries do not duplicate feedback or an accepted enqueue', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {

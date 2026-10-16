@@ -45,7 +45,7 @@ async function main() {
     const {path}=await readGoalContext(id);
     return output({...goal,nextActions:{message:'Review parent and ancestor success criteria. Mark only achieved Goals Done; otherwise leave them Open. This reminder does not require changing their state.',ancestors:path.slice(0,-1).reverse().map(({id,title,criteria,state})=>({id,title,criteria,state}))}});
   }
-  if(command==='close-letter')return output(await closeLetter(id,Number(v['--event']),v['--reason']));
+  if(command==='close-letter')return output(await closeLetter(id,Number(v['--event']),v['--reason'],v['--answer']===undefined?null:Number(v['--answer'])));
   if(command==='delete-comment')return output(await deleteAgentComment(id,Number(v['--event'])));
   if(command==='deliverable') {
     const result=subcommand==='path'?await briefSource(id,v['--format']):await updateBrief(id,v['--format']);
