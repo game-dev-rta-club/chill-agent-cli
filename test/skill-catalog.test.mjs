@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {listSkills,skillFrontmatter} from '../lib/skill-catalog.mjs';
+import {listSkills,mentionedSkills,skillFrontmatter,skillLines} from '../lib/skill-catalog.mjs';
 
 test('frontmatter reads name and plain or folded descriptions',()=>{
  assert.deepEqual(skillFrontmatter('---\nname: a\ndescription: "Short one"\n---\nBody'),{name:'a',description:'Short one'});
@@ -24,4 +24,18 @@ test('project skills, user skills and commands are listed; the project wins a na
   {name:'grill',description:'Ask questions',scope:'user'},
   {name:'review',description:'Review a change',scope:'project'},
  ]);
+});
+test('skills named in feedback come with the file to read, user skills included',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'chill-skills-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const project=join(dir,'project'),home=join(dir,'home');
+ await mkdir(join(home,'.claude','skills','grilling'),{recursive:true});await writeFile(join(home,'.claude','skills','grilling','SKILL.md'),'---\nname: grilling\ndescription: Ask\n---\n');
+ await mkdir(join(project,'.claude','commands'),{recursive:true});await writeFile(join(project,'.claude','commands','review.md'),'---\ndescription: Review\n---\n');
+ const found=await mentionedSkills(['どうしよう /grilling ですり合わせたい','see /Users/x and /review, not /unknown'],{project,home});
+ assert.deepEqual(found.map(s=>[s.name,s.scope,s.file]),[
+  ['grilling','user',join(home,'.claude','skills','grilling','SKILL.md')],
+  ['review','project',join(project,'.claude','commands','review.md')],
+ ]);
+ assert.match(skillLines(found),/\/grilling \(user\): .*grilling\/SKILL\.md/);
+ assert.deepEqual(await mentionedSkills(['no skill here'],{project,home}),[]);
+ assert.equal(skillLines([]),'');
 });
