@@ -29,9 +29,9 @@ async function fixture(t){
  return {dir,cwd,root,event,action,start,configure,pause,result,read:()=>readMonitor(root.id),stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
 }
 
-test('confirmed Stop reserves once; receipt and the matching Stop consume the revision',async t=>{
+test('Stop reserves once; the next Stop ends the request and consumes the revision',async t=>{
  const f=await fixture(t);await f.configure();
- const [a,b]=await Promise.all([f.stop(),f.stop()]);const response=a||b;assert.equal([a,b].filter(Boolean).length,1);
+ const response=await f.stop();
  assert.equal(response.decision,'block');assert.match(response.reason,/Auto mode is On/);assert.match(response.reason,/native main response has ended/);assert.doesNotMatch(response.reason,/no pending delivery, queued message/);
  let state=await f.read();assert.equal(state.attempts.length,1);const attempt=state.attempts[0];assert.equal(attempt.message,response.reason);assert.equal(attempt.phase,'uncertain');
  await f.newPrompt();await f.result(attempt.id);assert.equal((await f.read()).attempts[0].completedAt,undefined,'a receipt is not native completion');
@@ -40,13 +40,18 @@ test('confirmed Stop reserves once; receipt and the matching Stop consume the re
  await f.configure(false);await f.configure(true);assert.equal(await f.stop(),null,'toggling does not reset the allowance');
  await updateGoal(f.root.id,{scope:'A new agreed outcome'});await f.newPrompt();await f.configure();assert.equal((await f.stop()).decision,'block');assert.equal((await f.read()).history.length,1);
 });
-test('unknown return never retries after a content revision or another native prompt',async t=>{
+test('a request left without a result ends at the next Stop instead of stopping Auto mode for good',async t=>{
+ // A continued response that forgot to report its result used to keep every
+ // later Stop waiting, so Auto mode silently never continued again.
  const f=await fixture(t);await f.configure();await f.stop();const original=(await f.read()).attempts[0].id;
- await updateGoal(f.root.id,{title:'Changed while unconfirmed'});await f.newPrompt();await f.configure();assert.equal(await f.stop(),null);assert.equal((await f.read()).status,'awaiting-receipt');assert.equal((await f.read()).attempts[0].id,original);
+ assert.equal(await f.stop(),null,'the same revision is not continued twice');
+ let state=await f.read();assert.equal(state.status,'exhausted');assert.equal(state.attempts[0].phase,'ended');
+ await updateGoal(f.root.id,{title:'Changed later'});await f.newPrompt();assert.equal((await f.stop()).decision,'block');
+ state=await f.read();assert.equal(state.history.at(-1).id,original);assert.notEqual(state.attempts[0].id,original);
 });
 test('the continued native prompt still receives Web input on its next ordinary tool',async t=>{
  const f=await fixture(t);await f.configure();assert.equal((await f.stop()).decision,'block');
- assert.equal(await f.stop(),null,'a repeated Stop is not another native turn');
+ assert.equal(await f.stop(),null,'the continued response ends without another request');
  const reply=await appendFeedback({goalId:f.root.id,text:'Correction while Auto mode is working'});
  const hook=f.event('PostToolUse',{tool_name:'Read',tool_use_id:randomUUID(),tool_response:{text:'ordinary work'}});
  const received=await handleClaudeToolHook(hook,{cwd:f.cwd});assert.match(received.hookSpecificOutput.additionalContext,/Correction while Auto mode is working/);
@@ -54,7 +59,8 @@ test('the continued native prompt still receives Web input on its next ordinary 
  assert.equal(await handleClaudeToolHook(hook,{cwd:f.cwd}),null,'tool delivery is not duplicated');
  assert.match((await f.stop()).reason,/without a reply/,'offered feedback without a reply is reminded first');
  await f.action('inbox',{});
- assert.equal(await f.stop(),null,'the unresolved Auto request is not resent');
+ assert.match((await f.stop()).reason,new RegExp(`#${reply.changeId} `),'new input is a new revision; the request names the feedback left open');
+ assert.equal(await f.stop(),null,'the same revision is not continued again');
 });
 test('Off and explicit continuation Pause preserve the attempt history',async t=>{
  const f=await fixture(t);await f.configure(false);assert.equal(await f.stop(),null);
@@ -86,10 +92,11 @@ test('a subagent Stop never continues, and a cleared context cannot control the 
  await f.configure();assert.equal(await f.stop({agent_id:'child'}),null);assert.equal((await f.read()).attempts.length,0);
  await f.start('clear');assert.equal(await f.stop(),null);await assert.rejects(f.configure(),/Root conversation/);
 });
-test('an uncertain attempt in one Root does not create a second continuation in another Root',async t=>{
+test('one Stop sends at most one request across the Roots of a conversation',async t=>{
  const f=await fixture(t);await f.configure();await f.action('create-goal',{title:'Second Auto Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);
- await f.action('extension',{extension:'continuation',operation:'configure',input:{rootId:other.id,enabled:true}});await f.stop();await f.newPrompt();await f.configure();
- assert.equal(await f.stop(),null);assert.equal((await readMonitor(other.id)).attempts.length,0);
+ await f.action('extension',{extension:'continuation',operation:'configure',input:{rootId:other.id,enabled:true}});
+ assert.equal((await f.stop()).decision,'block');assert.equal((await f.read()).attempts.length,1);assert.equal((await readMonitor(other.id)).attempts.length,0);
+ assert.equal((await f.stop()).decision,'block');assert.equal((await f.read()).attempts[0].phase,'ended');assert.equal((await readMonitor(other.id)).attempts.length,1);
 });
 test('saved Web feedback and Auto mode cannot both claim the same Stop',async t=>{
  // The reply waiter only detects saved feedback; a pending delivery makes Auto mode abstain.
