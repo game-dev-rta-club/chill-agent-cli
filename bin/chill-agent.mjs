@@ -12,6 +12,7 @@ import {selectAgentWork} from '../lib/agents/index.mjs';
 import {readConnectedTree,readGoalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
 import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
+import {largeSize} from '../lib/limits.mjs';
 
 // Agents see the Deliverable by that name; stored records keep their internal names.
 const agentNames={brief:'deliverable',briefs:'deliverables',briefPath:'deliverablePath'};
@@ -20,9 +21,9 @@ const output=value=>console.log(JSON.stringify(forAgents(value),null,2));
 const url=(id,version)=>`http://127.0.0.1:${workspacePort()}/#/goal/${id}${version?`/v${version}`:''}`;
 async function input(path) {
   let raw='';
-  if(path==='-') for await(const chunk of process.stdin) { raw+=chunk; if(raw.length>160000) throw new Error('Request is too large.'); }
+  if(path==='-') for await(const chunk of process.stdin) { raw+=chunk; if(raw.length>largeSize) throw new Error('Request is too large.'); }
   else raw=await readFile(path,'utf8');
-  if(raw.length>160000) throw new Error('Request is too large.');
+  if(raw.length>largeSize) throw new Error('Request is too large.');
   return JSON.parse(raw);
 }
 async function main() {

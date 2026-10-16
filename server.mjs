@@ -27,6 +27,7 @@ import {readAgentPresence} from './lib/agent-presence.mjs';
 import {deliveriesWithWork} from './lib/agents/index.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
+import {largeSize} from './lib/limits.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
@@ -95,7 +96,7 @@ async function readJson(request) {
   let body = '';
   for await (const chunk of request) {
     body += chunk;
-    if (body.length > 160000) throw new Error('Request is too large.');
+    if (body.length > largeSize) throw new Error('Request is too large.');
   }
   return JSON.parse(body);
 }
@@ -146,7 +147,7 @@ async function readImage(request) {
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 5 * 1024 * 1024) throw new Error('Image is larger than 5 MB.');
+    if (size > largeSize) throw new Error('Image is too large.');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);

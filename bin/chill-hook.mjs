@@ -11,6 +11,7 @@ import { notificationReminder } from '../lib/notification-reminder.mjs';
 import {agentGuide} from '../lib/agent-guidance.mjs';
 import {recordWorkHeartbeat} from '../lib/goal-execution.mjs';
 import { stableNodePath } from '../lib/node-path.mjs';
+import {largeSize} from '../lib/limits.mjs';
 
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 const self = fileURLToPath(import.meta.url);
@@ -85,7 +86,7 @@ async function main() {
   let raw = '';
   for await (const chunk of process.stdin) {
     raw += chunk;
-    if (raw.length > 2_000_000) throw new Error('Hook input is too large.');
+    if (raw.length > largeSize) throw new Error('Hook input is too large.');
   }
   const output = await hookOutput(JSON.parse(raw));
   if (output) console.log(JSON.stringify(output));
