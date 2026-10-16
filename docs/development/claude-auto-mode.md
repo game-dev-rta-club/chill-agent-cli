@@ -2,7 +2,7 @@
 keyPoints: >-
   Experimental Claude Auto mode continues through a main Stop, once per
   meaningful revision. It preserves Off, continuation Pause, pending feedback and
-  uncertain reservations. Native packaged qualification passes; explicit project hook setup is available.
+  the revision allowance; the next Stop ends each request. Native packaged qualification passes; explicit project hook setup is available.
 ---
 
 # Qualify Auto mode in a Claude conversation
@@ -54,18 +54,19 @@ overwritten.
 ## Continue once and account for the result
 
 At a main Stop, the extension checks saved feedback and holds across
-every Root in this native connection. Off, Pause, unprocessed input and uncertain
-prior requests suppress continuation. The extension saves one attempt before the
+every Root in this native connection. Off, Pause and unprocessed input suppress continuation. The extension saves one attempt before the
 CLI returns a native Stop decision. It links the packaged combined continuation
 and stopping-review guide, without claiming that native input queues are empty.
 Claude retains its input ordering and tool permission policy.
 
-The Agent reports the exact attempt through `monitor result`; the response must
-then reach a Stop. Only both facts complete the attempt. A lost output or missing receipt is never
-blindly retried, even after a revision change or through another Root. One check
-consumes the allowance for that revision; comments, results and Off/On toggles
-do not create another allowance. Substantive Goal, Deliverable or user-input changes
-can create the next one after the preceding attempt is resolved.
+The request goes out as Stop output, so the next main Stop means the response
+that received it has ended. That Stop ends the attempt, with or without a result
+reported through `monitor result`. Waiting for the report instead stopped Auto
+mode for good when one response forgot it. One check consumes the allowance for
+that revision, so the same revision is never continued twice; comments, results
+and Off/On toggles do not create another allowance. Substantive Goal, Deliverable
+or user-input changes create the next one. One Stop sends at most one request
+across the Roots of a conversation.
 
 Saved Web feedback detected by the CLI reply waiter stays pending until the inbox
 claims it, so a pending reply makes Auto mode abstain at Stop. A continuation
