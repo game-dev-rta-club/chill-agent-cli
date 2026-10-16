@@ -231,3 +231,9 @@
 .attachment-file.event-file {margin-top:10px;}
 .attachment-file.is-small {grid-column:1;margin:5px 0 2px;padding:4px 8px;}
 .image-card .attachment-file {min-height:48px;padding-right:30px;}
+.comment-field {position:relative;}
+.skill-menu {position:absolute;left:0;right:0;bottom:calc(100% + 4px);z-index:20;max-height:280px;overflow-y:auto;margin:0;padding:4px;list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:7px;box-shadow:0 6px 20px #0000001f;}
+.skill-menu li {display:grid;gap:1px;padding:7px 9px;border-radius:5px;cursor:pointer;}
+.skill-menu li strong {font-size:13px;color:var(--ink);}
+.skill-menu li span {overflow:hidden;font-size:11px;color:var(--muted);text-overflow:ellipsis;white-space:nowrap;}
+.skill-menu li.is-active {background:var(--theme-soft,#edf3f6);}
