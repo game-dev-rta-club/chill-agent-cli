@@ -22,6 +22,9 @@ test('agent read resolves child owner, returns saved settings, and does not issu
  const script="import {readAgentStatus} from './lib/agent-status.mjs';console.log(JSON.stringify(await readAgentStatus('2')));";
  const read=async()=>JSON.parse((await exec(process.execPath,['--input-type=module','-e',script],{env,cwd:fileURLToPath(new URL('..',import.meta.url))})).stdout);
  let result=await read();assert.equal(result.rootId,'1');assert.equal(result.goalId,'2');assert.equal(result.settings.model,'gpt-6-astra');assert.equal(result.usage[0].windows[0].remaining,88);assert.equal(result.work.status,'unknown');assert.deepEqual(result.capabilities,{settings:false,stop:false,resume:false,approveAll:false});assert.doesNotMatch(JSON.stringify(result),/private-account|62500/);
+ // Recent lists this agent's Goals by their latest activity, each once; other Roots stay out.
+ await run('create','--title','Other');for(const id of ['1','2','3','1'])await run('comment','--id',id,'--text',`On ${id}`);
+ assert.deepEqual((await read()).recent.map(g=>g.goalId),['1','2']);
  await writeFile(join(root,'fake-history.json'),JSON.stringify({usageFail:true}));result=await read();assert.equal(result.usage,null);assert.equal(result.settings.model,'gpt-6-astra','one failed source does not hide other data');
  const calls=(await readFile(join(root,'fake-requests.jsonl'),'utf8')).trim().split('\n').map(JSON.parse);
  assert.ok(calls.every(c=>['initialize','thread/read','model/list','account/rateLimits/read','thread/turns/list','thread/queue/list'].includes(c.method)));

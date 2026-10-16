@@ -17,3 +17,10 @@ test('the Approve all switch appears only when the agent can answer prompts',()=
  const other=agentMarkup({goalId:'2',rootId:'1',connected:true,agent:{name:'B'},capabilities:{},settings:{},models:[],work:{status:'idle'},queue:null,extensions:[]});
  assert.doesNotMatch(other,/data-agent-approve-all/);
 });
+
+test('Activity lists recent Goals once each instead of a single Last link',()=>{
+ const base={goalId:'2',rootId:'1',rootTitle:'Root',connected:true,agent:{name:'Claude Code',status:{label:'Waiting'}},capabilities:{},extensions:[]};
+ const html=agentMarkup({...base,work:{status:'idle',goalId:null,last:{goalId:'2',title:'Tune',eventId:115}},recent:[{goalId:'3',title:'New <b>'},{goalId:'2',title:'Tune'}]});
+ assert.match(html,/Recent/);assert.match(html,/href="#\/goal\/3"[^>]*><span>#3<\/span>New &lt;b&gt;/);assert.match(html,/href="#\/goal\/2"/);
+ assert.doesNotMatch(html,/Last ·/);
+});
