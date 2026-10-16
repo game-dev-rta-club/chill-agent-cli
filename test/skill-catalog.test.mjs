@@ -37,5 +37,9 @@ test('skills named in feedback come with the file to read, user skills included'
  ]);
  assert.ok(skillLines(found).includes(`/grilling (user): ${join(home,'.claude','skills','grilling','SKILL.md')}`));
  assert.deepEqual(await mentionedSkills(['no skill here'],{project,home}),[]);
+ // Mid-sentence, right after Japanese text or before a full stop, but not inside a path or URL.
+ assert.deepEqual((await mentionedSkills(['これを/grillingで詰めたい'],{project,home})).map(s=>s.name),['grilling']);
+ assert.deepEqual((await mentionedSkills(['最後に /review.'],{project,home})).map(s=>s.name),['review']);
+ assert.deepEqual(await mentionedSkills(['see docs/grilling and https://x.test/review'],{project,home}),[]);
  assert.equal(skillLines([]),'');
 });

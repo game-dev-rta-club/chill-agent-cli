@@ -1,5 +1,6 @@
-// Typing "/" at the start of a comment suggests the project's skills, as agent
-// harnesses do. Choosing one inserts "/name " and the text is sent as typed.
+// Typing "/" in a comment suggests the project's skills, as agent harnesses do:
+// at the start, after a space, or right after Japanese text, but not inside a
+// path or URL. Choosing one inserts "/name " there and the text is sent as typed.
 export function createSkillMenu({root, goalId, escapeHTML}) {
   const cache = new Map();
   let menu = null, items = [], active = 0, input = null;
@@ -12,7 +13,7 @@ export function createSkillMenu({root, goalId, escapeHTML}) {
   }
   const query = field => {
     const before = field.value.slice(0, field.selectionStart);
-    return field.selectionStart === field.selectionEnd ? /^\/([^\s/]*)$/.exec(before)?.[1] ?? null : null;
+    return field.selectionStart === field.selectionEnd ? /(?:^|[^A-Za-z0-9_./:~\\-])\/([^\s/]*)$/.exec(before)?.[1] ?? null : null;
   };
   function close() {
     menu?.remove(); menu = null; items = [];
@@ -36,9 +37,10 @@ export function createSkillMenu({root, goalId, escapeHTML}) {
   function choose(index) {
     const skill = items[index];
     if (!skill || !input) return close();
+    const before = input.value.slice(0, input.selectionStart), start = before.lastIndexOf('/');
     const rest = input.value.slice(input.selectionStart).replace(/^\S*/, '');
-    input.value = `/${skill.name} ${rest.replace(/^\s+/, '')}`;
-    const caret = skill.name.length + 2;
+    input.value = `${before.slice(0, start)}/${skill.name} ${rest.replace(/^\s+/, '')}`;
+    const caret = start + skill.name.length + 2;
     input.setSelectionRange(caret, caret);
     close();
     input.dispatchEvent(new Event('input', {bubbles: true}));
