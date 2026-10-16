@@ -64,7 +64,7 @@ test('isolated SQLite Web accepts a reply and CLI reads it after server shutdown
   const page=await (await fetch(url+'/api/goals/1/conversation?limit=1')).json();
   assert.equal(page.events.length,1);assert.equal(page.events[0].id,receipt.feedback.id);
   assert.equal(page.answerTargets[0].id,letter.id);assert.equal(typeof page.events[0].html,'string');
-  assert.equal((await fetch(url+'/api/goals/1/conversation?limit=101')).status,400);
+  assert.equal((await fetch(url+'/api/goals/1/conversation?limit=0')).status,400);
   assert.equal((await fetch(url+'/api/goals/99/conversation')).status,404);
   const compact=await (await fetch(url+'/api/goals?view=web&history=paged')).json();
   assert.equal(compact[0].letterStates.find(s=>s.id===letter.id).status,'answered');

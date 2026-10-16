@@ -20,7 +20,7 @@ test('filtered pages retain ancestor context and find deep matches without dupli
  assert.equal(reviewGoals(tree,{state:'unfinished'}).matched,4);
  // A Goal changing state does not invalidate its position as a pagination cursor.
  tree[0].children[0].children[0].state='done';assert.equal(reviewGoals(tree,{state:'open',after:'3'}).returned,1);
- for(const options of [{state:'typo'},{limit:0},{limit:201},{after:'99'}])assert.throws(()=>reviewGoals(tree,options));
+ for(const options of [{state:'typo'},{limit:0},{after:'99'}])assert.throws(()=>reviewGoals(tree,options));
 });
 test('empty filters point to remaining states; Done is not inferred from no Letters',()=>{
  const waiting=renderGoalReview(reviewGoals([g('1','waiting')],{state:'open'}));

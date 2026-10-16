@@ -194,7 +194,7 @@ function composerMarkup(id, comment) {
   return `<form class="conversation-form" data-form="comment" data-goal-id="${id}"><fieldset>
     <legend class="sr-only">Comment on this Goal</legend>
     <div class="comment-field"><label class="sr-only" for="conversation-comment">Reply</label>
-      <textarea id="conversation-comment" data-input="comment" rows="3" maxlength="10000" placeholder="Write a comment">${escapeHTML(comment)}</textarea></div>
+      <textarea id="conversation-comment" data-input="comment" rows="3" placeholder="Write a comment">${escapeHTML(comment)}</textarea></div>
     ${imageControl('comment')}<div data-notes-slot>${notesPanelMarkup(id)}</div>
     <div class="composer-actions"><div class="composer-buttons">${imagePicker('comment')}<button type="submit" class="composer-submit comment" data-submit-mode="comment">${icon('comment')}Comment</button></div></div>
   </fieldset></form>`;
@@ -369,7 +369,7 @@ function renderGoal(id,version) {
     </section>
     <form class="annotation-form" data-form="annotation" data-goal-id="${id}" data-version="${version}" hidden><fieldset>
       <div class="annotation-heading"><strong data-editor-heading>Annotation</strong><button type="button" class="text-button" data-action="close-annotation" aria-label="Close annotation">✕</button></div><blockquote class="annotation-quote"></blockquote>
-      <div class="comment-field"><label class="sr-only" for="annotation-comment">Annotation</label><textarea id="annotation-comment" data-input="annotation" rows="2" placeholder="Add a note" maxlength="2000"></textarea></div>
+      <div class="comment-field"><label class="sr-only" for="annotation-comment">Annotation</label><textarea id="annotation-comment" data-input="annotation" rows="2" placeholder="Add a note"></textarea></div>
       <div data-note-image-slot>${imageControl('annotation')}</div><div class="comment-submit"><button type="button" class="text-button note-delete" data-action="delete-note" hidden>Delete</button>${imagePicker('annotation')}<button class="action action-primary" type="submit" value="save">Save</button><button class="action action-primary note-comment" type="submit" value="comment" hidden>Comment</button></div>
     </fieldset></form></div></div>
     <section class="conversation" data-scroll-pane><div class="section-heading conversation-heading"><h2>Conversation</h2><button type="button" class="text-button" data-action="collapse-conversation" hidden>Collapse earlier</button></div>
@@ -467,13 +467,8 @@ async function setPendingImages(type, files) {
   const key = formKey(activeGoalId, type);
   if (imageReads.has(key) || form.querySelector('fieldset').disabled) return;
   form.querySelector('.save-error')?.remove();
-  if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024)) {
-    showSaveError(form, new Error('Use a PNG, JPEG, or WebP image up to 5 MB.'));
-    return;
-  }
-  const savedCount = type === 'annotation' ? attachmentIdsFor(editingNote).length : 0;
-  if (savedCount + imagesFor(type).length + files.length > 30) {
-    showSaveError(form, new Error('Use at most 30 images per message or note.'));
+  if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 256 * 1024 * 1024)) {
+    showSaveError(form, new Error('Use a PNG, JPEG, or WebP image.'));
     return;
   }
   const id = activeGoalId;

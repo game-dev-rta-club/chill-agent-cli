@@ -27,7 +27,7 @@ for(const backend of ['json','sqlite'])test(`${backend} pages are bounded, scope
  const notice=await s.appendAgentComment({goalId:'1',type:'letter',title:'Result',text:'Ready'});
  await s.closeLetter('1',notice.id);
  const changed=await s.readConversationPage('1',{limit:1});assert.equal(changed.events[0].id,notice.id);assert.ok(changed.events[0].changeId>notice.id);
- await assert.rejects(s.readConversationPage('1',{limit:101}),/limit/);
+ await assert.rejects(s.readConversationPage('1',{limit:0}),/limit/);assert.ok(await s.readConversationPage('1',{limit:100000}));
  await assert.rejects(s.readConversationPage('1',{before:0}),/before/);
  await assert.rejects(s.readConversationPage('99'),/Goal not found/);
  `;

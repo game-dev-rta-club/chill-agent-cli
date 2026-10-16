@@ -228,3 +228,8 @@ test('an agent Comment or Letter posted by mistake can be deleted; user comments
  await assert.rejects(f.invoke('delete-comment','--id','1','--event','999'),/not found/);
  assert.ok(kept.id);
 });
+test('large titles and feedback are accepted instead of hitting small caps',async t=>{
+ const f=await fixture(t),title='T'.repeat(5000),text='x'.repeat(300000);
+ assert.equal((await f.run('create','--title',title)).title,title);
+ assert.equal((await f.feedback('1',{text})).text.length,text.length);
+});

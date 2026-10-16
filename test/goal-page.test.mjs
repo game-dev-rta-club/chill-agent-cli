@@ -40,7 +40,7 @@ test('history pages preserve original Letter questions and offer older cursors',
  const text=renderGoalPage({...page,attachments:[]});assert.match(text,/--section conversation --before 4 --limit 5/);assert.match(text,/Question body 1/);
  const older=goalPage(goals,'1',{limit:5,before:4});assert.deepEqual(older.conversation.map(e=>e.id),[1,2,3]);assert.equal(older.conversationInfo.remaining,0);
  assert.equal(goalPage(goals,'1',{since:1}).conversation.length,7,'a since boundary without a limit keeps every new instruction');
- for(const options of [{before:-1},{before:1,since:1},{limit:0},{limit:101}])assert.throws(()=>goalPage(goals,'1',options));
+ for(const options of [{before:-1},{before:1,since:1},{limit:0}])assert.throws(()=>goalPage(goals,'1',options));
 });
 test('Deliverable pages pin their version, keep full access and do not silently discard the remainder',()=>{
  const body='a'.repeat(6000)+'Last section';
