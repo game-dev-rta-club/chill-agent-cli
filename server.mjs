@@ -142,12 +142,12 @@ function callCli(args, input, response, receipt, status = 200) {
   child.stdin.end(input === undefined ? undefined : JSON.stringify(input));
 }
 
-async function readImage(request) {
+async function readUpload(request) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > largeSize) throw new Error('Image is too large.');
+    if (size > largeSize) throw new Error('File is too large.');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -326,7 +326,9 @@ const server = createServer(async (request, response) => {
   if (path === '/api/images' && request.method === 'POST') {
     if (!allowedOrigin(request)) return sendJson(response, 403, { error: 'Only same-origin uploads are accepted.' });
     try {
-      const image = await saveAttachment(await readImage(request), request.headers['content-type']);
+      let name = '';
+      try { name = decodeURIComponent(request.headers['x-file-name'] || ''); } catch { /* Keep the default name. */ }
+      const image = await saveAttachment(await readUpload(request), request.headers['content-type'], name);
       return sendJson(response, 201, image);
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
@@ -353,12 +355,24 @@ const server = createServer(async (request, response) => {
     }
     catch { return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
   }
+  const infoPath = /^\/api\/attachments\/([0-9a-f-]{36})$/.exec(path);
+  if (infoPath) {
+    const file = await attachmentInfo(infoPath[1]);
+    if (!file) return sendJson(response, 404, { error: 'Attachment not found.' });
+    return sendJson(response, 200, { id: file.id, mimeType: file.mimeType, name: file.name ?? null, image: !file.name });
+  }
   const imagePath = /^\/api\/images\/([0-9a-f-]{36})$/.exec(path);
   if (imagePath) {
     const image = await attachmentInfo(imagePath[1]);
-    if (!image) return sendJson(response, 404, { error: 'Image not found.' });
+    if (!image) return sendJson(response, 404, { error: 'Attachment not found.' });
     const data = await readFile(image.path);
-    response.writeHead(200, { 'Content-Type': image.mimeType, 'Content-Length': data.length });
+    // Images and PDFs open in the browser. Other files download, so an
+    // attached HTML or script never runs inside the Web's origin.
+    const headers = { 'Content-Length': data.length, 'X-Content-Type-Options': 'nosniff' };
+    if (!image.name) headers['Content-Type'] = image.mimeType;
+    else if (image.pdf) Object.assign(headers, { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(image.name)}` });
+    else Object.assign(headers, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(image.name)}` });
+    response.writeHead(200, headers);
     return response.end(request.method === 'HEAD' ? undefined : data);
   }
   if (path === '/api/events') {

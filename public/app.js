@@ -35,6 +35,7 @@ const icons = {
   pending: '<circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/>',
   annotate: '<path d="M4 20h16M5 16l11-11 3 3L8 19H5v-3Z"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1"/><path d="m4 17 5-5 3 3 3-4 5 6"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
   expandOlder: '<path d="M12 16V4m-5 5 5-5 5 5M4 20h16"/>',
   expandNewer: '<path d="M12 8v12m-5-5 5 5 5-5M4 4h16"/>',
 };
@@ -53,6 +54,11 @@ const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 
   <path d="M17 26q3 3 6 0" stroke="#373e42" stroke-width="1.7" stroke-linecap="round"/>
   </svg>`;
 const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
+const attachmentFiles = new Map();
+const isImageFile = file => ['image/png', 'image/jpeg', 'image/webp'].includes(file.type);
+const fileMarkup = (src, name, className) => src
+  ? `<a class="attachment-file ${className}" href="${escapeHTML(src)}" target="_blank" rel="noopener" title="${escapeHTML(name)}">${icon('file')}<span>${escapeHTML(name)}</span></a>`
+  : `<span class="attachment-file ${className}" title="${escapeHTML(name)}">${icon('file')}<span>${escapeHTML(name)}</span></span>`;
 const main = document.querySelector('#main');
 const readingPane = createReadingPane(main,{rectOf:viewportRect});
 const keepReadingPosition = readingPane.preserve;
@@ -141,6 +147,8 @@ function noteImageMarkup(note, preview = false) {
   const images=attachmentIdsFor(note).map(id=>`/api/images/${escapeHTML(id)}`);
   if(note.kind==='image'&&note.source?.kind==='brief')images.unshift(`/api/goals/${activeGoalId}/briefs/${Number(note.source.version)}/svg/${Number(note.source.svgIndex)}`);
   return images.map(src => {
+    const file = attachmentFiles.get(src.split('/').pop());
+    if (file) return fileMarkup(src, file.name, preview ? 'note-file' : 'note-file is-small');
     const img = `<img class="${preview ? 'note-image' : 'note-thumbnail'}" src="${src}" alt="Note attachment">`;
     return preview ? `<a href="${src}" target="_blank" rel="noopener" aria-label="Open note image">${img}</a>` : img;
   }).join('');
@@ -277,7 +285,7 @@ function timelineMarkup(id) {
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
       <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
-      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>`<a class="event-image-link" href="/api/images/${escapeHTML(id)}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="/api/images/${escapeHTML(id)}" alt="Attached image"></a>`).join('')}${letter?`<button type="button" class="action letter-answer-toggle" data-action="answer-letter" data-letter-id="${event.id}">Answer</button>`:''}</article></li>${event.author==='user'?deliveryMarkup(event,work.get(event.changeId),continued.get(event.changeId)):''}`;
+      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<a class="event-image-link" href="${src}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="${src}" alt="Attached image"></a>`;}).join('')}${letter?`<button type="button" class="action letter-answer-toggle" data-action="answer-letter" data-letter-id="${event.id}">Answer</button>`:''}</article></li>${event.author==='user'?deliveryMarkup(event,work.get(event.changeId),continued.get(event.changeId)):''}`;
     }).join('');
   }).join('');
 }
@@ -441,17 +449,17 @@ function mountHTMLBrief(id,version) {
 }
 
 function imagePreviewMarkup(type) {
-  const saved = type === 'annotation' ? attachmentIdsFor(editingNote).map(id => ({id, url: `/api/images/${id}`})) : [];
-  return [...saved, ...imagesFor(type)].map(image => `<div class="image-card"><img src="${escapeHTML(image.url)}" alt="${escapeHTML(image.file?.name || 'Attached image')}">
-    <button type="button" class="image-remove" data-action="remove-image" data-image-type="${type}" data-image-key="${escapeHTML(image.id)}" aria-label="Remove image">×</button></div>`).join('');
+  const saved = type === 'annotation' ? attachmentIdsFor(editingNote).map(id => ({id, url: `/api/images/${id}`, name: attachmentFiles.get(id)?.name})) : [];
+  return [...saved, ...imagesFor(type)].map(image => `<div class="image-card">${image.name || image.file && !isImageFile(image.file) ? fileMarkup(image.url, image.name || image.file.name, 'image-file') : `<img src="${escapeHTML(image.url)}" alt="${escapeHTML(image.file?.name || 'Attached image')}">`}
+    <button type="button" class="image-remove" data-action="remove-image" data-image-type="${type}" data-image-key="${escapeHTML(image.id)}" aria-label="Remove attachment">×</button></div>`).join('');
 }
 function imageControl(type) {
   const preview = imagePreviewMarkup(type);
-  return `<div class="image-control ${preview ? 'has-image' : ''}" ${preview ? '' : 'hidden'}><div class="image-heading"><strong>Images</strong></div>
+  return `<div class="image-control ${preview ? 'has-image' : ''}" ${preview ? '' : 'hidden'}><div class="image-heading"><strong>Attachments</strong></div>
     <div class="image-preview" data-preview-for="${type}">${preview}</div></div>`;
 }
 function imagePicker(type) {
-  return `<label class="image-pick" data-image-picker="${type}" title="Add image">${icon('image')}<span>Add image</span><input type="file" data-image-type="${type}" accept="image/png,image/jpeg,image/webp" multiple class="sr-only"></label>`;
+  return `<label class="image-pick" data-image-picker="${type}" title="Add an image or file">${icon('image')}<span>Add file</span><input type="file" data-image-type="${type}" multiple class="sr-only"></label>`;
 }
 function refreshImageControl(type) {
   const control = main.querySelector(`[data-form="${type}"] .image-control`);
@@ -473,8 +481,8 @@ async function setPendingImages(type, files) {
   const key = formKey(activeGoalId, type);
   if (imageReads.has(key) || form.querySelector('fieldset').disabled) return;
   form.querySelector('.save-error')?.remove();
-  if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 256 * 1024 * 1024)) {
-    showSaveError(form, new Error('Use a PNG, JPEG, or WebP image.'));
+  if (files.some(file => !file.size || file.size > 256 * 1024 * 1024)) {
+    showSaveError(form, new Error('Choose a file that is not empty.'));
     return;
   }
   const id = activeGoalId;
@@ -486,14 +494,14 @@ async function setPendingImages(type, files) {
     // invalidate the original File before a later fetch tries to read it.
     const snapshots = await Promise.all(files.map(async file => new File([await file.arrayBuffer()], file.name, {type: file.type, lastModified: file.lastModified})));
     if (imageReads.get(key) !== request) return;
-    pendingImages.set(key, [...(pendingImages.get(key) || []), ...snapshots.map(file => ({id: crypto.randomUUID(), file, url: URL.createObjectURL(file)}))]);
+    pendingImages.set(key, [...(pendingImages.get(key) || []), ...snapshots.map(file => ({id: crypto.randomUUID(), file, url: isImageFile(file) ? URL.createObjectURL(file) : ''}))]);
     if (activeGoalId === id && form.isConnected) {
       refreshImageControl(type);
       renderAnnotations();
     }
   } catch {
     if (imageReads.get(key) === request && activeGoalId === id && form.isConnected) {
-      showSaveError(main.querySelector(`[data-form="${type}"]`), new Error('Could not read this image. Please select it again.'));
+      showSaveError(main.querySelector(`[data-form="${type}"]`), new Error('Could not read this file. Please select it again.'));
     }
   } finally {
     if (imageReads.get(key) === request) {
@@ -535,13 +543,30 @@ function removeImage(type, imageId) {
   refreshImageControl(type);
 }
 const uploadedImages = new WeakMap();
+// A saved attachment renders as an image until the browser cannot show it;
+// then its name is looked up once and it renders as a file link from then on.
+main.addEventListener('error', async event => {
+  const img = event.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  const id = /^\/api\/images\/([0-9a-f-]{36})$/.exec(new URL(img.src, location.href).pathname)?.[1];
+  if (!id || attachmentFiles.has(id)) return;
+  const info = await fetch(`/api/attachments/${id}`).then(response => response.ok ? response.json() : null).catch(() => null);
+  if (!info?.name) return;
+  attachmentFiles.set(id, {name: info.name, mimeType: info.mimeType});
+  if (!img.isConnected) return;
+  const link = img.closest('.event-image-link');
+  const template = document.createElement('template');
+  template.innerHTML = fileMarkup(`/api/images/${id}`, info.name, link ? 'event-file' : img.classList.contains('note-thumbnail') ? 'note-file is-small' : 'note-file');
+  (link || img).replaceWith(template.content);
+}, true);
 async function uploadImage(file) {
   if (uploadedImages.has(file)) return uploadedImages.get(file);
   let response;
-  try { response = await fetch('/api/images', {method: 'POST', headers: {'Content-Type': file.type}, body: file}); }
-  catch { throw new Error('Image upload could not connect. Your draft is kept. Check the connection and try again.'); }
+  try { response = await fetch('/api/images', {method: 'POST', headers: {'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name)}, body: file}); }
+  catch { throw new Error('Upload could not connect. Your draft is kept. Check the connection and try again.'); }
   const result = await response.json().catch(() => ({}));
-  if (!response.ok || typeof result.id !== 'string') throw new Error(result.error || 'Could not attach image. Please try again.');
+  if (!response.ok || typeof result.id !== 'string') throw new Error(result.error || 'Could not attach the file. Please try again.');
+  if (result.name) attachmentFiles.set(result.id, {name: result.name, mimeType: result.mimeType});
   uploadedImages.set(file, result.id);
   return result.id;
 }
@@ -1109,7 +1134,7 @@ main.addEventListener('change', event => {
 
 main.addEventListener('paste', event => {
   if (!event.target.matches('textarea')) return;
-  const images = [...(event.clipboardData?.files || [])].filter(file => file.type.startsWith('image/'));
+  const images = [...(event.clipboardData?.files || [])];
   if (images.length) {
     event.preventDefault();
     setPendingImages(event.target.dataset.input === 'annotation' ? 'annotation' : 'comment', images);

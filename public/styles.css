@@ -225,3 +225,9 @@
 .delivery-entry[data-state="paused"] .delivery-dot {border:0;border-radius:0;}
 .delivery-entry[data-state="paused"] .delivery-dot::before {width:8px;height:11px;border-left:3px solid var(--theme-line,#826636);border-right:3px solid var(--theme-line,#826636);border-radius:0;background:none;}
 .delivery-entry[data-state="paused"] .delivery-heading strong {color:var(--theme-muted,#826636);}
+.attachment-file {display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font-size:12px;text-decoration:none;}
+.attachment-file svg {flex:0 0 auto;width:16px;height:16px;color:var(--muted);}
+.attachment-file span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.attachment-file.event-file {margin-top:10px;}
+.attachment-file.is-small {grid-column:1;margin:5px 0 2px;padding:4px 8px;}
+.image-card .attachment-file {min-height:48px;padding-right:30px;}
