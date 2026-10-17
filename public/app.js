@@ -34,6 +34,7 @@ const icons = {
   comment: '<path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z"/>',
   letter: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>',
   pending: '<circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/>',
+  send: '<path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="m9 11-4 4 4 4"/>',
   annotate: '<path d="M4 20h16M5 16l11-11 3 3L8 19H5v-3Z"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1"/><path d="m4 17 5-5 3 3 3-4 5 6"/>',
   file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
@@ -233,13 +234,17 @@ function workMarkup(work) {
     ${work.truncated ? '<p class="work-hint">Showing latest updates.</p>' : ''}
     </div></details>`;
 }
+// Saved while the agent works: it arrives when that work ends, unless sent now.
+function isWaiting(event, work, state) {
+  const delivery = deliveries.get(event.changeId);
+  return Boolean(delivery?.waitForIdle && !delivery.sendNow && !delivery.agentReported && (delivery.status === 'waiting' || state === 'queued'));
+}
 function deliveryMarkup(event, work, continuedTo) {
   const delivery = deliveries.get(event.changeId);
   const activity=continuedTo?null:work?.activity||activityControls.forEvent(event.changeId);
   if (!delivery && !event.threadId && !activity) return '';
   let state = activity?activity.status:continuedTo ? 'continued' : work?.status || (work?.live ? 'working' : '') || delivery?.status || 'saved';
-  // Saved while the agent works: it arrives when that work ends, unless sent now.
-  const waiting = delivery?.waitForIdle && !delivery.sendNow && !delivery.agentReported && (delivery.status === 'waiting' || state === 'queued');
+  const waiting = isWaiting(event, work, state);
   if (waiting) state = 'waiting';
   const labels = { saved: 'Saved', waiting: 'Waiting', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
   const descriptions = { saved: delivery?.notice||'', waiting: 'Arrives when the current work ends.', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
@@ -248,11 +253,11 @@ function deliveryMarkup(event, work, continuedTo) {
   const history = delivery?.history || [];
   return `<li class="timeline-event delivery-event" id="delivery-${event.changeId}">
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
-    <div class="delivery-entry" data-state="${state}"><div class="delivery-heading"><span class="delivery-dot" aria-hidden="true"></span><strong>${activity&&state==='unknown'?'Checking':labels[state] || 'Saved'}</strong>
+    <div class="delivery-entry" data-state="${state}"><div class="delivery-heading">${waiting ? `<span class="delivery-wait-icon">${icon('pending')}</span>` : '<span class="delivery-dot" aria-hidden="true"></span>'}<strong>${activity&&state==='unknown'?'Checking':labels[state] || 'Saved'}</strong>
       ${continuedTo ? `<button type="button" class="text-button" data-action="view-work" data-event-id="${continuedTo}" aria-label="View continued work">View ↓</button>` : ''}
       ${activity?activityControls.markup(activity.eventId):''}
       ${!activity && (retry || check) ? `<button type="button" class="text-button" data-action="retry-delivery" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${check ? 'Check' : 'Retry'}</button>` : ''}
-      ${waiting ? `<button type="button" class="text-button" data-action="send-now" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">Send now</button>` : ''}</div>
+      ${waiting ? `<button type="button" class="text-button" data-action="send-now" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${icon('send')}Send now</button>` : ''}</div>
       <p>${escapeHTML(activity&&state==='unknown'?'Unconfirmed. Refresh to check.':descriptions[state] || '')}</p>
       ${workMarkup(work)}
       ${history.length ? `<details class="delivery-history" data-delivery-id="${event.changeId}" ${openDeliveries.has(event.changeId) ? 'open' : ''}><summary>Activity</summary>${delivery?.work?.settings?.model ? `<p class="activity-settings">${escapeHTML(delivery.work.settings.model)}${delivery.work.settings.reasoning ? ` · ${escapeHTML(delivery.work.settings.reasoning)}` : ''}</p>` : ''}<ol>${history.map(item => `<li><span>${escapeHTML(labels[item.status] || item.status)}</span><time datetime="${escapeHTML(item.at)}">${new Date(item.at).toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}</time></li>`).join('')}</ol></details>` : ''}
@@ -287,7 +292,8 @@ function timelineMarkup(id) {
     return segment.messages.map(event => {
     const letter=letterState(event,visible);
     const time=`<time datetime="${event.at.toISOString()}">${event.at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
-    return `<li id="event-${event.id}" class="timeline-event comment-event">
+    const waiting = event.author === 'user' && isWaiting(event, work.get(event.changeId), work.get(event.changeId)?.activity?.status || activityControls.forEvent(event.changeId)?.status);
+    return `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
       <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
