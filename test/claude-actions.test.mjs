@@ -272,6 +272,34 @@ test('a Claude reply that leaves a subagent working keeps its Goal and message R
   assert.equal((await withClaudeReception([delivery]))[0].status,'completed');
 });
 
+test('Claude feedback saved while a response runs waits for its end unless the user sends it now',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs');
+  const {withClaudeReception}=await import('../lib/claude-status.mjs');
+  const {sendFeedbackNow}=await import('../lib/delivery.mjs');
+  const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
+  await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
+  await writeFile(transcript,JSON.stringify({type:'user',uuid:'p1',message:{role:'user',content:'Do the work'}})+'\n');
+  const first=await appendFeedback({goalId:goal.id,text:'One more thing'});await deliverFeedback(first.changeId);
+  assert.equal((await readDeliveryState(first.changeId)).waitForIdle,true);
+  assert.equal((await withClaudeReception([await readDeliveryState(first.changeId)]))[0].status,'waiting');
+  assert.equal(await handleClaudeToolHook(s.hook()),null,'a running response is not interrupted');
+  // The response ends: Stop hands the waiting feedback over as the next message.
+  const stop=await handleClaudeToolHook({hook_event_name:'Stop',session_id:s.record.sessionId,cwd:f.cwd});
+  assert.equal(stop.decision,'block');assert.match(stop.reason,/One more thing/);
+  assert.equal((await readDeliveryState(first.changeId)).status,'unknown','offered to the conversation');
+  // Send now offers the next one to the running response.
+  await writeFile(transcript,JSON.stringify({type:'user',uuid:'p2',message:{role:'user',content:'Continue'}})+'\n',{flag:'a'});
+  const second=await appendFeedback({goalId:goal.id,text:'Urgent fix'});await deliverFeedback(second.changeId);
+  assert.equal(await handleClaudeToolHook(s.hook()),null);
+  await sendFeedbackNow(second.changeId);
+  assert.match(context(await handleClaudeToolHook(s.hook())),/Urgent fix/);
+  // Feedback saved while idle is offered at once, as before.
+  await writeFile(transcript,JSON.stringify({type:'system',subtype:'stop_hook_summary',uuid:'s2'})+'\n',{flag:'a'});
+  const idle=await appendFeedback({goalId:goal.id,text:'While idle'});await deliverFeedback(idle.changeId);
+  assert.equal((await readDeliveryState(idle.changeId)).waitForIdle,undefined);
+});
+
 test('a reply to feedback that already has a terminal receipt tells the agent why',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
   const event=await appendFeedback({goalId:goal.id,text:'Done already'});await deliverFeedback(event.changeId);

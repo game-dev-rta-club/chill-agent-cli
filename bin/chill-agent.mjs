@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
 import { appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
-import { deliverFeedback, prepareDelivery, recordActivity } from '../lib/delivery.mjs';
+import { deliverFeedback, prepareDelivery, recordActivity, sendFeedbackNow } from '../lib/delivery.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import {assignGoal} from '../lib/goal-execution.mjs';
 import {selectAgentWork} from '../lib/agents/index.mjs';
@@ -89,5 +89,6 @@ async function main() {
     return output({delivery:result});
   }
   if(command==='retry') return console.log(JSON.stringify({delivery:await deliverFeedback(v['--event'])}));
+  if(command==='send-now') return console.log(JSON.stringify({delivery:await sendFeedbackNow(v['--event'])}));
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1;});

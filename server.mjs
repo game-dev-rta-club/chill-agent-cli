@@ -315,7 +315,7 @@ const server = createServer(async (request, response) => {
   }
   const feedbackPath = /^\/api\/goals\/([1-9][0-9]*)\/feedback$/.exec(path);
   const deliveryPath = /^\/api\/goals\/([1-9][0-9]*)\/deliveries$/.exec(path);
-  const retryPath = /^\/api\/goals\/([1-9][0-9]*)\/deliveries\/([1-9][0-9]*)\/retry$/.exec(path);
+  const retryPath = /^\/api\/goals\/([1-9][0-9]*)\/deliveries\/([1-9][0-9]*)\/(retry|send-now)$/.exec(path);
   if (path === '/api/activity' && request.method === 'POST') {
     if (!allowedOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) return sendJson(response, 403, { error: 'Only same-origin JSON requests are accepted.' });
     try { await readJson(request); await recordServerUse(dataDirectory()); return sendJson(response, 200, { ok: true }); }
@@ -326,7 +326,7 @@ const server = createServer(async (request, response) => {
     try {
       const deliveries = await listDeliveries(retryPath[1]);
       if (!deliveries.some(item => item.eventId === Number(retryPath[2]))) return sendJson(response, 404, { error: 'Delivery not found.' });
-      return callCli(['retry', '--event', retryPath[2]], undefined, response, 'delivery');
+      return callCli([retryPath[3], '--event', retryPath[2]], undefined, response, 'delivery');
     } catch { return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
   }
   if (path === '/api/images' && request.method === 'POST') {
