@@ -18,7 +18,7 @@ test('public Goal commands persist SQLite records, preserve Letter relationships
   assert.equal(child.parentId,'1');
   await writeFile(goal.deliverablePath,'# Plan\nSQLite content');
   assert.equal((await run('deliverable','update','--id','1')).version,1);
-  assert.equal((await run('deliverable','update','--id','1')).changed,false);
+  await assert.rejects(run('deliverable','update','--id','1'),error=>/Not published: .* is the same as v1\./.test(error.stderr));
   const letter=await run('letter','--id','1','--title','Ready','--text','Question');
   await run('comment','--id','2','--text','Other goal');
   const input=join(root,'reply.json');

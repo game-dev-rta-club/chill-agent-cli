@@ -49,6 +49,8 @@ async function main() {
   if(command==='delete-comment')return output(await deleteAgentComment(id,Number(v['--event'])));
   if(command==='deliverable') {
     const result=subcommand==='path'?await briefSource(id,v['--format']):await updateBrief(id,v['--format']);
+    // An unchanged file usually means the edit never reached it, so say so as a failure.
+    if(result.changed===false)throw Error(`Not published: ${result.path} is the same as v${result.version}. Check that the edit was saved, then run deliverable update again.`);
     return output({...result,url:url(id,result.version)});
   }
   if(command==='assign') return output(await assignGoal(id,v['--off']?null:v['--thread-id']));
