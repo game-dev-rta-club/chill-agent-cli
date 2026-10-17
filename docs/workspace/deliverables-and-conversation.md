@@ -24,7 +24,8 @@ chill goal deliverable update --id 1
 ```
 
 Editing the file alone does not change Web. Publishing saves an immutable version
-when the body or format differs; identical content is a no-op. An empty source
+when the body or format differs. Identical content is not published and the
+command fails, so an edit that never reached the file is noticed. An empty source
 clears the Deliverable. The command does not create a Conversation message or complete
 the Goal.
 

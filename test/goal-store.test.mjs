@@ -26,7 +26,8 @@ test('empty Goals accept Conversation; stable Markdown updates only publish chan
  await f.run('comment','--id','1','--text','Before Deliverable');
  const first=await f.brief('1','# Plan\n\nOriginal'),path=join(f.root,'workspace/goals/1/briefs/v1.json'),bytes=await readFile(path,'utf8');
  assert.equal(first.changed,true);
- const unchanged=await f.run('deliverable','update','--id','1');assert.equal(unchanged.changed,false);assert.equal(unchanged.version,1);
+ await assert.rejects(f.invoke('deliverable','update','--id','1'),error=>/Not published: .*deliverable\.html is the same as v1\./.test(error.stderr)&&error.code===1,'an unchanged file fails so a failed edit is noticed');
+ assert.equal((await f.run('show','--id','1')).deliverable.version,1);
  await writeFile(goal.deliverablePath,'# Plan\n\nEdited');
  assert.equal((await f.run('show','--id','1')).deliverable.body,'# Plan\n\nOriginal','unpublished edits stay local');
  await f.run('deliverable','update','--id','1');
@@ -126,8 +127,10 @@ test('concurrent Goal creation and identical Deliverable updates allocate withou
  const f=await fixture(t);const goals=await Promise.all(Array.from({length:4},()=>f.run('create','--title','Goal')));
  assert.deepEqual(goals.map(g=>g.id).sort(),['1','2','3','4']);
  await writeFile(goals.find(g=>g.id==='1').deliverablePath,'# Current');
- const saved=await Promise.all(Array.from({length:4},()=>f.run('deliverable','update','--id','1')));
- assert.equal(saved.filter(s=>s.changed).length,1);assert.ok(saved.every(s=>s.version===1));
+ const saved=await Promise.allSettled(Array.from({length:4},()=>f.run('deliverable','update','--id','1')));
+ assert.equal(saved.filter(s=>s.status==='fulfilled'&&s.value.changed&&s.value.version===1).length,1);
+ assert.ok(saved.filter(s=>s.status==='rejected').every(s=>/Not published: .* is the same as v1\./.test(s.reason.stderr)));
+ assert.equal((await f.run('show','--id','1')).deliverable.version,1);
  await assert.rejects(f.update('1',{state:'working'}),/Live Working/);
  await assert.rejects(f.update('1',{state:'waiting'}),/Waiting reason/);
 });
