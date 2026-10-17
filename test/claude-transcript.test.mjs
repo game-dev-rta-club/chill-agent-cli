@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {appendFile,mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {appendFile,mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {claudeModel,claudeRunning,claudeTurn,claudeWork,validTranscriptPath} from '../lib/claude-transcript.mjs';
@@ -48,6 +48,30 @@ test('a conversation is running from its last entry until Stop or an interrupt, 
  await appendFile(path,line({type:'user',uuid:'n0',message:{role:'user',content:'<task-notification>done</task-notification>'}}));assert.equal(await claudeRunning(path),true);
  await appendFile(path,line({type:'user',uuid:'i0',message:{role:'user',content:[{type:'text',text:'[Request interrupted by user]'}]}}));assert.equal(await claudeRunning(path),false);
  assert.equal(await claudeRunning('/missing/session.jsonl'),null);
+});
+
+test('a response that ends with a background subagent still working stays Running until its notification',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'chill-transcript-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const path=join(dir,'session.jsonl'),stop=line({type:'system',subtype:'stop_hook_summary',timestamp:'2026-10-14T05:01:00.000Z'});
+ await mkdir(join(dir,'session','subagents'),{recursive:true});
+ const subagent=join(dir,'session','subagents','agent-a1b2c3.jsonl');await writeFile(subagent,'{}\n');
+ await writeFile(path,[
+  line({type:'user',uuid:'p0',message:{role:'user',content:'Run the test'}}),
+  line({type:'attachment',uuid:'h1',attachment:{type:'hook_additional_context',content:[`[{"eventId":7,"offerId":"${offer}"}]`]}}),
+  assistant('a0',[{type:'tool_use',id:'toolu_agent',name:'Agent',input:{prompt:'x',run_in_background:true}},{type:'tool_use',id:'toolu_bash',name:'Bash',input:{command:'serve',run_in_background:true}}]),
+  line({type:'user',uuid:'r0',toolUseResult:{},message:{role:'user',content:[{type:'tool_result',tool_use_id:'toolu_agent',content:[{type:'text',text:'Async agent launched successfully.\nagentId: a1b2c3 (internal ID)'}]},{type:'tool_result',tool_use_id:'toolu_bash',content:'Command running in background with ID: b9z8y7.'}]}}),
+  assistant('a1',[{type:'text',text:'Started; I will report when it ends.'}]),stop,
+ ].join(''));
+ assert.deepEqual(await claudeTurn(path).then(({running,background})=>({running,background})),{running:false,background:1},'the subagent counts; the background command does not');
+ const work=await claudeWork(path,offer);
+ assert.equal(work.status,'working');assert.equal(work.background,1);assert.equal(work.endedAt,'2026-10-14T05:01:00.000Z');
+ assert.equal((await claudeWork(path,offer,{now:()=>Date.now()+11*60*1000})).status,'completed','a subagent whose transcript stopped being written ended with its app');
+ await appendFile(path,line({type:'queue-operation',operation:'enqueue',content:'<task-notification>\n<task-id>a1b2c3</task-id>\n<status>completed</status>\n<note>This agent stopped with background work of its own still running.</note>\n</task-notification>'}));
+ assert.equal((await claudeTurn(path)).background,1,'an interim notification while the subagent waits on its own work');
+ // Claude Code queues the notification when the subagent ends.
+ await appendFile(path,line({type:'queue-operation',operation:'enqueue',content:'<task-notification>\n<task-id>a1b2c3</task-id>\n<tool-use-id>toolu_agent</tool-use-id>\n<status>completed</status>\n</task-notification>'}));
+ assert.equal((await claudeTurn(path)).background,0);
+ assert.equal((await claudeWork(path,offer)).status,'completed');
 });
 
 test('only absolute .jsonl transcript paths are read',async()=>{
