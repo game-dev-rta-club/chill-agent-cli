@@ -32,6 +32,10 @@ test('Active HTML and unsafe links are filtered; Markdown code remains literal',
  assert.doesNotMatch(html,/<script|javascript:|onerror|<img/);assert.match(html,/&lt;script&gt;literal/);
 });
 
+test('A numbered item after a paragraph keeps its number',()=>{
+ const html=markdownHTML('1. One\n\nText\n\n2. Two\n\nText\n\n3. Three');
+ assert.deepEqual(nodes(parseFragment(html),'ol').map(n=>n.attrs.find(a=>a.name==='start')?.value),[undefined,'2','3']);
+});
 test('Task lists retain completion as static marks without form controls',()=>{
  const html=markdownHTML('- [x] Done\n- [ ] To do');
  assert.match(html,/☑/);assert.match(html,/☐/);assert.doesNotMatch(html,/<input/);
