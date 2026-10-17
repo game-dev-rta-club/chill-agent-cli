@@ -29,6 +29,15 @@ entry identifies its Root and Goal path so the agent can read it in context.
 Choosing a work Goal does not filter the inbox. Other chats and subagents cannot
 claim that inbox; manually held feedback keeps its pause/resume delivery path.
 
+## Waiting: feedback saved while the agent works
+
+Feedback saved while its agent is working is marked Waiting. Hooks do not offer
+it to the work in progress; it arrives when that work ends, like any message:
+Codex runs it from the native Queue after the turn, and Claude's Stop hands it
+over as the response ends. Feedback saved while the agent is idle is delivered at
+once, as before. **Send now** on the Web (`goal send-now --event <ID>`) lifts
+Waiting, so the next hook offers it to the running work.
+
 For a separate request that should wait, `goal activity --event <ID> --state
 deferred` records reading while retaining a verified native queue entry. It is
 available only to the assigned chat during another active turn, before claiming

@@ -237,9 +237,12 @@ function deliveryMarkup(event, work, continuedTo) {
   const delivery = deliveries.get(event.changeId);
   const activity=continuedTo?null:work?.activity||activityControls.forEvent(event.changeId);
   if (!delivery && !event.threadId && !activity) return '';
-  const state = activity?activity.status:continuedTo ? 'continued' : work?.status || (work?.live ? 'working' : '') || delivery?.status || 'saved';
-  const labels = { saved: 'Saved', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
-  const descriptions = { saved: delivery?.notice||'', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
+  let state = activity?activity.status:continuedTo ? 'continued' : work?.status || (work?.live ? 'working' : '') || delivery?.status || 'saved';
+  // Saved while the agent works: it arrives when that work ends, unless sent now.
+  const waiting = delivery?.waitForIdle && !delivery.sendNow && !delivery.agentReported && (delivery.status === 'waiting' || state === 'queued');
+  if (waiting) state = 'waiting';
+  const labels = { saved: 'Saved', waiting: 'Waiting', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
+  const descriptions = { saved: delivery?.notice||'', waiting: 'Arrives when the current work ends.', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
   const retry = state === 'saved' || (state === 'failed' && !delivery?.mayHaveSent);
   const check = state === 'unknown';
   const history = delivery?.history || [];
@@ -248,7 +251,8 @@ function deliveryMarkup(event, work, continuedTo) {
     <div class="delivery-entry" data-state="${state}"><div class="delivery-heading"><span class="delivery-dot" aria-hidden="true"></span><strong>${activity&&state==='unknown'?'Checking':labels[state] || 'Saved'}</strong>
       ${continuedTo ? `<button type="button" class="text-button" data-action="view-work" data-event-id="${continuedTo}" aria-label="View continued work">View ↓</button>` : ''}
       ${activity?activityControls.markup(activity.eventId):''}
-      ${!activity && (retry || check) ? `<button type="button" class="text-button" data-action="retry-delivery" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${check ? 'Check' : 'Retry'}</button>` : ''}</div>
+      ${!activity && (retry || check) ? `<button type="button" class="text-button" data-action="retry-delivery" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${check ? 'Check' : 'Retry'}</button>` : ''}
+      ${waiting ? `<button type="button" class="text-button" data-action="send-now" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">Send now</button>` : ''}</div>
       <p>${escapeHTML(activity&&state==='unknown'?'Unconfirmed. Refresh to check.':descriptions[state] || '')}</p>
       ${workMarkup(work)}
       ${history.length ? `<details class="delivery-history" data-delivery-id="${event.changeId}" ${openDeliveries.has(event.changeId) ? 'open' : ''}><summary>Activity</summary>${delivery?.work?.settings?.model ? `<p class="activity-settings">${escapeHTML(delivery.work.settings.model)}${delivery.work.settings.reasoning ? ` · ${escapeHTML(delivery.work.settings.reasoning)}` : ''}</p>` : ''}<ol>${history.map(item => `<li><span>${escapeHTML(labels[item.status] || item.status)}</span><time datetime="${escapeHTML(item.at)}">${new Date(item.at).toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}</time></li>`).join('')}</ol></details>` : ''}
@@ -1370,13 +1374,14 @@ main.addEventListener('click', async event => {
     scrollInReadingPane(target);
     return;
   }
-  const button = event.target.closest('[data-action="retry-delivery"]');
+  const button = event.target.closest('[data-action="retry-delivery"], [data-action="send-now"]');
   if (!button) return;
+  const sendNow = button.dataset.action === 'send-now';
   button.disabled = true;
   try {
-    const response = await fetch(`/api/goals/${button.dataset.goalId}/deliveries/${button.dataset.eventId}/retry`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const response = await fetch(`/api/goals/${button.dataset.goalId}/deliveries/${button.dataset.eventId}/${sendNow ? 'send-now' : 'retry'}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Could not check delivery.');
+    if (!response.ok) throw new Error(result.error || (sendNow ? 'Could not send now.' : 'Could not check delivery.'));
     await refreshDeliveries();
   } catch (error) { announcement.textContent = error.message; }
   finally { button.disabled = false; }
