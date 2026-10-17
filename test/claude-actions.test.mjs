@@ -243,6 +243,35 @@ test('goal work from a Claude conversation marks its Goal Running for the curren
   assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
 });
 
+test('a Claude reply that leaves a subagent working keeps its Goal and message Running until the subagent ends',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs');
+  const {agentFor}=await import('../lib/agents/index.mjs');
+  const {withClaudeReception}=await import('../lib/claude-status.mjs');
+  const event=await appendFeedback({goalId:goal.id,text:'Run the long test'});await deliverFeedback(event.changeId);
+  await s.act('inbox',{});const offerId=(await readDeliveryState(event.changeId)).nativeOfferId;
+  const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
+  await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
+  await mkdir(join(f.dir,'session','subagents'),{recursive:true});await writeFile(join(f.dir,'session','subagents','agent-a1b2c3.jsonl'),'{}\n');
+  const line=value=>JSON.stringify(value)+'\n';
+  await writeFile(transcript,[
+    line({type:'user',uuid:'p1',message:{role:'user',content:'Wake'}}),
+    line({type:'user',uuid:'r0',toolUseResult:{},message:{role:'user',content:[{type:'tool_result',tool_use_id:'toolu_inbox',content:JSON.stringify([{offerId}])}]}}),
+    line({type:'assistant',uuid:'a1',message:{content:[{type:'tool_use',id:'toolu_agent',name:'Agent',input:{prompt:'test',run_in_background:true}}]}}),
+    line({type:'user',uuid:'r1',toolUseResult:{},message:{role:'user',content:[{type:'tool_result',tool_use_id:'toolu_agent',content:[{type:'text',text:'Async agent launched successfully.\nagentId: a1b2c3'}]}]}}),
+    line({type:'system',subtype:'stop_hook_summary',uuid:'s1'}),
+  ].join(''));
+  await s.act('reply',{eventId:event.changeId,text:'Started the test; I will report the result.'});
+  const presence=await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence();
+  assert.equal(presence.status,'working');assert.equal(presence.goalId,goal.id);
+  const delivery=await readDeliveryState(event.changeId);
+  assert.equal(delivery.status,'completed');
+  assert.equal((await withClaudeReception([delivery]))[0].status,'working','answered, but still Running while its subagent works');
+  await writeFile(transcript,line({type:'queue-operation',operation:'enqueue',content:'<task-notification>\n<task-id>a1b2c3</task-id>\n<status>completed</status>\n</task-notification>'}),{flag:'a'});
+  assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).status,'idle');
+  assert.equal((await withClaudeReception([delivery]))[0].status,'completed');
+});
+
 test('a reply to feedback that already has a terminal receipt tells the agent why',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
   const event=await appendFeedback({goalId:goal.id,text:'Done already'});await deliverFeedback(event.changeId);
