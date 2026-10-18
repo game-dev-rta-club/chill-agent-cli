@@ -34,7 +34,7 @@ async function fixture(run){
    if(m.method==='thread-follower-start-turn'){
     const id=randomUUID(),input=m.params.turnStart.request.input;
     assert.ok(input.every(p=>p.type!=='text'||Array.isArray(p.text_elements)));
-    await history({turns:[{id,completedAt:null,status:'inProgress',items:[{type:'userMessage',content:input}]}],items:{[id]:[{turnId:id,item:{type:'userMessage',content:input}}]}});
+    await history({turns:[{id,completedAt:null,status:'inProgress',items:[{type:'userMessage',id:'item-1',content:input}]}],items:{[id]:[{turnId:id,item:{type:'userMessage',id:'item-1',content:input}}]}});
     result={result:{turn:{id}}};if(dropStart){socket.destroy();return;}
    }
    const body=Buffer.from(JSON.stringify({type:'response',requestId:m.requestId,resultType:'success',result})),header=Buffer.alloc(4);header.writeUInt32LE(body.length);socket.write(Buffer.concat([header,body]));
@@ -77,7 +77,7 @@ test('saved input can be paused before dispatch and resumed without a new commen
 }));
 test('running pause and supplement start one normalized IPC turn; lost start response is reconciled without resend',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},()=>fixture(async f=>{
  const a=await f.feedback('Original task');await deliverFeedback(a.changeId);
- const s=await readDeliveryState(a.changeId),item={type:'userMessage',content:[{type:'text',text:`[chill-agent:${s.messageId}]`}]};
+ const s=await readDeliveryState(a.changeId),item={type:'userMessage',id:'item-1',content:[{type:'text',text:`[chill-agent:${s.messageId}]`}]};
  await f.history({turns:[{id:turn,completedAt:null,status:'inProgress',items:[item]}],items:{[turn]:[{turnId:turn,item}]}});
  await updateDelivery(a.changeId,{turnId:turn});await f.stop(a);
  assert.equal((await readFeedbackHold(a.goalId)).phase,'paused');

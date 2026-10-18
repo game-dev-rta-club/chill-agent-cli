@@ -429,7 +429,7 @@ test('deferred feedback stays queued and unclaimed, then binds to the turn that 
   // A later native turn picks up the preserved message without a second send.
   const next='00000000-0000-0000-0000-000000000011';
   await writeFile(join(f.root,'fake-queue.json'),JSON.stringify(queue.slice(1)));
-  await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:next,status:'inProgress',completedAt:null,items:[{type:'userMessage',content:queue[0].input}]}]}));
+  await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:next,status:'inProgress',completedAt:null,items:[{type:'userMessage',id:'item-1',content:queue[0].input}]}]}));
   await assert.rejects(f.run(['activity','--event','1','--state','deferred']),/already started/);
   const claimed=JSON.parse((await f.run(['activity','--event','1','--state','working'])).stdout).delivery;
   assert.equal(claimed.turnId,next); assert.equal(claimed.work.turnId,next); assert.equal(claimed.queueCleared,true);

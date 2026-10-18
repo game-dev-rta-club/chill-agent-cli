@@ -39,6 +39,12 @@ Run focused tests while developing, then the full check before your pull request
 CI also checks portable JavaScript contracts on Windows; that is not a promise
 of a Windows Desktop integration. Keep generated bundles out of source control.
 
+Tests never start Codex. The fake app-server in `test/fake-codex.mjs`, and inline
+stubs wrapped with `contractStub`, are checked against Codex's own protocol schema
+(`test/fixtures/codex-app-server-schema.json`), so a request or answer Codex would
+reject fails the run. After a Codex update, run `node scripts/update-codex-schema.mjs`
+and review the diff; the script is not part of `npm run check`.
+
 ## Documentation ownership
 
 Write for developers using the infrastructure independently. This repository owns

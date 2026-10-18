@@ -11,26 +11,28 @@ import {workReader, needsWorkRefresh, presentDelivery} from '../lib/work-output.
 import {workProgressGroups, workDisclosure} from '../public/work-ui.js';
 import {fileURLToPath} from 'node:url';
 import {expectHidden} from './hidden-failures.mjs';
+import {codexThread, contractStub} from './codex-contract.mjs';
 
 const thread='00000000-0000-0000-0000-000000000001';
 const turn='00000000-0000-0000-0000-000000000002';
 const started='2026-09-27T04:00:00.000Z', start=Date.parse(started);
 const state={threadId:thread,hookTurnId:turn,messageId:'notice-1',status:'working',agentReported:true,history:[{status:'working',at:started}]};
-const meta={id:turn,startedAt:start/1000-10,completedAt:null,status:'interrupted',items:[]};
+const meta={id:turn,startedAt:Math.floor(start/1000)-10,completedAt:null,status:'interrupted',items:[]};
+const userMessage=text=>({type:'userMessage',id:'user-1',content:[{type:'text',text}]});
 const message=(id,text,at=start+100,turnId=turn)=>({turnId,startedAtMs:at,item:{id,type:'agentMessage',phase:'commentary',text}});
-const clientFor=(entries, metadata=meta)=>({request:async(method,p)=>{
+const clientFor=(entries, metadata=meta)=>contractStub(async(method,p)=>{
   assert.equal(p.threadId,thread);
-  if(method==='thread/read')return {thread:{}};
+  if(method==='thread/read')return {thread:codexThread({id:thread})};
   if(method==='thread/turns/list')return {data:[metadata],nextCursor:null};
   assert.equal(method,'thread/items/list');assert.equal(p.turnId,turn);return {data:entries,nextCursor:null};
-}});
+});
 
 test('all public output in the linked turn is kept, including before working and after completed',async()=>{
   const entries=[message('before','Opening message',start-5000),message('now','Progress'),message('wrong','other turn',start+100,'other'),
-    {turnId:turn,startedAtMs:start+100,item:{type:'reasoning',content:['private']}},
-    {turnId:turn,startedAtMs:start+100,item:{type:'commandExecution',command:'secret'}},
+    {turnId:turn,startedAtMs:start+100,item:{id:'thought',type:'reasoning',content:['private']}},
+    {turnId:turn,startedAtMs:start+100,item:{id:'command',type:'commandExecution',command:'secret',commandActions:[],cwd:'/tmp',status:'completed'}},
     {...message('after','Final answer',start+500),item:{id:'after',type:'agentMessage',phase:'final_answer',text:'Final answer'}}];
-  const work=await workReader(clientFor(entries,{...meta,status:'completed',completedAt:start/1000+1}))({...state,status:'completed',history:[...state.history,{status:'completed',at:new Date(start+300).toISOString()}]});
+  const work=await workReader(clientFor(entries,{...meta,status:'completed',completedAt:Math.floor(start/1000)+1}))({...state,status:'completed',history:[...state.history,{status:'completed',at:new Date(start+300).toISOString()}]});
   assert.deepEqual(work.messages.map(m=>m.text),['Opening message','Progress','Final answer']);
   assert.ok(!JSON.stringify(work).includes('secret'));
   assert.ok(!JSON.stringify(work).includes('private'));
@@ -40,20 +42,20 @@ test('all public output in the linked turn is kept, including before working and
 test('work output carries turn settings rather than current thread settings',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'work-settings-')),path=join(dir,'rollout.jsonl');
  await writeFile(path,JSON.stringify({type:'turn_context',payload:{turn_id:turn,model:'actual-model',effort:'high'}})+'\n');
- const base=clientFor([]),client={request:async(method,p)=>method==='thread/read'?{thread:{path,model:'next-model',reasoningEffort:'low'}}:base.request(method,p)};
+ const base=clientFor([]),client=contractStub(async(method,p)=>method==='thread/read'?{thread:codexThread({id:thread,path,model:'next-model',reasoningEffort:'low'})}:base.request(method,p));
  const work=await workReader(client)(state);assert.deepEqual(work.settings,{model:'actual-model',reasoning:'high'});
 });
 
 test('queued notices bind automatically without activity receipts, never to unrelated latest turns',async()=>{
   const calls=[];
-  const reader=workReader({request:async(method,p)=>{
+  const reader=workReader(contractStub(async(method,p)=>{
     calls.push([method,p]);
-    if(method==='thread/read')return {thread:{}};
+    if(method==='thread/read')return {thread:codexThread({id:thread})};
     if(method==='thread/turns/list') return p.cursor
-      ? {data:[{...meta,items:[{type:'userMessage',content:[{type:'text',text:'[chill-agent:notice-1]'}]}]}],nextCursor:null}
-      : {data:[{id:'unrelated',items:[]}],nextCursor:'older'};
+      ? {data:[{...meta,items:[userMessage('[chill-agent:notice-1]')]}],nextCursor:null}
+      : {data:[{id:'unrelated',status:'completed',items:[]}],nextCursor:'older'};
     assert.equal(p.turnId,turn);return {data:[message('a','ours')],nextCursor:null};
-  }});
+  }));
   const queued={...state,status:'queued',hookTurnId:undefined,history:[]};
   const work=await reader(queued);
   assert.equal(work.turnId,turn);assert.equal(work.status,'working');
@@ -68,7 +70,7 @@ test('Codex completion timestamps, not activity commands or misleading runtime s
   assert.equal(presentDelivery({...earlyReceipt,work:running}).status,'working');
   assert.equal(needsWorkRefresh({...earlyReceipt,work:running}),true);
   for(const status of ['completed','interrupted','failed']) {
-    const work=await workReader(clientFor([], {...meta,status,completedAt:start/1000+1}))(state);
+    const work=await workReader(clientFor([], {...meta,status,completedAt:Math.floor(start/1000)+1}))(state);
     assert.equal(work.status,status);assert.ok(work.endedAt);
     assert.equal(needsWorkRefresh({...earlyReceipt,work}),false);
   }
@@ -77,15 +79,15 @@ test('Codex completion timestamps, not activity commands or misleading runtime s
 
 test('all pages and long public messages are retained without the old size or count caps',async()=>{
   let count=0;
-  const reader=workReader({request:async(method,p)=>{
+  const reader=workReader(contractStub(async(method,p)=>{
     if(method==='thread/turns/list')return {data:[meta],nextCursor:null};
-    if(method==='thread/read')return {thread:{path:null}};
+    if(method==='thread/read')return {thread:codexThread({id:thread})};
     count++;const page=Number(p.cursor || 0);
     return {data:page===0 ? [message('long','x'.repeat(51000),start+99999),message('growing','short expanded',start+99998)] :
       page===21 ? [message('growing','short',start+99998),{...message('untimed','No timestamp'),startedAtMs:null}] :
       Array.from({length:6},(_,n)=>message(`${page}-${n}`,`Page ${page}, item ${n}`,start+page*10+n)),
     nextCursor:page<21?String(page+1):null};
-  }});
+  }));
   const a=await reader(state),b=await reader(state);
   assert.deepEqual(a,b);assert.equal(count,22);
   assert.ok(a.messages.length>100);
@@ -137,14 +139,14 @@ test('follow-ups share an indicator only after joining the same work, within the
 });
 
 test('Queue fallback after an unclaimed hook replaces even a cached old turn',async()=>{
-  const reader=workReader({request:async(method,p)=>{
-    if(method==='thread/read')return {thread:{}};
+  const reader=workReader(contractStub(async(method,p)=>{
+    if(method==='thread/read')return {thread:codexThread({id:thread})};
     if(method==='thread/turns/list')return {data:[
-      {...meta,items:[{type:'userMessage',content:[{type:'text',text:'[chill-agent:notice-1]'}]}]},
-      {id:'old-hook',items:[]}
+      {...meta,items:[userMessage('[chill-agent:notice-1]')]},
+      {id:'old-hook',status:'completed',items:[]}
     ],nextCursor:null};
     assert.equal(p.turnId,turn);return {data:[message('a','new handler')],nextCursor:null};
-  }});
+  }));
   assert.equal((await reader({...state,hookTurnId:'old-hook',work:{turnId:'old-hook'}})).turnId,turn);
 });
 
@@ -161,7 +163,7 @@ test('Web collects before receipt and after activity completion, then freezes on
   const input=join(dir,'feedback.json');await writeFile(input,JSON.stringify({text:'Go'}));
   await invoke(['feedback','--id','1','--input-file',input]);
   const delivery=JSON.parse(await readFile(join(dir,'workspace','deliveries','1.json'),'utf8'));
-  const history={turns:[{...meta,items:[{type:'userMessage',content:[{type:'text',text:`[chill-agent:${delivery.messageId}]`}]}]}],items:{[turn]:[message('first','Opening before receipt',Date.now())]}};
+  const history={turns:[{...meta,items:[{type:'userMessage',id:'item-1',content:[{type:'text',text:`[chill-agent:${delivery.messageId}]`}]}]}],items:{[turn]:[message('first','Opening before receipt',Date.now())]}};
   const saveHistory=()=>writeFile(join(dir,'fake-history.json'),JSON.stringify(history));
   await saveHistory();
   const server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url))],{env:{...env,PORT:'0'},stdio:['ignore','pipe','pipe']});
@@ -181,7 +183,7 @@ test('Web collects before receipt and after activity completion, then freezes on
     const [stillRunning]=await (await fetch(`${url}/api/goals/1/deliveries`)).json();
     assert.equal(stillRunning.status,'working');assert.equal(stillRunning.reportedStatus,'completed');
     history.items[turn].push(message('final','Final answer after receipt',Date.now()));
-    history.turns[0].status='completed';history.turns[0].completedAt=Date.now()/1000;
+    history.turns[0].status='completed';history.turns[0].completedAt=Math.floor(Date.now()/1000);
     await saveHistory();await delay(5100);
     const [done]=await (await fetch(`${url}/api/goals/1/deliveries`)).json();
     assert.equal(done.status,'completed');assert.equal(done.work.messages.length,3);assert.ok(done.work.endedAt);
@@ -196,13 +198,13 @@ test('Web collects before receipt and after activity completion, then freezes on
 
 
 test('queued resumed input binds by the common input marker instead of the original completed comment',async()=>{
- const resumed={...meta,id:turn,items:[{type:'userMessage',content:[{type:'text',text:'[chill-agent:batch-new]\n[chill-agent:notice-1]'}]}]};
- const old={...meta,id:'old',status:'completed',completedAt:123,items:[{type:'userMessage',content:[{type:'text',text:'[chill-agent:notice-1]'}]}]};
- const client={request:async(method,p)=>{
+ const resumed={...meta,id:turn,items:[userMessage('[chill-agent:batch-new]\n[chill-agent:notice-1]')]};
+ const old={...meta,id:'old',status:'completed',completedAt:123,items:[userMessage('[chill-agent:notice-1]')]};
+ const client=contractStub(async(method,p)=>{
   if(method==='thread/turns/list')return {data:[old,resumed],nextCursor:null};
-  if(method==='thread/read')return {thread:{}};
+  if(method==='thread/read')return {thread:codexThread({id:thread})};
   assert.equal(p.turnId,turn);return {data:[message('a','Resumed output')],nextCursor:null};
- }};
+ });
  const work=await workReader(client)({...state,hookTurnId:null,batchId:'batch-new',status:'queued'});
  assert.equal(work.turnId,turn);assert.equal(work.messages[0].text,'Resumed output');
 });
@@ -211,11 +213,11 @@ test('monitor receipt binds by its exact result command without a visible marker
  const command='chill monitor result --id 1 --attempt 00000000-0000-0000-0000-000000000123 --outcome worked';
  const queued={threadId:thread,messageId:'00000000-0000-0000-0000-000000000123',matchText:command,history:[]};
  for(const text of [command,'[chill-agent:00000000-0000-0000-0000-000000000123]']) {
-  const reader=workReader(clientFor([],{...meta,items:[{type:'userMessage',content:[{type:'text',text}]}]}));
+  const reader=workReader(clientFor([],{...meta,items:[userMessage(text)]}));
   assert.equal((await reader(queued)).turnId,turn);
  }
  for(const text of [command.replace('--id 1','--id 2'),command+'other',command.replace('000123','000124')]) {
-  const reader=workReader(clientFor([],{...meta,items:[{type:'userMessage',content:[{type:'text',text}]}]}));
+  const reader=workReader(clientFor([],{...meta,items:[userMessage(text)]}));
   assert.equal(await reader(queued),null);
  }
 });
@@ -260,10 +262,10 @@ test('direct CLI receipt binds the live turn without a notification marker or wo
 
 
 test('unclaimed hook notices never borrow the interrupted work output',async()=>{
- const client={request:async(method)=>{
+ const client=contractStub(async(method)=>{
   if(method==='thread/turns/list')return {data:[{id:turn,status:'inProgress',completedAt:null,items:[]}],nextCursor:null};
   throw Error('No other reads expected');
- }};
+ });
  const queued={threadId:thread,hookTurnId:turn,messageId:'pending',status:'deferred',history:[]};
  assert.equal(await workReader(client)(queued),null);
 });

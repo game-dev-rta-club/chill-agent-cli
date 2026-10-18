@@ -11,6 +11,7 @@ import {createGoal,updateGoal,updateBrief,appendFeedback,readFeedback} from '../
 import {mkdir} from 'node:fs/promises';
 import {recordVersionSource} from '../lib/version-source.mjs';
 import {fileURLToPath} from 'node:url';
+import {codexThread,contractStub} from './codex-contract.mjs';
 
 import {expectHidden} from './hidden-failures.mjs';
 // The skill lives outside the runtime; setup records its guide in the data directory.
@@ -74,12 +75,12 @@ test('adapter paginates native queue and detects turns changing during observati
  const old=process.env.CHILL_AGENT_DATA_DIR,dir=await mkdtemp(join(tmpdir(),'chill-monitor-'));process.env.CHILL_AGENT_DATA_DIR=dir;
  try{
   const root=await createGoal({title:'root',threadId:'00000000-0000-0000-0000-000000000001'});let turns=0;
-  const facts=await continuationObservation(root.id,null,{connect:fn=>fn({request:async(method,p)=>{
-   if(method==='thread/read')return {thread:{status:{type:'notLoaded'}}};
-   if(method==='thread/turns/list')return {data:[{id:++turns===1?'a':'b',completedAt:1,status:'completed'}]};
-   if(method==='thread/queue/list')return p.cursor?{data:[{id:'other-goal'}]}:{data:[],nextCursor:'next'};
+  const facts=await continuationObservation(root.id,null,{connect:fn=>fn(contractStub(async(method,p)=>{
+   if(method==='thread/read')return {thread:codexThread({id:p.threadId})};
+   if(method==='thread/turns/list')return {data:[{id:++turns===1?'a':'b',completedAt:1,status:'completed',items:[]}]};
+   if(method==='thread/queue/list')return p.cursor?{data:[{id:'other-goal',clientUserMessageId:'other-message',input:[]}]}:{data:[],nextCursor:'next'};
    throw Error(method);
-  }})});
+  }))});
   assert.equal(facts.queue.length,1);assert.equal(facts.stable,false);assert.equal(continuationEligibility(facts),'queued');
  }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});}
 });
@@ -88,12 +89,12 @@ test('adapter treats interrupted without an end timestamp as running',async()=>{
  const old=process.env.CHILL_AGENT_DATA_DIR,dir=await mkdtemp(join(tmpdir(),'chill-live-monitor-'));process.env.CHILL_AGENT_DATA_DIR=dir;
  try{
   const root=await createGoal({title:'root',threadId:'00000000-0000-0000-0000-000000000002'});
-  const facts=await continuationObservation(root.id,null,{connect:fn=>fn({request:async(method)=>{
-   if(method==='thread/read')return {thread:{status:{type:'notLoaded'}}};
-   if(method==='thread/turns/list')return {data:[{id:'live',completedAt:null,status:'interrupted'}]};
+  const facts=await continuationObservation(root.id,null,{connect:fn=>fn(contractStub(async(method,p)=>{
+   if(method==='thread/read')return {thread:codexThread({id:p.threadId})};
+   if(method==='thread/turns/list')return {data:[{id:'live',completedAt:null,status:'interrupted',items:[]}]};
    if(method==='thread/queue/list')return {data:[]};
    throw Error(method);
-  }})});
+  }))});
   assert.equal(facts.paused,false);assert.equal(continuationEligibility(facts),'running');
  }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});}
 });
@@ -101,11 +102,11 @@ test('adapter treats interrupted without an end timestamp as running',async()=>{
 test('real store: content revisions and internal results stay separate from Web events',async()=>{
  const old=process.env.CHILL_AGENT_DATA_DIR,dir=await mkdtemp(join(tmpdir(),'chill-monitor-result-'));process.env.CHILL_AGENT_DATA_DIR=dir;
  const threadId='00000000-0000-0000-0000-000000000003';
- const connect=fn=>fn({request:async(method)=>{
-  if(method==='thread/read')return {thread:{status:{type:'notLoaded'}}};
-  if(method==='thread/turns/list')return {data:[{id:'ended',status:'completed',completedAt:1}]};
+ const connect=fn=>fn(contractStub(async(method,p)=>{
+  if(method==='thread/read')return {thread:codexThread({id:p.threadId})};
+  if(method==='thread/turns/list')return {data:[{id:'ended',status:'completed',completedAt:1,items:[]}]};
   if(method==='thread/queue/list')return {data:[]};throw Error(method);
- }});
+ }));
  try{
   const root=await createGoal({title:'root',threadId});
   const observe=()=>continuationObservation(root.id,null,{connect});
