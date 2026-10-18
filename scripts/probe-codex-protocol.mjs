@@ -16,7 +16,7 @@ const message = error => error?.message ?? String(error);
 // Returns {checks, differences, validatedMethods, unvalidatedMethods}.
 export async function runProtocol({codex, log}) {
   const checks = [];
-  const check = (name, ok, detail = '') => { checks.push({name, ok: Boolean(ok), ...(detail ? {detail: String(detail)} : {})}); log(`${ok ? 'pass' : 'FAIL'}  ${name}${ok || !detail ? '' : `  (${String(detail).slice(0, 300)})`}`); };
+  const check = (name, ok, detail = '') => { checks.push({name, ok: Boolean(ok), ...(detail && !ok ? {detail: String(detail)} : {})}); log(`${ok ? 'pass' : 'FAIL'}  ${name}${ok || !detail ? '' : `  (${String(detail).slice(0, 300)})`}`); };
   const attempt = async (name, run) => { try { await run(); } catch (error) { check(name, false, `threw: ${message(error)}`); } };
 
   const violations = new Map(), validated = new Set();

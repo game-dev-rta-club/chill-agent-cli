@@ -34,7 +34,7 @@ export async function runConnection({codex, log, options}) {
   const rehearsal = Boolean(options['fake-model']);
   const model = options.model ?? SOL.model, effort = options.effort ?? SOL.effort, timeout = Number(options.timeout ?? 300) * 1000;
   const checks = [];
-  const check = (name, ok, detail = '') => { checks.push({name, ok: Boolean(ok), ...(detail ? {detail: String(detail)} : {})}); log(`${ok ? 'pass' : 'FAIL'}  ${name}${ok || !detail ? '' : `  (${String(detail).slice(0, 400)})`}`); };
+  const check = (name, ok, detail = '') => { checks.push({name, ok: Boolean(ok), ...(detail && !ok ? {detail: String(detail)} : {})}); log(`${ok ? 'pass' : 'FAIL'}  ${name}${ok || !detail ? '' : `  (${String(detail).slice(0, 400)})`}`); };
 
   const userAuth = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'auth.json');
   if (!rehearsal) authPreflight(userAuth);
