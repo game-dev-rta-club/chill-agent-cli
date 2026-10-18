@@ -152,6 +152,15 @@ scenario('a stop in the agent\'s own app shows Interrupted, not Paused, and the 
   assert.equal((await s.activity()).state,'running');
 });
 
+// Running comes only from the harness's start and end of work, never from what is written to the conversation.
+scenario('a command the user runs in the agent\'s own app, such as /reload-skills, does not make it Running',async (s,driver)=>{
+  await s.userRunsLocalCommand();
+  assert.equal((await s.agentStatus()).work.status,'idle');
+  assert.equal(await s.goalRunning(),false);
+  const event=await s.saveFeedback('Now');
+  assert.equal(await s.shown(event),driver.pending,'not held as Waiting');
+});
+
 scenario('a stop with nothing running and nothing said about feedback the agent took is held once, to tell the user',async (s,driver) => {
   const event=await s.saveFeedback('Fix the build');
   await s.agentTakesFeedback(event);

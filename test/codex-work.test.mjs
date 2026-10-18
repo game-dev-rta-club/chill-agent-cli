@@ -49,6 +49,14 @@ test('an idle chat is sent waiting comments as one message, quoting the user as 
   assert.equal((await handIdleCodex(f.thread)).length,0,'nothing is sent twice');
 });
 
+test('a dozen waiting comments go to an idle chat in one message, none dropped',async t=>{
+  const f=await fixture(t),saved=[];await f.startTurn();
+  for(let n=1;n<=12;n++)saved.push(await f.save(`Comment ${n}`));
+  await f.endTurn();
+  assert.deepEqual((await handIdleCodex(f.thread)).map(e=>e.id),saved);
+  assert.deepEqual((await f.queue()).map(e=>ids(e.input[0].text)),[saved]);
+});
+
 test('a chat Codex cannot read keeps the comment saved, and a later hand-off sends it',async t=>{
   const f=await fixture(t);
   await writeFile(join(f.dir,'fake-history.json'),JSON.stringify({fail:true}));invalidateAgentObservation(f.thread);

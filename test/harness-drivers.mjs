@@ -6,6 +6,8 @@
 //   agentStartsResponse()           the agent begins a response (a Codex turn, a Claude response)
 //   agentEndsResponse({background}) that response ends. Resolves to the reason when chill holds the stop, and the
 //                                   response then goes on; else null. `background`: work of the agent keeps running.
+//   userRunsLocalCommand()          the user runs a command of the agent's own app, such as /reload-skills: it writes to
+//                                   the conversation but starts no work
 //   agentIsInterrupted()            the user stops the running response in the agent's own app (Esc, Desktop's stop)
 //   agentTakesFeedback(eventId)     the agent's next opportunity to read Web feedback. An idle agent is woken by the
 //                                   feedback, which starts its response. Resolves to the feedback IDs that reached it.
@@ -155,6 +157,8 @@ async function codexSession(t) {
       passTime();
       return null;
     },
+    // Codex's own commands start no turn.
+    async userRunsLocalCommand() {},
     async agentIsInterrupted() {
       Object.assign(turns.at(-1),{status:'interrupted',completedAt:Math.floor(Date.now()/1000)});
       await writeHistory({type:'idle'});
@@ -221,6 +225,10 @@ async function claudeSession(t) {
       await append([claudeEntry.text(randomUUID(),'Finished.'),claudeEntry.stop({uuid:randomUUID()})]);
       responding=false;handoff=null;
       return null;
+    },
+    // Claude Code writes the command and its output to the transcript, and runs no hook.
+    async userRunsLocalCommand() {
+      await append([claudeEntry.prompt(randomUUID(),'<command-name>/reload-skills</command-name>'),claudeEntry.prompt(randomUUID(),'<local-command-stdout>Reloaded 3 skills</local-command-stdout>')]);
     },
     async agentIsInterrupted() {
       // Claude Code stamps the transcript with the real clock, which passTime does not move.
