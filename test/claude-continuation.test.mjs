@@ -12,6 +12,7 @@ import {readForWeb,configureFromWeb,onStop} from '../lib/claude-continuation.mjs
 import {storage} from '../lib/extension-api.mjs';
 import {readDeliveryState} from '../lib/delivery.mjs';
 import {readMonitor} from '../lib/continuation-monitor.mjs';
+import {hookFor} from './claude-fixtures.mjs';
 
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'claude-auto-')),cwd=join(dir,'project');await mkdir(cwd);
@@ -19,7 +20,7 @@ async function fixture(t){
  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
  const envFile=join(dir,'env');await writeFile(envFile,'');
  const sessionId=randomUUID();let promptId=randomUUID(),env;
- const event=(name,patch={})=>({hook_event_name:name,session_id:sessionId,prompt_id:promptId,cwd,...patch});
+ const event=hookFor({session_id:sessionId,prompt_id:promptId,cwd});
  async function start(source='startup'){const r=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId};}
  async function action(action,payload){const r=await runClaudeAction(action,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await start();await action('create-goal',{title:'Native Auto mode',scope:'One verified continuation',criteria:'No duplicate or lost input'});const root=(await listGoals())[0];

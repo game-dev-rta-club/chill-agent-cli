@@ -8,6 +8,7 @@ import {promisify} from 'node:util';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {prepareRuntime} from '../lib/runtime-package.mjs';
 import {configureClaudeHooks,claudeSetupStatus,findGitBash,claudeWatcherInstalled} from '../lib/claude-setup.mjs';
+import {claudeHook} from './claude-fixtures.mjs';
 const execute=promisify(execFile);
 // Claude Code runs Bash commands and shell-form hooks with sh, or Git Bash on Windows.
 const posixShell=()=>process.platform==='win32'?findGitBash():'/bin/sh';
@@ -78,7 +79,7 @@ test('CLI prepares native hooks with no Codex executable, and status never claim
   const help=execFileSync(posixShell(),['-c',prepared.command+' connection --help'],{encoding:'utf8',env:{...env,CHILL_AGENT_DATA_DIR:prepared.dataDirectory}});
   assert.match(help,/connection/);
  const envFile=join(f.dir,'native-env');await writeFile(envFile,'');const hook=(await f.read()).hooks.SessionStart[0].hooks[0];
- const options={cwd:f.project,env:{...env,CLAUDE_ENV_FILE:envFile},input:JSON.stringify({hook_event_name:'SessionStart',source:'resume',session_id:'native-test',cwd:f.project}),encoding:'utf8'};
+ const options={cwd:f.project,env:{...env,CLAUDE_ENV_FILE:envFile},input:JSON.stringify(claudeHook('SessionStart',{source:'resume',session_id:'native-test',cwd:f.project})),encoding:'utf8'};
  execFileSync(posixShell(),['-c',hook.command],options);
  assert.match(await readFile(envFile,'utf8'),/CHILL_AGENT_SESSION_ID='native-test'/);
  const status=JSON.parse((await run('status','--harness','claude-code','--project',f.project)).stdout);assert.match(status.activation,/Not verified/);

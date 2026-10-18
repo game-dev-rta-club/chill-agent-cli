@@ -16,6 +16,7 @@ import {readAgentStatus} from '../lib/agent-status.mjs';
 import {needsWorkRefresh} from '../lib/work-output.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
 import {fileURLToPath} from 'node:url';
+import {claudeEntry,claudeHook,claudeLine,claudeLines,hookFor} from './claude-fixtures.mjs';
 
 async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-claude-actions-'));
@@ -25,11 +26,11 @@ async function fixture(t) {
   const cwd=join(dir,'project');await mkdir(cwd);
   async function start(sessionId='native/session',source='startup') {
     const envFile=join(dir,randomUUID());await writeFile(envFile,'');
-    const record=await captureClaudeEntry({hook_event_name:'SessionStart',session_id:sessionId,source,cwd}, {cwd,env:{CLAUDE_ENV_FILE:envFile}});
+    const record=await captureClaudeEntry(claudeHook('SessionStart',{session_id:sessionId,source,cwd}), {cwd,env:{CLAUDE_ENV_FILE:envFile}});
     const env={CHILL_AGENT_HARNESS:record.harnessId,CHILL_AGENT_SESSION_ID:sessionId,CLAUDE_CODE_SESSION_ID:sessionId};
     const act=async(action,payload,options={})=>(await runClaudeAction(action,payload,{env,...options})).text;
-    const hook=(patch={})=>({hook_event_name:'PostToolUse',session_id:sessionId,cwd,tool_use_id:randomUUID(),tool_name:'Bash',tool_response:{stdout:'ordinary work output',interrupted:false},...patch});
-    return {record,env,envFile,act,hook};
+    const event=hookFor({session_id:sessionId,cwd}),hook=patch=>event('PostToolUse',patch);
+    return {record,env,envFile,act,event,hook};
   }
   return {dir,cwd,start};
 }
@@ -131,7 +132,7 @@ test('the connection CLI acts at once and prints its result; piping the output c
   const {stdout,stderr}=await execute('/bin/sh',['-c','"$1" "$2" create-goal --title "CLI outcome" | head -1','probe',process.execPath,entry],{cwd:f.cwd,env:{...process.env,...s.env}});
   assert.equal(stderr,'');assert.match(stdout,/^Created Goal #1/);assert.equal((await listGoals()).length,1);
   const event=await appendFeedback({goalId:'1',text:'CLI feedback'});
-  const path=join(f.dir,'hook.json');await writeFile(path,JSON.stringify({...s.hook(),agent_id:'child'}));
+  const path=join(f.dir,'hook.json');await writeFile(path,JSON.stringify(s.hook({agent_id:'child'})));
   const run=()=>execute('/bin/sh',['-c','exec "$1" "$2" claude-hook < "$3"','probe',process.execPath,entry,path],{cwd:f.cwd,env:process.env});
   assert.equal((await run()).stdout,'','a subagent hook never receives Web input');
   // A hook input of any size is read; a large tool result never stops delivery.
@@ -167,16 +168,16 @@ test('ordinary main tool hooks offer all assigned Goals once without a selected 
 test('automatic offers skip subagents and interrupted tools, and respect holds and other owners',async t=>{
   const f=await automaticFixture(t),e=await appendFeedback({goalId:f.goal.id,text:'pending native feedback'});
   const other=await f.start('different-session'),g=await root(other);await appendFeedback({goalId:g.id,text:'another owner'});
-  for(const patch of [{agent_id:'child'},{hook_event_name:'PreToolUse'},{tool_response:{interrupted:true}}])assert.equal(await f.handle(f.call(patch)),null);
+  for(const input of [f.call({agent_id:'child'}),f.s.event('PreToolUse'),f.call({tool_response:{stdout:'',stderr:'',interrupted:true}})])assert.equal(await f.handle(input),null);
   await deliverFeedback(e.id);await updateDelivery(e.id,{heldBy:'manual'});
   assert.equal(await f.handle(f.call()),null);
   await updateDelivery(e.id,{heldBy:null});
-  const text=context(await f.handle(f.call({prompt_id:null,tool_use_id:null})));assert.match(text,/pending native feedback/);assert.doesNotMatch(text,/another owner/);
+  const text=context(await f.handle(f.call({prompt_id:undefined})));assert.match(text,/pending native feedback/);assert.doesNotMatch(text,/another owner/);
 });
 
 test('compact keeps automatic offers; clear starts a context that owns nothing',async t=>{
   const f=await automaticFixture(t);
-  await f.handle(f.call({hook_event_name:'Stop'}));
+  await f.handle(f.s.event('Stop'));
   await appendFeedback({goalId:f.goal.id,text:'after stop'});
   assert.match(context(await f.handle(f.call())),/after stop/);
   await f.start(f.s.record.sessionId,'compact');
@@ -228,7 +229,7 @@ test('goal work from a Claude conversation marks its Goal Running for the curren
   const child=await createGoal({title:'Child work',parentId:goal.id});
   const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
   await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
-  await writeFile(transcript,JSON.stringify({type:'user',uuid:'p1',message:{role:'user',content:'Do the work'}})+'\n');
+  await writeFile(transcript,claudeLine(claudeEntry.prompt('p1')));
   await assert.rejects(selectAgentWork(child.id,{env:{}}),/handshake|assigned chat/);
   const work=await selectAgentWork(child.id,{env:s.env});
   assert.equal(work.goalId,child.id);
@@ -239,7 +240,7 @@ test('goal work from a Claude conversation marks its Goal Running for the curren
   assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
   // The selection ends with the response that made it.
   await selectAgentWork(child.id,{env:s.env});
-  await writeFile(transcript,JSON.stringify({type:'system',subtype:'stop_hook_summary',uuid:'s1'})+'\n',{flag:'a'});
+  await writeFile(transcript,claudeLine(claudeEntry.stop({uuid:'s1'})),{flag:'a'});
   assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
 });
 
@@ -253,21 +254,15 @@ test('a Claude reply that leaves a subagent working keeps its Goal and message R
   const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
   await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
   await mkdir(join(f.dir,'session','subagents'),{recursive:true});await writeFile(join(f.dir,'session','subagents','agent-a1b2c3.jsonl'),'{}\n');
-  const line=value=>JSON.stringify(value)+'\n';
-  await writeFile(transcript,[
-    line({type:'user',uuid:'p1',message:{role:'user',content:'Wake'}}),
-    line({type:'user',uuid:'r0',toolUseResult:{},message:{role:'user',content:[{type:'tool_result',tool_use_id:'toolu_inbox',content:JSON.stringify([{offerId}])}]}}),
-    line({type:'assistant',uuid:'a1',message:{content:[{type:'tool_use',id:'toolu_agent',name:'Agent',input:{prompt:'test',run_in_background:true}}]}}),
-    line({type:'user',uuid:'r1',toolUseResult:{},message:{role:'user',content:[{type:'tool_result',tool_use_id:'toolu_agent',content:[{type:'text',text:'Async agent launched successfully.\nagentId: a1b2c3'}]}]}}),
-    line({type:'system',subtype:'stop_hook_summary',uuid:'s1'}),
-  ].join(''));
+  await writeFile(transcript,claudeLines([claudeEntry.prompt('p1','Wake'),claudeEntry.toolResult('r0','toolu_inbox',JSON.stringify([{offerId}])),claudeEntry.launchAgent('a1','toolu_agent'),
+    claudeEntry.agentLaunched('r1','toolu_agent','a1b2c3'),claudeEntry.stop({uuid:'s1'})]));
   await s.act('reply',{eventId:event.changeId,text:'Started the test; I will report the result.'});
   const presence=await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence();
   assert.equal(presence.status,'working');assert.equal(presence.goalId,goal.id);
   const delivery=await readDeliveryState(event.changeId);
   assert.equal(delivery.status,'completed');
   assert.equal((await withClaudeReception([delivery]))[0].status,'working','answered, but still Running while its subagent works');
-  await writeFile(transcript,line({type:'queue-operation',operation:'enqueue',content:'<task-notification>\n<task-id>a1b2c3</task-id>\n<status>completed</status>\n</task-notification>'}),{flag:'a'});
+  await writeFile(transcript,claudeLine(claudeEntry.notice({taskId:'a1b2c3',toolUseId:'toolu_agent'})),{flag:'a'});
   assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).status,'idle');
   assert.equal((await withClaudeReception([delivery]))[0].status,'completed');
 });
@@ -279,23 +274,23 @@ test('Claude feedback saved while a response runs waits for its end unless the u
   const {sendFeedbackNow}=await import('../lib/delivery.mjs');
   const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
   await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
-  await writeFile(transcript,JSON.stringify({type:'user',uuid:'p1',message:{role:'user',content:'Do the work'}})+'\n');
+  await writeFile(transcript,claudeLine(claudeEntry.prompt('p1')));
   const first=await appendFeedback({goalId:goal.id,text:'One more thing'});await deliverFeedback(first.changeId);
   assert.equal((await readDeliveryState(first.changeId)).waitForIdle,true);
   assert.equal((await withClaudeReception([await readDeliveryState(first.changeId)]))[0].status,'waiting');
   assert.equal(await handleClaudeToolHook(s.hook()),null,'a running response is not interrupted');
   // The response ends: Stop hands the waiting feedback over as the next message.
-  const stop=await handleClaudeToolHook({hook_event_name:'Stop',session_id:s.record.sessionId,cwd:f.cwd});
+  const stop=await handleClaudeToolHook(s.event('Stop',{transcript_path:transcript}));
   assert.equal(stop.decision,'block');assert.match(stop.reason,/One more thing/);
   assert.equal((await readDeliveryState(first.changeId)).status,'unknown','offered to the conversation');
   // Send now offers the next one to the running response.
-  await writeFile(transcript,JSON.stringify({type:'user',uuid:'p2',message:{role:'user',content:'Continue'}})+'\n',{flag:'a'});
+  await writeFile(transcript,claudeLine(claudeEntry.prompt('p2','Continue')),{flag:'a'});
   const second=await appendFeedback({goalId:goal.id,text:'Urgent fix'});await deliverFeedback(second.changeId);
   assert.equal(await handleClaudeToolHook(s.hook()),null);
   await sendFeedbackNow(second.changeId);
   assert.match(context(await handleClaudeToolHook(s.hook())),/Urgent fix/);
   // Feedback saved while idle is offered at once, as before.
-  await writeFile(transcript,JSON.stringify({type:'system',subtype:'stop_hook_summary',uuid:'s2'})+'\n',{flag:'a'});
+  await writeFile(transcript,claudeLine(claudeEntry.stop({uuid:'s2'})),{flag:'a'});
   const idle=await appendFeedback({goalId:goal.id,text:'While idle'});await deliverFeedback(idle.changeId);
   assert.equal((await readDeliveryState(idle.changeId)).waitForIdle,undefined);
 });
@@ -344,7 +339,7 @@ test('two Claude conversations in one project, each with its own Root, never rec
   assert.equal((await readAgentStatus(rootA.id)).capabilities.resume,true);
   assert.equal((await readAgentStatus(rootB.id)).capabilities.resume,false);
   await controlAgent(rootA.id,{scope:'permissions',token:statusA.token,approveAll:true});
-  const ask=s=>claudePermissionDecision({hook_event_name:'PermissionRequest',session_id:s.record.sessionId,tool_name:'Bash',tool_input:{command:'ls'}});
+  const ask=s=>claudePermissionDecision(s.event('PermissionRequest'));
   assert.equal(await ask(b),null,'B still asks for its own permissions');
   assert.equal((await readAgentStatus(rootB.id)).approveAll,false);
 });

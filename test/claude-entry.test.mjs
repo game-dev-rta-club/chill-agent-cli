@@ -7,6 +7,7 @@ import {join} from 'node:path';
 import {promisify} from 'node:util';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {fileURLToPath} from 'node:url';
+import {claudeHook,subagentHook} from './claude-fixtures.mjs';
 
 const execute = promisify(execFile);
 // The test may itself run inside Claude Code, which names its own session.
@@ -20,8 +21,7 @@ async function fixture(t) {
   const envFile = join(directory, 'native env');
   await writeFile(envFile, "export EXISTING_HOOK_VALUE='preserved'\n");
   const options = {directory:data, cwd, env:{CLAUDE_ENV_FILE:envFile}};
-  const input = {hook_event_name:'SessionStart', session_id:'native/session', source:'startup', cwd,
-    transcript_path:'/must/not/read', prompt:'private prompt', model:'unverified-model'};
+  const input = claudeHook('SessionStart', {session_id:'native/session', source:'startup', cwd, transcript_path:'/must/not/read', prompt:'private prompt', model:'unverified-model'});
   const caller = record => ({directory:data, env:{CHILL_AGENT_HARNESS:record.harnessId,
     CHILL_AGENT_SESSION_ID:record.sessionId, CHILL_AGENT_CONNECTION_GENERATION:record.generation}});
   return {directory, data, cwd, envFile, options, input, caller};
@@ -79,8 +79,8 @@ test('after resume, clear or compact a shell resolves to the current record, nev
 
 test('subagent or non-start hooks cannot consume feedback or replace a registration', async t => {
   const f = await fixture(t), record = await captureClaudeEntry(f.input, f.options);
-  for (const patch of [{agent_id:'child'}, {agent_id:''}, {hook_event_name:'PostToolUse'}, {hook_event_name:'SessionEnd'}, {hook_event_name:'Setup'}])
-    assert.equal(await captureClaudeEntry({...f.input, ...patch}, f.options), null);
+  for (const input of [subagentHook('SessionStart', f.input), {...f.input, agent_id:''}, claudeHook('PostToolUse', {session_id:f.input.session_id}), claudeHook('SessionEnd', {session_id:f.input.session_id}), {...f.input, hook_event_name:'Setup'}])
+    assert.equal(await captureClaudeEntry(input, f.options), null);
   assert.equal((await identifyClaudeCaller(f.caller(record))).identity.generation, record.generation);
 });
 

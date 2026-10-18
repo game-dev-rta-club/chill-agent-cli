@@ -10,6 +10,7 @@ import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 import {projectRoot,sameProject} from '../lib/project-root.mjs';
 import {projectDirectory} from '../lib/project-workspace.mjs';
 import {configureClaudeHooks} from '../lib/claude-setup.mjs';
+import {claudeHook} from './claude-fixtures.mjs';
 
 async function fixture(t) {
   const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-claude-join-')));
@@ -48,7 +49,7 @@ test('join needs the session Claude names in the shell and keeps a SessionStart 
   const f=await fixture(t);
   await assert.rejects(f.join({}),/did not name this conversation/);
   const envFile=join(f.dir,'env');await writeFile(envFile,'');
-  const started=await captureClaudeEntry({hook_event_name:'SessionStart',session_id:'started',source:'startup',cwd:f.cwd},{cwd:f.cwd,env:{CLAUDE_ENV_FILE:envFile}});
+  const started=await captureClaudeEntry(claudeHook('SessionStart',{session_id:'started',source:'startup',cwd:f.cwd}),{cwd:f.cwd,env:{CLAUDE_ENV_FILE:envFile}});
   assert.match(await f.join({CLAUDE_CODE_SESSION_ID:'started'}),/already connected/);
   const caller=await identifyClaudeCaller({env:{CLAUDE_CODE_SESSION_ID:'started'}});
   assert.equal(caller.identity.generation,started.generation);assert.equal(caller.contextId,started.contextId);
@@ -64,7 +65,7 @@ test('a linked worktree is its main checkout: one store and shared hooks',async 
   assert.equal(await sameProject(other,main),false);
   // The main checkout's hook runs for a conversation in the worktree.
   const envFile=join(f.dir,'env');await writeFile(envFile,'');
-  assert.ok(await captureClaudeEntry({hook_event_name:'SessionStart',session_id:'in-worktree',source:'startup',cwd:worktree},{cwd:main,env:{CLAUDE_ENV_FILE:envFile}}));
+  assert.ok(await captureClaudeEntry(claudeHook('SessionStart',{session_id:'in-worktree',source:'startup',cwd:worktree}),{cwd:main,env:{CLAUDE_ENV_FILE:envFile}}));
   // Setup from the worktree writes the main checkout's local settings, which Claude loads in both.
   const status=await configureClaudeHooks(worktree,{entry:join(f.dir,'data','runtime','chill')});
   assert.equal(status.settingsPath,join(main,'.claude','settings.local.json'));
