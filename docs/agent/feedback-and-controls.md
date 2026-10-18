@@ -63,9 +63,9 @@ runs. The rule is `quietGoals` in [agent rules](../../lib/agent-rules.mjs).
 
 ## What the Web shows
 
-- The Goal list and heading show **Awaiting reply** while the Goal waits for a
-  reply, and Running on the Goals the agent works on now; a parent runs while a
-  Split Goal runs.
+- The Goal list and heading show Running on the Goals the agent works on now; a
+  parent runs while a Split Goal runs. Whether a Goal awaits a reply is the
+  agent's to track: the Web does not show it on the Goal, only under each comment.
 - Under a comment that still waits for a reply, one small mark says where it is:
   Saved, Waiting, Paused, Sent or Interrupted. A reply on the Goal clears them.
 - In the conversation, the agent's state on this Goal (Running, Queued,

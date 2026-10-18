@@ -53,8 +53,7 @@ button in the header; "the Goal's activity" is the block after the Goal's conver
    Claude at its next tool call and the third keeps Waiting until the response
    ends. A comment that wakes an idle conversation never shows Waiting.
 6. **A reply clears the marks.** When Claude replies on the Goal, the marks under
-   the comments it answered disappear at once and the Goal's Awaiting reply goes
-   away, even while Claude keeps working.
+   the comments it answered disappear at once, even while Claude keeps working.
 7. **Background work keeps it Running.** Ask Claude to start a background
    subagent and reply. Expected: the Agent and the Goal stay Running until the
    subagent ends; a background dev server alone does not keep them Running.

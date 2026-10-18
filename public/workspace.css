@@ -206,9 +206,6 @@ a.status.paused:hover {text-decoration:underline;}
 .status.interrupted {color:var(--theme-warning,#ae6128);text-decoration:none;}
 .status.interrupted .dot {width:8px;height:8px;border-radius:50%;background:currentColor;}
 a.status.interrupted:hover {text-decoration:underline;}
-.reply-state {display:inline-flex;align-items:center;gap:5px;font-size:calc(11px + var(--fluid));color:var(--theme-muted,#57706a);flex:none;white-space:nowrap;}
-.reply-state svg {width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-.reply-state.awaiting {color:var(--letter-ink);font-weight:600;}
 
 .agent-extension { display:flex; align-items:center; justify-content:space-between; gap:16px; cursor:pointer; }
 .agent-extension input { appearance:none; width:34px; height:20px; border:1px solid var(--theme-line,#c6cbc6); border-radius:20px; background:var(--theme-soft,#e2e5e0); position:relative; cursor:pointer; flex:none; }

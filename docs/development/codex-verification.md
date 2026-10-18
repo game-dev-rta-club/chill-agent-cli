@@ -169,8 +169,8 @@ Check:
 
 5. **Feedback reaches an idle chat.** In Goal 1, send "Reply with the word ok." Expected: within a few seconds the Desktop
    chat shows a new user message that begins `=== chill-agent · User Feedback ===` and the agent starts. The comment's
-   mark goes Sent, the Goal shows Running and Awaiting reply, and when the agent's reply appears in Conversation the mark
-   goes away and the Goal shows Replied.
+   mark goes Sent, the Goal shows Running, and when the agent's reply appears in Conversation the mark
+   goes away.
 6. **Think.** Below Goal 1's conversation, the agent shows Running with Think open. Expected: Think shows the model and
    reasoning level the turn ran on, which match Desktop, and the agent's messages as they come.
 7. **Waiting and Send now.** In Desktop, send "Run `sleep 10` in five separate commands, then reply done." While it runs, send
