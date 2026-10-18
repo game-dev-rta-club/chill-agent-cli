@@ -275,17 +275,15 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   assert.equal(f.child.exitCode,null,'saved feedback is still being delivered');
   // Observe the durable receipt, rather than assuming process startup and the
   // delayed fake queue always finish within another fixed 1200 ms under load.
-  const until = Date.now() + 6000;let delivery;
+  const until = Date.now() + 6000;let queue = [];
   do {
-    delivery = JSON.parse(await readFile(join(f.root,'workspace','deliveries','1.json'),'utf8'));
-    if (delivery.status === 'queued') break;
+    queue = JSON.parse(await readFile(join(f.root,'fake-queue.json'),'utf8').catch(() => '[]'));
+    if (queue.length) break;
     await delay(100);
   } while (Date.now() < until);
-  assert.equal(delivery.status,'queued');
-  assert.equal(JSON.parse(await readFile(join(f.root,'fake-queue.json'),'utf8')).length,1);
-  assert.equal(f.child.exitCode,null,'native queued work also prevents idle shutdown');
+  assert.equal(queue.length,1,'the idle chat was sent the comment');
+  assert.equal(f.child.exitCode,null,'a message waiting in the Codex app also prevents idle shutdown');
   await writeFile(join(f.root,'fake-queue.json'),'[]');
-  await f.run(['activity','--event','1','--state','completed']);
   assert.equal((await f.exited)[0],0);
 });
 

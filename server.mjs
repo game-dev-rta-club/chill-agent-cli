@@ -14,18 +14,17 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listStoredGoals, listGoals, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
-import { listDeliveries } from './lib/delivery.mjs';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
 import { createTunnelController } from './lib/tunnel-controller.mjs';
 import { readMessageSettings } from './lib/message-settings.mjs';
 import {renderedEvent} from './lib/markdown.mjs';
 import {goalSkills} from './lib/skill-catalog.mjs';
 import {briefDocument,briefSVG} from './lib/brief.mjs';
-import {readAgentStatus,saveAgentSettings,controlAgent,readAgentActivityRow} from './lib/agent-status.mjs';
+import {readAgentStatus,saveAgentSettings,controlAgent,readGoalActivity} from './lib/agent-status.mjs';
 import {readAgentPresence} from './lib/agent-presence.mjs';
-import {deliveriesWithWork} from './lib/agents/index.mjs';
+import {goalCommentMarks} from './lib/agents/index.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
 import {largeSize} from './lib/limits.mjs';
@@ -257,8 +256,8 @@ const server = createServer(async (request, response) => {
   }
   const activityPath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/activity$/.exec(path);
   if(activityPath&&request.method==='GET'){
-    try{return sendJson(response,200,await readAgentActivityRow(activityPath[1]));}
-    catch(error){recordHidden('server.agent-activity',error);return sendJson(response,503,{error:'Could not read activity controls.'});}
+    try{return sendJson(response,200,await readGoalActivity(activityPath[1]));}
+    catch(error){recordHidden('server.agent-activity',error);return sendJson(response,503,{error:'Could not read the agent.'});}
   }
   const controlPath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/control$/.exec(path);
   if(controlPath&&request.method==='POST'){
@@ -315,20 +314,20 @@ const server = createServer(async (request, response) => {
     } catch {return sendJson(response,500,{error:'Could not load HTML Deliverable.'});}
   }
   const feedbackPath = /^\/api\/goals\/([1-9][0-9]*)\/feedback$/.exec(path);
-  const deliveryPath = /^\/api\/goals\/([1-9][0-9]*)\/deliveries$/.exec(path);
-  const retryPath = /^\/api\/goals\/([1-9][0-9]*)\/deliveries\/([1-9][0-9]*)\/(retry|send-now)$/.exec(path);
+  const marksPath = /^\/api\/goals\/([1-9][0-9]*)\/comment-marks$/.exec(path);
+  const sendNowPath = /^\/api\/goals\/([1-9][0-9]*)\/comments\/([1-9][0-9]*)\/send-now$/.exec(path);
   if (path === '/api/activity' && request.method === 'POST') {
     if (!allowedOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) return sendJson(response, 403, { error: 'Only same-origin JSON requests are accepted.' });
     try { await readJson(request); await recordServerUse(dataDirectory()); return sendJson(response, 200, { ok: true }); }
     catch (error) { return sendJson(response, 400, { error: error.message }); }
   }
-  if (retryPath && request.method === 'POST') {
+  if (sendNowPath && request.method === 'POST') {
     if (!allowedOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) return sendJson(response, 403, { error: 'Only same-origin JSON requests are accepted.' });
     try {
-      const deliveries = await listDeliveries(retryPath[1]);
-      if (!deliveries.some(item => item.eventId === Number(retryPath[2]))) return sendJson(response, 404, { error: 'Delivery not found.' });
-      return callCli([retryPath[3], '--event', retryPath[2]], undefined, response, 'delivery');
-    } catch (error) { recordHidden('server.delivery-retry', error); return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
+      const marks = await goalCommentMarks(sendNowPath[1]);
+      if (!marks.some(item => item.eventId === Number(sendNowPath[2]))) return sendJson(response, 404, { error: 'Comment not found.' });
+      return callCli(['send-now', '--event', sendNowPath[2]], undefined, response, 'comment');
+    } catch (error) { recordHidden('server.send-now', error); return sendJson(response, 500, { error: 'Could not send now.' }); }
   }
   if (path === '/api/images' && request.method === 'POST') {
     if (!allowedOrigin(request)) return sendJson(response, 403, { error: 'Only same-origin uploads are accepted.' });
@@ -356,11 +355,9 @@ const server = createServer(async (request, response) => {
     response.writeHead(405, { Allow: 'GET, HEAD' });
     return response.end('Method not allowed');
   }
-  if (deliveryPath) {
-    try {
-      return sendJson(response, 200, await deliveriesWithWork(deliveryPath[1]));
-    }
-    catch (error) { recordHidden('server.deliveries', error); return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
+  if (marksPath) {
+    try { return sendJson(response, 200, await goalCommentMarks(marksPath[1])); }
+    catch (error) { recordHidden('server.comment-marks', error); return sendJson(response, 500, { error: 'Could not load comment marks.' }); }
   }
   const infoPath = /^\/api\/attachments\/([0-9a-f-]{36})$/.exec(path);
   if (infoPath) {

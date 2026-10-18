@@ -4,7 +4,7 @@ import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
-import { workProgressGroups, workDisclosure, deliveryDisplay, isWaitingDelivery } from './work-ui.js';
+import { activityDisplay, commentMarkDisplay, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
 import { briefBody } from './brief-body.js';
@@ -217,44 +217,38 @@ function composerMarkup(id, comment) {
   </fieldset></form>`;
 }
 
-const deliveries = new Map();
+const commentMarks = new Map();
 const activityControls=createActivityControls({main,getGoalId:()=>activeGoalId,onChange:()=>{
  if(activeGoalId)updateTimeline(activeGoalId);
  void refreshGoals().catch(()=>{});
 }});
 const workViews = new Map();
-function workMarkup(work) {
+function workMarkup(key, work, live) {
   if (!work) return '';
-  const view = workDisclosure(workViews.get(work.key), work.live);
-  workViews.set(work.key, view);
-  return `<details class="work-progress" data-work-id="${escapeHTML(work.key)}" ${view.open ? 'open' : ''}>
-    <summary>Think</summary><div class="work-output" aria-label="Think">
+  const view = workDisclosure(workViews.get(key), live);
+  workViews.set(key, view);
+  const settings = work.settings?.model ? `<p class="activity-settings">${escapeHTML(work.settings.model)}${work.settings.reasoning ? ` · ${escapeHTML(work.settings.reasoning)}` : ''}</p>` : '';
+  return `<details class="work-progress" data-work-id="${escapeHTML(key)}" ${view.open ? 'open' : ''}>
+    <summary>Think</summary><div class="work-output" aria-label="Think">${settings}
     ${work.messages.map(message => `<p class="work-message" lang="ja">${escapeHTML(message.text)}</p>`).join('')}
-    ${work.error ? '<p class="work-hint">Updates unavailable. Saved output is kept.</p>' : !work.messages.length ? '<p class="work-hint">Waiting for updates.</p>' : ''}
-    ${work.truncated ? '<p class="work-hint">Showing latest updates.</p>' : ''}
+    ${!work.messages.length ? '<p class="work-hint">Waiting for updates.</p>' : ''}
     </div></details>`;
 }
-const isWaiting = (event, work, state) => isWaitingDelivery(deliveries.get(event.changeId), state);
-function deliveryMarkup(event, work, continuedTo) {
-  const delivery = deliveries.get(event.changeId);
-  const activity=continuedTo?null:work?.activity||activityControls.forEvent(event.changeId);
-  if (!delivery && !event.threadId && !activity) return '';
-  const {state, waiting} = deliveryDisplay({delivery, work, activity, continuedTo});
-  const labels = { saved: 'Saved', waiting: 'Waiting', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
-  const descriptions = { saved: delivery?.notice||'', waiting: 'Arrives when the current work ends.', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
-  const retry = state === 'saved' || (state === 'failed' && !delivery?.mayHaveSent);
-  const check = state === 'unknown';
-  const history = delivery?.history || [];
-  return `<li class="timeline-event delivery-event" id="delivery-${event.changeId}">
+// The small mark under a comment that still awaits a reply.
+function commentMarkMarkup(event) {
+  const shown = commentMarkDisplay(commentMarks.get(event.changeId));
+  if (!shown) return '';
+  return `<p class="comment-mark" data-mark="${shown.state}">${shown.state === 'waiting' ? `<span class="comment-mark-icon">${icon('pending')}</span>` : '<span class="comment-mark-dot" aria-hidden="true"></span>'}<strong>${escapeHTML(shown.label)}</strong>${shown.description ? `<span>${escapeHTML(shown.description)}</span>` : ''}${shown.sendNow ? `<button type="button" class="text-button" data-action="send-now" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${icon('send')}Send now</button>` : ''}</p>`;
+}
+// The agent as this Goal shows it, after the conversation.
+function activityMarkup(id) {
+  const activity = activityControls.current(), shown = activityDisplay(activity);
+  if (!shown || activity.goalId !== id) return '';
+  return `<li class="timeline-event activity-event" id="goal-activity">
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
-    <div class="delivery-entry" data-state="${state}"><div class="delivery-heading">${waiting ? `<span class="delivery-wait-icon">${icon('pending')}</span>` : '<span class="delivery-dot" aria-hidden="true"></span>'}<strong>${activity&&state==='unknown'?'Checking':labels[state] || 'Saved'}</strong>
-      ${continuedTo ? `<button type="button" class="text-button" data-action="view-work" data-event-id="${continuedTo}" aria-label="View continued work">View ↓</button>` : ''}
-      ${activity?activityControls.markup(activity.eventId):''}
-      ${!activity && (retry || check) ? `<button type="button" class="text-button" data-action="retry-delivery" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${check ? 'Check' : 'Retry'}</button>` : ''}
-      ${waiting ? `<button type="button" class="text-button" data-action="send-now" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${icon('send')}Send now</button>` : ''}</div>
-      <p>${escapeHTML(activity&&state==='unknown'?'Unconfirmed. Refresh to check.':descriptions[state] || '')}</p>
-      ${workMarkup(work)}
-      ${history.length ? `<details class="delivery-history" data-delivery-id="${event.changeId}" ${openDeliveries.has(event.changeId) ? 'open' : ''}><summary>Activity</summary>${delivery?.work?.settings?.model ? `<p class="activity-settings">${escapeHTML(delivery.work.settings.model)}${delivery.work.settings.reasoning ? ` · ${escapeHTML(delivery.work.settings.reasoning)}` : ''}</p>` : ''}<ol>${history.map(item => `<li><span>${escapeHTML(labels[item.status] || item.status)}</span><time datetime="${escapeHTML(item.at)}">${new Date(item.at).toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}</time></li>`).join('')}</ol></details>` : ''}
+    <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><strong>${escapeHTML(shown.label)}</strong>${activityControls.controls()}</div>
+      <p>${escapeHTML(shown.description)}</p>
+      ${workMarkup(`goal:${id}:${activity.work?.startedAt || ''}`, activity.work, shown.live)}
     </div></li>`;
 }
 
@@ -265,14 +259,7 @@ function replyMarkup(event) {
 
 function timelineMarkup(id) {
   const visible = conversationFor(id);
-  const work = workProgressGroups(visible, deliveries, activityControls.current());
-  // Keep each receipt in the timeline, but only its shared turn's last entry
-  // owns the running indicator and Think. Delivery records remain unchanged.
-  const continued = new Map([...work.values()].flatMap(group => group.eventIds
-    .filter(eventId => eventId !== group.owner).map(eventId => [eventId, group.owner])));
   const pinned = conversationPins(id, visible);
-  for (const group of work.values()) if (group.live) pinned.add(group.owner);
-  const activity=activityControls.current();if(activity&&['saved','sending','queued','working','paused','unknown'].includes(activity.status))pinned.add(activity.eventId);
   const history=historyPages.get(id);
   const older=history?.hasMore?`<li class="conversation-gap"><button type="button" data-action="load-older-conversation" ${history.loading?'disabled':''}>${history.loading?'Loading…':'Load earlier conversation'}</button></li>`:'';
   return older+conversationWindow.segments(id, visible, pinned).map(segment => {
@@ -286,19 +273,19 @@ function timelineMarkup(id) {
     return segment.messages.map(event => {
     const letter=letterState(event,visible);
     const time=`<time datetime="${event.at.toISOString()}">${event.at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
-    const waiting = event.author === 'user' && isWaiting(event, work.get(event.changeId), work.get(event.changeId)?.activity?.status || activityControls.forEvent(event.changeId)?.status);
+    const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
     return `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
       <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
-      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<a class="event-image-link" href="${src}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="${src}" alt="Attached image"></a>`;}).join('')}</article></li>${event.author==='user'?deliveryMarkup(event,work.get(event.changeId),continued.get(event.changeId)):''}`;
+      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<a class="event-image-link" href="${src}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="${src}" alt="Attached image"></a>`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
     }).join('');
-  }).join('');
+  }).join('')+activityMarkup(id);
 }
 
 function conversationPins(id, messages = conversationFor(id)) {
-  const pinned = new Set();
-  const activity=activityControls.current();if(activity&&['saved','sending','queued','working','paused','unknown'].includes(activity.status))pinned.add(activity.eventId);
+  // Comments that still await a reply stay in view.
+  const pinned = new Set(messages.filter(event => commentMarks.get(event.changeId)?.mark).map(event => event.changeId));
   for (const note of notesFor(id)) if(note.source?.kind==='comment')pinned.add(note.source.eventId);
   return pinned;
 }
@@ -325,7 +312,7 @@ function updateTimeline(id) {
   timelineRefreshPending = false;
   const timeline = main.querySelector('#timeline-list');
   if (!timeline) return;
-  const controlFocus=document.activeElement?.closest('[data-activity-control]')?.closest('.delivery-event')?.id;
+  const controlFocus=document.activeElement?.closest('[data-activity-control]')?.closest('.activity-event')?.id;
   const focused = document.activeElement?.closest('[data-work-id], [data-reply-detail]');
   const focusKey = focused?.dataset.workId;
   const replyFocusKey = focused?.dataset.replyDetail;
@@ -1026,7 +1013,7 @@ function renderRoute() {
   readingPane.setTop(beforeId===activeGoalId&&(match?.[2]||match?.[3])?top:0);
   if(activeGoalId&&beforeId!==activeGoalId&&!match?.[3])readingPane.showLatest();
   activityControls.routeChanged();
-  void refreshDeliveries().catch(()=>{});
+  void refreshCommentMarks().catch(()=>{});
   if(match?.[3]) {
     const routeFrame=main.firstElementChild,generation=navigationGeneration,interaction=readingPane.interaction;
     // Wait for the Deliverable, but don't gate navigation on Activity network traffic.
@@ -1060,7 +1047,6 @@ main.addEventListener('click',event=>{
   if(toggle){const id=toggle.dataset.toggle||toggle.dataset.rowToggle;expandedGoals.has(id)?expandedGoals.delete(id):expandedGoals.add(id);refreshGoalFrame();main.querySelector(`[data-toggle="${id}"]`)?.focus({preventScroll:true});}
 });
 
-const openDeliveries = new Set();
 main.addEventListener('toggle', event => {
   const detail = event.target;
   if (detail.open) void renderDiagrams(detail,keepReadingPosition);
@@ -1073,11 +1059,6 @@ main.addEventListener('toggle', event => {
     if (!detail.isConnected) return;
     const view = workViews.get(detail.dataset.workId);
     if (view) view.open = detail.open;
-    return;
-  }
-  if (detail.matches?.('.delivery-history')) {
-    const id = Number(detail.dataset.deliveryId);
-    if (detail.open) openDeliveries.add(id); else openDeliveries.delete(id);
     return;
   }
   if (!activeGoalId || !detail.matches?.('.brief-detail[data-detail-id]')) return;
@@ -1228,7 +1209,7 @@ async function saveFeedback(id, input) {
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Could not save feedback.');
-  if(activeGoalId===id){activityControls.saved(id,result.delivery);void activityControls.refresh();}
+  if(activeGoalId===id){if(result.comment)commentMarks.set(result.comment.eventId,result.comment);void activityControls.refresh();}
   return { ...result.feedback, at: new Date(result.feedback.updatedAt) };
 }
 
@@ -1366,23 +1347,14 @@ main.addEventListener('submit', async event => {
 });
 
 main.addEventListener('click', async event => {
-  const continuation = event.target.closest('[data-action="view-work"]');
-  if (continuation) {
-    revealConversationEvent(Number(continuation.dataset.eventId));
-    const target = document.getElementById(`delivery-${continuation.dataset.eventId}`);
-    target?.querySelector('.work-progress > summary')?.focus({preventScroll: true});
-    scrollInReadingPane(target);
-    return;
-  }
-  const button = event.target.closest('[data-action="retry-delivery"], [data-action="send-now"]');
+  const button = event.target.closest('[data-action="send-now"]');
   if (!button) return;
-  const sendNow = button.dataset.action === 'send-now';
   button.disabled = true;
   try {
-    const response = await fetch(`/api/goals/${button.dataset.goalId}/deliveries/${button.dataset.eventId}/${sendNow ? 'send-now' : 'retry'}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const response = await fetch(`/api/goals/${button.dataset.goalId}/comments/${button.dataset.eventId}/send-now`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || (sendNow ? 'Could not send now.' : 'Could not check delivery.'));
-    await refreshDeliveries();
+    if (!response.ok) throw new Error(result.error || 'Could not send now.');
+    await refreshCommentMarks();
   } catch (error) { announcement.textContent = error.message; }
   finally { button.disabled = false; }
 });
@@ -1507,16 +1479,16 @@ async function refreshGoals(){
   }else if(currentRoute==='#/goals')renderIndex();
 }
 
-async function refreshDeliveries() {
+async function refreshCommentMarks() {
   const id = activeGoalId;
   if (!id) return;
-  const response = await fetch(`/api/goals/${id}/deliveries`, {cache:'no-store'});
+  const response = await fetch(`/api/goals/${id}/comment-marks`, {cache:'no-store'});
   if (!response.ok) return;
   const updates = await response.json();
   let changed = false;
   for (const update of updates) {
-    if (JSON.stringify(deliveries.get(update.eventId)) !== JSON.stringify(update)) {
-      deliveries.set(update.eventId, update); changed = true;
+    if (JSON.stringify(commentMarks.get(update.eventId)) !== JSON.stringify(update)) {
+      commentMarks.set(update.eventId, update); changed = true;
     }
   }
   if (changed && activeGoalId === id) {
@@ -1550,7 +1522,7 @@ loadStoredGoals().then(()=>navigate({refresh:false}),error=>{
    }
    if(expired){storeSignature='';if(activeGoalId)refreshGoalFrame();else if(currentRoute==='#/goals')renderIndex();}
    if(document.visibilityState!=='visible'||refreshing)return;refreshing=true;
-   try{await refreshGoals();await refreshDeliveries();if(timelineRefreshPending&&activeGoalId&&!interactingWithAnnotation()){updateTimeline(activeGoalId);renderAnnotations();}}
+   try{await refreshGoals();await refreshCommentMarks();if(timelineRefreshPending&&activeGoalId&&!interactingWithAnnotation()){updateTimeline(activeGoalId);renderAnnotations();}}
    catch(error){announcement.textContent=error.message;}finally{refreshing=false;}
  }
  setInterval(refresh,5000);

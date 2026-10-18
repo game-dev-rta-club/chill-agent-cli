@@ -5,12 +5,11 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
-import {runClaudeAction,handleClaudeToolHook,collectClaudeHookFeedback,handleClaudeStop} from '../lib/claude-actions.mjs';
+import {runClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
 import {listGoals,createGoal,appendFeedback,appendAgentComment,updateGoal,readGoal} from '../lib/goal-store.mjs';
 import {transferClaudeRoot} from '../lib/claude-roots.mjs';
 import {readForWeb,configureFromWeb,onStop} from '../lib/claude-continuation.mjs';
 import {storage} from '../lib/extension-api.mjs';
-import {readDeliveryState} from '../lib/delivery.mjs';
 import {readMonitor} from '../lib/continuation-monitor.mjs';
 import {hookFor} from './claude-fixtures.mjs';
 
@@ -50,17 +49,14 @@ test('a request left without a result ends at the next Stop instead of stopping 
  await updateGoal(f.root.id,{title:'Changed later'});await f.newPrompt();assert.equal((await f.stop()).decision,'block');
  state=await f.read();assert.equal(state.history.at(-1).id,original);assert.notEqual(state.attempts[0].id,original);
 });
-test('the continued native prompt still receives Web input on its next ordinary tool',async t=>{
+test('Web input during an Auto mode run waits for its stop, and is answered before another request',async t=>{
  const f=await fixture(t);await f.configure();assert.equal((await f.stop()).decision,'block');
- assert.equal(await f.stop(),null,'the continued response ends without another request');
  const reply=await appendFeedback({goalId:f.root.id,text:'Correction while Auto mode is working'});
  const hook=f.event('PostToolUse',{tool_name:'Read',tool_use_id:randomUUID(),tool_response:{text:'ordinary work'}});
- const received=await handleClaudeToolHook(hook,{cwd:f.cwd});assert.match(received.hookSpecificOutput.additionalContext,/Correction while Auto mode is working/);
- assert.equal((await readDeliveryState(reply.changeId)).status,'unknown');
- assert.equal(await handleClaudeToolHook(hook,{cwd:f.cwd}),null,'tool delivery is not duplicated');
- assert.match((await f.stop()).reason,/Nothing has reached them/,'offered feedback the user heard nothing about is held first');
- await f.action('inbox',{});
- assert.match((await f.stop()).reason,new RegExp(`#${reply.changeId} `),'new input is a new revision; the request names the feedback left open');
+ assert.equal(await handleClaudeToolHook(hook,{cwd:f.cwd}),null,'the running work is not interrupted');
+ assert.match((await f.stop()).reason,/Correction while Auto mode is working/,'its stop hands the correction over');
+ assert.match((await f.stop()).reason,/where things stand/,'a handed Goal the user heard nothing about is held first');
+ assert.match((await f.stop()).reason,new RegExp(`still waits for your reply: #${reply.changeId} `),'new input is a new revision; the request names the open feedback');
  await appendAgentComment({goalId:f.root.id,type:'comment',text:'Working on the correction; next update after the tests.'});
  assert.equal(await f.stop(),null,'the same revision is not continued again, and the user has heard back');
 });
@@ -70,24 +66,18 @@ test('Off and explicit continuation Pause preserve the attempt history',async t=
  await f.configure(false);await f.configure();assert.equal(await f.stop(),null,'On does not release a manual continuation pause');
  await f.pause(false);assert.equal((await f.stop()).decision,'block');
 });
-test('a child hold and pending input in another assigned Root suppress continuation',async t=>{
- const f=await fixture(t),child=await createGoal({title:'Held child',parentId:f.root.id});await f.configure();
- const holds=join(process.env.CHILL_AGENT_DATA_DIR,'workspace/feedback-holds');await mkdir(holds,{recursive:true});await writeFile(join(holds,`${child.id}.json`),JSON.stringify({phase:'paused'}));
- assert.equal(await f.stop(),null);assert.equal((await f.read()).status,'paused');
- await writeFile(join(holds,`${child.id}.json`),JSON.stringify({phase:'sent'}));
- await f.action('create-goal',{title:'Other Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);const reply=await appendFeedback({goalId:other.id,text:'Wait for my correction'});
- assert.equal(await f.stop(),null);assert.equal((await f.read()).status,'feedback-pending');assert.equal(await readDeliveryState(reply.changeId),null,'policy does not claim input');
+test('input in another owned Root is handed before any request',async t=>{
+ const f=await fixture(t);await f.configure();
+ await f.action('create-goal',{title:'Other Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);await appendFeedback({goalId:other.id,text:'Wait for my correction'});
+ assert.match((await f.stop()).reason,/Wait for my correction/);assert.equal((await f.read()).attempts.length,0);
 });
-test('working or uncertain Web receipts are not proof that feedback is complete',async t=>{
- // A response that ended with feedback taken up but not done is continued, and
- // the request names that feedback until it is recorded as completed.
+test('a handed Goal still awaiting a reply is named by the request until the agent replies',async t=>{
  const f=await fixture(t);await f.configure();const reply=await appendFeedback({goalId:f.root.id,text:'New input'});await f.action('inbox',{});
- const named=new RegExp(`#${reply.changeId} \\(Goal #${f.root.id}\\)`);
- const first=await f.stop();assert.equal(first.decision,'block');assert.match(first.reason,named);
- // Once recorded as completed, a later request no longer names it.
- const done=await fixture(t);await done.configure();const other=await appendFeedback({goalId:done.root.id,text:'Quick input'});
- await done.action('inbox',{});await done.action('activity',{eventId:other.changeId,state:'completed'});
- const next=await done.stop();assert.equal(next.decision,'block');assert.doesNotMatch(next.reason,/took up but have not recorded/);
+ assert.match((await f.stop()).reason,/where things stand/,'the hold comes first');
+ const first=await f.stop();assert.equal(first.decision,'block');assert.match(first.reason,new RegExp(`#${reply.changeId} \\(Goal #${f.root.id}\\)`));
+ const done=await fixture(t);await done.configure();await appendFeedback({goalId:done.root.id,text:'Quick input'});
+ await done.action('inbox',{});await done.action('reply',{goalId:done.root.id,text:'Done'});
+ const next=await done.stop();assert.equal(next.decision,'block');assert.doesNotMatch(next.reason,/still waits for your reply/);
 });
 test('a subagent Stop never continues, and a cleared context cannot control the earlier Root',async t=>{
  const f=await fixture(t);
@@ -101,17 +91,17 @@ test('one Stop sends at most one request across the Roots of a conversation',asy
  assert.equal((await f.stop()).decision,'block');assert.equal((await f.read()).attempts[0].phase,'ended');assert.equal((await readMonitor(other.id)).attempts.length,1);
 });
 test('saved Web feedback and Auto mode cannot both claim the same Stop',async t=>{
- // The reply waiter only detects saved feedback; a pending delivery makes Auto mode abstain.
+ // A Stop hands comments not handed yet before Auto mode may ask for anything.
  await t.test('feedback first',async t=>{
   const f=await fixture(t);await f.configure();
   await appendFeedback({goalId:f.root.id,text:'Saved before the response ended'});
-  assert.equal(await f.stop(),null);assert.equal((await f.read()).attempts.length,0);
+  assert.match((await f.stop()).reason,/Saved before the response ended/);assert.equal((await f.read()).attempts.length,0);
  });
  await t.test('continuation first',async t=>{
   const f=await fixture(t);await f.configure();
   assert.equal((await f.stop()).decision,'block');
   const reply=await appendFeedback({goalId:f.root.id,text:'Input after continuation won'});
-  assert.equal(await readDeliveryState(reply.changeId),null,'the reply stays saved for the inbox');
+  assert.match((await f.stop()).reason,/Input after continuation won/,'the next stop hands it');
  });
 });
 
@@ -156,26 +146,12 @@ test('a taken-over Root keeps its setting; an unconfirmed request is closed, nev
  assert.deepEqual(await journal.read(f.root.id),foreign);
 });
 
-test('feedback taken up but never recorded as done does not stop Auto mode; the request names it',async t=>{
- const f=await fixture(t);await f.configure();
- const reply=await appendFeedback({goalId:f.root.id,text:'Long work'});
- await f.action('inbox',{});await f.action('activity',{eventId:reply.changeId,state:'working'});
- // The quiet-stop hold comes first; ending again, Auto mode continues.
- assert.match((await f.stop()).reason,/Nothing has reached them/);await f.action('inbox',{});
- const response=await f.stop();
- assert.equal(response?.decision,'block','the response ended with the work unfinished, so Auto mode continues');
- assert.match(response.reason,new RegExp(`took up but have not recorded as done: #${reply.changeId} \\(Goal #${f.root.id}\\)`));
-});
-
-test('a stop is held while feedback it took stays quiet and nothing runs; a reply or a progress comment since the last stop lets it end',async t=>{
+test('a stop is held while a handed Goal awaits a reply and nothing runs; the agent speaking on it lets it end',async t=>{
  const f=await fixture(t);
- const short=await appendFeedback({goalId:f.root.id,text:'Short work'}),long=await appendFeedback({goalId:f.root.id,text:'Long work'});
- await f.action('inbox',{});await f.action('activity',{eventId:long.changeId,state:'working'});
+ await appendFeedback({goalId:f.root.id,text:'Short work'});await f.action('inbox',{});
  const first=await f.stop();
- assert.equal(first?.decision,'block');
- assert.match(first.reason,new RegExp(`you took: #${short.changeId} \\(Goal #${f.root.id}\\), #${long.changeId} \\(Goal #${f.root.id}\\)`),'offered or marked working');
- assert.match(first.reason,/connection reply --event <ID>/);assert.match(first.reason,/goal comment --id <goalId>/);
- assert.doesNotMatch(first.reason,/you can end now|once per feedback/);
+ assert.equal(first?.decision,'block');assert.match(first.reason,new RegExp(`Goal #${f.root.id}\\b`));
+ assert.match(first.reason,/connection reply --goal <goalId>/);assert.match(first.reason,/goal comment --id <goalId>/);
  assert.equal(await f.stop({stop_hook_active:true}),null,'the stop right after a hold ends');
  await f.newPrompt();
  assert.equal((await f.stop())?.decision,'block','a later stop with still nothing said is held again');
@@ -186,11 +162,10 @@ test('a stop is held while feedback it took stays quiet and nothing runs; a repl
  assert.equal((await f.stop({background_tasks:[waiter]}))?.decision,'block','chill\'s own reply waiter is not work');
  await f.stop({stop_hook_active:true});
  await f.newPrompt();await appendAgentComment({goalId:f.root.id,type:'comment',text:'Waiting for CI; I will check in 10 minutes.'});
- assert.equal(await f.stop(),null,'a progress comment since the last stop');
- await f.newPrompt();await f.action('reply',{eventId:short.changeId,text:'Done'});
- assert.equal((await readDeliveryState(short.changeId)).status,'completed');
- assert.equal(await f.stop(),null,'a reply on the Goal since the last stop');
- await f.newPrompt();
- const quiet=await f.stop();
- assert.match(quiet.reason,new RegExp(`you took: #${long.changeId} \\(Goal #${f.root.id}\\), and`),'only the feedback still open');
+ assert.equal(await f.stop(),null,'a progress comment answers the Goal');
+ await appendFeedback({goalId:f.root.id,text:'Long work'});
+ assert.match((await f.stop()).reason,/Long work/,'a new comment is handed at the stop');
+ assert.equal((await f.stop())?.decision,'block','and its Goal awaits a reply again');
+ await f.action('reply',{goalId:f.root.id,text:'Done'});
+ assert.equal(await f.stop(),null,'a reply on the Goal');
 });

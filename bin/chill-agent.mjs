@@ -5,10 +5,10 @@ import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
 import { appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
-import { deliverFeedback, prepareDelivery, recordActivity, sendFeedbackNow } from '../lib/delivery.mjs';
+import { deliverFeedback, sendFeedbackNow } from '../lib/delivery.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import {assignGoal} from '../lib/agents/index.mjs';
-import {selectAgentWork} from '../lib/agents/index.mjs';
+import {assertAnswerer,selectAgentWork} from '../lib/agents/index.mjs';
 import {readConnectedTree,readGoalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
 import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
@@ -69,28 +69,21 @@ async function main() {
     return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--deliverable-offset']??0)})):output(page);
   }
   if(command==='comment'||command==='letter') {
+    await assertAnswerer((await readGoalContext(id)).root);
     const event=await appendAgentComment({goalId:id,type:command,...(command==='letter'?{title:v['--title'],...(v['--no-reply']?{replyRequired:false}:{})}:{ }),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
     return output({...event,url:command==='letter'?`${url(id)}/letter/${event.id}`:url(id)});
   }
   if(command==='check') return output(await checkFeedback({goalId:id,since:Number(v['--since']??0)}));
   if(command==='feedback') {
     const feedback=await appendFeedback({...await input(v['--input-file']),goalId:id});
-    const delivery=await prepareDelivery(feedback);
-    console.log(JSON.stringify({feedback,delivery}));
-    console.log(JSON.stringify({delivery:await deliverFeedback(feedback.changeId)})); return;
+    console.log(JSON.stringify({feedback}));
+    console.log(JSON.stringify({comment:await deliverFeedback(feedback.changeId)})); return;
   }
   if(command==='image') {
     const mimeType={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp'}[extname(v['--file']).toLowerCase()];
     const image=await saveAttachment(await readFile(v['--file']),mimeType);
     return output({...image,src:`/api/images/${image.id}`});
   }
-  if(command==='activity') {
-    const result=await recordActivity(v['--event'],v['--state']);
-    // A Claude conversation reads the receipt as text.
-    if(typeof result.text==='string'){console.log(result.text);return;}
-    return output({delivery:result});
-  }
-  if(command==='retry') return console.log(JSON.stringify({delivery:await deliverFeedback(v['--event'])}));
-  if(command==='send-now') return console.log(JSON.stringify({delivery:await sendFeedbackNow(v['--event'])}));
+  if(command==='send-now') return console.log(JSON.stringify({comment:await sendFeedbackNow(v['--event'])}));
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1;});

@@ -86,7 +86,7 @@ test('a continued conversation takes over a Root and receives earlier saved feed
   // The feedback saved for the earlier owner now reaches the new one, and not the earlier one.
   assert.equal(await hasSavedClaudeFeedback(moved.connection),true);
   assert.match(await act('inbox',{},after),new RegExp(`"eventId":${saved.changeId}`));
-  assert.match(await act('inbox',{},before),/No unclaimed feedback/);
+  assert.match(await act('inbox',{},before),/Nothing awaits a reply/);
   assert.match(await act('adopt',{goalId:root.id},after),/already owns Goal #1/);
 });
 

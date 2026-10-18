@@ -3182,36 +3182,6 @@
     "title": "ThreadQueueAddResponse",
     "type": "object"
    },
-   "ThreadQueueDeleteParams": {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "properties": {
-     "queuedSubmissionId": {
-      "type": "string"
-     },
-     "threadId": {
-      "type": "string"
-     }
-    },
-    "required": [
-     "queuedSubmissionId",
-     "threadId"
-    ],
-    "title": "ThreadQueueDeleteParams",
-    "type": "object"
-   },
-   "ThreadQueueDeleteResponse": {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "properties": {
-     "deleted": {
-      "type": "boolean"
-     }
-    },
-    "required": [
-     "deleted"
-    ],
-    "title": "ThreadQueueDeleteResponse",
-    "type": "object"
-   },
    "ThreadQueueListParams": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
@@ -4039,14 +4009,6 @@
    },
    "response": {
     "$ref": "#/definitions/v2/ThreadQueueAddResponse"
-   }
-  },
-  "thread/queue/delete": {
-   "params": {
-    "$ref": "#/definitions/v2/ThreadQueueDeleteParams"
-   },
-   "response": {
-    "$ref": "#/definitions/v2/ThreadQueueDeleteResponse"
    }
   },
   "thread/queue/list": {

@@ -18,7 +18,7 @@ know which host has a durable Queue or delivers input through hooks.
 | `extensions/harnesses/<id>.mjs` | Host-specific setup options and operation guidance |
 | Skill starter `scripts/start.mjs` | Checks Node.js, npm and Git, then runs `setup prepare` through npx; installs no tools and starts no Web |
 | `session start` | Common isolated preparation and Web reuse; returns the selected interface and welcome sequence |
-| CLI native implementation | Identity capture, Hook installation, receipt validation, actual transport and recovery |
+| CLI native implementation | Identity capture, Hook installation, actual transport and recovery |
 
 A runtime adapter is trusted application code registered in
 [the registry](../../extensions/harnesses/index.mjs). Input selects a known ID, never a
@@ -31,7 +31,7 @@ or change the saved Root's owner.
 ## Use the contract
 
 Read `session guide` before first use. Use its operation command suffix with the
-established stable prefix. `operations` names creation, receipt, inspection and
+established stable prefix. `operations` names creation, reply, inspection and
 work-selection routes; absent/null operations are unsupported. Follow each
 operation's confirmation rule. Next actions cover
 native activation; constraints retain the connection's operational limits.
@@ -52,12 +52,11 @@ remain compatible and do not own the welcome.
 The agent still identifies its actual calling host and native project directory.
 The runtime does not infer identity from a model name, current Goal or directory.
 
-Codex supports durable deferred receipts and work selection. Claude has no
-deferred Queue or work heartbeat. Those
-are meaningful differences, so the interface exposes them rather than pretending
-both hosts share the same side effects. Current incoming feedback already carries
-host-selected receipt commands; references follow those instructions without
-repeating the host branches.
+Codex has a native Queue that chill sends an idle chat its feedback through;
+Claude receives feedback only through its hooks and reply waiter. Those are
+meaningful differences, so the interface exposes them rather than pretending
+both hosts share the same side effects. Incoming feedback carries the host's own
+reply command; references follow it without repeating the host branches.
 
 ## Add a host
 
@@ -101,11 +100,10 @@ importing adapter code fails the check, so the list cannot go stale.
 
 When core needs something a harness provides, add it to the agent interface, not
 an import. Keep the data core shares across harnesses in a core module and the
-operations that talk to one harness in its adapter. A Goal's feedback hold is
-the example: `lib/feedback-hold.mjs` holds the record and the `feedbackHeld`
-question that every agent honors, and `lib/agents/codex-hold.mjs` holds the
-Codex-only queue, interrupt and resend. The quiet-stop hold is another:
-`lib/quiet-stop.mjs` decides whether a stop is held, and each harness's Stop
-hook only reports the stop and returns the block. The public extension API
+operations that talk to one harness in its adapter. The hand-off is the
+example: `lib/agent-rules.mjs` decides what to hand, what waits and when a stop
+is held, `lib/hand-off.mjs` keeps each Root's cursor and the views the Web
+shows, and each adapter only carries the comments (Codex's queue message and
+hooks, Claude's hooks and watcher) and reports what its agent did. The public extension API
 (`lib/extension-api.mjs`) keeps its exported names and reaches adapters through
 the same index.

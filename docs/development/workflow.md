@@ -96,8 +96,8 @@ After every test, any line the test did not declare fails it with the site and
 message. A test that injects a failure on purpose declares it:
 
 ```js
-test('lost queue receipts are reconciled', async t => {
-  expectHidden(t, 'codex-delivery.queue-add'); // or a RegExp, or several sites
+test('a chat Codex cannot read keeps the comment saved', async t => {
+  expectHidden(t, 'codex-work.observe'); // or a RegExp, or several sites
 ```
 
 A declaration that never happens also fails, so stale ones do not linger. Record

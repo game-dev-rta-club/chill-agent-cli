@@ -66,10 +66,8 @@ class Redactor {
     if (value === '') return '';
     for (const fixed of fixedTexts) if (value === fixed) return value;
     if (value.includes('<task-notification>')) return this.notification(value);
-    const offers = [...value.matchAll(/\\?"eventId\\?":(\d+),\\?"offerId\\?":\\?"([0-9a-f-]{36})/g)];
-    if (offers.length) return `${placeholder}\n${JSON.stringify(offers.map(m => ({eventId: Number(m[1]), offerId: this.uuid(m[2])})))}`;
-    const attempt = value.match(/--attempt ([0-9a-f-]{36})/);
-    if (attempt) return `${placeholder} --attempt ${this.uuid(attempt[1])}`;
+    const handed = [...value.matchAll(/\\?"eventId\\?":(\d+),\\?"goalId\\?":(\d+)/g)];
+    if (handed.length) return `${placeholder}\n${JSON.stringify(handed.map(m => ({eventId: Number(m[1]), goalId: Number(m[2])})))}`;
     const agent = value.match(/agentId: (\w+)/);
     if (agent) return `${value.startsWith(fixedTexts[2]) ? `${fixedTexts[2]}\n` : ''}agentId: ${this.aliases.of('agent', agent[1])} ${placeholder}`;
     const tag = value.match(tagText);
@@ -118,8 +116,8 @@ class Redactor {
 // ---- audit ---------------------------------------------------------------------
 
 const fakeText = [/^\(redacted\)$/, /^<[a-z][a-z0-9-]*>\(redacted\)<\/[a-z][a-z0-9-]*>$/, /^00000000-0000-4000-8000-\d{12}$/, /^(toolu|msg|req)_fixture\d+$/,
-  /^(agent|id)\d+$/, /^2026-\d\d-\d\dT[\d:.]+Z$/, /^\(redacted\)\n\[(\{"eventId":\d+,"offerId":"00000000-0000-4000-8000-\d{12}"\},?)+\]$/,
-  /^\(redacted\) --attempt 00000000-0000-4000-8000-\d{12}$/, /^(Async agent launched successfully\.\n)?agentId: agent\d+ \(redacted\)$/,
+  /^(agent|id)\d+$/, /^2026-\d\d-\d\dT[\d:.]+Z$/, /^\(redacted\)\n\[(\{"eventId":\d+,"goalId":\d+\},?)+\]$/,
+  /^(Async agent launched successfully\.\n)?agentId: agent\d+ \(redacted\)$/,
   /^<task-notification>\n(<task-id>agent\d+<\/task-id>\n)?(<tool-use-id>toolu_fixture\d+<\/tool-use-id>\n)?(<status>[a-z]+<\/status>\n)?<summary>\(redacted\)<\/summary>\n(<note>This agent stopped with background work of its own still running\.<\/note>\n)?<\/task-notification>$/,
   /^\/example\/project$/, /^main$/, /^example-slug$/];
 function audit(v, key = '', parent = null) {
@@ -154,7 +152,7 @@ const isPrompt = e => e.type === 'user' && !e.isSidechain && !e.isMeta && !e.too
 const isStop = e => e.type === 'system' && e.subtype === 'stop_hook_summary' && !e.isSidechain;
 const isInterrupt = e => e.type === 'user' && content(e).some(p => p.type === 'text' && p.text?.startsWith('[Request interrupted'));
 const noteOf = e => typeof e.content === 'string' ? e.content : typeof e.message?.content === 'string' ? e.message.content : '';
-const hasOffer = e => e.type === 'attachment' && e.attachment?.type === 'hook_additional_context' && JSON.stringify(e.attachment.content).includes('offerId');
+const hasFeedback = e => e.type === 'attachment' && e.attachment?.type === 'hook_additional_context' && JSON.stringify(e.attachment.content).includes('chill-agent: Web feedback');
 const launches = e => e.type === 'assistant' ? content(e).filter(p => p.type === 'tool_use' && ['Agent', 'Task'].includes(p.name) && p.input?.run_in_background === true) : [];
 const backward = (list, i, test) => { for (let j = i; j >= 0; j--) if (test(list[j])) return j; return -1; };
 const forward = (list, i, test) => { for (let j = i; j < list.length; j++) if (test(list[j])) return j; return -1; };
@@ -163,15 +161,9 @@ const conversation = e => ['user', 'assistant', 'system', 'attachment', 'queue-o
 
 // Each scenario yields candidate windows (arrays of entries) from one session.
 const scenarios = {
-  'notification-attachment': {anyVersion: true, about: 'a task notification delivered as a queued command attachment', *windows(list) {
-    for (const entry of list) if (entry.type === 'attachment' && entry.attachment?.type === 'queued_command' && String(entry.attachment.prompt).includes('<task-notification>')) yield [entry];
-  }},
-  'notification-interim': {anyVersion: true, about: 'a subagent stopping with background work of its own still running', *windows(list) {
-    for (const entry of list) if (entry.type === 'queue-operation' && noteOf(entry).includes('<task-notification>') && noteOf(entry).includes(fixedTexts[3])) yield [entry];
-  }},
-  'feedback-turn': {about: 'a prompt, a Web feedback offer injected by a tool hook, the work after it, and the Stop that ends the response', *windows(list) {
+  'feedback-turn': {about: 'a prompt, Web feedback handed by a tool hook, the work after it, and the Stop that ends the response', *windows(list) {
     for (let i = 0; i < list.length; i++) {
-      if (!hasOffer(list[i])) continue;
+      if (!hasFeedback(list[i])) continue;
       const start = backward(list, i, isPrompt), end = forward(list, i, isStop);
       if (start < 0 || end < 0) continue;
       const window = list.slice(start, end + 1).filter(conversation);
@@ -190,15 +182,6 @@ const scenarios = {
       if (!isInterrupt(list[i]) || !content(list[i]).some(p => p.text === '[Request interrupted by user for tool use]')) continue;
       const start = backward(list, i, isPrompt);
       if (start >= 0 && list.slice(start, i).some(e => e.type === 'assistant')) yield list.slice(start, i + 1).filter(conversation);
-    }
-  }},
-  'auto-continue': {about: 'a Stop hook blocking the stop with a request, and the response that follows it', *windows(list) {
-    for (let i = 0; i < list.length; i++) {
-      if (list[i].type !== 'user' || !list[i].isMeta || !/--attempt [0-9a-f-]{36}/.test(noteOf(list[i]))) continue;
-      const from = Math.max(0, backward(list, i - 1, e => e.type === 'assistant')), end = forward(list, forward(list, i, isStop) + 1, isStop);
-      if (forward(list, i, isStop) < 0 || end < 0) continue;
-      const window = list.slice(from, end + 1).filter(conversation);
-      if (window.length <= 30) yield window;
     }
   }},
   'background-agent': {about: 'a background subagent launched, the response ending, and its task notification arriving later', *windows(list) {
@@ -268,12 +251,12 @@ for (const name of Object.keys(scenarios)) {
 
 // Claude Code builds hook stdin from one zod schema per event. Reading it out of the
 // installed binary gives the field names, types and optionality for that exact version.
-const hookEvents = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop', 'SessionEnd'];
+const hookEvents = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop', 'StopFailure', 'SessionEnd'];
 const hookValues = {
   session_id: '00000000-0000-4000-8000-0000000000aa', transcript_path: '/example/claude/session.jsonl', cwd: '/example/project', prompt_id: '00000000-0000-4000-8000-0000000000bb',
   permission_mode: 'default', effort: {level: 'high'}, source: null, prompt: placeholder, session_title: placeholder, model: 'claude-opus-5-5',
   tool_name: 'Bash', tool_input: {command: 'echo example'}, tool_response: {stdout: 'example', stderr: '', interrupted: false}, tool_use_id: 'toolu_fixture1', duration_ms: 12,
-  permission_suggestions: [], stop_hook_active: false, last_assistant_message: placeholder, background_tasks: [], session_crons: [], reason: 'other',
+  permission_suggestions: [], stop_hook_active: false, last_assistant_message: placeholder, background_tasks: [], session_crons: [], reason: 'other', error: 'rate_limit', error_details: placeholder,
 };
 const toolEvents = ['PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop'];
 const subagentFields = new Set(['agent_id', 'agent_type', 'mcp_server']);

@@ -60,8 +60,7 @@ Agent process.
 
 Use `connectionPolicyLock(connection, run)` to serialize a native policy journal.
 `continuationWorkspace(rootId)` supplies saved Goal, Deliverable and user-input revisions,
-not live execution facts. `readDeliveryState` and `readFeedbackHold` let policy
-check saved input across the connection. Do not call entry-locking native actions
+not live execution facts. Do not call entry-locking native actions
 from inside these callbacks. Native queue state, permissions and interruption
 remain Claude's responsibility; a Stop is not a general live-status signal.
 

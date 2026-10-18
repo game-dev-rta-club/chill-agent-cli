@@ -11,12 +11,11 @@ import {runClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessio
 import {waitForClaudeFeedback,waitResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
-import {readDeliveryState,prepareDelivery,updateDelivery} from '../lib/delivery.mjs';
+import {deliverFeedback} from '../lib/delivery.mjs';
 import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
 import {fileURLToPath} from 'node:url';
 import {hookFor} from './claude-fixtures.mjs';
-const writeFeedbackHold=(id,value)=>writeJsonAtomically(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/feedback-holds',`${id}.json`),value);
 
 async function fixture(t) {
  const dir=await mkdtemp(join(tmpdir(),'claude-wait-test-')),data=join(dir,'data'),cwd=join(dir,'project');await mkdir(cwd);
@@ -40,16 +39,18 @@ async function fixture(t) {
 }
 const context=output=>output?.hookSpecificOutput?.additionalContext||'';
 
-test('a saved reply ends the waiter without offering it; the main-hook inbox still claims it once',async t=>{
+test('a saved reply ends the waiter without handing it; the inbox then hands it and lists it until a reply',async t=>{
  const f=await fixture(t);await f.stop();const w=f.wait();await f.waiting();
  const reply=await appendFeedback({goalId:f.root.id,text:'after the response ended'});
  assert.deepEqual(await w.done,{status:'feedback'});
- assert.equal(await readDeliveryState(reply.changeId),null,'detecting is not offering');
+ assert.equal(await hasSavedClaudeFeedback(f.connection),true,'detecting is not handing');
  assert.equal((await readJson(f.recordPath)).waiter,undefined,'a finished waiter releases its record');
  const text=waitResultText({status:'feedback'});assert.match(text,/connection inbox/);assert.match(text,/connection wait/);
- assert.match(context(await f.action('inbox')),/after the response ended/);assert.equal((await readDeliveryState(reply.changeId)).status,'unknown');
- await f.action('activity',{eventId:reply.changeId,state:'working'});await f.action('activity',{eventId:reply.changeId,state:'completed'});
- assert.doesNotMatch(context(await f.action('inbox')),/after the response ended/,'completed work is not offered again');
+ assert.match(context(await f.action('inbox')),/after the response ended/);
+ assert.equal(await hasSavedClaudeFeedback(f.connection),false,'handed once');
+ await f.action('reply',{goalId:f.root.id,text:'Done'});
+ assert.doesNotMatch(context(await f.action('inbox')),/after the response ended/,'an answered Goal is not listed again');
+ assert.ok(reply.changeId);
 });
 
 test('one waiter per context: a second exits, a stale one is replaced',async t=>{
@@ -109,20 +110,18 @@ test('repeated SessionStart keeps one set of exports and preserves other hooks',
  assert(lines.includes('export OTHER_HOOK=1'));
 });
 
-test('all assigned Goals count; holds, other owners and uncertain offers do not',async t=>{
+test('all owned Goals count; other owners and handed comments do not',async t=>{
  const f=await fixture(t),child=await createGoal({title:'Child',parentId:f.root.id});
- const held=await appendFeedback({goalId:f.root.id,text:'held'});await prepareDelivery(held);await updateDelivery(held.changeId,()=>({heldBy:randomUUID()}));
- const uncertain=await appendFeedback({goalId:f.root.id,text:'uncertain'});await prepareDelivery(uncertain);await updateDelivery(uncertain.changeId,()=>({status:'unknown',mayHaveSent:true,nativeOfferId:randomUUID()}));
+ await appendFeedback({goalId:f.root.id,text:'handed'});await f.action('inbox');
  const foreign=await createGoal({title:'Foreign'});await appendFeedback({goalId:foreign.id,text:'other owner'});
  assert.equal(await hasSavedClaudeFeedback(f.connection),false);
  await appendFeedback({goalId:child.id,text:'child reply'});assert.equal(await hasSavedClaudeFeedback(f.connection),true);
 });
 
-test('cached history still observes manual holds and ownership changes',async t=>{
- const f=await fixture(t),reply=await appendFeedback({goalId:f.root.id,text:'paused'});await prepareDelivery(reply);
+test('cached history still observes ownership changes',async t=>{
+ const f=await fixture(t);await appendFeedback({goalId:f.root.id,text:'saved'});
  const readEvents=createClaudeFeedbackReader();await readEvents();
- await writeFeedbackHold(f.root.id,{phase:'pending'});assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),false);
- await writeFeedbackHold(f.root.id,{phase:'sent'});assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),true);
+ assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),true);
  const path=join(f.data,'workspace/goals',f.root.id,'goal.json'),goal=JSON.parse(await readFile(path,'utf8'));
  await writeFile(path,JSON.stringify({...goal,connection:{...goal.connection,contextId:randomUUID()}}));
  assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),false);
@@ -144,20 +143,17 @@ test('the claude-watch hook exits 2 with the feedback, which Claude Code shows t
  p.stdin.end(JSON.stringify(f.event('Stop')));
  await f.waiting();await appendFeedback({goalId:f.root.id,text:'from the Web'});
  const code=await new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});
- assert.equal(code,2);assert.equal(stdout,'');assert.match(stderr,/from the Web[\s\S]*connection reply --event/);
+ assert.equal(code,2);assert.equal(stdout,'');assert.match(stderr,/from the Web[\s\S]*connection reply --goal/);
 });
 
-test('reply posts on the Web and completes the receipt in one action',async t=>{
- const f=await fixture(t),reply=await appendFeedback({goalId:f.root.id,text:'Please summarize'});
- await assert.rejects(f.action('reply',{eventId:reply.changeId,text:'Too early'}),/connection inbox first/);
- assert.match(context(await f.action('inbox')),/connection reply --event <eventId>/);
- const done=context(await f.action('reply',{eventId:reply.changeId,text:'Here is the summary.'}));
- assert.match(done,new RegExp(`recorded feedback #${reply.changeId} as completed`));
- const state=await readDeliveryState(reply.changeId);assert.equal(state.status,'completed');assert.equal(state.agentReported,true);
+test('reply posts on the Goal on the Web and answers it',async t=>{
+ const f=await fixture(t);await appendFeedback({goalId:f.root.id,text:'Please summarize'});
+ assert.match(context(await f.action('inbox')),/connection reply --goal <goalId>/);
+ const done=context(await f.action('reply',{goalId:f.root.id,text:'Here is the summary.'}));
+ assert.match(done,new RegExp(`Replied on Goal #${f.root.id}`));
  const posted=(await readFeedback()).filter(e=>e.author==='agent'&&e.goalId===f.root.id);
  assert.deepEqual(posted.map(e=>e.text),['Here is the summary.']);
- await assert.rejects(f.action('reply',{eventId:reply.changeId,text:'Again'}),/terminal receipt/);
- assert.equal((await readFeedback()).filter(e=>e.author==='agent').length,1,'a rejected reply posts nothing');
+ assert.equal((await deliverFeedback((await readFeedback()).find(e=>e.author==='user').changeId)).mark,null);
 });
 
 test('a Web pause holds feedback, refuses tool calls and survives compact; Resume wakes once',async t=>{
@@ -219,13 +215,13 @@ test('a scheduled check wakes the conversation through its waiter when it is due
 
 const watch=(f,opts={})=>{const controller=new AbortController();const done=watchClaudeConversation({sessionId:f.connection.sessionId,hook:true,pollMs:10,signal:controller.signal,...opts});return {done,stop:()=>{controller.abort();return done;}};};
 
-test('the watcher hook claims saved feedback and wakes the model with it',async t=>{
+test('the watcher hook hands saved feedback over and wakes the model with it',async t=>{
  const f=await fixture(t);await f.stop();const w=watch(f);await f.waiting();
  assert.equal((await readJson(f.recordPath)).waiter.kind,'hook');assert.equal((await readJson(f.recordPath)).hookWatcher,true);
- const reply=await appendFeedback({goalId:f.root.id,text:'from the Web'});
+ await appendFeedback({goalId:f.root.id,text:'from the Web'});
  const result=await w.done;
- assert.equal(result.status,'feedback');assert.match(watcherWakeText(result),/from the Web/);assert.match(result.text,/connection reply --event/);
- assert.equal((await readDeliveryState(reply.changeId)).status,'unknown','offered, as by a tool hook');
+ assert.equal(result.status,'feedback');assert.match(watcherWakeText(result),/from the Web/);assert.match(result.text,/connection reply --goal/);
+ assert.equal((await readJson(f.recordPath)).agentWork.phase,'working','the wake starts the work');
  assert.equal((await readJson(f.recordPath)).waiter,undefined);
  assert.equal(await hasSavedClaudeFeedback(f.connection),false,'the next watcher does not wake for it again');
 });
@@ -243,7 +239,7 @@ test('a watcher whose Claude Code process ended leaves feedback unclaimed',async
  attached=false;
  assert.deepEqual(await w.done,{status:'detached'});
  const reply=await appendFeedback({goalId:f.root.id,text:'nobody is listening'});
- assert.equal(await readDeliveryState(reply.changeId),null,'still saved for the next conversation');
+ assert.equal(await hasSavedClaudeFeedback(f.connection),true,'still waiting to be handed');assert.ok(reply);
  assert.equal((await readJson(f.recordPath)).waiter,undefined);
 });
 

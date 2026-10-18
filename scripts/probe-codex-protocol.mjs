@@ -9,7 +9,7 @@ import {readTurnSettings} from '../lib/agents/codex-turn-settings.mjs';
 import {installHook} from '../bin/chill-hook.mjs';
 import {assignGoal} from '../lib/agents/index.mjs';
 import {appendFeedback, createGoal} from '../lib/goal-store.mjs';
-import {writeDeliveryQuietly} from '../lib/delivery.mjs';
+import {withHandOff} from '../lib/hand-off.mjs';
 import {contractMethods, requestViolations, responseViolations, schema} from '../test/codex-contract.mjs';
 import {AppServer, fakeModel, hookTap, makeDir, makeHome, removeMade, shapeDiff, shapeOf, shellCall, sleep, textItem, uuid} from './probe-codex-kit.mjs';
 
@@ -71,7 +71,7 @@ export async function runProtocol({codex, log}) {
     const waitTurns = async (count, timeout = 30000) => { const end = Date.now() + timeout; while (turnsDone() < count && Date.now() < end) await sleep(50); return turnsDone() >= count; };
     const textOf = turn => turn.items.filter(item => item.type === 'agentMessage').map(item => item.text);
     const userText = turn => turn.items.find(item => item.type === 'userMessage')?.content?.[0]?.text;
-    const feedbackText = (n, extra = '') => `=== chill-agent · User Feedback ===\n[chill-agent:${uuid(900 + n)}]\n\nprobe ${n} 日本語 "quoted"\n\`\`\`json\n{"n": ${n}}\n\`\`\`${extra}`;
+    const feedbackText = (n, extra = '') => `=== chill-agent · User Feedback ===\n[{"eventId":${n},"goalId":"1","text":"probe ${n}"}]\n\nprobe ${n} 日本語 "quoted"\n\`\`\`json\n{"n": ${n}}\n\`\`\`${extra}`;
     const submission = (n, text = feedbackText(n)) => ({threadId, input: [{type: 'text', text, text_elements: []}], clientUserMessageId: uuid(n)});
 
     const started = outcome(await A.call('thread/start', {cwd: project}));
@@ -169,14 +169,11 @@ export async function runProtocol({codex, log}) {
       const page2 = need(await chill(call => call('thread/queue/list', {threadId, limit: 2, cursor: page1.nextCursor})), 'queue/list cursor');
       check('queue/list keeps pending inputs in order with their clientUserMessageId, and pages by limit and cursor', page1.data.map(entry => entry.clientUserMessageId).join() === [5, 6].map(uuid).join() && typeof page1.nextCursor === 'string' && page2.data.length === 1 && page2.data[0].id === queued[2].id && page2.nextCursor === null, JSON.stringify([page1, page2]).slice(0, 200));
       check('the queued entry carries the exact input', JSON.stringify(page1.data[0].input) === JSON.stringify(submission(5).input));
-      const removed = await chill(call => call('thread/queue/delete', {threadId, queuedSubmissionId: queued[0].id}));
-      const again = await chill(call => call('thread/queue/delete', {threadId, queuedSubmissionId: queued[0].id}));
-      check('queue/delete answers deleted true, then false once the entry is gone', removed.result?.deleted === true && again.result?.deleted === false, JSON.stringify([removed, again]));
-      check('the rest of the queue drains into turns after the running one', await waitTurns(6, 30000), `${turnsDone()} turns done`);
+      check('the queue drains into turns after the running one', await waitTurns(7, 30000), `${turnsDone()} turns done`);
       const queue = need(await chill(call => call('thread/queue/list', {threadId})), 'queue/list drained');
       const turns = need(await chill(call => call('thread/turns/list', {threadId, itemsView: 'full'})), 'turns/list drained').data;
-      check('a deleted entry never runs and the queue ends empty', queue.data.length === 0 && turns.length === 6 && !turns.some(turn => userText(turn).includes('probe 5')), JSON.stringify(turns.map(userText)));
-      check('turns started from the queue complete oldest to newest in queue order', turns.map(turn => userText(turn).match(/probe (\d)/)?.[1] ?? 'first').join() === '7,6,4,3,2,first', turns.map(turn => userText(turn).slice(0, 40)).join(' | '));
+      check('the queue ends empty', queue.data.length === 0 && turns.length === 7, JSON.stringify(turns.map(userText)));
+      check('turns started from the queue complete oldest to newest in queue order', turns.map(turn => userText(turn).match(/probe (\d)/)?.[1] ?? 'first').join() === '7,6,5,4,3,2,first', turns.map(turn => userText(turn).slice(0, 40)).join(' | '));
       slow = 0;
     });
 
@@ -236,17 +233,17 @@ export async function runProtocol({codex, log}) {
       check('a turn in a chat with chill\'s trusted Stop hook completes', await turn(1));
       const first = tap.read();
       check('the Stop hook runs once as a turn ends, with session_id, turn_id and stop_hook_active false', first.length === 1 && first[0].input.hook_event_name === 'Stop' && first[0].input.session_id === stopThread && typeof first[0].input.turn_id === 'string' && first[0].input.stop_hook_active === false, JSON.stringify(first.map(run => run.input)));
-      check('chill\'s Stop hook prints nothing for a chat without taken feedback', first[0]?.code === 0 && first[0].output === '', JSON.stringify(first[0] && {code: first[0].code, output: first[0].output}));
-      // Taken feedback is written directly: queueing it would start a turn of its own.
+      check('chill\'s Stop hook prints nothing for a chat without handed feedback', first[0]?.code === 0 && first[0].output === '', JSON.stringify(first[0] && {code: first[0].code, output: first[0].output}));
+      // Handed feedback is recorded directly: sending it would start a turn of its own.
       const root = await createGoal({title: 'Stop probe'});
       await assignGoal(root.id, stopThread);
       const event = await appendFeedback({goalId: root.id, text: 'Fix the build'});
-      await writeDeliveryQuietly({eventId: event.changeId, goalId: root.id, threadId: stopThread, messageId: uuid(50), status: 'working', agentReported: true, updatedAt: event.updatedAt, history: [{status: 'working', at: event.updatedAt}]});
+      await withHandOff(root.id, state => ({...state, cursor: event.changeId}));
       const requests = model.requests.length, mark = A.notes.length;
       check('a turn whose Stop chill holds still completes', await turn(2));
       const runs = tap.read().slice(1);
       const reason = (() => { try { return JSON.parse(runs[0].output).reason; } catch { return null; } })();
-      check('chill\'s Stop hook answers {decision:"block",reason} naming the quiet feedback', runs[0]?.code === 0 && JSON.parse(runs[0].output || '{}').decision === 'block' && reason?.includes(`#${event.changeId} (Goal #${root.id})`), JSON.stringify(runs[0] && {code: runs[0].code, output: runs[0].output.slice(0, 200)}));
+      check('chill\'s Stop hook answers {decision:"block",reason} naming the Goal that awaits a reply', runs[0]?.code === 0 && JSON.parse(runs[0].output || '{}').decision === 'block' && reason?.includes(`Goal #${root.id}`), JSON.stringify(runs[0] && {code: runs[0].code, output: runs[0].output.slice(0, 200)}));
       const later = model.requests.slice(requests);
       check('Codex continues the turn and sends the hold reason to the model', later.length >= 2 && JSON.stringify(later.at(-1).input).includes('tell the user where things stand'), `${later.length} model requests after the hold`);
       check('the continued turn\'s next Stop has stop_hook_active true, and chill lets it end', runs.length === 2 && runs[1].input.stop_hook_active === true && runs[1].input.turn_id === runs[0].input.turn_id && runs[1].output === '', JSON.stringify(runs.map(run => ({active: run.input.stop_hook_active, output: run.output.slice(0, 40)}))));
@@ -293,13 +290,11 @@ async function compareWithFake({A, chill, direct, threadId, slowSet, differences
     await call('items/list desc, next page', 'thread/items/list', {threadId: c.main, turnId, sortDirection: 'desc', limit: 3, cursor: items.result?.nextCursor});
     await call('items/list whole thread', 'thread/items/list', {threadId: c.main});
     await c.busy?.();
-    const added = await call('queue/add', 'thread/queue/add', {threadId: c.main, ...c.submission(31)});
+    await call('queue/add', 'thread/queue/add', {threadId: c.main, ...c.submission(31)});
     await call('queue/add, second', 'thread/queue/add', {threadId: c.main, ...c.submission(32)});
     await call('queue/list', 'thread/queue/list', {threadId: c.main});
     const queuePage = await call('queue/list limit 1', 'thread/queue/list', {threadId: c.main, limit: 1});
     await call('queue/list limit 1, next page', 'thread/queue/list', {threadId: c.main, limit: 1, cursor: queuePage.result?.nextCursor});
-    await call('queue/delete', 'thread/queue/delete', {threadId: c.main, queuedSubmissionId: added.result?.queuedSubmission?.id});
-    await call('queue/delete, again', 'thread/queue/delete', {threadId: c.main, queuedSubmissionId: added.result?.queuedSubmission?.id});
     await call('model/list', 'model/list', {});
   };
   const submission = n => ({input: [{type: 'text', text: `compare ${n}`, text_elements: []}], clientUserMessageId: uuid(n)});

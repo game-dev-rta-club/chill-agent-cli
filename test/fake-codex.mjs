@@ -62,23 +62,6 @@ const handlers = {
     if (process.env.CHILL_TEST_DROP_AFTER_ADD === '1') process.exit(0);
     return {queuedSubmission: queued(entry)};
   },
-  async 'thread/queue/delete'({threadId, queuedSubmissionId}) {
-    if (process.env.CHILL_TEST_START_ON_DELETE === '1') {
-      const entry = queue.find(e => e.id === queuedSubmissionId);
-      if (entry) {
-        const id = '00000000-0000-0000-0000-000000000003', item = {type: 'userMessage', id: 'item-1', content: entry.input};
-        queue = queue.filter(e => e !== entry); await writeFile(path, JSON.stringify(queue));
-        await writeFile(join(root, 'fake-history.json'), JSON.stringify({turns: [{id, completedAt: null, status: 'inProgress', items: [item]}], items: {[id]: [{turnId: id, item}]}}));
-        return {deleted: false};
-      }
-    }
-    if (process.env.CHILL_TEST_DELETE_FAIL === '1') throw rpcError(-32600, 'Queue removal unavailable');
-    const before = queue.length;
-    queue = queue.filter(entry => entry.threadId !== threadId || entry.id !== queuedSubmissionId);
-    await writeFile(path, JSON.stringify(queue));
-    if (process.env.CHILL_TEST_DROP_AFTER_DELETE === '1') process.exit(0);
-    return {deleted: queue.length < before};
-  },
 };
 for (const method of Object.keys(handlers)) if (!contractMethods.includes(method)) throw new Error(`fake-codex implements ${method}, which is not in the protocol fixture`);
 

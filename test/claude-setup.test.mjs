@@ -63,7 +63,7 @@ test('CLI prepares native hooks with no Codex executable, and status never claim
     return (await execute(process.execPath,['--input-type=module','-e',code],{env:{...env,CHILL_AGENT_DATA_DIR:directory},timeout:10000})).stdout;
   };
   const firstContext=await readContext(prepared.root,prepared.dataDirectory);
-  assert(firstContext.includes(prepared.command+' connection reply --event <eventId>'));
+  assert(firstContext.includes(prepared.command+' connection reply --goal <goalId>'));
   assert(firstContext.includes(prepared.command+' goal show'));
   assert.equal(prepared.command,`'${prepared.entry.replaceAll("'","'\\''")}'`,'installed hooks and agents use the short entry');
   assert(!firstContext.includes('/packages/'));
@@ -96,7 +96,7 @@ test('an exec-form hook from an earlier Windows setup is replaced by the shell f
  await writeFile(f.path,JSON.stringify(config));await writeFile(record,JSON.stringify(old));
  assert.equal((await configureClaudeHooks(f.project,f.options)).configured,true);
  const hooks=Object.values((await f.read()).hooks).flat().flatMap(g=>g.hooks);
- assert.equal(hooks.filter(h=>h.args).length,0);assert.equal(hooks.filter(h=>/ connection claude-hook$/.test(h.command)).length,7);
+ assert.equal(hooks.filter(h=>h.args).length,0);assert.equal(hooks.filter(h=>/ connection claude-hook$/.test(h.command)).length,8);
  // The watcher runs in the background from SessionStart and Stop and wakes the model itself.
  const watchers=Object.entries((await f.read()).hooks).flatMap(([event,groups])=>groups.flatMap(g=>g.hooks.filter(h=>/ connection claude-watch$/.test(h.command)).map(h=>({event,...h}))));
  assert.deepEqual(watchers.map(h=>[h.event,h.asyncRewake,h.timeout]),[['SessionStart',true,604800],['Stop',true,604800]]);

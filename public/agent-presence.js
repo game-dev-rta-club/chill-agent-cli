@@ -1,5 +1,5 @@
 import {isRunning} from './goal-state.js';
-const labels={working:'Running',idle:'Idle',paused:'Paused',unknown:'Status unavailable',unlinked:'Not connected'};
+const labels={working:'Running',idle:'Idle',paused:'Paused',interrupted:'Interrupted',unknown:'Status unavailable',unlinked:'Not connected'};
 const displayState=status=>isRunning(status)?'working':status;
 export const presenceLabel=status=>labels[displayState(status)]||labels.unknown;
 export function presenceMark(status){

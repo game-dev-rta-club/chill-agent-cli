@@ -32,7 +32,7 @@ There are two independent decisions:
 
 Review the operations the work requires in Claude's permission settings. Saved
 command-specific allowances can avoid repeated prompts. A one-time approval does
-not authorize the next receipt. Native ask or deny rules can override an
+not authorize the next reply. Native ask or deny rules can override an
 allowance. Claude's own permission mode named `auto` is a separate native policy;
 selecting chill Auto mode does not select it.
 See [Claude's permission guide](https://code.claude.com/docs/en/permissions).
@@ -47,11 +47,11 @@ leaves these choices with the user.
 
 Check that the Agent menu shows **Waiting for Web replies**. Then send one small
 Web request, for example: “Read the current Deliverable and report one next action; do
-not change files.” Check that Claude wakes, completes its receipt and replies on
+not change files.” Check that Claude wakes and replies on
 the Web. If Claude asks for a permission, review the actual operation there. Do
 not send the Web request again to clear a permission prompt.
 
-This exercises receipt commands and reading, not permission for future edits,
+This exercises the reply command and reading, not permission for future edits,
 tests or deployment. Review a representative action from the agreed work before
 leaving. If an operation should remain your decision, leave that approval in
 place: the affected action may wait while independent work continues.

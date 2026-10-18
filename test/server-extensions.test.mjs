@@ -84,7 +84,7 @@ test('run logs read only the stored request in the current Root and never enqueu
 test('a Claude Root uses the same AutoContinue control, switched through its own conversation record',async()=>{
  const calls=[],reads=[];let state=null;
  const claude=root=>claudeContinuation(root,{read:async id=>{assert.equal(id,'3');return state;},configure:async(id,enabled)=>{calls.push([id,enabled]);state={...state,enabled,attempts:state?.attempts||[]};},
-  transcript:async()=>'/tmp/claude.jsonl',work:async(path,id)=>{reads.push([path,id]);return {source:'turn',endedAt:'2026-10-13T00:03:00Z',messages:[{id:'m',text:'Continued'}]};}});
+  transcript:async()=>'/tmp/claude.jsonl',messages:async(path,since)=>{reads.push([path,since]);return {settings:null,messages:[{id:'m',text:'Continued',at:Date.parse('2026-10-13T00:00:30Z')}]};}});
  const ext=createContinuationExtension({context:async()=>({root:{id:'3',connection:{sessionId:'s',contextId:'c'}}}),continuation:claude,token:()=>'k',touch:async()=>{}});
  assert.deepEqual(await ext.read('4'),{rootId:'3',enabled:false,placement:'header',icon:'repeat'});
  assert.equal((await ext.read('4',{activity:true})).activity.status,'Off');
@@ -96,7 +96,7 @@ test('a Claude Root uses the same AutoContinue control, switched through its own
  assert.equal(activity.status,'Awaiting confirmation');assert.deepEqual(activity.runs.map(r=>r.status),['Agent changed','Delivery unconfirmed']);
  const log=await ext.request({method:'GET',path:'activity/11111111-1111-4111-8111-111111111111',query:{goalId:'4'}});
  assert.equal(log.status,200);assert.equal(log.body.message,'Continue the Goal');assert.equal(log.body.work.messages[0].text,'Continued','the run output comes from its transcript, like a Codex run');
- assert.deepEqual(reads,[['/tmp/claude.jsonl','11111111-1111-4111-8111-111111111111']]);
+ assert.deepEqual(reads,[['/tmp/claude.jsonl','2026-10-13T00:00:00Z']],'the text written since the run was requested');
  assert.equal((await ext.request({method:'GET',path:'activity/33333333-3333-4333-8333-333333333333',query:{goalId:'4'}})).status,404);
  await assert.rejects(ext.set('4',{rootId:'9',enabled:false}),/Goal moved/);
  assert.equal(await ext.busy(),false,'nothing polls an agent that continues itself');

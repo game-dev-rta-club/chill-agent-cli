@@ -22,7 +22,6 @@ export const METHODS = {
   'thread/items/list': ['ThreadItemsListParams', 'ThreadItemsListResponse'],
   'thread/queue/list': ['ThreadQueueListParams', 'ThreadQueueListResponse'],
   'thread/queue/add': ['ThreadQueueAddParams', 'ThreadQueueAddResponse'],
-  'thread/queue/delete': ['ThreadQueueDeleteParams', 'ThreadQueueDeleteResponse'],
   'model/list': ['ModelListParams', 'ModelListResponse'],
   'account/rateLimits/read': ['GetAccountRateLimitsParams', 'GetAccountRateLimitsResponse'],
 };

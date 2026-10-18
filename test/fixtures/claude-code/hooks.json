@@ -193,6 +193,32 @@
     "session_crons": []
    }
   },
+  "StopFailure": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string?",
+    "agent_type": "string?",
+    "effort": "object?",
+    "error": "unknown",
+    "error_details": "string?",
+    "last_assistant_message": "string?"
+   },
+   "example": {
+    "hook_event_name": "StopFailure",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "error": "rate_limit",
+    "error_details": "(redacted)",
+    "last_assistant_message": "(redacted)"
+   }
+  },
   "SessionEnd": {
    "fields": {
     "session_id": "string",

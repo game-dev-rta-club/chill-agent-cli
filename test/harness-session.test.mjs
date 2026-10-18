@@ -5,12 +5,12 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {harnessGuidance} from '../extensions/harnesses/index.mjs';
 import {startSession} from '../lib/harness-session.mjs';
-test('selected interfaces preserve different receipt and completion semantics',()=>{
+test('selected interfaces name their own reply and work commands',()=>{
  const a=harnessGuidance('codex-desktop'),b=harnessGuidance('claude-code');
- assert(a.operations.receipt.states.includes('deferred'));assert(a.operations.selectWork);
- assert(!b.operations.receipt.states.includes('deferred'));assert.match(b.operations.selectWork.command,/goal work/);
+ assert.equal(a.operations.receipt,undefined);assert.match(a.operations.reply.command,/goal comment --id/);assert(a.operations.selectWork);
+ assert.equal(b.operations.receipt,undefined,'a Claude conversation answers a Goal by replying on it');assert.match(b.operations.reply.command,/--goal/);assert.match(b.operations.selectWork.command,/goal work/);
  assert.match(b.operations.createRoot.confirmation,/at once/);
- a.operations.receipt.states.push('invented');assert(!harnessGuidance('codex-desktop').operations.receipt.states.includes('invented'));
+ a.operations.reply.command='invented';assert.notEqual(harnessGuidance('codex-desktop').operations.reply.command,'invented');
  assert.throws(()=>harnessGuidance('unknown'),/no fallback/);
 });
 for(const harness of ['codex-desktop','claude-code'])for(const running of [true,false])test(`session prepares ${harness}; existing Web=${running}`,async()=>{
