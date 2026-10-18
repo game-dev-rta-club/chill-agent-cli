@@ -55,7 +55,8 @@ async function fixture() {
   return {root,env,run,json,body,publish,feedback,assign,select};
 }
 
-test('root chat owns Goal conversation before and after Deliverable edits',async()=>{
+test('root chat owns Goal conversation before and after Deliverable edits',async t=>{
+  if(process.platform==='win32')expectHidden(t,'codex-delivery.send');
   const f=await fixture();await f.publish();
   const [{feedback},{delivery}]=await f.feedback();
   assert.equal(feedback.threadId,thread);assert.equal(delivery.threadId,thread);
