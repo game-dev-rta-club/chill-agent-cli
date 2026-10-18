@@ -104,6 +104,8 @@ an import. Keep the data core shares across harnesses in a core module and the
 operations that talk to one harness in its adapter. A Goal's feedback hold is
 the example: `lib/feedback-hold.mjs` holds the record and the `feedbackHeld`
 question that every agent honors, and `lib/agents/codex-hold.mjs` holds the
-Codex-only queue, interrupt and resend. The public extension API
+Codex-only queue, interrupt and resend. The quiet-stop hold is another:
+`lib/quiet-stop.mjs` decides whether a stop is held, and each harness's Stop
+hook only reports the stop and returns the block. The public extension API
 (`lib/extension-api.mjs`) keeps its exported names and reaches adapters through
 the same index.

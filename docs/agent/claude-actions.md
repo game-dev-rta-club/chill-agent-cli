@@ -3,8 +3,9 @@ keyPoints: >-
   Claude connection commands act at once for the conversation Claude Code names
   in its shell, as Codex commands do; there is no request marker to confirm.
   Web input reaches a conversation only through its main hooks (tool hooks and
-  the watcher), which never run for a subagent. Stop names feedback left
-  without a reply once. Optional connection extensions run the same way.
+  the watcher), which never run for a subagent. Stop holds a response once
+  when feedback it took has gone quiet with nothing left running. Optional
+  connection extensions run the same way.
 ---
 
 # Act from a Claude conversation
@@ -89,9 +90,13 @@ Subagent hooks never offer feedback: a subagent that received it would end with
 it, and the main conversation would never see it. Replies after a response ends
 reach the conversation through the [watcher hook](claude-wait.md).
 
-When a response ends while feedback it received has no reply, the Stop hook
-blocks once for that feedback and names it, so a forgotten reply is noticed;
-work that really continues can simply end again. A trusted composed
+When a response ends, the Stop hook applies the shared
+[quiet-stop rule](feedback-and-controls.md#when-the-agent-stops): if feedback the
+conversation took has had no reply or Comment on its Goal since it last stopped,
+and Claude Code lists no background work in the Stop input's `background_tasks`
+(chill's own `connection wait` task does not count), the hook blocks once and
+asks the agent to reply or post a progress comment. The stop right after that
+hold ends. A trusted composed
 [connection extension](../extensions/connection-hooks.md) may separately request
 a continuation at Stop. UserPromptSubmit, Stop and SessionEnd record the last
 hook for the Web status.

@@ -342,11 +342,12 @@ test('a lost queue removal receipt is reconciled without re-enqueueing', {skip:p
   assert.equal(requests.filter(r=>r.method==='thread/queue/add').length,1);
 });
 
-test('hooks do not consume other chats, subagents, or non-PostToolUse events', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
+test('hooks do not consume other chats, subagents, or other events', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f=await fixture();await f.feedback();
   assert.equal((await runHook(f,{session_id:other})).stdout,'');
   assert.equal((await runHook(f,{agent_id:'child'})).stdout,'');
-  assert.equal((await runHook(f,{hook_event_name:'Stop'})).stdout,'');
+  assert.equal((await runHook(f,{hook_event_name:'UserPromptSubmit'})).stdout,'');
+  assert.equal((await runHook(f,{hook_event_name:'Stop',stop_hook_active:false})).stdout,'','queued feedback the chat has not taken holds no stop');
   assert.equal((await f.json('workspace/deliveries/1.json')).hookTurnId,undefined);
   assert.equal((await f.json('fake-queue.json')).length,1);
   await f.publish(other);await f.feedback({});
@@ -367,6 +368,7 @@ test('installing the hook is idempotent and preserves other hooks without modify
   assert.equal(installed.hooks.PostToolUse[1].matcher,'*');
   const ownHook=installed.hooks.PostToolUse[1].hooks[0];
   assert.equal(ownHook.statusMessage,'chill-agent: Check Web feedback');
+  assert.deepEqual(installed.hooks.Stop,[{hooks:[{type:'command',command:ownHook.command,statusMessage:'chill-agent: Check the user has heard back',timeout:15}]}]);
   // Upgrade a pre-label definition in place, keeping user settings and other hooks.
   delete ownHook.statusMessage;
   ownHook.timeout=25;

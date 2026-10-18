@@ -6,7 +6,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openLetterActions } from '../lib/delivery.mjs';
 import { collectHookFeedback } from '../lib/agents/codex-delivery.mjs';
-import { dataDirectory, writeJsonAtomically } from '../lib/goal-store.mjs';
+import { dataDirectory, listGoals, validThreadId, writeJsonAtomically } from '../lib/goal-store.mjs';
+import { agentStopped, quietStopReason } from '../lib/quiet-stop.mjs';
 import { notificationReminder } from '../lib/notification-reminder.mjs';
 import {agentGuide} from '../lib/agent-guidance.mjs';
 import {recordWorkHeartbeat} from '../lib/agents/codex-execution.mjs';
@@ -17,6 +18,10 @@ const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 const self = fileURLToPath(import.meta.url);
 const cli = fileURLToPath(new URL('./chill-agent.mjs', import.meta.url));
 const statusMessage = 'chill-agent: Check Web feedback';
+const hookSpecs = {
+  PostToolUse: { group: { matcher: '*' }, hook: { statusMessage, timeout: 15, additionalContextLimit: 2000 } },
+  Stop: { group: {}, hook: { statusMessage: 'chill-agent: Check the user has heard back', timeout: 15 } },
+};
 
 export async function installHook(projectDirectory = process.cwd(), options = {}) {
   const path = join(resolve(projectDirectory), '.codex', 'hooks.json');
@@ -25,26 +30,28 @@ export async function installHook(projectDirectory = process.cwd(), options = {}
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   const command = options.command || `CHILL_AGENT_DATA_DIR=${quote(dataDirectory())} ${quote(stableNodePath())} ${quote(self)}`;
   config.hooks ||= {};
-  const groups = config.hooks.PostToolUse ||= [];
-  if (!Array.isArray(groups)) throw new Error('PostToolUse must be an array.');
-  const installed = groups.flatMap(group => Array.isArray(group.hooks) ? group.hooks : []).filter(hook => hook.command === command);
   let changed = false;
-  if (installed.length) {
-    for (const hook of installed) {
-      if (hook.statusMessage === statusMessage) continue;
-      hook.statusMessage = statusMessage;
-      changed = true;
+  for (const [event, spec] of Object.entries(hookSpecs)) {
+    const groups = config.hooks[event] ||= [];
+    if (!Array.isArray(groups)) throw new Error(`${event} must be an array.`);
+    const installed = groups.flatMap(group => Array.isArray(group.hooks) ? group.hooks : []).filter(hook => hook.command === command);
+    if (installed.length) {
+      for (const hook of installed) {
+        if (hook.statusMessage === spec.hook.statusMessage) continue;
+        hook.statusMessage = spec.hook.statusMessage;
+        changed = true;
+      }
+      continue;
     }
-  } else {
     // Replace only commands emitted by this installer, preserving other hooks.
     const owned = value => typeof value === 'string' && value.startsWith('CHILL_AGENT_DATA_DIR=')
       && (/ '\S[^\n]*\/bin\/chill-hook\.mjs'$/.test(value) || / '\S[^\n]*\/runtime\/chill\.mjs' hook$/.test(value));
-    config.hooks.PostToolUse = groups.flatMap(group => {
+    config.hooks[event] = groups.flatMap(group => {
       if (!Array.isArray(group.hooks)) return [group];
       const remaining = group.hooks.filter(hook => !owned(hook.command));
       return remaining.length ? [{ ...group, hooks: remaining }] : [];
     });
-    config.hooks.PostToolUse.push({ matcher: '*', hooks: [{ type: 'command', command, statusMessage, timeout: 15, additionalContextLimit: 2000 }] });
+    config.hooks[event].push({ ...spec.group, hooks: [{ type: 'command', command, ...spec.hook }] });
     changed = true;
   }
   if (changed) {
@@ -54,16 +61,30 @@ export async function installHook(projectDirectory = process.cwd(), options = {}
   return path;
 }
 
+const cliCommand = () => `CHILL_AGENT_DATA_DIR=${quote(dataDirectory())} ${quote(stableNodePath())} ${quote(cli)}`;
+// Codex reports no background work to its Stop hook, so none is counted.
+async function stopOutput(threadId) {
+  const root = (await listGoals()).find(goal => !goal.parentId && goal.threadId === threadId);
+  const quiet = root ? await agentStopped(root) : [];
+  if (!quiet.length) return null;
+  const command = cliCommand();
+  return { decision: 'block', reason: quietStopReason(quiet, {
+    reply: `${command} comment --id <goalId> --text '<reply>' && ${command} activity --event <ID> --state completed`,
+    progress: `${command} comment --id <goalId> --text '<progress>'`,
+  }) };
+}
+
 export async function hookOutput(input, assignedThreadId = process.env.CODEX_THREAD_ID) {
-  if (input.hook_event_name !== 'PostToolUse') return null;
+  if (!['PostToolUse', 'Stop'].includes(input.hook_event_name)) return null;
   // Subagent hook session_id can refer to its parent; never consume the
   // parent's inbox through a child runtime or a mismatched thread.
   if (input.agent_id || assignedThreadId && assignedThreadId !== input.session_id) return null;
+  if (input.hook_event_name === 'Stop') return stopOutput(validThreadId(input.session_id));
   await recordWorkHeartbeat({threadId:input.session_id,turnId:input.turn_id});
   const pending = await collectHookFeedback({ threadId: input.session_id, turnId: input.turn_id });
   if (!pending.length) return null;
   const reminder = await notificationReminder();
-  const command = `CHILL_AGENT_DATA_DIR=${quote(dataDirectory())} ${quote(stableNodePath())} ${quote(cli)}`;
+  const command = cliCommand();
   const items = pending.map(item => `Root Goal #${item.rootId}; path ${item.path.map(g=>`#${g.id} ${JSON.stringify(g.title)}`).join(' / ')}; feedback #${item.eventId}:\n` +
     `PORT=${quote(item.port)} ${command} show --id ${item.goalId} --since ${item.eventId - 1} --format text --section context\n` +
     `Receipt: PORT=${quote(item.port)} ${command} activity --event ${item.eventId} --state <deferred|working>${item.letters.length?`\n\n${openLetterActions(item.letters)}`:''}`).join('\n\n');
@@ -80,7 +101,7 @@ async function main() {
   if (showHelp('hook', process.argv.slice(2))) return;
   const values = parseOptions('hook', process.argv.slice(2));
   if (values['--install']) {
-    console.log(`Installed: ${await installHook()}\nReview and trust the new hook in Codex /hooks before use.`);
+    console.log(`Installed: ${await installHook()}\nReview and trust the new hooks (PostToolUse and Stop) in Codex /hooks before use.`);
     return;
   }
   let raw = '';

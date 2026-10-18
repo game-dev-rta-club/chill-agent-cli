@@ -4,7 +4,8 @@
 // A driver plays the agent and reads what the user sees. start(t) returns a session:
 //   goalId                          the Root Goal the agent is assigned to
 //   agentStartsResponse()           the agent begins a response (a Codex turn, a Claude response)
-//   agentEndsResponse()             that response ends
+//   agentEndsResponse({background}) that response ends. Resolves to the reason when chill holds the stop, and the
+//                                   response then goes on; else null. `background`: work of the agent keeps running.
 //   agentTakesFeedback(eventId)     the agent's next opportunity to read Web feedback, then its `activity working`
 //                                   receipt. An idle agent is woken by the feedback, which starts its response.
 //                                   Resolves to the feedback IDs that reached it.
@@ -13,6 +14,7 @@
 //   strangerReports(eventId)        a conversation the Goal is not assigned to reports `completed` for the feedback
 //   agentReplies(eventId, text)     the reply that completes the feedback
 //   agentSelectsWork()              `goal work` on the Root Goal for the current response
+//   agentComments(text)             a progress `goal comment` on the Root Goal
 //   saveFeedback(text)              the user posts feedback in the Web; resolves to its event ID
 //   sendNow(eventId)                the user's Send now
 //   retry(eventId)                  the user's Retry or Check on a delivery
@@ -143,16 +145,24 @@ async function codexSession(t) {
     await writeHistory({type:'active',activeFlags:[]});
   };
   const queue=async()=>JSON.parse(await readFile(join(data,'fake-queue.json'),'utf8').catch(()=>'[]'));
+  let continuing=false;
   const root=await createGoal({title:'A useful outcome'});
   await assignGoal(root.id,thread);
   await writeHistory({type:'idle'});
   const session={
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
     async agentStartsResponse() {await startTurn([]);},
+    // Codex runs the Stop hook as the turn ends; a block continues the turn with the reason.
     async agentEndsResponse() {
+      const output=await runWith(codexHook,[],{env,input:{hook_event_name:'Stop',session_id:thread,turn_id:turns.at(-1)?.id??randomUUID(),stop_hook_active:continuing,
+        last_assistant_message:'Done.',cwd:dir,model:'gpt-5.5',permission_mode:'default',transcript_path:null}});
+      const hold=output.trim()?JSON.parse(output):null;
+      continuing=hold?.decision==='block';
+      if(continuing)return hold.reason;
       Object.assign(turns.at(-1),{status:'completed',completedAt:Math.floor(Date.now()/1000)});
       await writeHistory({type:'idle'});
       passTime();
+      return null;
     },
     async agentTakesFeedback(eventId) {
       let ids;
@@ -182,6 +192,7 @@ async function codexSession(t) {
       await runWith(cli,['comment','--id',root.id,'--text',text],{env});
       await runWith(cli,['activity','--event',String(eventId),'--state','completed'],{env});
     },
+    agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
   return session;
@@ -207,7 +218,7 @@ async function claudeSession(t) {
   const append=entries=>appendFile(transcript,entries.map(claudeLine).join(''));
   await connection(['create-goal','--title','A useful outcome']);
   const [root]=await listGoals();
-  let responding=false,handoff=null;
+  let responding=false,handoff=null,continuing=false;
   const startResponse=async()=>{
     await append([claudeEntry.prompt(randomUUID(),'Do the work')]);
     await hook('UserPromptSubmit',{prompt:'Do the work'});
@@ -216,12 +227,14 @@ async function claudeSession(t) {
   const session={
     ...userSide(root.id),
     agentStartsResponse:startResponse,
-    async agentEndsResponse() {
-      // The Stop hook hands over feedback that waited for the end; the response then goes on with it.
-      const output=await hook('Stop');
-      if(output?.decision==='block'){handoff=output.reason;return;}
+    async agentEndsResponse({background=false}={}) {
+      // A blocked Stop hands over feedback that waited for the end, or holds the stop; the response then goes on.
+      const output=await hook('Stop',{stop_hook_active:continuing,background_tasks:background?[{id:'a1b2c3',type:'subagent',status:'running',description:'Review the change',agent_type:'general-purpose'}]:[]});
+      continuing=output?.decision==='block';
+      if(continuing){handoff=output.reason;return output.reason;}
       await append([claudeEntry.text(randomUUID(),'Finished.'),claudeEntry.stop({uuid:randomUUID()})]);
-      responding=false;
+      responding=false;handoff=null;
+      return null;
     },
     async agentTakesFeedback(eventId) {
       let text;
@@ -254,6 +267,7 @@ async function claudeSession(t) {
       await runWith(cli,['activity','--event',String(eventId),'--state','completed'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other}});
     },
     async agentReplies(eventId,text) {await connection(['reply','--event',String(eventId),'--text',text]);},
+    agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env:agentEnv}),
   };
   return session;
@@ -264,7 +278,8 @@ const win32Codex=process.platform==='win32'&&'Codex Desktop harness is macOS-onl
 export const drivers=[
   {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'queued',
     // Approve all and settings are Claude features; pausing a Codex chat needs the running Desktop app.
-    capabilities:{deferredReceipts:true,approveAll:false,pause:false}},
+    // Codex's Stop hook input names no background work, so chill cannot see it.
+    capabilities:{deferredReceipts:true,approveAll:false,pause:false,backgroundWork:false}},
   {name:'Claude Code',start:claudeSession,agentName:'Claude Code',pending:'saved',
-    capabilities:{deferredReceipts:false,approveAll:true,pause:true}},
+    capabilities:{deferredReceipts:false,approveAll:true,pause:true,backgroundWork:true}},
 ];

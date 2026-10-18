@@ -152,3 +152,25 @@ scenario('Pause holds unread feedback and Resume releases it where the harness c
     assert.deepEqual(await s.agentTakesFeedback(event),[event]);
   } else await assert.rejects(s.pauseRow('stop'),/Status changed/);
 });
+
+scenario('a stop with nothing running and nothing said about feedback the agent took is held once, to tell the user',async (s,driver) => {
+  const event=await s.saveFeedback('Fix the build');
+  await s.agentTakesFeedback(event);
+  const hold=await s.agentEndsResponse();
+  assert.match(hold??'',new RegExp(`#${event} \\(Goal #${s.goalId}\\)`),'the user has heard nothing since the feedback');
+  assert.equal(await s.agentEndsResponse(),null,'the stop right after a hold ends');
+  await s.agentStartsResponse();
+  assert.match(await s.agentEndsResponse()??'',/Nothing has reached them/,'a later stop with still nothing said is held again');
+  assert.equal(await s.agentEndsResponse(),null);
+  await s.agentStartsResponse();
+  await s.agentComments('Waiting for CI; I will check again in 10 minutes.');
+  assert.equal(await s.agentEndsResponse(),null,'a progress comment since the last stop');
+  await s.agentStartsResponse();
+  const background=await s.agentEndsResponse({background:true});
+  if(driver.capabilities.backgroundWork)assert.equal(background,null,'background work wakes the agent later');
+  else {assert.match(background??'',/Nothing has reached them/,'the harness reports no background work');await s.agentEndsResponse();}
+  await s.agentStartsResponse();
+  await s.agentReplies(event,'Fixed');
+  assert.equal(await s.agentEndsResponse(),null,'the reply completes the feedback');
+  assert.equal(await s.receipt(event),'completed');
+});

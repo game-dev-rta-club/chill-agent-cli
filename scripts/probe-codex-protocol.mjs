@@ -7,6 +7,9 @@ import {deepStrictEqual} from 'node:assert/strict';
 import {withCodex, verifyThread} from '../lib/codex-client.mjs';
 import {readTurnSettings} from '../lib/agents/codex-turn-settings.mjs';
 import {installHook} from '../bin/chill-hook.mjs';
+import {assignGoal} from '../lib/agents/index.mjs';
+import {appendFeedback, createGoal} from '../lib/goal-store.mjs';
+import {writeDeliveryQuietly} from '../lib/delivery.mjs';
 import {contractMethods, requestViolations, responseViolations, schema} from '../test/codex-contract.mjs';
 import {AppServer, fakeModel, hookTap, makeDir, makeHome, removeMade, shapeDiff, shapeOf, shellCall, sleep, textItem, uuid} from './probe-codex-kit.mjs';
 
@@ -184,10 +187,11 @@ export async function runProtocol({codex, log}) {
       const trusted = project => direct(A, 'config/value/write', {keyPath: `projects."${project}".trust_level`, value: 'trusted', mergeStrategy: 'upsert'});
       check('the project trust level is writable through config/value/write', (await trusted(hookProject)).result?.status === 'ok');
       const listed = await direct(A, 'hooks/list', {cwds: [hookProject]});
-      const entry = listed.result?.data?.[0], hook = entry?.hooks?.[0];
-      const wanted = written.hooks.PostToolUse[0].hooks[0];
-      check('hooks/list accepts the hooks.json chill\'s installHook writes, with no errors or warnings', entry?.hooks.length === 1 && entry.errors.length === 0 && entry.warnings.length === 0 && hook.source === 'project' && hook.eventName === 'postToolUse' && hook.matcher === '*' && hook.command === wanted.command && hook.timeoutSec === wanted.timeout && hook.statusMessage === wanted.statusMessage && hook.additionalContextLimit === wanted.additionalContextLimit, JSON.stringify(listed).slice(0, 400));
-      check('a new hook is untrusted until the user trusts it', hook?.trustStatus === 'untrusted', hook?.trustStatus);
+      const entry = listed.result?.data?.[0], hook = entry?.hooks?.find(h => h.eventName === 'postToolUse'), stopHook = entry?.hooks?.find(h => h.eventName === 'stop');
+      const wanted = written.hooks.PostToolUse[0].hooks[0], wantedStop = written.hooks.Stop[0].hooks[0];
+      check('hooks/list accepts the hooks.json chill\'s installHook writes, with no errors or warnings', entry?.hooks.length === 2 && entry.errors.length === 0 && entry.warnings.length === 0 && hook?.source === 'project' && hook.matcher === '*' && hook.command === wanted.command && hook.timeoutSec === wanted.timeout && hook.statusMessage === wanted.statusMessage && hook.additionalContextLimit === wanted.additionalContextLimit, JSON.stringify(listed).slice(0, 400));
+      check('hooks/list accepts the Stop hook installHook writes, with the same command', stopHook?.source === 'project' && stopHook.command === wanted.command && stopHook.timeoutSec === wantedStop.timeout && stopHook.statusMessage === wantedStop.statusMessage, JSON.stringify(stopHook));
+      check('a new hook is untrusted until the user trusts it', hook?.trustStatus === 'untrusted' && stopHook?.trustStatus === 'untrusted', `${hook?.trustStatus} ${stopHook?.trustStatus}`);
 
       const tap = hookTap(hookProject, wanted.command);
       writeFileSync(file, JSON.stringify({hooks: {PostToolUse: [{matcher: '*', hooks: [{...wanted, command: tap.command}]}]}}, null, 2));
@@ -215,6 +219,39 @@ export async function runProtocol({codex, log}) {
       const completed = A.notes.slice(mark).find(note => note.method === 'hook/completed');
       check('Codex reports the hook run completed', completed?.params.run.status === 'completed' && completed.params.run.statusMessage === wanted.statusMessage, JSON.stringify(completed?.params.run));
       mode = 'messages';
+    });
+
+    await attempt('Stop hook', async () => {
+      mode = 'messages';
+      const stopProject = makeDir('chill-codex-probe-stop-');
+      const file = await installHook(stopProject);
+      const written = JSON.parse(readFileSync(file, 'utf8'));
+      const tap = hookTap(stopProject, written.hooks.Stop[0].hooks[0].command);
+      writeFileSync(file, JSON.stringify({hooks: {Stop: [{hooks: [{...written.hooks.Stop[0].hooks[0], command: tap.command}]}]}}, null, 2));
+      need(await direct(A, 'config/value/write', {keyPath: `projects."${stopProject}".trust_level`, value: 'trusted', mergeStrategy: 'upsert'}), 'trust project');
+      const listed = need(await direct(A, 'hooks/list', {cwds: [stopProject]}), 'hooks/list stop').data[0].hooks[0];
+      need(await direct(A, 'config/value/write', {keyPath: `hooks.state."${listed.key}".trusted_hash`, value: listed.currentHash, mergeStrategy: 'upsert'}), 'trust Stop hook');
+      const stopThread = need(await direct(A, 'thread/start', {cwd: stopProject}), 'thread/start stop').thread.id;
+      const turn = async n => { const before = turnsDone(); await direct(A, 'thread/queue/add', {...submission(40 + n, `stop probe ${n}`), threadId: stopThread}); return waitTurns(before + 1); };
+      check('a turn in a chat with chill\'s trusted Stop hook completes', await turn(1));
+      const first = tap.read();
+      check('the Stop hook runs once as a turn ends, with session_id, turn_id and stop_hook_active false', first.length === 1 && first[0].input.hook_event_name === 'Stop' && first[0].input.session_id === stopThread && typeof first[0].input.turn_id === 'string' && first[0].input.stop_hook_active === false, JSON.stringify(first.map(run => run.input)));
+      check('chill\'s Stop hook prints nothing for a chat without taken feedback', first[0]?.code === 0 && first[0].output === '', JSON.stringify(first[0] && {code: first[0].code, output: first[0].output}));
+      // Taken feedback is written directly: queueing it would start a turn of its own.
+      const root = await createGoal({title: 'Stop probe'});
+      await assignGoal(root.id, stopThread);
+      const event = await appendFeedback({goalId: root.id, text: 'Fix the build'});
+      await writeDeliveryQuietly({eventId: event.changeId, goalId: root.id, threadId: stopThread, messageId: uuid(50), status: 'working', agentReported: true, updatedAt: event.updatedAt, history: [{status: 'working', at: event.updatedAt}]});
+      const requests = model.requests.length, mark = A.notes.length;
+      check('a turn whose Stop chill holds still completes', await turn(2));
+      const runs = tap.read().slice(1);
+      const reason = (() => { try { return JSON.parse(runs[0].output).reason; } catch { return null; } })();
+      check('chill\'s Stop hook answers {decision:"block",reason} naming the quiet feedback', runs[0]?.code === 0 && JSON.parse(runs[0].output || '{}').decision === 'block' && reason?.includes(`#${event.changeId} (Goal #${root.id})`), JSON.stringify(runs[0] && {code: runs[0].code, output: runs[0].output.slice(0, 200)}));
+      const later = model.requests.slice(requests);
+      check('Codex continues the turn and sends the hold reason to the model', later.length >= 2 && JSON.stringify(later.at(-1).input).includes('tell the user where things stand'), `${later.length} model requests after the hold`);
+      check('the continued turn\'s next Stop has stop_hook_active true, and chill lets it end', runs.length === 2 && runs[1].input.stop_hook_active === true && runs[1].input.turn_id === runs[0].input.turn_id && runs[1].output === '', JSON.stringify(runs.map(run => ({active: run.input.stop_hook_active, output: run.output.slice(0, 40)}))));
+      const statuses = A.notes.slice(mark).filter(note => note.method === 'hook/completed' && note.params.run.eventName === 'stop').map(note => note.params.run.status);
+      check('Codex reports the held Stop run as blocked and the next one as completed', JSON.stringify(statuses) === '["blocked","completed"]', JSON.stringify(statuses));
     });
 
     await attempt('fake comparison', async () => {

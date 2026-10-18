@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {runClaudeAction,handleClaudeToolHook,collectClaudeHookFeedback,handleClaudeStop} from '../lib/claude-actions.mjs';
-import {listGoals,createGoal,appendFeedback,updateGoal,readGoal} from '../lib/goal-store.mjs';
+import {listGoals,createGoal,appendFeedback,appendAgentComment,updateGoal,readGoal} from '../lib/goal-store.mjs';
 import {transferClaudeRoot} from '../lib/claude-roots.mjs';
 import {readForWeb,configureFromWeb,onStop} from '../lib/claude-continuation.mjs';
 import {storage} from '../lib/extension-api.mjs';
@@ -58,10 +58,11 @@ test('the continued native prompt still receives Web input on its next ordinary 
  const received=await handleClaudeToolHook(hook,{cwd:f.cwd});assert.match(received.hookSpecificOutput.additionalContext,/Correction while Auto mode is working/);
  assert.equal((await readDeliveryState(reply.changeId)).status,'unknown');
  assert.equal(await handleClaudeToolHook(hook,{cwd:f.cwd}),null,'tool delivery is not duplicated');
- assert.match((await f.stop()).reason,/without a reply/,'offered feedback without a reply is reminded first');
+ assert.match((await f.stop()).reason,/Nothing has reached them/,'offered feedback the user heard nothing about is held first');
  await f.action('inbox',{});
  assert.match((await f.stop()).reason,new RegExp(`#${reply.changeId} `),'new input is a new revision; the request names the feedback left open');
- assert.equal(await f.stop(),null,'the same revision is not continued again');
+ await appendAgentComment({goalId:f.root.id,type:'comment',text:'Working on the correction; next update after the tests.'});
+ assert.equal(await f.stop(),null,'the same revision is not continued again, and the user has heard back');
 });
 test('Off and explicit continuation Pause preserve the attempt history',async t=>{
  const f=await fixture(t);await f.configure(false);assert.equal(await f.stop(),null);
@@ -159,27 +160,37 @@ test('feedback taken up but never recorded as done does not stop Auto mode; the 
  const f=await fixture(t);await f.configure();
  const reply=await appendFeedback({goalId:f.root.id,text:'Long work'});
  await f.action('inbox',{});await f.action('activity',{eventId:reply.changeId,state:'working'});
- // The receipt reminder comes first; ending again, Auto mode continues.
- assert.match((await f.stop()).reason,/without a reply/);await f.action('inbox',{});
+ // The quiet-stop hold comes first; ending again, Auto mode continues.
+ assert.match((await f.stop()).reason,/Nothing has reached them/);await f.action('inbox',{});
  const response=await f.stop();
  assert.equal(response?.decision,'block','the response ended with the work unfinished, so Auto mode continues');
  assert.match(response.reason,new RegExp(`took up but have not recorded as done: #${reply.changeId} \\(Goal #${f.root.id}\\)`));
 });
 
-test('feedback without a reply is named once when a response ends, offered or marked working; a reply needs no receipt',async t=>{
+test('a stop is held while feedback it took stays quiet and nothing runs; a reply or a progress comment since the last stop lets it end',async t=>{
  const f=await fixture(t);
  const short=await appendFeedback({goalId:f.root.id,text:'Short work'}),long=await appendFeedback({goalId:f.root.id,text:'Long work'});
  await f.action('inbox',{});await f.action('activity',{eventId:long.changeId,state:'working'});
  const first=await f.stop();
  assert.equal(first?.decision,'block');
- assert.match(first.reason,new RegExp(`without a reply: #${short.changeId} \\(Goal #${f.root.id}\\), #${long.changeId} \\(Goal #${f.root.id}\\)`));
- assert.match(first.reason,/you can end now/);assert.doesNotMatch(first.reason,/--state/);
- await f.action('inbox',{});assert.equal(await f.stop(),null,'the same response may end');
- // Work that continues over later responses is not reminded again.
- await f.newPrompt();await f.action('inbox',{});assert.equal(await f.stop(),null,'shown once per feedback');
+ assert.match(first.reason,new RegExp(`you took: #${short.changeId} \\(Goal #${f.root.id}\\), #${long.changeId} \\(Goal #${f.root.id}\\)`),'offered or marked working');
+ assert.match(first.reason,/connection reply --event <ID>/);assert.match(first.reason,/goal comment --id <goalId>/);
+ assert.doesNotMatch(first.reason,/you can end now|once per feedback/);
+ assert.equal(await f.stop({stop_hook_active:true}),null,'the stop right after a hold ends');
+ await f.newPrompt();
+ assert.equal((await f.stop())?.decision,'block','a later stop with still nothing said is held again');
+ await f.stop({stop_hook_active:true});
+ await f.newPrompt();
+ assert.equal(await f.stop({background_tasks:[{id:'a1',type:'subagent',status:'running',description:'Review'}]}),null,'running background work wakes the conversation later');
+ const waiter={id:'b1',type:'shell',status:'running',description:'Reply waiter',command:"'/data/runtime/chill' connection wait"};
+ assert.equal((await f.stop({background_tasks:[waiter]}))?.decision,'block','chill\'s own reply waiter is not work');
+ await f.stop({stop_hook_active:true});
+ await f.newPrompt();await appendAgentComment({goalId:f.root.id,type:'comment',text:'Waiting for CI; I will check in 10 minutes.'});
+ assert.equal(await f.stop(),null,'a progress comment since the last stop');
  await f.newPrompt();await f.action('reply',{eventId:short.changeId,text:'Done'});
  assert.equal((await readDeliveryState(short.changeId)).status,'completed');
- // New feedback is named on its own.
- const later=await appendFeedback({goalId:f.root.id,text:'Later'});await f.action('inbox',{});
- const next=await f.stop();assert.match(next.reason,new RegExp(`without a reply: #${later.changeId} \\(Goal #${f.root.id}\\)\\.`));
+ assert.equal(await f.stop(),null,'a reply on the Goal since the last stop');
+ await f.newPrompt();
+ const quiet=await f.stop();
+ assert.match(quiet.reason,new RegExp(`you took: #${long.changeId} \\(Goal #${f.root.id}\\), and`),'only the feedback still open');
 });
