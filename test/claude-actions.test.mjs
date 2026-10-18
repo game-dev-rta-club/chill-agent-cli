@@ -12,7 +12,7 @@ import {runClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
 import {initializeStore,createGoal,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
 import {createClaudeRoot} from '../lib/claude-roots.mjs';
 import {assignGoal} from '../lib/agents/codex-execution.mjs';
-import {deliverFeedback,readDeliveryState,updateDelivery} from '../lib/delivery.mjs';
+import {deliverFeedback,readDeliveryState,sendFeedbackNow} from '../lib/delivery.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
 import {needsWorkRefresh} from '../lib/agents/codex-work-output.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
@@ -85,47 +85,43 @@ test('Root creation stays single when retried with the same ID',async t=>{
   await assert.rejects(updateGoal(child.id,{parentId:other.id}),/between native/);
 });
 
-test('two Roots and a child return feedback to the same conversation with durable receipts',async t=>{
+test('two Roots and a child hand their comments to the same conversation, and only a reply answers them',async t=>{
   const f=await fixture(t),s=await f.start(),g=await root(s),g2=await root(s),child=await createGoal({title:'Child',parentId:g.id});
   const e1=await appendFeedback({goalId:child.id,text:'first'}),e2=await appendFeedback({goalId:g2.id,text:'second'});
   assert.deepEqual(e1.connection,g.connection);
   assert.equal((await deliverFeedback(e1.changeId)).status,'saved');
+  assert.equal(await readDeliveryState(e1.changeId),null,'no per-comment record is kept');
   const output=await s.act('inbox');
   assert.match(output,/first/);assert.match(output,/second/);
-  const offered=await readDeliveryState(e1.changeId);assert.equal(offered.status,'unknown');assert.equal(offered.mayHaveSent,true);assert.equal(needsWorkRefresh(offered),false);
-  // Reading again keeps the offer ID rather than sending via another route.
-  assert.match(await s.act('inbox'),/first/);
-  assert.equal((await readDeliveryState(e1.changeId)).nativeOfferId,offered.nativeOfferId);
-  assert.equal((await deliverFeedback(e1.changeId)).status,'unknown');
-  await assert.rejects(s.act('activity',{eventId:e1.changeId,state:'failed'}),/must be working or completed/);
-  await s.act('activity',{eventId:e1.changeId,state:'working'});
-  await s.act('activity',{eventId:e1.changeId,state:'completed'});
-  await s.act('activity',{eventId:e1.changeId,state:'completed'});
-  await assert.rejects(s.act('activity',{eventId:e1.changeId,state:'working'}),/terminal/);
-  assert.doesNotMatch(await s.act('inbox'),/"text":"first"/);
-  assert.equal((await readGoal(g.id)).state,'idle');assert.equal((await readDeliveryState(e2.changeId)).status,'unknown');
+  assert.equal((await deliverFeedback(e1.changeId)).status,'received');
+  assert.match(await s.act('inbox'),/first/,'what still awaits a reply is listed again');
+  assert.match(await s.act('reply',{goalId:child.id,text:'Done'}),/Replied on Goal/);
+  const again=await s.act('inbox');
+  assert.doesNotMatch(again,/"text":"first"/);assert.match(again,/second/);
+  assert.equal((await deliverFeedback(e1.changeId)).status,'completed');
+  assert.equal((await readGoal(g.id)).state,'idle');
+  await assert.rejects(s.act('reply',{goalId:g.id,text:' '}),/Invalid reply/);
+  await assert.rejects(s.act('reply',{text:'no Goal'}),/--goal/);
 });
 
-test('separate, resumed and cleared contexts cannot steal feedback; no receipt before it is received',async t=>{
-  const f=await fixture(t),s=await f.start(),g=await root(s),e=await appendFeedback({goalId:g.id,text:'private fixture'}),other=await f.start('other');
-  await assert.rejects(s.act('activity',{eventId:e.changeId,state:'completed'}),/inbox first/);
+test('separate, resumed and cleared contexts cannot take or answer another conversation\'s comments',async t=>{
+  const f=await fixture(t),s=await f.start(),g=await root(s),other=await f.start('other');
+  await appendFeedback({goalId:g.id,text:'private fixture'});
   assert.doesNotMatch(await other.act('inbox'),/private fixture/);
-  await assert.rejects(other.act('activity',{eventId:e.changeId,state:'working'}),/another conversation/);
+  await assert.rejects(other.act('reply',{goalId:g.id,text:'Not mine'}),/another conversation/);
   const resumed=await f.start(s.record.sessionId,'resume');assert.match(await resumed.act('inbox'),/private fixture/);
   const clear=await f.start(s.record.sessionId,'clear');assert.doesNotMatch(await clear.act('inbox'),/private fixture/);
-  await assert.rejects(clear.act('activity',{eventId:e.changeId,state:'working'}),/another conversation/);
+  await assert.rejects(clear.act('reply',{goalId:g.id,text:'Not mine'}),/another conversation/);
 });
 
-test('manual held deliveries and Root holds stay untouched',async t=>{
-  const f=await fixture(t),s=await f.start(),g=await root(s),e=await appendFeedback({goalId:g.id,text:'held fixture'});
-  await deliverFeedback(e.changeId);await updateDelivery(e.changeId,{heldBy:'manual'});
-  assert.doesNotMatch(await s.act('inbox'),/held fixture/);
-  await assert.rejects(s.act('activity',{eventId:e.changeId,state:'working'}),/held/);
-  await updateDelivery(e.changeId,{heldBy:null});
+test('a hold on the Goal path keeps comments from being handed until it is lifted',async t=>{
+  const f=await fixture(t),s=await f.start(),g=await root(s);
+  await appendFeedback({goalId:g.id,text:'held fixture'});
   const holds=join(process.env.CHILL_AGENT_DATA_DIR,'workspace/feedback-holds');await mkdir(holds);
   await writeFile(join(holds,`${g.id}.json`),JSON.stringify({goalId:g.id,phase:'paused'}));
   assert.doesNotMatch(await s.act('inbox'),/held fixture/);
-  assert.equal((await readDeliveryState(e.changeId)).status,'saved');
+  await rm(join(holds,`${g.id}.json`));
+  assert.match(await s.act('inbox'),/held fixture/);
 });
 
 test('the connection CLI acts at once and prints its result; piping the output changes nothing',{skip:process.platform==='win32'&&'runs through POSIX /bin/sh'},async t=>{
@@ -133,17 +129,16 @@ test('the connection CLI acts at once and prints its result; piping the output c
   const execute=promisify(execFile),entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
   const {stdout,stderr}=await execute('/bin/sh',['-c','"$1" "$2" create-goal --title "CLI outcome" | head -1','probe',process.execPath,entry],{cwd:f.cwd,env:{...process.env,...s.env}});
   assert.equal(stderr,'');assert.match(stdout,/^Created Goal #1/);assert.equal((await listGoals()).length,1);
-  // Saved while the conversation is idle, so a tool hook may hand it over.
-  const event=await appendFeedback({goalId:'1',text:'CLI feedback'});await deliverFeedback(event.changeId);
+  // Sent now, so the running work's tool hook hands it over.
+  const event=await appendFeedback({goalId:'1',text:'CLI feedback'});await sendFeedbackNow(event.changeId);
   const path=join(f.dir,'hook.json');await writeFile(path,JSON.stringify(s.hook({agent_id:'child'})));
   const run=()=>execute('/bin/sh',['-c','exec "$1" "$2" claude-hook < "$3"','probe',process.execPath,entry,path],{cwd:f.cwd,env:process.env});
   assert.equal((await run()).stdout,'','a subagent hook never receives Web input');
   // A hook input of any size is read; a large tool result never stops delivery.
   await writeFile(path,JSON.stringify(s.hook({tool_name:'mcp__screenshot',tool_response:{image:'x'.repeat(2_000_000)}})));
   assert.match(context(JSON.parse((await run()).stdout)),/CLI feedback/);
-  assert.equal((await readDeliveryState(event.changeId)).status,'unknown');
-  const reply=await execute('/bin/sh',['-c','"$1" "$2" reply --event "$3" --text done | grep -c Replied','probe',process.execPath,entry,String(event.changeId)],{cwd:f.cwd,env:{...process.env,...s.env}});
-  assert.equal(reply.stdout.trim(),'1');assert.equal((await readDeliveryState(event.changeId)).status,'completed');
+  const reply=await execute('/bin/sh',['-c','"$1" "$2" reply --goal 1 --text done | grep -c Replied','probe',process.execPath,entry],{cwd:f.cwd,env:{...process.env,...s.env}});
+  assert.equal(reply.stdout.trim(),'1');assert.equal((await deliverFeedback(event.changeId)).status,'completed');
 });
 
 async function automaticFixture(t) {
@@ -153,62 +148,50 @@ async function automaticFixture(t) {
   return {...f,s,handle,call:patch=>s.hook(patch),goal:(await listGoals())[0]};
 }
 
-test('ordinary main tool hooks offer all assigned Goals once without a selected work Goal or inbox call',async t=>{
+test('a tool hook hands what the user sent now, from every owned Goal, once; the rest waits for the stop',async t=>{
   const f=await automaticFixture(t),child=await createGoal({title:'Child',parentId:f.goal.id});
   await f.s.act('create-goal',goalInput);
   const second=(await listGoals()).at(-1);
-  const first=await appendFeedback({goalId:child.id,text:'child feedback'});
-  await appendFeedback({goalId:second.id,text:'other root feedback'});
+  const first=await appendFeedback({goalId:child.id,text:'child feedback'}),other=await appendFeedback({goalId:second.id,text:'other root feedback'});
+  await reportClaudeHook(f.s.event('UserPromptSubmit'));
+  assert.equal(await f.handle(f.call()),null,'the running work is not interrupted');
+  for(const event of [first,other])await sendFeedbackNow(event.changeId);
   const results=await Promise.all([f.handle(f.call({tool_name:'Read'})),f.handle(f.call())]);
   assert.equal(results.filter(Boolean).length,1);
   const text=context(results.find(Boolean));assert.match(text,/child feedback/);assert.match(text,/other root feedback/);
-  assert.equal((await readDeliveryState(first.id)).status,'unknown');
-  assert.equal(await f.handle(f.call()),null,'offered input is never automatically reoffered');
+  assert.equal(await f.handle(f.call()),null,'a handed comment is never handed again automatically');
   await appendFeedback({goalId:f.goal.id,text:'arrived later'});
-  assert.match(context(await f.handle(f.call())),/arrived later/);
+  assert.equal(await f.handle(f.call()),null);
+  assert.match((await f.handle(f.s.event('Stop'))).reason,/arrived later/,'the end of the work hands what waited for it');
 });
 
-test('automatic offers skip subagents and interrupted tools, and respect holds and other owners',async t=>{
+test('automatic hand-offs skip subagents and interrupted tools, and never reach another owner\'s comments',async t=>{
   const f=await automaticFixture(t),e=await appendFeedback({goalId:f.goal.id,text:'pending native feedback'});
   const other=await f.start('different-session'),g=await root(other);await appendFeedback({goalId:g.id,text:'another owner'});
+  await sendFeedbackNow(e.changeId);
   for(const input of [f.call({agent_id:'child'}),f.s.event('PreToolUse'),f.call({tool_response:{stdout:'',stderr:'',interrupted:true}})])assert.equal(await f.handle(input),null);
-  await deliverFeedback(e.id);await updateDelivery(e.id,{heldBy:'manual'});
-  assert.equal(await f.handle(f.call()),null);
-  await updateDelivery(e.id,{heldBy:null});
   const text=context(await f.handle(f.call({prompt_id:undefined})));assert.match(text,/pending native feedback/);assert.doesNotMatch(text,/another owner/);
 });
 
-test('compact keeps automatic offers; clear starts a context that owns nothing',async t=>{
+test('compact keeps its Goals; clear starts a context that owns nothing',async t=>{
   const f=await automaticFixture(t);
+  const {claimClaudeFeedbackForWatcher}=await import('../lib/claude-actions.mjs');
   await f.handle(f.s.event('Stop'));
   await appendFeedback({goalId:f.goal.id,text:'after stop'});
-  assert.match(context(await f.handle(f.call())),/after stop/);
+  assert.match(await claimClaudeFeedbackForWatcher(f.s.record.sessionId),/after stop/);
   await f.start(f.s.record.sessionId,'compact');
   await appendFeedback({goalId:f.goal.id,text:'after compact'});
-  assert.match(context(await f.handle(f.call())),/after compact/);
+  assert.match(await claimClaudeFeedbackForWatcher(f.s.record.sessionId),/after compact/);
   await f.start(f.s.record.sessionId,'clear');
   await appendFeedback({goalId:f.goal.id,text:'after clear'});
-  assert.equal(await f.handle(f.call()),null);
+  assert.equal(await claimClaudeFeedbackForWatcher(f.s.record.sessionId),'');
 });
 
-test('an explicit inbox keeps the offer ID of an automatic offer and never reveals held feedback',async t=>{
-  const f=await automaticFixture(t),e=await appendFeedback({goalId:f.goal.id,text:'recoverable feedback'});
-  await f.handle(f.call());const first=await readDeliveryState(e.id);
-  assert.match(await f.s.act('inbox'),/recoverable feedback/);
-  assert.equal((await readDeliveryState(e.id)).nativeOfferId,first.nativeOfferId);
-  await updateDelivery(e.id,{heldBy:'manual'});
-  assert.doesNotMatch(await f.s.act('inbox'),/recoverable feedback/);
-  assert.equal((await readDeliveryState(e.id)).heldBy,'manual');
-});
-
-test('goal activity from a Claude conversation is recorded at once',async t=>{
+test('a Claude conversation keeps no receipts; its reply answers the Goal',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
-  const event=await appendFeedback({goalId:goal.id,text:'Longer work'});await deliverFeedback(event.changeId);
-  await s.act('inbox',{});
+  const event=await appendFeedback({goalId:goal.id,text:'Longer work'});
   const {recordActivity}=await import('../lib/delivery.mjs');
-  await assert.rejects(recordActivity(event.changeId,'deferred',s.env),/native Queue/);
-  assert.match((await recordActivity(event.changeId,'working',s.env)).text,/working/);
-  assert.equal((await readDeliveryState(event.changeId)).status,'working');
+  await assert.rejects(recordActivity(event.changeId,'working',s.env),/keeps no receipts/);
 });
 test('the Activity row under a Claude message pauses and resumes its conversation',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
@@ -247,67 +230,45 @@ test('goal work from a Claude conversation marks its Goal Running for the curren
   assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null,'the next work does not inherit it');
 });
 
-test('a Claude reply that leaves a subagent working keeps its Goal and message Running until the subagent ends',async t=>{
+test('a Claude reply that leaves a subagent working answers the Goal, which stays Running until the subagent ends',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
-  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs');
-  const {agentFor}=await import('../lib/agents/index.mjs');
-  const {withClaudeReception}=await import('../lib/claude-status.mjs');
-  const event=await appendFeedback({goalId:goal.id,text:'Run the long test'});await deliverFeedback(event.changeId);
-  await s.act('inbox',{});const offerId=(await readDeliveryState(event.changeId)).nativeOfferId;
-  const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
-  await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
-  await mkdir(join(f.dir,'session','subagents'),{recursive:true});await writeFile(join(f.dir,'session','subagents','agent-a1b2c3.jsonl'),'{}\n');
-  await writeFile(transcript,claudeLines([claudeEntry.prompt('p1','Wake'),claudeEntry.toolResult('r0','toolu_inbox',JSON.stringify([{offerId}])),claudeEntry.launchAgent('a1','toolu_agent'),
-    claudeEntry.agentLaunched('r1','toolu_agent','a1b2c3'),claudeEntry.stop({uuid:'s1'})]));
-  await s.act('reply',{eventId:event.changeId,text:'Started the test; I will report the result.'});
-  // Claude Code lists the background agent when the response stops.
-  await handleClaudeToolHook(s.event('Stop',{transcript_path:transcript,background_tasks:[{id:'a1b2c3',type:'subagent',status:'running',agent_type:'general-purpose'},{id:'b1',type:'shell',status:'running',command:'npm run dev'}]}));
-  const presence=await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence();
-  assert.equal(presence.status,'working');assert.equal(presence.goalId,goal.id);
-  const delivery=await readDeliveryState(event.changeId);
-  assert.equal(delivery.status,'completed');
-  assert.equal((await withClaudeReception([delivery]))[0].status,'working','answered, but still Running while its subagent works');
-  // It reports back: a new response that stops with nothing left in the background.
-  await writeFile(transcript,claudeLine(claudeEntry.notice({taskId:'a1b2c3',toolUseId:'toolu_agent'})),{flag:'a'});
+  const {agentFor,deliveriesWithWork}=await import('../lib/agents/index.mjs');
+  const presence=async()=>agentFor((await listGoals()).find(g=>g.id===goal.id)).presence();
+  const event=await appendFeedback({goalId:goal.id,text:'Run the long test'});
   await reportClaudeHook(s.event('UserPromptSubmit'));
-  await handleClaudeToolHook(s.event('Stop',{transcript_path:transcript,background_tasks:[{id:'b1',type:'shell',status:'running',command:'npm run dev'}]}));
-  assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).status,'idle','a background shell such as a dev server is not counted');
-  assert.equal((await withClaudeReception([delivery]))[0].status,'completed');
+  await s.act('inbox',{});
+  await s.act('reply',{goalId:goal.id,text:'Started the test; I will report the result.'});
+  // Claude Code lists the background agent when the response stops.
+  await handleClaudeToolHook(s.event('Stop',{background_tasks:[{id:'a1b2c3',type:'subagent',status:'running',agent_type:'general-purpose'},{id:'b1',type:'shell',status:'running',command:'npm run dev'}]}));
+  assert.equal((await presence()).status,'working');assert.equal((await presence()).goalId,goal.id);
+  assert.equal((await deliveriesWithWork(goal.id)).find(d=>d.eventId===event.changeId).status,'completed','the reply answered it');
+  // It reports back: a new response that stops with nothing left in the background.
+  await reportClaudeHook(s.event('UserPromptSubmit'));
+  await handleClaudeToolHook(s.event('Stop',{background_tasks:[{id:'b1',type:'shell',status:'running',command:'npm run dev'}]}));
+  assert.equal((await presence()).status,'idle','a background shell such as a dev server is not counted');
 });
 
 test('Claude feedback saved while a response runs waits for its end unless the user sends it now',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
-  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs');
-  const {withClaudeReception}=await import('../lib/claude-status.mjs');
-  const {sendFeedbackNow}=await import('../lib/delivery.mjs');
-  const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
-  await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
+  const {deliveriesWithWork}=await import('../lib/agents/index.mjs');
+  const shown=async id=>(await deliveriesWithWork(goal.id)).find(d=>d.eventId===id)?.status;
   await reportClaudeHook(s.event('UserPromptSubmit'));
   const first=await appendFeedback({goalId:goal.id,text:'One more thing'});await deliverFeedback(first.changeId);
-  assert.equal((await readDeliveryState(first.changeId)).waitForIdle,true);
-  assert.equal((await withClaudeReception([await readDeliveryState(first.changeId)]))[0].status,'waiting');
+  assert.equal(await shown(first.changeId),'waiting');
   assert.equal(await handleClaudeToolHook(s.hook()),null,'a running response is not interrupted');
   // The response ends: Stop hands the waiting feedback over as the next message.
-  const stop=await handleClaudeToolHook(s.event('Stop',{transcript_path:transcript}));
+  const stop=await handleClaudeToolHook(s.event('Stop'));
   assert.equal(stop.decision,'block');assert.match(stop.reason,/One more thing/);
-  assert.equal((await readDeliveryState(first.changeId)).status,'unknown','offered to the conversation');
-  // Send now offers the next one to the running response.
+  assert.equal(await shown(first.changeId),'working','handed to the work Stop continues');
+  // Send now hands the next one to the running response.
   const second=await appendFeedback({goalId:goal.id,text:'Urgent fix'});await deliverFeedback(second.changeId);
   assert.equal(await handleClaudeToolHook(s.hook()),null);
   await sendFeedbackNow(second.changeId);
   assert.match(context(await handleClaudeToolHook(s.hook())),/Urgent fix/);
-  // Feedback saved while idle is offered at once, as before.
+  // Feedback saved while idle is handed at once.
   await recordClaudeWork(s.record.sessionId,[{type:'finished'}]);
-  const idle=await appendFeedback({goalId:goal.id,text:'While idle'});await deliverFeedback(idle.changeId);
-  assert.equal((await readDeliveryState(idle.changeId)).waitForIdle,undefined);
-});
-
-test('a reply to feedback that already has a terminal receipt tells the agent why',async t=>{
-  const f=await fixture(t),s=await f.start(),goal=await root(s);
-  const event=await appendFeedback({goalId:goal.id,text:'Done already'});await deliverFeedback(event.changeId);
-  await s.act('inbox',{});
-  await s.act('activity',{eventId:event.changeId,state:'completed'});
-  await assert.rejects(s.act('reply',{eventId:event.changeId,text:'Late reply'}),/terminal receipt/);
+  const idle=await appendFeedback({goalId:goal.id,text:'While idle'});
+  assert.equal(await shown(idle.changeId),'saved');
 });
 
 test('two Claude conversations in one project, each with its own Root, never receive or control each other',async t=>{
@@ -328,9 +289,9 @@ test('two Claude conversations in one project, each with its own Root, never rec
   assert.equal(await hasSavedClaudeFeedback(connection(b)),true,'A reading its inbox leaves B\'s feedback waiting');
   const inboxB=await b.act('inbox',{});
   assert.match(inboxB,/For B/);assert.doesNotMatch(inboxB,/For A/);
-  // A cannot record a receipt for B's feedback.
-  await assert.rejects(a.act('activity',{eventId:forB.changeId,state:'completed'}),/another conversation/);
-  assert.notEqual((await readDeliveryState(forB.changeId)).status,'completed');
+  // A cannot answer B's Goal.
+  await assert.rejects(a.act('reply',{goalId:rootB.id,text:'Not mine'}),/another conversation/);
+  assert.notEqual((await deliverFeedback(forB.changeId)).status,'completed');
   // Agent menu and caller identity are per Root.
   const [statusA,statusB]=await Promise.all([readAgentStatus(rootA.id),readAgentStatus(rootB.id)]);
   assert.notEqual(statusA.token,statusB.token);
@@ -351,16 +312,13 @@ test('two Claude conversations in one project, each with its own Root, never rec
   assert.equal((await readAgentStatus(rootB.id)).approveAll,false);
 });
 
-test('one reply answers several messages of one Goal and closes them all',async t=>{
+test('one reply answers the Goal, whichever of its comments it answers',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
   const first=await appendFeedback({goalId:goal.id,text:'Please flip it'}),second=await appendFeedback({goalId:goal.id,text:'Actually also the data'});
-  for(const event of [first,second])await deliverFeedback(event.changeId);
   await s.act('inbox',{});
-  const output=await s.act('reply',{eventIds:[first.changeId,second.changeId],text:'Done both'});
-  assert.match(output,new RegExp(`#${first.changeId}, #${second.changeId} as completed`));
-  for(const event of [first,second])assert.equal((await readDeliveryState(event.changeId)).status,'completed');
+  const output=await s.act('reply',{goalId:goal.id,text:'Done both'});
+  for(const event of [first,second])assert.equal((await deliverFeedback(event.changeId)).status,'completed');
   const {readEvent}=await import('../lib/goal-store.mjs');
   const commentId=Number(/comment #(\d+)/.exec(output)[1]);
   assert.equal((await readEvent(commentId)).text,'Done both');assert.equal(await readEvent(commentId+1),null,'the reply is posted once');
-  await assert.rejects(s.act('reply',{eventIds:[first.changeId,first.changeId],text:'x'}),/Invalid reply/);
 });

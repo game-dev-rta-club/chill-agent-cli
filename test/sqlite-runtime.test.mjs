@@ -11,10 +11,10 @@ import {fileURLToPath} from 'node:url';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {runClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
 import {listGoals,readFeedback,appendAgentComment} from '../lib/goal-store.mjs';
-import {readDeliveryState} from '../lib/delivery.mjs';
+import {deliverFeedback} from '../lib/delivery.mjs';
 import {hookFor} from './claude-fixtures.mjs';
 
-test('composed SQLite runtime carries Web feedback through native hook receipts and persists the reply',async t=>{
+test('composed SQLite runtime carries Web feedback through native hooks and persists the reply',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'chill-sqlite-runtime-')),cwd=join(dir,'project'),data=join(dir,'data');await mkdir(cwd);
  const previous={CHILL_AGENT_DATA_DIR:process.env.CHILL_AGENT_DATA_DIR,CHILL_AGENT_STORAGE:process.env.CHILL_AGENT_STORAGE};
  process.env.CHILL_AGENT_DATA_DIR=data;delete process.env.CHILL_AGENT_STORAGE;
@@ -32,15 +32,12 @@ test('composed SQLite runtime carries Web feedback through native hook receipts 
  const url=await new Promise((resolve,reject)=>{let output='';server.stdout.on('data',chunk=>{output+=chunk;const match=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(match)resolve(match[0]);});server.once('error',reject);server.once('exit',()=>reject(Error('Web exited before startup')));});
  const response=await fetch(url+'/api/goals/'+goal.id+'/feedback',{method:'POST',headers:{'Content-Type':'application/json',Origin:url},body:JSON.stringify({text:'Please report SQLite result'}),signal:AbortSignal.timeout(10000)});
  assert.equal(response.status,201);const {feedback}=await response.json();
- const hook=event('PostToolUse',{tool_name:'Read',tool_use_id:randomUUID(),tool_response:{text:'Read context'}});
- const offered=await handleClaudeToolHook(hook,{cwd});assert.match(offered.hookSpecificOutput.additionalContext,/Please report SQLite result/);
- assert.equal(await handleClaudeToolHook(hook,{cwd}),null,'one native offer');
- await action('activity',{eventId:feedback.changeId,state:'working'});
+ const handed=await handleClaudeToolHook(event('Stop'),{cwd});assert.match(handed.reason,/Please report SQLite result/);
+ assert.equal((await handleClaudeToolHook(event('Stop'),{cwd}))?.reason?.includes('Please report SQLite result')??false,false,'handed once');
  await appendAgentComment({goalId:goal.id,type:'comment',text:'SQLite result saved'});
- await action('activity',{eventId:feedback.changeId,state:'completed'});
  const snapshot=await (await fetch(url+'/api/goals?view=web&history=paged')).json();
  assert.ok(snapshot[0].conversation.some(e=>e.text==='SQLite result saved'));
- assert.equal((await readDeliveryState(feedback.changeId)).status,'completed');
+ assert.equal((await deliverFeedback(feedback.changeId)).status,'completed');
  server.kill();await exit;
  assert.ok((await readFeedback(goal.id)).some(e=>e.text==='SQLite result saved'));
  await access(join(data,'workspace/workspace.sqlite'));

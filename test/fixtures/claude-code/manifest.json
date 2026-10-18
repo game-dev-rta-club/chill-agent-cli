@@ -2,20 +2,6 @@
  "recordedBy": "scripts/record-claude-samples.mjs",
  "transcripts": [
   {
-   "name": "notification-attachment",
-   "file": "transcripts/notification-attachment.jsonl",
-   "claudeCodeVersion": "2.1.295",
-   "entries": 1,
-   "about": "a task notification delivered as a queued command attachment"
-  },
-  {
-   "name": "notification-interim",
-   "file": "transcripts/notification-interim.jsonl",
-   "claudeCodeVersion": "2.1.295",
-   "entries": 1,
-   "about": "a subagent stopping with background work of its own still running"
-  },
-  {
    "name": "feedback-turn",
    "file": "transcripts/feedback-turn.jsonl",
    "claudeCodeVersion": "2.1.295",
@@ -35,13 +21,6 @@
    "claudeCodeVersion": "2.1.295",
    "entries": 6,
    "about": "a response interrupted while a tool was running"
-  },
-  {
-   "name": "auto-continue",
-   "file": "transcripts/auto-continue.jsonl",
-   "claudeCodeVersion": "2.1.295",
-   "entries": 9,
-   "about": "a Stop hook blocking the stop with a request, and the response that follows it"
   },
   {
    "name": "background-agent",

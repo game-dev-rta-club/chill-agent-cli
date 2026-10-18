@@ -3,9 +3,10 @@ keyPoints: >-
   Claude connection commands act at once for the conversation Claude Code names
   in its shell, as Codex commands do; there is no request marker to confirm.
   Web input reaches a conversation only through its main hooks (tool hooks and
-  the watcher), which never run for a subagent. Stop holds a response once
-  when feedback it took has gone quiet with nothing left running. Optional
-  connection extensions run the same way.
+  the watcher), which never run for a subagent. A Goal waits for a reply while
+  the user commented after the agent; `reply --goal` answers it. Stop holds a
+  response once when a handed Goal still waits for a reply with nothing left
+  running. Optional connection extensions run the same way.
 ---
 
 # Act from a Claude conversation
@@ -19,7 +20,7 @@ Default Codex setup does not install them.
 ```sh
 chill connection create-goal --title 'The agreed outcome' --scope 'Scope' --criteria 'Evidence of success'
 chill connection inbox
-chill connection reply --event 1 --text 'What I did'
+chill connection reply --goal 1 --text 'What I did'
 ```
 
 Use the prepared runtime's `runtime/chill` entry in place of `chill`. Each
@@ -30,14 +31,11 @@ after clear acts for the new context. The command does its work and prints the
 result, such as `Created Goal #1` or `Replied on Goal #1 (comment #2)`. Its
 output can be piped or shortened like any other command.
 
-`reply` posts the answer in the feedback's Goal Conversation and records the
-completed receipt together. Answering each message as it arrives is fine; when
-one answer covers several messages of one Goal, `--event 12,13,14` closes them
-together. `goal activity --event 1 --state working`, the same receipt
-command Codex uses, records the working receipt (`connection activity` is the
-older name and still works). Claude has no native Queue, so `deferred` is
-refused. `goal work --id <GOAL>` marks the Goal the current response works on,
-as in a Codex turn; the mark ends with that response.
+`reply` posts the answer in the Goal's Conversation. There are no per-comment
+receipts: a Goal waits for a reply while the user's latest comment is after the
+agent's latest one, so one reply answers everything the user said there.
+`goal work --id <GOAL>` marks the Goal the current response works on, as in a
+Codex turn; the mark ends with that response.
 
 A subagent shares the conversation's shell environment, so its commands act for
 the same conversation. That is the conversation's own work: Codex commands
@@ -46,7 +44,7 @@ behave the same way.
 This is coordination between trusted same-user processes, not authentication.
 Native tool permissions remain with Claude. No permission mode is changed.
 
-## Preserve ownership and receipt identity
+## Preserve ownership
 
 A new Root stores `connection: {harnessId, sessionId, contextId}` and no Codex
 `threadId`. A child inherits its Root. Native-owned trees cannot be moved to
@@ -67,33 +65,34 @@ to the new one. A comment in Web records the move. The earlier owner's watcher
 ends when it next finds that conversation owns nothing. Goals that no Claude
 conversation owns cannot be taken over.
 
-`inbox` reads unclaimed events across this connection's Goals. Each user event
-keeps its original connection and event ID. Manual holds, different contexts
-and completed events are excluded. An offer persists `unknown`, `mayHaveSent`
-and a stable offer ID; a new `inbox` call shows feedback that has no receipt yet
-with the same ID. It never falls back to Codex or another transport.
-
-`activity` records a receipt only for this context's offered event. A completed
-receipt cannot regress. There is no failed receipt; an agent that cannot finish
-says so in a comment. A receipt does not prove live execution or
-complete the Goal.
+Each Root keeps one hand-off cursor: the last user comment handed to the
+conversation that owns it. Comments after the cursor wait; handing them moves
+the cursor forward, so nothing is handed twice. `inbox` hands what waits and
+lists the handed comments whose Goals still wait for a reply. Pause from the
+Web holds everything until Resume. It never falls back to Codex or another
+transport.
 
 ## Receive feedback through hooks
 
-Every main-session PostToolUse hook offers newly saved Web replies across all
-of the conversation's Goals, without an `inbox` call. Offered events are not
-offered again automatically. Manual holds, other connections and terminal
-receipts stay excluded. The hook reads its input whatever its size, so a tool
-result with images never stops delivery.
+Every main-session PostToolUse hook hands newly saved Web replies across all
+of the conversation's Roots, without an `inbox` call. Feedback saved while the
+conversation's own work runs waits until that work ends, unless the user
+presses Send now. The hook reads its input whatever its size, so a tool result
+with images never stops delivery.
 
-Subagent hooks never offer feedback: a subagent that received it would end with
+The main hooks also record what the conversation is doing: UserPromptSubmit and
+the tool hooks start its work, a Stop that lets it end finishes it, StopFailure
+or an Esc interrupt in the transcript interrupts it, and SessionEnd ends the
+conversation. Work that writes nothing for 30 minutes is shown as unknown.
+
+Subagent hooks never hand feedback: a subagent that received it would end with
 it, and the main conversation would never see it. Replies after a response ends
 reach the conversation through the [watcher hook](claude-wait.md).
 
 When a response ends, the Stop hook applies the shared
-[quiet-stop rule](feedback-and-controls.md#when-the-agent-stops): if feedback the
-conversation took has had no reply or Comment on its Goal since it last stopped,
-and Claude Code lists no background work in the Stop input's `background_tasks`
+[quiet-stop rule](feedback-and-controls.md#when-the-agent-stops): if a Goal it
+was handed feedback on still waits for a reply and has had no Comment since it
+last stopped, and Claude Code lists no background work in the Stop input's `background_tasks`
 (chill's own `connection wait` task does not count), the hook blocks once and
 asks the agent to reply or post a progress comment. The stop right after that
 hold ends. A trusted composed
@@ -104,7 +103,7 @@ hook for the Web status.
 ## Verify the boundary before enabling a real session
 
 Local tests cover main/subagent separation for delivery, separate contexts,
-resume/clear, all-Goal input, holds, receipts, Stop and unchanged Codex
+resume/clear, all-Goal input, holds, replies, Stop and unchanged Codex
 delivery. They exercise actual CLI stdin/stdout, including piped command output
 and large hook inputs, as well as store functions.
 
@@ -118,7 +117,7 @@ node scripts/probe-claude-roundtrip.mjs --run --automatic --auth-settings /absol
 
 `--automatic` tests an ordinary tool result receiving synthetic Web feedback
 without invoking `inbox`. Both modes create one disposable print-mode conversation,
-make a Root, and verify the feedback receipt and retention of an initial context
+make a Root, and verify the reply on its Goal and retention of an initial context
 token. Neither resumes or replaces an existing user conversation.
 
 Isolation excludes normal settings. If native authentication is unavailable,

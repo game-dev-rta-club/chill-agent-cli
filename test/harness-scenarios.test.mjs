@@ -44,33 +44,23 @@ scenario('Send now delivers feedback that waits for the running response',async 
   assert.equal(await s.shown(event),'working');
 });
 
-scenario('the agent\'s reply completes the feedback once the response ends',async s=>{
-  const event=await s.saveFeedback('Question');
-  await s.agentTakesFeedback(event);
-  await s.agentReplies(event,'Answer');
-  assert.equal(await s.receipt(event),'completed');
+// A Goal is answered by the agent's Comment on it, whichever comment it answers (agent-rules).
+scenario('the agent\'s reply answers the Goal at once, while its work still runs',async s=>{
+  const first=await s.saveFeedback('Question');
+  await s.agentTakesFeedback(first);
+  await s.agentReplies(first,'Answer');
+  assert.equal(await s.shown(first),'completed');
   assert.deepEqual(await s.comments(),['Answer']);
   await s.agentEndsResponse();
-  assert.equal(await s.shown(event),'completed');
+  assert.equal(await s.shown(first),'completed');
 });
 
-scenario('a completed receipt without a reply closes the feedback',async s=>{
+scenario('the end of the work without a reply leaves the Goal awaiting one',async s=>{
   const event=await s.saveFeedback('Just do it');
   await s.agentTakesFeedback(event);
-  await s.agentReports(event,'completed');
-  assert.equal(await s.receipt(event),'completed');
   await s.agentEndsResponse();
-  assert.equal(await s.shown(event),'completed');
+  assert.notEqual(await s.shown(event),'completed','only a reply answers the user');
   assert.deepEqual(await s.comments(),[]);
-});
-
-scenario('the agent cannot report feedback as failed',async s=>{
-  const event=await s.saveFeedback('Try it');
-  await s.agentTakesFeedback(event);
-  await assert.rejects(s.agentReports(event,'failed'),/--state must be/);
-  assert.equal(await s.receipt(event),'working');
-  await s.agentEndsResponse();
-  assert.notEqual(await s.shown(event),'failed');
 });
 
 scenario('a retry does not deliver the feedback twice',async s=>{
@@ -81,9 +71,9 @@ scenario('a retry does not deliver the feedback twice',async s=>{
   assert.deepEqual(await s.agentTakesFeedback(event),[],'already taken');
 });
 
-scenario('another conversation cannot report on the feedback',async (s,driver) => {
+scenario('another conversation cannot answer the feedback',async (s,driver) => {
   const event=await s.saveFeedback('Mine');
-  await assert.rejects(s.strangerReports(event),/assigned chat|another conversation/);
+  await assert.rejects(s.strangerAnswers(event),/assigned chat|another conversation/);
   assert.equal(await s.shown(event),driver.pending);
   assert.deepEqual(await s.agentTakesFeedback(event),[event]);
 });
@@ -120,19 +110,6 @@ scenario('the Agent menu reads the agent\'s name, model and status',async (s,dri
   assert.ok(done.agent.model.model,'the model it answered with');
 });
 
-scenario('a deferred receipt works where the harness has a native Queue, and says so where it does not',async (s,driver) => {
-  await s.agentStartsResponse();
-  const event=await s.saveFeedback('Later');
-  const result=await s.agentDefers(event);
-  if(driver.capabilities.deferredReceipts) {
-    assert.equal(result.deferred,true);
-    assert.equal(await s.receipt(event),'deferred');
-  } else {
-    assert.match(result.unsupported,/native Queue/);
-    assert.equal(await s.shown(event),'waiting');
-  }
-});
-
 scenario('Approve all is offered where the harness supports it, and refused where it does not',async (s,driver) => {
   assert.equal((await s.agentStatus()).capabilities.approveAll,driver.capabilities.approveAll);
   if(driver.capabilities.approveAll) {
@@ -157,10 +134,11 @@ scenario('a stop with nothing running and nothing said about feedback the agent 
   const event=await s.saveFeedback('Fix the build');
   await s.agentTakesFeedback(event);
   const hold=await s.agentEndsResponse();
-  assert.match(hold??'',new RegExp(`#${event} \\(Goal #${s.goalId}\\)`),'the user has heard nothing since the feedback');
+  assert.match(hold??'',/tell the user where things stand/,'the user has heard nothing since the feedback');
+  assert.match(hold,new RegExp(`Goal #${s.goalId}\\b`));
   assert.equal(await s.agentEndsResponse(),null,'the stop right after a hold ends');
   await s.agentStartsResponse();
-  assert.match(await s.agentEndsResponse()??'',/Nothing has reached them/,'a later stop with still nothing said is held again');
+  assert.match(await s.agentEndsResponse()??'',/where things stand/,'a later stop with still nothing said is held again');
   assert.equal(await s.agentEndsResponse(),null);
   await s.agentStartsResponse();
   await s.agentComments('Waiting for CI; I will check again in 10 minutes.');
@@ -168,9 +146,9 @@ scenario('a stop with nothing running and nothing said about feedback the agent 
   await s.agentStartsResponse();
   const background=await s.agentEndsResponse({background:true});
   if(driver.capabilities.backgroundWork)assert.equal(background,null,'background work wakes the agent later');
-  else {assert.match(background??'',/Nothing has reached them/,'the harness reports no background work');await s.agentEndsResponse();}
+  else {assert.match(background??'',/where things stand/,'the harness reports no background work');await s.agentEndsResponse();}
   await s.agentStartsResponse();
   await s.agentReplies(event,'Fixed');
-  assert.equal(await s.agentEndsResponse(),null,'the reply completes the feedback');
-  assert.equal(await s.receipt(event),'completed');
+  assert.equal(await s.agentEndsResponse(),null,'the reply answers the Goal');
+  assert.equal(await s.shown(event),'completed');
 });

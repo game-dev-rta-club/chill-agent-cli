@@ -1,13 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {copyFile, mkdir, mkdtemp, readFile, rm, utimes, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {claudeModel, claudeRunning, claudeTurn, claudeWork} from '../lib/claude-transcript.mjs';
+import {claudeMessagesSince, claudeModel} from '../lib/claude-transcript.mjs';
+import {observedClaudeWork} from '../lib/claude-agent-work.mjs';
+import {idleWork} from '../lib/agent-rules.mjs';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
-import {claudeEntry, claudeHook, claudeLines, hookFor, hookSchema, manifest, recorded, recordedText} from './claude-fixtures.mjs';
+import {claudeHook, hookFor, hookSchema, manifest, recorded, recordedText} from './claude-fixtures.mjs';
 
 // What chill reads from Claude Code, checked against what Claude Code is recorded
 // sending. The hook fields come from the hook input schema of the same release
@@ -80,18 +82,7 @@ const hasPart = type => entry => content(entry).some(part => part.type === type)
 const raw = entry => JSON.stringify(entry);
 const entryReads = [
   ['assistant text', e => e.type === 'assistant' && hasPart('text')(e), {uuid: 'string', timestamp: 'string', effort: 'string', isSidechain: 'boolean', 'message.model': 'string', 'message.content[text].text': 'string'}],
-  ['assistant tool call', e => e.type === 'assistant' && hasPart('tool_use')(e), {'message.content[tool_use].id': 'string', 'message.content[tool_use].name': 'string', 'message.content[tool_use].input': 'object'}],
-  ['background Agent launch', e => e.type === 'assistant' && content(e).some(p => p.type === 'tool_use' && p.name === 'Agent'), {'message.content[tool_use].input.run_in_background': 'true'}],
-  ['user prompt', e => e.type === 'user' && typeof e.message?.content === 'string' && !e.isMeta && !e.message.content.startsWith('<'), {uuid: 'string', timestamp: 'string', 'message.content': 'string', isSidechain: 'boolean'}],
-  ['tool result', e => e.type === 'user' && !!e.toolUseResult && hasPart('tool_result')(e), {toolUseResult: 'truthy', 'message.content[tool_result].tool_use_id': 'string'}],
-  ['Agent launch result', e => e.type === 'user' && !!e.toolUseResult && /agentId: \w+/.test(raw(e)), {'message.content[tool_result].content[0].text': /agentId: \w+/}],
-  ['interrupt', e => e.type === 'user' && content(e).some(p => p.text?.startsWith('[Request interrupted')), {'message.content[text].text': /^\[Request interrupted by user( for tool use)?\]$/}],
-  ['Stop summary', e => e.type === 'system' && e.subtype === 'stop_hook_summary', {uuid: 'string', timestamp: 'string', isSidechain: 'boolean'}],
-  ['hook feedback offer', e => e.type === 'attachment' && e.attachment?.type === 'hook_additional_context', {'attachment.content[0]': 'string', $: /\\"offerId\\":\\"[0-9a-f-]{36}/}],
-  ['Auto mode request message', e => e.type === 'user' && e.isMeta === true, {'message.content': /--attempt [0-9a-f-]{36}/, isMeta: 'true'}],
-  ['queued task notification', e => e.type === 'queue-operation' && typeof e.content === 'string', {operation: 'string', content: /<task-notification>[\s\S]*<task-id>\w+<\/task-id>/}],
-  ['task notification message', e => e.type === 'user' && typeof e.message?.content === 'string' && e.message.content.startsWith('<task-notification>'), {'message.content': /<task-id>\w+<\/task-id>/}],
-  ['task notification attachment', e => e.attachment?.type === 'queued_command', {'attachment.prompt': /<task-notification>[\s\S]*<task-id>\w+<\/task-id>/}],
+  ['interrupt', e => e.type === 'user' && content(e).some(p => p.text?.startsWith('[Request interrupted')), {timestamp: 'string', isSidechain: 'boolean', 'message.content[text].text': /^\[Request interrupted by user( for tool use)?\]$/}],
 ];
 function lookup(value, path) {
   for (const step of path.split(/\.(?![^[]*\])/)) {
@@ -126,90 +117,39 @@ test('the sidechain entries of a recorded subagent are marked, and chill reads n
 test('a transcript field chill reads is declared in the entry contract', async () => {
   const declared = new Set(['type', 'subtype', 'operation', ...entryReads.flatMap(([, , fields]) => Object.keys(fields).map(path => path.split(/[.[]/)[0]))]);
   const top = new Set(), nested = new Set();
-  const text = await source('lib/claude-transcript.mjs');
-  for (const match of text.matchAll(/\bentry\??\.(\w+)/g)) top.add(match[1]);
+  const text = (await source('lib/claude-transcript.mjs')) + (await source('lib/claude-agent-work.mjs'));
+  for (const match of text.matchAll(/(?<![-\w])entry\??\.(\w+)/g)) top.add(match[1]);
   for (const match of text.matchAll(/\bentry\??\.(?:message|attachment)\??\.(\w+)/g)) nested.add(match[1]);
   const declaredNested = new Set(entryReads.flatMap(([, , fields]) => Object.keys(fields).filter(path => /^(message|attachment)\./.test(path)).map(path => path.split(/[.[]/)[1])));
   assert.deepEqual([...top].filter(field => !declared.has(field)), [], 'declare the entry field in entryReads');
   assert.deepEqual([...nested].filter(field => !declaredNested.has(field)), [], 'declare the nested entry field in entryReads');
 });
 
-async function stage(t, name, {upTo, extra = ''} = {}) {
+async function stage(t, name, {upTo} = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'claude-contract-'));
   t.after(() => rm(dir, {recursive: true, force: true}));
   const path = join(dir, 'session.jsonl'), lines = recordedText(name).split('\n').filter(Boolean);
-  await writeFile(path, lines.slice(0, upTo ?? lines.length).join('\n') + '\n' + extra);
-  return {dir, path, lines};
+  await writeFile(path, lines.slice(0, upTo ?? lines.length).join('\n') + '\n');
+  return path;
 }
-const stopIndex = lines => lines.findIndex(line => JSON.parse(line).subtype === 'stop_hook_summary');
 
-test('a recorded turn is running until its interrupt, and its model and effort are those Claude Code wrote', async t => {
-  const open = await stage(t, 'interrupted-turn', {upTo: 3});
-  assert.equal(await claudeRunning(open.path), true, 'prompt and reasoning, no end yet');
+test('the model and effort are those Claude Code wrote, and an Esc interrupt it recorded ends the work', async t => {
   const written = recorded['interrupted-turn'].findLast(entry => entry.type === 'assistant');
-  assert.deepEqual(await claudeModel(open.path), {model: written.message.model, reasoning: written.effort});
-  const interrupted = await stage(t, 'interrupted-turn');
-  assert.equal(await claudeRunning(interrupted.path), false);
-  const turn = await claudeTurn(interrupted.path);
-  assert.match(turn.turnId, /^claude:[0-9a-f-]{36}$/);
-  assert.equal(await claudeRunning((await stage(t, 'tool-interrupted-turn')).path), false, 'an interrupt while a tool runs also ends the response');
-  assert.equal(await claudeRunning((await stage(t, 'tool-interrupted-turn', {upTo: 3})).path), true);
+  assert.deepEqual(await claudeModel(await stage(t, 'interrupted-turn')), {model: written.message.model, reasoning: written.effort});
+  for (const name of ['interrupted-turn', 'tool-interrupted-turn']) {
+    const startedAt = recorded[name][0].timestamp, record = path => ({transcriptPath: path, agentWork: {...idleWork, phase: 'working', id: 'w', startedAt}});
+    assert.equal((await observedClaudeWork(record(await stage(t, name)))).work.phase, 'interrupted', `${name}: the recorded interrupt`);
+    assert.equal((await observedClaudeWork(record(await stage(t, name, {upTo: 3})))).work.phase, 'working', `${name}: before its interrupt`);
+  }
 });
 
-test('feedback offered mid-turn is followed by its response until the recorded Stop', async t => {
-  const full = await stage(t, 'feedback-turn'), offer = recorded['feedback-turn'].find(entry => entry.attachment?.type === 'hook_additional_context' && raw(entry).includes('offerId'));
-  const offerId = JSON.parse(offer.attachment.content[0].split('\n')[1])[0].offerId;
-  const index = recorded['feedback-turn'].indexOf(offer), stop = recorded['feedback-turn'].findLastIndex(entry => entry.subtype === 'stop_hook_summary');
-  const spoken = recorded['feedback-turn'].slice(index, stop).filter(entry => entry.type === 'assistant' && hasPart('text')(entry));
-  const work = await claudeWork(full.path, offerId);
-  assert.equal(work.status, 'completed', 'the recorded Stop summary ends the response');
-  assert.equal(work.endedAt, recorded['feedback-turn'][stop].timestamp, 'the end is the Stop summary timestamp');
-  assert.deepEqual(work.messages.map(m => m.id), spoken.map(entry => entry.uuid), 'the public text after the offer, nothing from thinking or tools');
-  const last = recorded['feedback-turn'].findLast(entry => entry.type === 'assistant');
-  assert.deepEqual(work.settings, {model: last.message.model, reasoning: last.effort});
-  const before = await stage(t, 'feedback-turn', {upTo: stop});
-  assert.equal((await claudeWork(before.path, offerId)).status, 'working');
-  assert.equal(await claudeRunning(before.path), true);
-  assert.equal(await claudeWork(full.path, '00000000-0000-4000-8000-ffffffffffff'), null);
-});
-
-test('a recorded background subagent keeps its response Running until its notification arrives', async t => {
-  const [sample] = manifest.transcripts.filter(s => s.name === 'background-agent');
-  const lines = recordedText('background-agent').split('\n').filter(Boolean), stop = stopIndex(lines);
-  const open = await stage(t, 'background-agent', {upTo: stop + 1});
-  await mkdir(join(open.dir, 'session', 'subagents'), {recursive: true});
-  const file = join(open.dir, 'session', 'subagents', `agent-${sample.subagentId}.jsonl`);
-  await copyFile(new URL('./fixtures/claude-code/transcripts/background-agent.subagent.jsonl', import.meta.url), file);
-  assert.deepEqual(await claudeTurn(open.path).then(({running, background}) => ({running, background})), {running: false, background: 1}, 'the Stop ended the response but the subagent is working');
-  const old = new Date(Date.now() - 60 * 60 * 1000);
-  await utimes(file, old, old);
-  assert.equal((await claudeTurn(open.path)).background, 0, 'a subagent that stopped writing ended with its app');
-  await utimes(file, new Date(), new Date());
-  const whole = join(open.dir, 'whole.jsonl');
-  await writeFile(whole, recordedText('background-agent'));
-  await mkdir(join(open.dir, 'whole', 'subagents'), {recursive: true});
-  await copyFile(file, join(open.dir, 'whole', 'subagents', `agent-${sample.subagentId}.jsonl`));
-  assert.equal((await claudeTurn(whole)).background, 0, 'the recorded task notification ended it');
-});
-
-test('each recorded form of a task notification ends a subagent, and an interim one does not', async t => {
-  const launch = [claudeEntry.prompt('p1'), claudeEntry.launchAgent('a1', 'toolu_bg'), claudeEntry.agentLaunched('r1', 'toolu_bg', 'agent77'), claudeEntry.text('a2', 'Started'), claudeEntry.stop()];
-  const forms = {'queued operation': claudeEntry.notice({taskId: 'agent77', toolUseId: 'toolu_bg'}), 'user message': claudeEntry.noticeMessage('n1', 'agent77'), 'queued command attachment': claudeEntry.noticeAttachment('agent77')};
-  const background = async (t, ...more) => {
-    const dir = await mkdtemp(join(tmpdir(), 'claude-contract-'));
-    t.after(() => rm(dir, {recursive: true, force: true}));
-    await mkdir(join(dir, 'session', 'subagents'), {recursive: true});
-    await writeFile(join(dir, 'session', 'subagents', 'agent-agent77.jsonl'), '{}\n');
-    await writeFile(join(dir, 'session.jsonl'), claudeLines([...launch, ...more]));
-    return (await claudeTurn(join(dir, 'session.jsonl'))).background;
-  };
-  assert.equal(await background(t), 1);
-  for (const [form, notice] of Object.entries(forms)) assert.equal(await background(t, notice), 0, `the ${form} ends the subagent`);
-  assert.equal(await background(t, claudeEntry.notice({taskId: 'agent77', toolUseId: 'toolu_bg', interim: true})), 1, 'the interim notice leaves it working');
-});
-
-test('an Auto mode run is the response that followed the Stop carrying its request', async t => {
-  const attempt = raw(recorded['auto-continue']).match(/--attempt ([0-9a-f-]{36})/)[1];
-  const work = await claudeWork((await stage(t, 'auto-continue')).path, attempt);
-  assert.ok(work.messages.length > 0, 'the response after the request is the run output');
+test('the Think of a stretch of work is the public text written since it started', async t => {
+  const entries = recorded['feedback-turn'], offer = entries.findIndex(entry => entry.attachment?.type === 'hook_additional_context');
+  const since = entries[offer].timestamp;
+  const spoken = entries.filter(entry => entry.type === 'assistant' && !entry.isSidechain && hasPart('text')(entry) && Date.parse(entry.timestamp) >= Date.parse(since));
+  const {messages, settings} = await claudeMessagesSince(await stage(t, 'feedback-turn'), since);
+  assert.ok(spoken.length > 0);
+  assert.deepEqual(messages.map(m => m.id), spoken.map(entry => entry.uuid), 'public text only, nothing from thinking or tools');
+  const last = entries.findLast(entry => entry.type === 'assistant');
+  assert.deepEqual(settings, {model: last.message.model, reasoning: last.effort});
 });

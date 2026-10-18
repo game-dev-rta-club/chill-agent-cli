@@ -45,11 +45,10 @@ async function main() {
     console.log(waitResultText(await waitForClaudeFeedback({signal:controller.signal})));
     return;
   }
-  if(['create-goal','adopt','inbox','activity','reply'].includes(action)) {
+  if(['create-goal','adopt','inbox','reply'].includes(action)) {
     const payload=action==='create-goal'?{title:values['--title'],scope:values['--scope']||'',criteria:values['--criteria']||''}:
       action==='adopt'?{goalId:values['--goal']}:
-      action==='activity'?{eventId:Number(values['--event']),state:values['--state']}:
-      action==='reply'?{eventIds:String(values['--event']).split(',').map(Number),text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
+      action==='reply'?{goalId:values['--goal'],text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
     console.log((await runClaudeAction(action,payload)).text);
     return;
   }

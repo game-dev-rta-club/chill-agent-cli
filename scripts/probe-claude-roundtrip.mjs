@@ -34,13 +34,13 @@ try {
 import {listGoals,appendFeedback} from ${JSON.stringify(store)};
 const action=process.argv[2];
 let args;
-if(action==='create')args=['create-goal','--title','Disposable native roundtrip','--scope','Probe only','--criteria','Receipt completed'];
+if(action==='create')args=['create-goal','--title','Disposable native roundtrip','--scope','Probe only','--criteria','Feedback answered'];
 else if(action==='inbox'||action==='work'){
  const goals=await listGoals();if(goals.length!==1)throw Error('Expected one main-hook-created Goal.');
  await appendFeedback({goalId:goals[0].id,text:${JSON.stringify(`Probe feedback. Remember this token for your final reply: ${feedbackToken}`)}});
  if(action==='work'){console.log('Probe work complete.');process.exit(0);}
  args=['inbox'];
-}else if(['working','completed'].includes(action))args=['activity','--event','1','--state',action];
+}else if(action==='reply'){const [goal]=await listGoals();args=['reply','--goal',String(goal.id),'--text','Probe reply'];}
 else throw Error('Invalid probe action');
 process.stdout.write(execFileSync(process.execPath,[${JSON.stringify(entry)},...args],{encoding:'utf8',timeout:10000}));
 `);
@@ -65,22 +65,23 @@ if(failed)process.exitCode=1;else process.stdout.write(output);
   report.auth={loggedIn:auth.loggedIn===true,method:auth.authMethod||null};
   if(!report.auth.loggedIn)throw Error('No authentication in the isolated native configuration.');
   const q=s=>`'${s.replaceAll("'","'\\''")}'`,call=action=>`${q(process.execPath)} ${q(runner)} ${action}`;
-  const prompt=`This is a disposable integration probe. Keep memory token ${memoryToken} for your final reply. Run exactly these four Bash calls, separately and in this order: ${call('create')}; ${call(values.automatic?'work':'inbox')}; ${call('working')}; ${call('completed')}. After each call read its hook additionalContext. Do not read any files, run other commands, or perform user work. If a call fails stop and report failure. At the end report both the memory token and the token contained only in the saved user feedback from the hook, and say roundtrip complete.`;
+  const prompt=`This is a disposable integration probe. Keep memory token ${memoryToken} for your final reply. Run exactly these three Bash calls, separately and in this order: ${call('create')}; ${call(values.automatic?'work':'inbox')}; ${call('reply')}. After each call read its hook additionalContext. Do not read any files, run other commands, or perform user work. If a call fails stop and report failure. At the end report both the memory token and the token contained only in the saved user feedback from the hook, and say roundtrip complete.`;
   phase='conversation';
   const result=await execute(values.claude,['--print','--output-format','json','--max-budget-usd','0.75',...modelArgs,'--no-session-persistence','--setting-sources','','--settings',settings,'--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--tools','Bash','--allowedTools',`Bash(${process.execPath} ${runner} *)`,'--no-chrome',prompt],{env,cwd,timeout:120000,maxBuffer:1024*1024});
   phase='verify';
   const native=JSON.parse(result.stdout),events=(await readFile(trace,'utf8')).trim().split('\n').map(JSON.parse);
   const goals=await readdir(join(data,'workspace/goals'));
   const goal=JSON.parse(await readFile(join(data,'workspace/goals',goals[0],'goal.json'),'utf8'));
-  const delivery=JSON.parse(await readFile(join(data,'workspace/deliveries/1.json'),'utf8'));
+  process.env.CHILL_AGENT_DATA_DIR=data;
+  const {readFeedback}=await import(store),conversation=(await readFeedback()).filter(e=>e.goalId===goal.id);
   report.native={isError:native.is_error===true,subtype:native.subtype,numTurns:native.num_turns,costUSD:native.total_cost_usd};
   report.hooks=events;
-  report.checks={oneGoal:goals.length===1,mainSession:events.every(e=>e.main&&e.sessionId===goal.connection.sessionId),startup:events.some(e=>e.event==='SessionStart'&&!e.failed),fourMainContexts:events.filter(e=>e.event==='PostToolUse'&&e.context&&!e.failed).length===4,
-    completedReceipt:delivery.status==='completed'&&delivery.agentReported===true&&delivery.connection.sessionId===goal.connection.sessionId,
+  report.checks={oneGoal:goals.length===1,mainSession:events.every(e=>e.main&&e.sessionId===goal.connection.sessionId),startup:events.some(e=>e.event==='SessionStart'&&!e.failed),feedbackHanded:events.some(e=>e.event==='PostToolUse'&&e.context&&!e.failed),
+    replied:conversation.at(-1)?.author==='agent'&&conversation.some(e=>e.author==='user'),
     feedbackRead:String(native.result).includes(feedbackToken),initialContextRetained:String(native.result).includes(memoryToken),nativeSuccess:!native.is_error};
   if(values.automatic){
     const toolEvents=events.filter(e=>e.event==='PostToolUse');
-    report.checks.sameNativePrompt=toolEvents.length>=4&&toolEvents.every(e=>e.promptId&&e.promptId===toolEvents[0].promptId);
+    report.checks.sameNativePrompt=toolEvents.length>=3&&toolEvents.every(e=>e.promptId&&e.promptId===toolEvents[0].promptId);
     report.checks.stopObserved=events.some(e=>e.event==='Stop'&&!e.failed);
   }
   report.passed=Object.values(report.checks).every(Boolean);

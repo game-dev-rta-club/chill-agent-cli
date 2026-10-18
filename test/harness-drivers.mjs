@@ -6,13 +6,11 @@
 //   agentStartsResponse()           the agent begins a response (a Codex turn, a Claude response)
 //   agentEndsResponse({background}) that response ends. Resolves to the reason when chill holds the stop, and the
 //                                   response then goes on; else null. `background`: work of the agent keeps running.
-//   agentTakesFeedback(eventId)     the agent's next opportunity to read Web feedback, then its `activity working`
-//                                   receipt. An idle agent is woken by the feedback, which starts its response.
-//                                   Resolves to the feedback IDs that reached it.
-//   agentReports(eventId, state)    `activity --state <state>` (working, completed)
-//   agentDefers(eventId)            `activity deferred`: {deferred:true}, or {unsupported:message}
-//   strangerReports(eventId)        a conversation the Goal is not assigned to reports `completed` for the feedback
-//   agentReplies(eventId, text)     the reply that completes the feedback
+//   agentTakesFeedback(eventId)     the agent's next opportunity to read Web feedback (Codex then sends its
+//                                   `activity working` receipt). An idle agent is woken by the feedback, which starts
+//                                   its response. Resolves to the feedback IDs that reached it.
+//   strangerAnswers(eventId)        a conversation the Goal is not assigned to tries to answer the feedback
+//   agentReplies(eventId, text)     the agent's reply on the feedback's Goal
 //   agentSelectsWork()              `goal work` on the Root Goal for the current response
 //   agentComments(text)             a progress `goal comment` on the Root Goal
 //   saveFeedback(text)              the user posts feedback in the Web; resolves to its event ID
@@ -24,7 +22,6 @@
 //   agentStatus()                   the Agent menu data
 //   pauseRow(action)                the Activity row's Pause ('stop') or Resume
 //   approveAll(on)                  the Agent menu's Approve all
-//   receipt(eventId)                the status the agent reported for the feedback, apart from what the Web shows of it
 //   comments()                      the agent's comments on the Goal
 // A capability the harness lacks is declared in `capabilities` and the scenario asserts the interface says so.
 import {spawn} from 'node:child_process';
@@ -39,6 +36,7 @@ import {agentExecutions,assignGoal,deliveriesWithWork,selectAgentWork} from '../
 import {controlAgent,readAgentActivityRow,readAgentStatus} from '../lib/agent-status.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
+import {claimClaudeFeedbackForWatcher} from '../lib/claude-actions.mjs';
 import {executionState,isRunning} from '../public/goal-state.js';
 import {deliveryDisplay,workProgressGroups} from '../public/work-ui.js';
 import {claudeEntry,claudeLine,hookFor} from './claude-fixtures.mjs';
@@ -100,11 +98,6 @@ function userSide(goalId,beforeRead=()=>{}) {
     async approveAll(on) {
       const {token}=await readAgentStatus(goalId);
       return controlAgent(goalId,{scope:'permissions',token,approveAll:on});
-    },
-    // What the agent reported, apart from what the Web shows of it.
-    async receipt(eventId) {
-      const delivery=(await deliveriesWithWork(goalId)).find(item=>item.eventId===eventId);
-      return delivery.reportedStatus??delivery.status;
     },
     async comments() {
       return (await readFeedback()).filter(event=>event.goalId===goalId&&event.author==='agent').map(event=>event.text);
@@ -180,14 +173,7 @@ async function codexSession(t) {
       if(ids.includes(eventId))await runWith(cli,['activity','--event',String(eventId),'--state','working'],{env});
       return ids;
     },
-    agentReports:(eventId,state)=>runWith(cli,['activity','--event',String(eventId),'--state',state],{env}),
-    async agentDefers(eventId) {
-      try {
-        await this.agentReports(eventId,'deferred');
-        return {deferred:true};
-      } catch(error) {return {unsupported:error.message};}
-    },
-    strangerReports:eventId=>runWith(cli,['activity','--event',String(eventId),'--state','completed'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
+    strangerAnswers:eventId=>runWith(cli,['activity','--event',String(eventId),'--state','completed'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
     async agentReplies(eventId,text) {
       await runWith(cli,['comment','--id',root.id,'--text',text],{env});
       await runWith(cli,['activity','--event',String(eventId),'--state','completed'],{env});
@@ -200,7 +186,7 @@ async function codexSession(t) {
 
 // ---- Claude Code ----------------------------------------------------------------
 
-const claudeOffers=text=>[...text.matchAll(/"eventId":(\d+),"offerId":"([0-9a-f-]{36})"/g)].map(match=>({eventId:Number(match[1]),offerId:match[2]}));
+const claudeFeedbackIds=text=>[...text.matchAll(/"eventId":(\d+),"goalId"/g)].map(match=>Number(match[1]));
 
 async function claudeSession(t) {
   const dir=await workspace(t,'chill-scenario-claude-',{CHILL_AGENT_CODEX_PATH:'/never/call/codex'});
@@ -236,37 +222,24 @@ async function claudeSession(t) {
       responding=false;handoff=null;
       return null;
     },
-    async agentTakesFeedback(eventId) {
+    // No receipt follows: what reached it is handed, and its Goal awaits a reply.
+    async agentTakesFeedback() {
       let text;
-      if(responding) {
-        text=handoff??(await hook('PostToolUse'))?.hookSpecificOutput?.additionalContext??'';handoff=null;
-        // Claude Code records what a hook injects into the conversation.
-        await append(claudeOffers(text).map(({eventId,offerId})=>claudeEntry.offer(eventId,offerId)));
-      } else {
-        // A waiter wakes the idle conversation, which reads its inbox.
-        await startResponse();
-        text=await connection(['inbox']);
-        const call=randomUUID();
-        await append([claudeEntry.tool(randomUUID(),'Bash',{command:'connection inbox'},undefined,call),claudeEntry.toolResult(randomUUID(),call,text)]);
+      if(responding) {text=handoff??(await hook('PostToolUse'))?.hookSpecificOutput?.additionalContext??'';handoff=null;}
+      else {
+        // The watcher hook wakes the idle conversation with the feedback, which starts its work.
+        text=await claimClaudeFeedbackForWatcher(sessionId);
+        if(text){await append([claudeEntry.prompt(randomUUID(),'chill-agent watcher')]);responding=true;}
       }
-      const ids=claudeOffers(text).map(offer=>offer.eventId);
-      if(ids.includes(eventId))await runWith(cli,['activity','--event',String(eventId),'--state','working'],{env});
-      return ids;
+      return claudeFeedbackIds(text);
     },
-    agentReports:(eventId,state)=>runWith(cli,['activity','--event',String(eventId),'--state',state],{env}),
-    async agentDefers(eventId) {
-      try {
-        await this.agentReports(eventId,'deferred');
-        return {deferred:true};
-      } catch(error) {return {unsupported:error.message};}
-    },
-    // Another conversation in the same project.
-    async strangerReports(eventId) {
+    // Another conversation in the same project replies on the Goal.
+    async strangerAnswers() {
       const other=randomUUID();
       await captureClaudeEntry(hookFor({session_id:other,cwd,transcript_path:transcript})('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:join(dir,'other-env')}});
-      await runWith(cli,['activity','--event',String(eventId),'--state','completed'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other}});
+      await runWith(connectionCli,['reply','--goal',root.id,'--text','Not mine'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other},cwd});
     },
-    async agentReplies(eventId,text) {await connection(['reply','--event',String(eventId),'--text',text]);},
+    async agentReplies(eventId,text) {await connection(['reply','--goal',root.id,'--text',text]);},
     agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env:agentEnv}),
   };
@@ -277,9 +250,12 @@ const win32Codex=process.platform==='win32'&&'Codex Desktop harness is macOS-onl
 
 export const drivers=[
   {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'queued',
+    // Codex still answers feedback by its receipts and its turn; it moves to the shared rules next.
+    todo:{'the agent\'s reply answers the Goal at once, while its work still runs':'Codex shows Running until its turn ends',
+      'the end of the work without a reply leaves the Goal awaiting one':'Codex shows Done when its turn ends'},
     // Approve all and settings are Claude features; pausing a Codex chat needs the running Desktop app.
     // Codex's Stop hook input names no background work, so chill cannot see it.
-    capabilities:{deferredReceipts:true,approveAll:false,pause:false,backgroundWork:false}},
+    capabilities:{approveAll:false,pause:false,backgroundWork:false}},
   {name:'Claude Code',start:claudeSession,agentName:'Claude Code',pending:'saved',
-    capabilities:{deferredReceipts:false,approveAll:true,pause:true,backgroundWork:true}},
+    capabilities:{approveAll:true,pause:true,backgroundWork:true}},
 ];

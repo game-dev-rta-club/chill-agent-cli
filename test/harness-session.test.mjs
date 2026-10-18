@@ -5,10 +5,10 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {harnessGuidance} from '../extensions/harnesses/index.mjs';
 import {startSession} from '../lib/harness-session.mjs';
-test('selected interfaces preserve different receipt and completion semantics',()=>{
+test('selected interfaces preserve different reply and completion semantics',()=>{
  const a=harnessGuidance('codex-desktop'),b=harnessGuidance('claude-code');
  assert(a.operations.receipt.states.includes('deferred'));assert(a.operations.selectWork);
- assert(!b.operations.receipt.states.includes('deferred'));assert.match(b.operations.selectWork.command,/goal work/);
+ assert.equal(b.operations.receipt,undefined,'a Claude conversation answers a Goal by replying on it');assert.match(b.operations.reply.command,/--goal/);assert.match(b.operations.selectWork.command,/goal work/);
  assert.match(b.operations.createRoot.confirmation,/at once/);
  a.operations.receipt.states.push('invented');assert(!harnessGuidance('codex-desktop').operations.receipt.states.includes('invented'));
  assert.throws(()=>harnessGuidance('unknown'),/no fallback/);
