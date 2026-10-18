@@ -50,9 +50,9 @@ with `goal activity --event <ID> --state working`. That receipt removes only
 matching chill-agent queue entries. Simply showing a hook notice consumes nothing.
 
 Read all delivered messages, apply later corrections, and skip already completed
-events. When the requested work is finished, record `completed`; use `failed` if
-it could not be completed. An activity receipt does not select a work Goal or
-mark a Goal Done. See [execution state](execution-state.md).
+events. When the requested work is finished, record `completed`. There is no
+failed receipt; report what could not be done in a comment. An activity receipt
+does not select a work Goal or mark a Goal Done. See [execution state](execution-state.md).
 
 ## Read the handoff
 

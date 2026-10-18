@@ -64,13 +64,13 @@ scenario('a completed receipt without a reply closes the feedback',async s=>{
   assert.deepEqual(await s.comments(),[]);
 });
 
-scenario('a failed receipt asks for attention',async s=>{
+scenario('the agent cannot report feedback as failed',async s=>{
   const event=await s.saveFeedback('Try it');
   await s.agentTakesFeedback(event);
-  await s.agentReports(event,'failed');
+  await assert.rejects(s.agentReports(event,'failed'),/--state must be/);
+  assert.equal(await s.receipt(event),'working');
   await s.agentEndsResponse();
-  assert.equal(await s.receipt(event),'failed');
-  assert.equal(await s.shown(event),'failed');
+  assert.notEqual(await s.shown(event),'failed');
 });
 
 scenario('a retry does not deliver the feedback twice',async s=>{

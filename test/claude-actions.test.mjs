@@ -96,6 +96,7 @@ test('two Roots and a child return feedback to the same conversation with durabl
   assert.match(await s.act('inbox'),/first/);
   assert.equal((await readDeliveryState(e1.changeId)).nativeOfferId,offered.nativeOfferId);
   assert.equal((await deliverFeedback(e1.changeId)).status,'unknown');
+  await assert.rejects(s.act('activity',{eventId:e1.changeId,state:'failed'}),/must be working or completed/);
   await s.act('activity',{eventId:e1.changeId,state:'working'});
   await s.act('activity',{eventId:e1.changeId,state:'completed'});
   await s.act('activity',{eventId:e1.changeId,state:'completed'});

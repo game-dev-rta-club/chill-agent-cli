@@ -7,7 +7,7 @@ export default {
    inspect:{command:'connection show',confirmation:'Shows this conversation\'s connection and the Roots it owns.'},
    join:{command:'connection join',confirmation:'When connection show reports no connection, run it once. It connects this conversation at once; resuming is not needed.'},
    createRoot:{command:'connection create-goal --help',confirmation:'Creates the Root in this conversation at once and prints its ID.'},
-   receipt:{command:'goal activity --event <ID> --state <STATE>',states:['working','completed','failed'],confirmation:'Recorded at once.'},
+   receipt:{command:'goal activity --event <ID> --state <STATE>',states:['working','completed'],confirmation:'Recorded at once.'},
    selectWork:{command:'goal work --id <GOAL>',confirmation:'Marks the Goal this response works on for the Web until the response ends. A receipt does not select work or complete the Goal.'},
    adopt:{command:'connection adopt --goal <ID>',confirmation:'Only when the user asks this conversation to continue a Goal owned by an earlier conversation (for example after Claude continued the chat in a new session).'},
    inbox:{command:'connection inbox',confirmation:'Shows saved feedback for this conversation. Hooks offer new feedback on their own; read it when you need to recover input.'},
