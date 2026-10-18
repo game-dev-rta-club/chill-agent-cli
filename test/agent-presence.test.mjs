@@ -4,6 +4,7 @@ import {agentPresence,readPresenceSnapshot} from '../lib/agent-presence.mjs';
 import {displayPresence} from '../lib/agents/codex-observation.mjs';
 import {presenceLabel,presenceMark} from '../public/agent-presence.js';
 import {activityMarkup,agentMarkup,runActivityMarkup,runOutputMarkup} from '../public/agent-menu.js';
+import {codexThread,contractStub} from './codex-contract.mjs';
 
 test('presence covers runs without feedback, manual pauses, idle, and unavailable evidence',()=>{
  const now=1000000;
@@ -31,7 +32,7 @@ test('extension messages render as escaped text; missing old snapshots are not r
 
 test('presence collects turn and thread state with one native connection and retains pending pause evidence',async()=>{
  let connects=0;const calls=[];
- const options={readControl:async()=>({action:'stop',turnId:'t',target:{goalId:'2'}}),readHeartbeat:async()=>null,connect:async run=>{connects++;return run({request:async method=>{calls.push(method);return method==='thread/read'?{thread:{id:'chat',status:{type:'active'}}}:{data:[{id:'t',completedAt:null,status:'inProgress'}]};}});}};
+ const options={readControl:async()=>({action:'stop',turnId:'t',target:{goalId:'2'}}),readHeartbeat:async()=>null,connect:async run=>{connects++;return run(contractStub(async method=>{calls.push(method);return method==='thread/read'?{thread:codexThread({id:'chat',status:{type:'active',activeFlags:[]}})}:method==='thread/queue/list'?{data:[]}:{data:[{id:'t',completedAt:null,status:'inProgress',items:[]}]};}));}};
  const snapshot=await readPresenceSnapshot('chat',options);
  assert.equal(connects,1);assert.deepEqual(calls.sort(),['thread/queue/list','thread/read','thread/turns/list']);
  assert.equal(agentPresence(snapshot),'unknown','an unconfirmed pause is not presented as Running');

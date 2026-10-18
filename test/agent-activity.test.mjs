@@ -34,12 +34,12 @@ test('Paused overlays only the stopped Goal and disappears on a new Desktop turn
   const pending=await check({id:'turn',status:'interrupted',completedAt:null});assert.equal(pending.get('2').status,'checking');assert.equal(goalState({...goals[1],execution:pending.get('2')}),'working');
   const map=await check({id:'turn',status:'interrupted',completedAt:1});assert.equal(map.size,1);assert.equal(map.get('2').status,'paused');assert.deepEqual(map.get('2').activity,record.activity);
   assert.equal(goals[1].state,'idle');assert.equal(goals[2].state,'waiting');
-  assert.equal((await check({id:'next',completedAt:null})).size,0);
+  assert.equal((await check({id:'next',status:'inProgress',completedAt:null})).size,0);
   await writeFile(join(dir,'workspace/agent-controls',thread+'.json'),JSON.stringify({...record,action:'resume',resumedTurnId:'next'}));
-  assert.equal((await check({id:'next',completedAt:null})).get('2').status,'working');
+  assert.equal((await check({id:'next',status:'inProgress',completedAt:null})).get('2').status,'working');
   await mkdir(join(dir,'workspace/executions'),{recursive:true});
   await writeFile(join(dir,'workspace/executions',thread+'.json'),JSON.stringify({goalId:'3',turnId:'next'}));
-  const moved=await check({id:'next',completedAt:null});assert.equal(moved.has('2'),false);assert.equal(moved.get('3').status,'working','a new work selection follows the current execution');
+  const moved=await check({id:'next',status:'inProgress',completedAt:null});assert.equal(moved.has('2'),false);assert.equal(moved.get('3').status,'working','a new work selection follows the current execution');
   assert.equal((await check({id:'next',completedAt:2,status:'completed'})).size,0);
  }finally{invalidateActivity(thread);for(const [key,value] of [['CHILL_AGENT_DATA_DIR',old.data],['CHILL_AGENT_CODEX_PATH',old.codex]])value===undefined?delete process.env[key]:process.env[key]=value;await rm(dir,{recursive:true,force:true});}
 });

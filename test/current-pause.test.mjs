@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {createGoal} from '../lib/goal-store.mjs';
 import {createControlService} from '../lib/agent-control.mjs';
 import {continuationObservation,continuationEligibility} from '../lib/continuation-observation.mjs';
+import {codexThread,contractStub} from './codex-contract.mjs';
 
 test('current-run pause without feedback blocks continuation until explicit resume',async()=>{
  const old=process.env.CHILL_AGENT_DATA_DIR,dir=await mkdtemp(join(tmpdir(),'chill-current-pause-'));
@@ -16,11 +17,11 @@ test('current-run pause without feedback blocks continuation until explicit resu
   const root=await createGoal({title:'autonomous work',threadId});
   await mkdir(join(dir,'workspace/agent-controls'),{recursive:true});
   const service=createControlService({context:async()=>({root}),read:async()=>record,write:async(_,value)=>{record=value;await writeFile(join(dir,'workspace/agent-controls',threadId+'.json'),JSON.stringify(value));},latest:async()=>turn,stop:async()=>{turn={...turn,status:'interrupted',completedAt:1};return {ok:true,interruptedTurnId:turnId};},resume:async()=>{turn={id:next,status:'completed',completedAt:null};return {result:{turn:{id:next}}};}});
-  const observe=()=>continuationObservation(root.id,null,{connect:fn=>fn({request:async method=>{
-   if(method==='thread/read')return {thread:{status:{type:'notLoaded'}}};
-   if(method==='thread/turns/list')return {data:[turn]};
+  const observe=()=>continuationObservation(root.id,null,{connect:fn=>fn(contractStub(async(method,p)=>{
+   if(method==='thread/read')return {thread:codexThread({id:p.threadId})};
+   if(method==='thread/turns/list')return {data:[{items:[],...turn}]};
    if(method==='thread/queue/list')return {data:[]};throw Error(method);
-  }})});
+  }))});
   await service(root.id,{action:'stop',threadId,turnId,requestId},{goalId:root.id});
   assert.equal(continuationEligibility(await observe()),'paused');
   assert.equal(continuationEligibility(await observe()),'paused','repeated observations must not restart work');

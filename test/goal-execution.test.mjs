@@ -22,7 +22,7 @@ async function fixture(t){
   let serial=0;
   const patch=async(id,data)=>{const path=join(root,`patch-${serial++}.json`);await writeFile(path,JSON.stringify(data));return run('update','--id',id,'--input-file',path);};
   const history=async value=>writeFile(join(root,'fake-history.json'),JSON.stringify(value));
-  await history({turns:[{id:turn,status:'interrupted',startedAt:Date.now()/1000,completedAt:null}]});
+  await history({turns:[{id:turn,status:'interrupted',startedAt:Math.floor(Date.now()/1000),completedAt:null}]});
   await run('create','--title','Root agreement','--scope','Only editor changes','--criteria','Two improvements');
   await run('create','--title','Waiting branch','--parent','1');
   await run('create','--title','Independent branch','--parent','1');
@@ -84,7 +84,7 @@ test('one selected branch works while another waits; turn end returns to Idle',{
   assert.equal((await f.json(f.selectionPath)).goalId,'3','receiving A does not switch work away from B');
   await f.patch('2',{state:'idle'});await f.run('work','--id','2');
   tree=(await f.run('tree'))[0];assert.equal(tree.children[0].state,'working');assert.equal(tree.children[1].state,'idle');
-  await f.history({turns:[{id:turn,status:'completed',completedAt:Date.now()/1000}]});
+  await f.history({turns:[{id:turn,status:'completed',completedAt:Math.floor(Date.now()/1000)}]});
   tree=(await f.run('tree'))[0];assert.equal(tree.state,'idle');assert.equal(tree.children[0].state,'idle');assert.equal(tree.progress,0);
   await assert.rejects(f.run('work','--id','2'),/No current unfinished/);
 });
@@ -170,7 +170,7 @@ test('a hook tracks chat liveness before work selection; Goal and header use the
  const selected=await f.json(f.selectionPath);selected.heartbeatAt='2020-01-01T00:00:00Z';
  await writeFile(join(f.root,f.selectionPath),JSON.stringify(selected));
  tree=(await f.run('tree','--id','1'))[0];assert.equal(tree.children[1].state,'working','independent chat heartbeat confirms the selected run');
- await f.history({turns:[{id:turn,status:'completed',completedAt:Date.now()/1000}]});
+ await f.history({turns:[{id:turn,status:'completed',completedAt:Math.floor(Date.now()/1000)}]});
  assert.equal((await read()).status,'idle');assert.equal((await f.run('tree','--id','1'))[0].state,'idle');
 });
 

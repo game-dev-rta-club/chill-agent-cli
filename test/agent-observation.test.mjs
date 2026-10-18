@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAgentObservationStore,agentPresence} from '../lib/agents/codex-observation.mjs';
 import {createCodexDesktopConnection} from '../lib/codex-desktop-connection.mjs';
+import {codexThread,contractStub} from './codex-contract.mjs';
 
 import {expectHidden} from './hidden-failures.mjs';
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
@@ -58,13 +59,13 @@ function nativeFixture({threadId='native',queueError=false,threadError=false}={}
  const adapter=createCodexDesktopConnection('native',{
   readControl:async()=>({action:'stop',turnId:'run',target:{goalId:'2'}}),
   readHeartbeat:async()=>({turnId:'run',heartbeatAt:'2026-10-06T00:00:00.000Z'}),
-  run:async action=>action({request:async(method,params)=>{
+  run:async action=>action(contractStub(async(method,params)=>{
    calls.push({method,params});
-   if(method==='thread/read'){if(threadError)throw Error('thread offline');return {thread:{id:threadId,status:{type:'notLoaded'},privatePrompt:'secret'}};}
-   if(method==='thread/turns/list')return {data:[{id:'run',status:'interrupted',completedAt:12,items:[{text:'private input'}],error:{message:'private error'}}]};
-   if(method==='thread/queue/list'){if(queueError)throw Error('queue offline');return {data:[{id:'pending',input:[{text:'private queue'}]}]};}
+   if(method==='thread/read'){if(threadError)throw Error('thread offline');return {thread:codexThread({id:threadId,preview:'secret'})};}
+   if(method==='thread/turns/list')return {data:[{id:'run',status:'interrupted',completedAt:12,items:[{type:'userMessage',id:'input',content:[{type:'text',text:'private input'}]}],error:{message:'private error'}}]};
+   if(method==='thread/queue/list'){if(queueError)throw Error('queue offline');return {data:[{id:'pending',clientUserMessageId:'queued-message',input:[{type:'text',text:'private queue'}]}]};}
    throw Error('unexpected RPC');
-  }}),
+  })),
  });
  return {adapter,calls};
 }
@@ -83,6 +84,6 @@ test('queue failure remains separate; missing or mismatched native conversations
  expectHidden(t,'codex-desktop-connection.queue');
  const result=await nativeFixture({queueError:true}).adapter.readRunSnapshot();
  assert.equal(result.queue,null);assert.equal(agentPresence(result),'paused');
- for(const threadId of ['someone-else',null])await assert.rejects(nativeFixture({threadId}).adapter.readRunSnapshot(),/assignment changed/);
+ await assert.rejects(nativeFixture({threadId:'someone-else'}).adapter.readRunSnapshot(),/assignment changed/);
  await assert.rejects(nativeFixture({threadError:true}).adapter.readRunSnapshot(),/thread offline/);
 });

@@ -14,7 +14,7 @@ const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...arg
 let serial=0,server,browser;
 const update=async(id,patch)=>{const file=join(root,`patch-${serial++}.json`);await writeFile(file,JSON.stringify(patch));return run('update','--id',id,'--input-file',file);};
 try {
- await writeFile(join(root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'interrupted',startedAt:Date.now()/1000,completedAt:null}]}));
+ await writeFile(join(root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'interrupted',startedAt:Math.floor(Date.now()/1000),completedAt:null}]}));
  await run('create','--title','成果と活動を見分ける');
  for(const title of ['表示の細部を整える','返信の流れをつなぐ','HTMLの注釈を安定させる','全体の使い心地を確かめる'])await run('create','--title',title,'--parent','1');
  await update('3',{state:'waiting',waitReason:'Choose the display'});await update('4',{state:'done'});
