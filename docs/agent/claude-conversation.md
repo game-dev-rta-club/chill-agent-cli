@@ -64,7 +64,7 @@ saved Web input / eligible Auto mode request
                   |
    tool hook OR waiter wake + explicit inbox
                   |
-      offered -> agent receipt -> completed / failed
+      offered -> agent receipt -> completed
 ```
 
 The [development actions](claude-actions.md) implement new-Root ownership,

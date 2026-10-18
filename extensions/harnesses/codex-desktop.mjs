@@ -5,7 +5,7 @@ export default {
   operations:{
    inspect:{command:'goal show --id <GOAL> --section context --format text',confirmation:'Read the current Goal and its bound conversation before continuing.'},
    createRoot:{command:'goal create --help',confirmation:'Supply --thread-id with the actual calling Codex conversation UUID. Read the saved Root and verify its threadId matches. Do not create an unbound Root or infer identity from the folder.'},
-   receipt:{command:'goal activity --event <ID> --state <STATE>',states:['deferred','working','completed','failed'],confirmation:'Check queueError. Deferred must preserve a verified native Queue entry; working removes only the matching entry.'},
+   receipt:{command:'goal activity --event <ID> --state <STATE>',states:['deferred','working','completed'],confirmation:'Check queueError. Deferred must preserve a verified native Queue entry; working removes only the matching entry.'},
    selectWork:{command:'goal work --id <GOAL>',confirmation:'A receipt does not select work or complete the Goal.'}
   },
   activation:{

@@ -32,8 +32,8 @@ output can be piped or shortened like any other command.
 `reply` posts the answer in the feedback's Goal Conversation and records the
 completed receipt together. Answering each message as it arrives is fine; when
 one answer covers several messages of one Goal, `--event 12,13,14` closes them
-together. `goal activity --event 1 --state working|failed`, the same receipt
-command Codex uses, records other receipt states (`connection activity` is the
+together. `goal activity --event 1 --state working`, the same receipt
+command Codex uses, records the working receipt (`connection activity` is the
 older name and still works). Claude has no native Queue, so `deferred` is
 refused. `goal work --id <GOAL>` marks the Goal the current response works on,
 as in a Codex turn; the mark ends with that response.
@@ -72,8 +72,9 @@ and completed events are excluded. An offer persists `unknown`, `mayHaveSent`
 and a stable offer ID; a new `inbox` call shows feedback that has no receipt yet
 with the same ID. It never falls back to Codex or another transport.
 
-`activity` records a receipt only for this context's offered event. Completed or
-failed receipts cannot regress. A receipt does not prove live execution or
+`activity` records a receipt only for this context's offered event. A completed
+receipt cannot regress. There is no failed receipt; an agent that cannot finish
+says so in a comment. A receipt does not prove live execution or
 complete the Goal.
 
 ## Receive feedback through hooks

@@ -8,7 +8,7 @@
 //   agentTakesFeedback(eventId)     the agent's next opportunity to read Web feedback, then its `activity working`
 //                                   receipt. An idle agent is woken by the feedback, which starts its response.
 //                                   Resolves to the feedback IDs that reached it.
-//   agentReports(eventId, state)    `activity --state <state>` (working, completed, failed)
+//   agentReports(eventId, state)    `activity --state <state>` (working, completed)
 //   agentDefers(eventId)            `activity deferred`: {deferred:true}, or {unsupported:message}
 //   strangerReports(eventId)        a conversation the Goal is not assigned to reports `completed` for the feedback
 //   agentReplies(eventId, text)     the reply that completes the feedback
@@ -264,8 +264,7 @@ const win32Codex=process.platform==='win32'&&'Codex Desktop harness is macOS-onl
 export const drivers=[
   {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'queued',
     // Approve all and settings are Claude features; pausing a Codex chat needs the running Desktop app.
-    capabilities:{deferredReceipts:true,approveAll:false,pause:false},
-    todo:{'a failed receipt asks for attention':'A finished turn shows as Done over the agent\'s failed receipt, which only reaches reportedStatus (presentDelivery in lib/delivery.mjs)'}},
+    capabilities:{deferredReceipts:true,approveAll:false,pause:false}},
   {name:'Claude Code',start:claudeSession,agentName:'Claude Code',pending:'saved',
     capabilities:{deferredReceipts:false,approveAll:true,pause:true}},
 ];
