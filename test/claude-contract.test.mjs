@@ -207,7 +207,7 @@ test('each recorded form of a task notification ends a subagent, and an interim 
   assert.equal(await background(t, claudeEntry.notice({taskId: 'agent77', toolUseId: 'toolu_bg', interim: true})), 1, 'the interim notice leaves it working');
 });
 
-test('an Auto mode run is the response that followed the Stop carrying its request', {todo: 'Claude Code writes the request message before its Stop summary, so the run ends at that same Stop with no output'}, async t => {
+test('an Auto mode run is the response that followed the Stop carrying its request', async t => {
   const attempt = raw(recorded['auto-continue']).match(/--attempt ([0-9a-f-]{36})/)[1];
   const work = await claudeWork((await stage(t, 'auto-continue')).path, attempt);
   assert.ok(work.messages.length > 0, 'the response after the request is the run output');
