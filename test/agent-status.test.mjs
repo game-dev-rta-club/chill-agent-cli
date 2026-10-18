@@ -7,13 +7,15 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {usageWindows} from '../lib/codex-desktop-connection.mjs';
 import {fileURLToPath} from 'node:url';
+import {expectHidden} from './hidden-failures.mjs';
 const exec=promisify(execFile),thread='00000000-0000-0000-0000-000000000001';
 test('usage uses all account buckets and windows, distinguishes missing values, and never includes credits',()=>{
  const result=usageWindows({credits:{balance:'62500'},rateLimits:{primary:{usedPercent:50}},rateLimitsByLimitId:{codex:{primary:{usedPercent:12,windowDurationMins:10080,resetsAt:42},secondary:{usedPercent:null}},other:{primary:{usedPercent:110},secondary:{usedPercent:-5}}}});
  assert.deepEqual(result[0].windows,[{id:'primary',remaining:88,minutes:10080,resetAt:42},{id:'secondary',remaining:null,minutes:null,resetAt:null}]);
  assert.deepEqual(result[1].windows.map(w=>w.remaining),[0,100]);assert.doesNotMatch(JSON.stringify(result),/62500/);assert.deepEqual(usageWindows({}),[]);
 });
-test('agent read resolves child owner, returns saved settings, and does not issue control requests',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
+test('agent read resolves child owner, returns saved settings, and does not issue control requests',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+ expectHidden(t,'codex-desktop-connection.snapshot-usage');
  const root=await mkdtemp(join(tmpdir(),'chill-agent-status-'));
  const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url))};
  const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));

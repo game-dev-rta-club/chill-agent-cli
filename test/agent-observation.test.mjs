@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createAgentObservationStore,agentPresence} from '../lib/agents/codex-observation.mjs';
 import {createCodexDesktopConnection} from '../lib/codex-desktop-connection.mjs';
 
+import {expectHidden} from './hidden-failures.mjs';
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const connection=(harnessId,readRunSnapshot)=>({harnessId,sessionId:'same-native-id',readRunSnapshot});
 
@@ -78,7 +79,8 @@ test('Codex observation keeps pause evidence and returns no transcript, input or
  assert.equal(calls.length,3);assert(calls.every(call=>call.params.threadId==='native'));
 });
 
-test('queue failure remains separate; missing or mismatched native conversations never produce an observation',async()=>{
+test('queue failure remains separate; missing or mismatched native conversations never produce an observation',async t=>{
+ expectHidden(t,'codex-desktop-connection.queue');
  const result=await nativeFixture({queueError:true}).adapter.readRunSnapshot();
  assert.equal(result.queue,null);assert.equal(agentPresence(result),'paused');
  for(const threadId of ['someone-else',null])await assert.rejects(nativeFixture({threadId}).adapter.readRunSnapshot(),/assignment changed/);

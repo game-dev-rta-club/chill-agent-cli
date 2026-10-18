@@ -9,6 +9,7 @@ import test from 'node:test';
 import {DatabaseSync} from 'node:sqlite';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
 import {fileURLToPath} from 'node:url';
+import {expectHidden} from './hidden-failures.mjs';
 // These cases cover the host's own notification path, used when bundled extensions are off.
 process.env.CHILL_AGENT_EXTENSIONS='none';
 
@@ -99,8 +100,9 @@ test('retries and concurrent retries do not duplicate feedback or an accepted en
   assert.equal(JSON.parse((await f.run(['check','--since','0'])).stdout).count,1);
 });
 
-test('a failed connection keeps the reply; an unsent retry uses the current root owner and original Note', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
+test('a failed connection keeps the reply; an unsent retry uses the current root owner and original Note', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t => {
   const f = await fixture();
+  expectHidden(t,'codex-delivery.send');
   const [{feedback},{delivery}] = await f.feedback({}, {CHILL_AGENT_CODEX_PATH:join(f.root,'missing-codex')});
   assert.equal(feedback.text,'続けてください');
   assert.equal(delivery.status,'failed');
@@ -113,8 +115,9 @@ test('a failed connection keeps the reply; an unsent retry uses the current root
   assert.match((await f.run(['show','--id','1','--since','0'])).stdout,/続けてください/);
 });
 
-test('lost queue receipts are reconciled without blindly re-sending', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
+test('lost queue receipts are reconciled without blindly re-sending', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t => {
   const f = await fixture();
+  expectHidden(t,'codex-delivery.queue-add');
   const [, {delivery}] = await f.feedback({}, {CHILL_TEST_DROP_AFTER_ADD:'1'});
   assert.equal(delivery.status,'unknown');
   assert.equal((await f.json('fake-queue.json')).length,1);
@@ -152,8 +155,9 @@ test('unassigned Goals save locally without enqueueing',async()=>{
   await assert.rejects(readFile(join(f.root,'fake-queue.json')),{code:'ENOENT'});
 });
 
-test('a crashed delivery can be checked concurrently without stealing a new lease', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
+test('a crashed delivery can be checked concurrently without stealing a new lease', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t => {
   const f = await fixture();
+  expectHidden(t,'codex-delivery.queue-add');
   await f.feedback({}, {CHILL_TEST_DROP_AFTER_ADD:'1'});
   const leases = new DatabaseSync(join(f.root,'workspace/coordination.sqlite'));
   leases.prepare('INSERT INTO leases (key,token,pid) VALUES (?,?,?)').run('deliveries/locks/1','crashed-owner',2147483647);
@@ -213,8 +217,10 @@ test('notifications separate exact user content from the protocol and next actio
   assert.match(actions,/activity --event 1 --state completed/);
 });
 
-test('delivery remains Goal-scoped when Deliverable changes before retry',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
-  const f=await fixture();await f.feedback({text:'Earlier discussion'}, {CHILL_AGENT_CODEX_PATH:join(f.root,'missing-codex')});
+test('delivery remains Goal-scoped when Deliverable changes before retry',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+  const f=await fixture();
+  expectHidden(t,'codex-delivery.send');
+  await f.feedback({text:'Earlier discussion'}, {CHILL_AGENT_CODEX_PATH:join(f.root,'missing-codex')});
   await f.publish();await f.run(['retry','--event','1']);
   const sent=(await f.json('fake-queue.json'))[0].input[0].text;
   assert.match(sent,/Goal: #1 "Delivery"/);assert.doesNotMatch(sent,/Note:|--version/);
@@ -306,8 +312,10 @@ test('parallel hooks offer feedback once; interrupted hook delivery retains Queu
   assert.deepEqual(await f.json('fake-queue.json'),[]);
 });
 
-test('receipt removes only matching notifications, including duplicate entries, and repairs a failed removal', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
-  const f=await fixture();await f.feedback();
+test('receipt removes only matching notifications, including duplicate entries, and repairs a failed removal', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t => {
+  const f=await fixture();
+  expectHidden(t,'codex-delivery.queue-clear');
+  await f.feedback();
   const queue=await f.json('fake-queue.json');
   queue.push({...queue[0],id:'duplicate'}, {...queue[0],id:'user-queue',clientUserMessageId:'not-chill'});
   await writeFile(join(f.root,'fake-queue.json'),JSON.stringify(queue));
@@ -320,8 +328,10 @@ test('receipt removes only matching notifications, including duplicate entries, 
   assert.equal((await f.json('workspace/deliveries/1.json')).queueCleared,true);
 });
 
-test('a lost queue removal receipt is reconciled without re-enqueueing', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
-  const f=await fixture();await f.feedback();
+test('a lost queue removal receipt is reconciled without re-enqueueing', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t => {
+  const f=await fixture();
+  expectHidden(t,'codex-delivery.queue-clear');
+  await f.feedback();
   await f.run(['activity','--event','1','--state','working'],{CHILL_TEST_DROP_AFTER_DELETE:'1'});
   assert.deepEqual(await f.json('fake-queue.json'),[]);
   assert.ok((await f.json('workspace/deliveries/1.json')).queueError);
@@ -426,8 +436,10 @@ test('deferred feedback stays queued and unclaimed, then binds to the turn that 
   await assert.rejects(f.run(['activity','--event','1','--state','deferred']),/unclaimed queued/);
 });
 
-test('deferment rejects wrong owners, missing queues, uncertain sends and unavailable evidence',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
-  const f=await fixture();await f.feedback();
+test('deferment rejects wrong owners, missing queues, uncertain sends and unavailable evidence',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+  const f=await fixture();
+  expectHidden(t,'codex-delivery.queue-add');
+  await f.feedback();
   await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}]}));
   const args=['activity','--event','1','--state','deferred'];
   await assert.rejects(f.run(args,{CODEX_THREAD_ID:other}),/assigned chat/);
@@ -440,8 +452,10 @@ test('deferment rejects wrong owners, missing queues, uncertain sends and unavai
   await assert.rejects(f.run(['activity','--event','2','--state','deferred']),/unclaimed queued/);
 });
 
-test('an unavailable claim observation cannot reuse the old deferred hook turn',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
- const f=await fixture();await f.feedback();
+test('an unavailable claim observation cannot reuse the old deferred hook turn',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+ const f=await fixture();
+ expectHidden(t,'codex-delivery.queue-clear','codex-delivery.receive-progress');
+ await f.feedback();
  await writeFile(join(f.root,'fake-history.json'),JSON.stringify({turns:[{id:turn,status:'inProgress',completedAt:null,items:[]}]}));
  await f.run(['activity','--event','1','--state','deferred']);
  await f.run(['activity','--event','1','--state','working'],{CHILL_AGENT_CODEX_PATH:join(f.root,'unavailable')});

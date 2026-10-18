@@ -13,6 +13,7 @@ import {createGoal,listGoals} from '../lib/goal-store.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
 import {fileURLToPath} from 'node:url';
+import {expectHidden} from './hidden-failures.mjs';
 const exec=promisify(execFile);
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'claude-status-')),data=join(dir,'data'),cwd=join(dir,'project'),envFile=join(dir,'env');await mkdir(cwd);await writeFile(envFile,'');
@@ -48,6 +49,7 @@ test('child Agent menu and CLI show expose safe evidence without controls or pri
 });
 
 test('missing and damaged records report unknown without changing their contents',async t=>{
+ expectHidden(t,'claude-status.read');
  const f=await fixture(t);await writeFile(f.recordPath,'broken');assert.equal((await f.read()).state,'unknown');assert.equal(await readFile(f.recordPath,'utf8'),'broken');
  await rm(f.recordPath);assert.equal((await f.read()).state,'unknown');
 });

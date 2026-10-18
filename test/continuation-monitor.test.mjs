@@ -12,6 +12,7 @@ import {mkdir} from 'node:fs/promises';
 import {recordVersionSource} from '../lib/version-source.mjs';
 import {fileURLToPath} from 'node:url';
 
+import {expectHidden} from './hidden-failures.mjs';
 // The skill lives outside the runtime; setup records its guide in the data directory.
 async function installedSkill(t){
  const dir=await mkdtemp(join(tmpdir(),'chill-guide-')),skill=join(dir,'skill'),old=process.env.CHILL_AGENT_DATA_DIR;
@@ -50,7 +51,8 @@ test('one nudge per revision across restarts; completed result alone does not pr
 test('Done and no candidates do not suppress monitoring',async()=>{
  const x=fixture();x.f.rootState='done';x.f.candidates=[];await x.run();assert.equal(x.sent.length,1);
 });
-test('lost receipt is not blindly retried even when content changes',async()=>{
+test('lost receipt is not blindly retried even when content changes',async t=>{
+ expectHidden(t,'continuation-monitor.send');
  const x=fixture();x.fail();assert.equal((await x.run()).status,'uncertain');
  x.f.revision='new';assert.equal((await x.run()).status,'awaiting-receipt');assert.equal(x.sent.length,1);
 });
@@ -60,7 +62,8 @@ test('send-time recheck blocks newly queued input and changed revision',async()=
   assert.equal((await x.run()).status,'changed');assert.equal(x.sent.length,0);
  }
 });
-test('observation failure sends nothing',async()=>{
+test('observation failure sends nothing',async t=>{
+ expectHidden(t,'continuation-monitor.observe');
  const x=fixture();x.deps.observe=async()=>{throw Error('offline');};
  assert.equal((await x.run()).status,'unknown');assert.equal(x.sent.length,0);
 });
