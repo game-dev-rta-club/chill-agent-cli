@@ -37,7 +37,7 @@ if (result.rehearsal) { log('Rehearsal with a scripted model: nothing recorded.'
 
 let record = {};
 try { record = JSON.parse(await readFile(recordPath, 'utf8')); } catch { /* first record for this version */ }
-const dirty = (await git('status', '--porcelain', '--', '.', ':!docs/development/codex-verification')).length > 0;
+const dirty = (await git('status', '--porcelain', '--untracked-files=no', '--', '.', ':!docs/development/codex-verification')).length > 0;
 record = {...record, codex: codex.version, date: new Date().toISOString(), chill: {commit: await git('rev-parse', '--short', 'HEAD'), uncommittedChanges: dirty},
   [part]: {passed: failed === 0, date: new Date().toISOString(), ...result}};
 await mkdir(new URL('.', recordPath), {recursive: true});

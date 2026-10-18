@@ -134,7 +134,8 @@ export async function runConnection({codex, log, options}) {
 
     const usage = lastUsage(A, chatId);
     result.usage = {thisFeedbackTurn: diff(usage, usageBefore), chat: usage};
-    result.turn = {tools: commands.map(command => command.replace(/^\S*zsh -lc /, '').slice(0, 160)), hookRuns: traces.length, hookGuided: guided.length, messages: (turn?.items ?? []).filter(item => item.type === 'agentMessage').map(item => item.text.slice(0, 200))};
+    const plain = command => command.replace(/^\S*zsh -lc /, '').replace(/PORT='\d+' CHILL_AGENT_DATA_DIR='[^']*' '[^']*' '[^']*chill-agent\.mjs'/g, 'chill').replaceAll('"', '').slice(0, 200);
+    result.turn = {tools: commands.map(plain), hookRuns: traces.length, hookGuided: guided.length, messages: (turn?.items ?? []).filter(item => item.type === 'agentMessage' && item.text).map(item => item.text.slice(0, 200))};
     log(`usage  this feedback turn ${JSON.stringify(result.usage.thisFeedbackTurn)}; the chat so far ${JSON.stringify(usage)}`);
   } finally {
     await A.stop(); await fake?.close();

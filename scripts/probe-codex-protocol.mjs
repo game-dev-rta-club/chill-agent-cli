@@ -283,24 +283,27 @@ async function compareWithFake({A, chill, direct, threadId, slowSet, differences
   const fake = new AppServer(fakeCodex, root, 'fake', {CHILL_AGENT_DATA_DIR: root});
   await fake.init();
   await sequence(async (label, method, params) => keep('fake', label, method, outcomeOf(await fake.call(method, params))), {fresh: 'fresh-chat', main: threadId, submission});
+  const groups = new Map();
   for (const real of outcomes.real) {
     if (real.label === 'turn id') continue;
     const other = outcomes.fake.find(entry => entry.label === real.label);
     if (!other) continue;
     const lines = [];
-    if (real.error || other.error) { if (Boolean(real.error) !== Boolean(other.error)) lines.push(`real ${real.error ? `error "${real.error}"` : 'answers'}, fake ${other.error ? `error "${other.error}"` : 'answers'}`); }
+    if (real.error || other.error) { if (Boolean(real.error) !== Boolean(other.error)) lines.push(`real ${real.error ? `error "${real.error.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, '<id>')}"` : 'answers'}, fake ${other.error ? `error "${other.error}"` : 'answers'}`); }
     else {
       lines.push(...shapeDiff(real.shape, other.shape));
       if (JSON.stringify(real.facts) !== JSON.stringify(other.facts)) lines.push(`behavior: real ${JSON.stringify(real.facts)}, fake ${JSON.stringify(other.facts)}`);
     }
-    if (lines.length) { differences.push({request: real.label, method: real.method, differences: lines}); log(`diff  ${real.label} (${real.method}): ${lines.join('; ')}`); }
+    if (!lines.length) continue;
+    const key = JSON.stringify(lines);
+    groups.set(key, {requests: [...(groups.get(key)?.requests ?? []), `${real.method}: ${real.label}`], differences: lines});
   }
-  differences.push(...[
-    {request: 'queued input while the chat is idle', method: 'thread/queue/add', differences: ['real: Codex starts a turn from the queue by itself, and announces thread/queue/changed, thread/status/changed and turn/started; fake: the entry stays in the queue forever, no notification is ever sent']},
-    {request: 'a second app-server process', method: '*', differences: ['real: another process sees thread status notLoaded and sees the queue and turns persisted by the first; fake: one shared file, never differs']},
-    {request: 'a chat with no turns yet', method: 'thread/start', differences: ['real: the chat exists only in its own process until the first message; fake: has no thread/start']},
+  differences.push(...groups.values(), ...[
+    {requests: ['thread/queue/add on an idle chat'], differences: ['real: Codex starts a turn from the queue by itself and announces thread/queue/changed, thread/status/changed and turn/started; fake: the entry stays queued forever and no notification is ever sent']},
+    {requests: ['thread/turns/list on a chat running in another app-server process'], differences: ['real: the live turn reads status interrupted with completedAt null; fake: shows whatever the fixture says']},
+    {requests: ['any request from a second app-server process'], differences: ['real: the chat has status notLoaded there, and a chat is invisible before its first message; fake: one shared file, never differs, has no thread/start']},
   ]);
-  log(`${differences.length} difference${differences.length === 1 ? '' : 's'} between the real answers and test/fake-codex.mjs`);
+  for (const entry of differences) log(`diff  ${entry.requests.join('; ')}\n        ${entry.differences.slice(0, 6).join('\n        ')}${entry.differences.length > 6 ? `\n        and ${entry.differences.length - 6} more` : ''}`);
   return fake;
 }
 const outcomeOf = res => res.timeout ? {error: {message: 'timeout'}} : res.error ? {error: res.error} : {result: res.result};
