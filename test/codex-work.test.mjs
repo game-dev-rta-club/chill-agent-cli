@@ -1,6 +1,6 @@
 // A Codex chat's hand-off by the shared rules (lib/agents/codex-work.mjs), against the fake Codex app.
 // The user-visible flows are in test/harness-scenarios.test.mjs; this file covers what only Codex does.
-import test from 'node:test';
+import nodeTest from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -16,6 +16,7 @@ import {hookOutput} from '../bin/chill-hook.mjs';
 import {expectHidden} from './hidden-failures.mjs';
 
 const fake=fileURLToPath(new URL('./fake-codex.mjs',import.meta.url));
+const test=(name,run)=>nodeTest(name,{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},run);
 const ids=text=>[...text.matchAll(/"eventId":(\d+),"goalId"/g)].map(m=>Number(m[1]));
 async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-codex-work-')),previous={};
