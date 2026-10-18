@@ -121,7 +121,7 @@ export async function runProtocol({codex, log}) {
       const page2 = need(await chill(call => call('thread/turns/list', {threadId, limit: 2, cursor: page1.nextCursor})), 'turns/list cursor');
       check('limit and cursor page through turns newest first and end with a null cursor', page1.data.length === 2 && typeof page1.nextCursor === 'string' && page2.data.length === 1 && page2.nextCursor === null && [...page1.data, ...page2.data].map(turn => turn.id).join() === all.map(turn => turn.id).join());
       const read = need(await chill(call => call('thread/read', {threadId, includeTurns: true})), 'thread/read includeTurns');
-      check('thread/read includeTurns returns the turns with their items', read.thread.turns.length === 3 && read.thread.turns.every(turn => turn.items.some(item => item.type === 'userMessage')) && read.thread.turns.some(turn => turn.items.length === 4), JSON.stringify(read.thread.turns.map(turn => turn.items.length)));
+      check('thread/read includeTurns returns the turns with their items, oldest first', read.thread.turns.map(turn => turn.id).join() === all.map(turn => turn.id).reverse().join() && read.thread.turns.every(turn => turn.items.length === 4), JSON.stringify(read.thread.turns.map(turn => turn.items.length)));
       check('thread/read without includeTurns carries no turns', (await chill(call => call('thread/read', {threadId, includeTurns: false}))).result?.thread?.turns?.length === 0);
       check('turn startedAt and completedAt are Unix seconds', [newest.startedAt, newest.completedAt].every(value => Number.isInteger(value) && Math.abs(value - Date.now() / 1000) < 600) && newest.completedAt >= newest.startedAt, `${newest.startedAt} ${newest.completedAt}`);
     });
