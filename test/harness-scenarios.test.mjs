@@ -16,11 +16,13 @@ after(()=>{
   for(const driver of drivers)for(const name of Object.keys(driver.todo??{}))assert.ok(names.has(name),`${driver.name} lists a todo for a scenario that does not exist: ${name}`);
 });
 
-scenario('feedback saved while the agent is idle reaches it and shows as running',async (s,driver)=>{
+// Under a comment the Goal shows only where it is, until the agent replies (agent-rules commentMark).
+scenario('feedback saved while the agent is idle reaches it, and the Goal shows the agent Running on it',async (s,driver)=>{
   const event=await s.saveFeedback('Please start');
   assert.equal(await s.shown(event),driver.pending,'before the agent reads it');
   assert.deepEqual(await s.agentTakesFeedback(event),[event]);
-  assert.equal(await s.shown(event),'working');
+  assert.equal(await s.shown(event),'handed');
+  assert.equal((await s.activity()).state,'running');
 });
 
 scenario('feedback saved while the agent responds shows Waiting and reaches it when the response ends',async s=>{
@@ -31,7 +33,7 @@ scenario('feedback saved while the agent responds shows Waiting and reaches it w
   assert.equal(await s.shown(event),'waiting');
   await s.agentEndsResponse();
   assert.deepEqual(await s.agentTakesFeedback(event),[event]);
-  assert.equal(await s.shown(event),'working');
+  assert.equal(await s.shown(event),'handed');
 });
 
 scenario('Send now delivers feedback that waits for the running response',async s=>{
@@ -41,34 +43,35 @@ scenario('Send now delivers feedback that waits for the running response',async 
   await s.sendNow(event);
   assert.equal(await s.shown(event),'saved','no longer Waiting; the running work receives it at its next chance');
   assert.deepEqual(await s.agentTakesFeedback(event),[event]);
-  assert.equal(await s.shown(event),'working');
+  assert.equal(await s.shown(event),'handed');
 });
 
 // A Goal is answered by the agent's Comment on it, whichever comment it answers (agent-rules).
-scenario('the agent\'s reply answers the Goal at once, while its work still runs',async s=>{
+scenario('the agent\'s reply clears the marks at once, while its work still runs',async s=>{
   const first=await s.saveFeedback('Question');
   await s.agentTakesFeedback(first);
   await s.agentReplies(first,'Answer');
-  assert.equal(await s.shown(first),'completed');
+  assert.equal(await s.shown(first),null);
   assert.deepEqual(await s.comments(),['Answer']);
   await s.agentEndsResponse();
-  assert.equal(await s.shown(first),'completed');
+  assert.equal(await s.shown(first),null);
 });
 
-scenario('the end of the work without a reply leaves the Goal awaiting one',async s=>{
+scenario('the end of the work without a reply leaves the comment marked, awaiting one',async s=>{
   const event=await s.saveFeedback('Just do it');
   await s.agentTakesFeedback(event);
   await s.agentEndsResponse();
-  assert.notEqual(await s.shown(event),'completed','only a reply answers the user');
+  assert.equal(await s.shown(event),'handed','only a reply answers the user');
   assert.deepEqual(await s.comments(),[]);
 });
 
-scenario('a retry does not deliver the feedback twice',async s=>{
+scenario('a comment reaches the agent once, and a later comment brings only itself',async s=>{
   const event=await s.saveFeedback('Once');
-  await s.retry(event);
   assert.deepEqual(await s.agentTakesFeedback(event),[event]);
-  await s.retry(event);
   assert.deepEqual(await s.agentTakesFeedback(event),[],'already taken');
+  await s.agentEndsResponse();await s.agentEndsResponse();
+  const next=await s.saveFeedback('And this');
+  assert.deepEqual(await s.agentTakesFeedback(next),[next]);
 });
 
 scenario('another conversation cannot answer the feedback',async (s,driver) => {
@@ -78,16 +81,16 @@ scenario('another conversation cannot answer the feedback',async (s,driver) => {
   assert.deepEqual(await s.agentTakesFeedback(event),[event]);
 });
 
-scenario('the Goal shows Running with an Activity row while the agent works on its feedback, and neither after',async s=>{
+scenario('the Goal shows Running and Think while the agent works on its feedback, and neither after',async s=>{
   const event=await s.saveFeedback('Work');
   await s.agentTakesFeedback(event);
   assert.equal(await s.goalRunning(),true);
-  const row=await s.activityRow();
-  assert.equal(row.eventId,event);assert.equal(row.status,'working');
+  const activity=await s.activity();
+  assert.equal(activity.state,'running');assert.equal(activity.live,true);
   await s.agentReplies(event,'Done');
   await s.agentEndsResponse();
   assert.equal(await s.goalRunning(),false);
-  assert.notEqual((await s.activityRow())?.status,'working');
+  assert.notEqual((await s.activity())?.state,'running');
 });
 
 scenario('goal work marks the Goal Running for the response that selected it',async s=>{
@@ -118,16 +121,35 @@ scenario('Approve all is offered where the harness supports it, and refused wher
   } else await assert.rejects(s.approveAll(true),/not available/);
 });
 
-scenario('Pause holds unread feedback and Resume releases it where the harness can pause, and is refused where it cannot',async (s,driver) => {
-  const event=await s.saveFeedback('Hold this');
-  assert.equal((await s.activityRow())?.capabilities.stop??false,driver.capabilities.pause);
+// Pause is the user's (R17); a stop in the agent's own app is Interrupted (R17b). Both show the same on the agent and the comments.
+scenario('Pause holds new feedback and Resume releases it where the harness can pause, and is refused where it cannot',async (s,driver) => {
+  const first=await s.saveFeedback('Start');
+  await s.agentTakesFeedback(first);
+  assert.equal((await s.activity()).capabilities.stop,driver.capabilities.pause);
   if(driver.capabilities.pause) {
-    assert.equal((await s.pauseRow('stop')).status,'paused');
-    assert.equal(await s.shown(event),'paused');
-    assert.equal((await s.pauseRow('resume')).status,'saved');
-    assert.equal(await s.shown(event),'saved');
-    assert.deepEqual(await s.agentTakesFeedback(event),[event]);
-  } else await assert.rejects(s.pauseRow('stop'),/Status changed/);
+    await s.pauseActivity('stop');
+    assert.equal((await s.activity()).state,'paused');
+    const held=await s.saveFeedback('Hold this');
+    assert.equal(await s.shown(held),'paused');assert.equal(await s.shown(first),'paused');
+    assert.deepEqual(await s.agentTakesFeedback(held),[],'nothing is handed while paused');
+    await s.pauseActivity('resume');
+    assert.notEqual(await s.shown(held),'paused');
+    await s.agentEndsResponse();
+    assert.deepEqual(await s.agentTakesFeedback(held),[held]);
+  } else await assert.rejects(s.pauseActivity('stop'),/Status changed/);
+});
+
+scenario('a stop in the agent\'s own app shows Interrupted, not Paused, and the next feedback starts it again',async (s,driver) => {
+  const event=await s.saveFeedback('Start');
+  await s.agentTakesFeedback(event);
+  await s.agentIsInterrupted();
+  assert.equal((await s.activity()).state,'interrupted');
+  assert.equal(await s.shown(event),'interrupted');
+  assert.equal(await s.goalRunning(),false);
+  const next=await s.saveFeedback('Go on');
+  assert.equal(await s.shown(next),driver.pending,'an interrupted agent is handed feedback at once');
+  assert.deepEqual(await s.agentTakesFeedback(next),[next]);
+  assert.equal((await s.activity()).state,'running');
 });
 
 scenario('a stop with nothing running and nothing said about feedback the agent took is held once, to tell the user',async (s,driver) => {
@@ -151,5 +173,5 @@ scenario('a stop with nothing running and nothing said about feedback the agent 
   await s.agentStartsResponse();
   await s.agentReplies(more,'Fixed');
   assert.equal(await s.agentEndsResponse(),null,'the reply answers the Goal');
-  assert.equal(await s.shown(event),'completed');assert.equal(await s.shown(more),'completed');
+  assert.equal(await s.shown(event),null);assert.equal(await s.shown(more),null);
 });

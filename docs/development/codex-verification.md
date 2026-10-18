@@ -97,11 +97,11 @@ The flow, each step a named check:
 1. chill creates a Goal and installs its hook in a disposable project (the data directory lives inside the project, so the
    workspace-write sandbox can write it). The probe trusts the hook as above.
 2. The long-lived app-server starts a chat on the real model and answers its first message. `goal assign` accepts it.
-3. `goal feedback` saves a short, explicit message and queues it. The idle chat starts a turn from the queue.
-4. The turn's first command is `pwd`. The PostToolUse hook runs and returns chill's guidance for the feedback.
-5. The model runs `activity --state working`, posts one comment with `comment`, and runs `activity --state completed`.
-6. chill shows the delivery as completed with its queue entry cleared, the comment is in the Goal's Conversation, and
-   chill reads the turn's progress, model and effort back from Codex.
+3. `goal feedback` saves a short, explicit message and sends it to the idle chat as one Queue message, which starts a turn.
+4. The turn's first command is `pwd`. The PostToolUse hook runs and hands nothing more: the comment was already handed.
+5. The model replies on the Goal with one `comment`.
+6. The reply answers the Goal (no mark is left under the comment), Codex's Queue is empty, and chill reads the turn's
+   output back as the Goal's Think, with the model and effort it ran on.
 
 The token usage Codex reports for the feedback turn and for the whole chat is printed and recorded.
 
@@ -168,22 +168,24 @@ Prepare once:
 Check:
 
 5. **Feedback reaches an idle chat.** In Goal 1, send "Reply with the word ok." Expected: within a few seconds the Desktop
-   chat shows a new user message that begins `=== chill-agent · User Feedback ===` and the agent starts. The feedback
-   badge in Web goes Queued, Running, then Done, and the agent's reply appears in Conversation.
-6. **Activity row.** Open the Activity row of that feedback in Goal 1. Expected: it shows the model and reasoning level
-   the turn ran on, which match Desktop, and the agent's messages as progress.
+   chat shows a new user message that begins `=== chill-agent · User Feedback ===` and the agent starts. The comment's
+   mark goes Sent, the Goal shows Running and Awaiting reply, and when the agent's reply appears in Conversation the mark
+   goes away and the Goal shows Replied.
+6. **Think.** Below Goal 1's conversation, the agent shows Running with Think open. Expected: Think shows the model and
+   reasoning level the turn ran on, which match Desktop, and the agent's messages as they come.
 7. **Waiting and Send now.** In Desktop, send "Run `sleep 10` in five separate commands, then reply done." While it runs, send
    "Reply with the word sent." from Web. Expected: the feedback shows Waiting with a Send now button, and the Queue
    in the Agent panel lists it. Press Send now. After the agent's next command finishes, Desktop shows the hook running with its
-   status text "chill-agent: Check Web feedback", the agent reads the feedback, and the badge moves to Running, then Done.
-   The Queue entry disappears.
+   status text "chill-agent: Check Web feedback", the agent reads the feedback, and its mark moves to Sent. The Queue
+   entry disappears; the agent's reply clears the mark.
 8. **Pause.** In Desktop, send the same five-command request again. While it runs, open the Agent panel (the header
    button labeled Agent). Expected: Activity shows Running with a Pause button. Press Pause. The Desktop turn stops
-   within a few seconds and the panel shows Paused with a Resume button.
+   within a few seconds and the panel shows Paused with a Resume button. Pressing Desktop's own stop instead shows
+   Interrupted, not Paused.
 9. **Feedback while paused.** In Web, send "Reply with the word held." Expected: the feedback shows Paused, and
    Desktop's chat and the Agent panel's Queue stay empty.
 10. **Resume.** Press Resume. Expected: the panel returns to Running, Desktop receives the held message, the agent
-    answers it, and the badge ends at Done.
+    answers it, and the mark goes away.
 11. **Settings save.** In the Agent panel, change Reasoning to another level. Expected: the panel shows Saving, then the new
     level, and Desktop's composer shows the same level after you reopen the chat. Change it back.
 12. Stop the server with `chill server stop` and delete the scratch folder.

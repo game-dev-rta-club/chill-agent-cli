@@ -56,15 +56,15 @@ async function fixture() {
 test('root chat owns Goal conversation before and after Deliverable edits',async t=>{
   if(process.platform==='win32')expectHidden(t,'codex-work.send');
   const f=await fixture();await f.publish();
-  const [{feedback},{delivery}]=await f.feedback();
-  assert.equal(feedback.threadId,thread);assert.equal(delivery.threadId,thread);
+  const [{feedback},{comment}]=await f.feedback();
+  assert.equal(feedback.threadId,thread);assert.equal(comment.mark,'handed');
   assert.equal(feedback.version,undefined);
   await assert.rejects(f.feedback({version:1}),/Unknown Conversation field/);
   await assert.rejects(f.feedback({threadId:other}),/Unknown Conversation field/);
 });
 test('unassigned Goals save locally without enqueueing',async()=>{
   const f=await fixture();await f.assign(null);
-  const [,{delivery}]=await f.feedback();assert.equal(delivery.status,'unlinked');
+  const [,{comment}]=await f.feedback();assert.equal(comment.mark,'saved');assert.equal(comment.unassigned,true);
   await assert.rejects(readFile(join(f.root,'fake-queue.json')),{code:'ENOENT'});
 });
 
@@ -102,8 +102,8 @@ test('saved notification preferences reach a new chat in its message, and are re
   await saveMessageSetting('notifications', {enabled:true,tool:'chosen-tool',destination:'chosen-recipient',on:['comment','letter']}, f.root);
   assert.equal((await runHook(f)).stdout, '', 'a notification setting alone does not make every tool call noisy');
   await f.publish(other);
-  const [, delivery] = await f.feedback({});
-  assert.equal(delivery.delivery.threadId, other);
+  const [, {comment}] = await f.feedback({});
+  assert.equal(comment.mark, 'handed');
   const queued = (await f.json('fake-queue.json'))[0].input[0].text;
   assert.match(queued, /notice --id 1 --event <saved-event-id>/);
   assert.equal((await runHook(f,{session_id:other},{CODEX_THREAD_ID:other})).stdout, '', 'nothing is handed twice');
@@ -126,8 +126,8 @@ test('invalid optional notification settings do not block publishing or receivin
   await writeFile(join(f.root,'settings/notifications.json'), '{broken');
   const applied = await f.publish();
   assert.equal(JSON.parse(applied.stdout).version,2);
-  const [, delivery] = await f.feedback({});
-  assert.equal(delivery.delivery.status, 'queued');
+  const [, {comment}] = await f.feedback({});
+  assert.equal(comment.mark, 'handed');
   const queued = (await f.json('fake-queue.json'))[0].input[0].text;
   assert.match(queued, /"eventId":1,/);
   assert.match(queued, /Could not read saved user notification preferences/);

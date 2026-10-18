@@ -12,7 +12,7 @@ The experimental `connection` command qualifies the first step of the
 identity into chill without substituting a Codex thread or looking up a Goal
 by its directory. It is not a complete Claude integration. The development-only
 [connection actions](claude-actions.md) now add explicit new-Root creation, inbox
-reads and receipts on top of this identity.
+reads and replies on top of this identity.
 
 In an isolated development session, configure `connection claude-hook` as a
 native `SessionStart` command. The hook records the main session and, when

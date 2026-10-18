@@ -93,6 +93,9 @@ test('each comment that awaits a reply shows where it is',()=>{
     ['paused',{id:5},{cursor:4,hold:'paused'},'paused'],
     ['no conversation',{id:5},{cursor:4,hold:'unlinked'},'saved'],
     ['about to be handed',{id:5},{cursor:4,hold:null},'saved'],
+    ['handed to a paused agent',{id:3},{cursor:4,hold:null,status:'paused'},'paused'],
+    ['handed to an interrupted agent',{id:3},{cursor:4,hold:null,status:'interrupted'},'interrupted'],
+    ['not handed while the agent is interrupted',{id:5},{cursor:4,hold:null,status:'interrupted'},'saved'],
   ];
   for(const [name,comment,state,expected] of cases)assert.equal(commentMark(comment,state),expected,name);
 });

@@ -37,7 +37,7 @@ test('composed SQLite runtime carries Web feedback through native hooks and pers
  await appendAgentComment({goalId:goal.id,type:'comment',text:'SQLite result saved'});
  const snapshot=await (await fetch(url+'/api/goals?view=web&history=paged')).json();
  assert.ok(snapshot[0].conversation.some(e=>e.text==='SQLite result saved'));
- assert.equal((await deliverFeedback(feedback.changeId)).status,'completed');
+ assert.equal((await deliverFeedback(feedback.changeId)).mark,null);
  server.kill();await exit;
  assert.ok((await readFeedback(goal.id)).some(e=>e.text==='SQLite result saved'));
  await access(join(data,'workspace/workspace.sqlite'));

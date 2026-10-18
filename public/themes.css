@@ -55,10 +55,10 @@
 :root[data-theme] .status:is(.working,.waiting,.paused,.unknown) { color:var(--state-pending); }
 :root[data-theme] .status.working .dot { border-top-color:var(--state-pending); }
 :root[data-theme] .status.done,.answered-label { color:var(--state-done); }
-:root[data-theme] .delivery-entry:is([data-state="sending"],[data-state="working"],[data-state="queued"]) .delivery-dot { border-top-color:var(--state-pending); }
-:root[data-theme] .delivery-entry:is([data-state="sending"],[data-state="working"]) .delivery-heading strong { color:var(--state-pending); }
-:root[data-theme] .delivery-entry[data-state="completed"] .delivery-dot::before { background:var(--state-done); }
-:root[data-theme] .delivery-entry[data-state="paused"] .delivery-dot::before { border-color:var(--state-pending); }
+:root[data-theme] .activity-entry:is([data-state="running"],[data-state="queued"]) .activity-dot { border-top-color:var(--state-pending); }
+:root[data-theme] .activity-entry[data-state="running"] .activity-heading strong { color:var(--state-pending); }
+:root[data-theme] .comment-mark[data-mark="handed"] .comment-mark-dot { background:var(--state-done); }
+:root[data-theme] .activity-entry[data-state="paused"] .activity-dot::before { border-color:var(--state-pending); }
 :root[data-theme] .agent-run-state .status.paused svg { stroke:var(--state-pending); }
 :root[data-theme] .agent-trigger[data-state="working"] .agent-antenna-light { fill:var(--state-pending); }
 :root[data-theme^="dark-"] .is-on .header-letter-count { color:var(--canvas); }

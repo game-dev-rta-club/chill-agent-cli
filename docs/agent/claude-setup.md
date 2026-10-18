@@ -77,7 +77,7 @@ chill connection create-goal --title 'The agreed outcome'
 `show` verifies only the current native identity handoff; `create-goal` creates
 the Root at once. The project directory alone never selects a conversation. See
 [connection actions](claude-actions.md)
-for feedback and receipt handling. Native policy, hook disablement or permissions
+for feedback and reply handling. Native policy, hook disablement or permissions
 may still prevent activation; setup does not override them.
 
 Setup and installed hook messages use the same short entry, `<data>/runtime/chill`.
@@ -98,7 +98,7 @@ presses Update; setup is needed once per machine.
 Claude may ask to read the plugin's references and run chill commands. These are
 native tool permissions: turning on chill Auto mode does not answer them or grant
 tools. With one-time permissions, later Web feedback can reach the conversation
-but handling its receipt can still wait for another Bash approval.
+but replying to it can still wait for another Bash approval.
 
 Follow [Leave a Claude conversation working](claude-unattended.md) to review the
 actual operations, try one Web reply and recover without sending it twice.
@@ -145,7 +145,7 @@ default native permissions with no pre-granted tools. It first saves a conversat
 without hooks, explicitly prepares the project, resumes that session with the
 packaged Skill and waits for synthetic Web feedback. The operator approves the
 specified individual test operations and exits after each phase. It verifies
-the previous context, successful full-reference read, Root binding and receipts.
+the previous context, successful full-reference read, Root binding and replies.
 The eight-minute wall limit bounds the session; interactive mode has no dollar
 budget. Authentication is imported only when explicitly requested and is not
 copied into the report. Normal settings and production Goals are untouched.

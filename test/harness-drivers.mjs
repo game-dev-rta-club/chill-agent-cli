@@ -6,6 +6,7 @@
 //   agentStartsResponse()           the agent begins a response (a Codex turn, a Claude response)
 //   agentEndsResponse({background}) that response ends. Resolves to the reason when chill holds the stop, and the
 //                                   response then goes on; else null. `background`: work of the agent keeps running.
+//   agentIsInterrupted()            the user stops the running response in the agent's own app (Esc, Desktop's stop)
 //   agentTakesFeedback(eventId)     the agent's next opportunity to read Web feedback. An idle agent is woken by the
 //                                   feedback, which starts its response. Resolves to the feedback IDs that reached it.
 //   strangerAnswers(eventId)        a conversation the Goal is not assigned to tries to answer the feedback
@@ -14,12 +15,12 @@
 //   agentComments(text)             a progress `goal comment` on the Root Goal
 //   saveFeedback(text)              the user posts feedback in the Web; resolves to its event ID
 //   sendNow(eventId)                the user's Send now
-//   retry(eventId)                  the user's Retry or Check on a delivery
-//   shown(eventId)                  the state label under the feedback (Waiting, Received, Running, Done, ...)
-//   activityRow()                   the Activity row under the latest message
+//   shown(eventId)                  the small mark under the feedback (saved, waiting, paused, handed, interrupted),
+//                                   or null once the Goal has a reply after it
+//   activity()                      the agent as the Goal shows it after its conversation: {state,label,live,work}|null
 //   goalRunning()                   whether the Goal list marks the Goal Running
 //   agentStatus()                   the Agent menu data
-//   pauseRow(action)                the Activity row's Pause ('stop') or Resume
+//   pauseActivity(action)           the Goal activity's Pause ('stop') or Resume
 //   approveAll(on)                  the Agent menu's Approve all
 //   comments()                      the agent's comments on the Goal
 // A capability the harness lacks is declared in `capabilities` and the scenario asserts the interface says so.
@@ -31,13 +32,13 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {appendFeedback,createGoal,listGoals,readFeedback} from '../lib/goal-store.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
-import {agentExecutions,assignGoal,deliveriesWithWork,selectAgentWork} from '../lib/agents/index.mjs';
-import {controlAgent,readAgentActivityRow,readAgentStatus} from '../lib/agent-status.mjs';
+import {agentExecutions,assignGoal,goalCommentMarks,selectAgentWork} from '../lib/agents/index.mjs';
+import {controlAgent,readGoalActivity,readAgentStatus} from '../lib/agent-status.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {claimClaudeFeedbackForWatcher} from '../lib/claude-actions.mjs';
 import {executionState,isRunning} from '../public/goal-state.js';
-import {deliveryDisplay,workProgressGroups} from '../public/work-ui.js';
+import {activityDisplay,commentMarkDisplay} from '../public/work-ui.js';
 import {claudeEntry,claudeLine,hookFor} from './claude-fixtures.mjs';
 
 // Codex's reads of a chat are cached for a few seconds. Moving this process's clock past them stands for time passing,
@@ -71,28 +72,26 @@ function userSide(goalId,beforeRead=()=>{}) {
       return event.changeId;
     },
     sendNow:eventId=>sendFeedbackNow(eventId),
-    retry:eventId=>deliverFeedback(eventId),
-    // The same derivation the page runs (public/work-ui.js), from the data the page fetches.
+    // What the page shows, from the data it fetches (public/work-ui.js).
     async shown(eventId) {
       beforeRead();
-      const deliveries=new Map((await deliveriesWithWork(goalId)).map(delivery=>[delivery.eventId,delivery]));
-      const events=(await readFeedback()).filter(event=>event.goalId===goalId);
-      const row=await readAgentActivityRow(goalId);
-      const work=workProgressGroups(events,deliveries,row).get(eventId);
-      const activity=work?.activity||(row?.eventId===eventId?row:null);
-      return deliveryDisplay({delivery:deliveries.get(eventId),work,activity}).state;
+      return commentMarkDisplay((await goalCommentMarks(goalId)).find(view=>view.eventId===eventId))?.state??null;
     },
-    async activityRow() {beforeRead();return readAgentActivityRow(goalId);},
+    async activity() {
+      beforeRead();
+      const activity=await readGoalActivity(goalId),shown=activityDisplay(activity);
+      return shown&&{...shown,work:activity.work,capabilities:activity.capabilities};
+    },
     async goalRunning() {
       beforeRead();
       const execution=(await agentExecutions(await listGoals())).get(goalId);
       return isRunning(executionState({execution}));
     },
     async agentStatus() {beforeRead();return readAgentStatus(goalId);},
-    // The Pause or Resume button of the Activity row.
-    async pauseRow(action) {
-      const row=await readAgentActivityRow(goalId);
-      return controlAgent(goalId,{action,token:row?.token,eventId:row?.eventId,threadId:row?.threadId,turnId:row?.turnId});
+    // The Pause or Resume button of the Goal's activity.
+    async pauseActivity(action) {
+      const activity=await readGoalActivity(goalId);
+      return controlAgent(goalId,{action,token:activity?.token,turnId:activity?.turnId});
     },
     async approveAll(on) {
       const {token}=await readAgentStatus(goalId);
@@ -156,6 +155,11 @@ async function codexSession(t) {
       passTime();
       return null;
     },
+    async agentIsInterrupted() {
+      Object.assign(turns.at(-1),{status:'interrupted',completedAt:Math.floor(Date.now()/1000)});
+      await writeHistory({type:'idle'});
+      continuing=false;handoff=null;passTime();
+    },
     async agentTakesFeedback(eventId) {
       let ids;
       if(running()) {
@@ -218,6 +222,11 @@ async function claudeSession(t) {
       responding=false;handoff=null;
       return null;
     },
+    async agentIsInterrupted() {
+      // Claude Code stamps the transcript with the real clock, which passTime does not move.
+      await append([claudeEntry.interrupt(randomUUID(),{timestamp:new Date().toISOString()})]);
+      responding=false;handoff=null;continuing=false;
+    },
     // No receipt follows: what reached it is handed, and its Goal awaits a reply.
     async agentTakesFeedback() {
       let text;
@@ -245,7 +254,7 @@ async function claudeSession(t) {
 const win32Codex=process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable';
 
 export const drivers=[
-  {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'queued',
+  {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'handed',
     // Approve all and settings are Claude features; pausing a Codex chat needs the running Desktop app.
     // Codex's Stop hook input names no background work, so chill cannot see it.
     capabilities:{approveAll:false,pause:false,backgroundWork:false}},

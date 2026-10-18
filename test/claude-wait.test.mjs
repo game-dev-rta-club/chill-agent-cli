@@ -153,7 +153,7 @@ test('reply posts on the Goal on the Web and answers it',async t=>{
  assert.match(done,new RegExp(`Replied on Goal #${f.root.id}`));
  const posted=(await readFeedback()).filter(e=>e.author==='agent'&&e.goalId===f.root.id);
  assert.deepEqual(posted.map(e=>e.text),['Here is the summary.']);
- assert.equal((await deliverFeedback((await readFeedback()).find(e=>e.author==='user').changeId)).status,'completed');
+ assert.equal((await deliverFeedback((await readFeedback()).find(e=>e.author==='user').changeId)).mark,null);
 });
 
 test('a Web pause holds feedback, refuses tool calls and survives compact; Resume wakes once',async t=>{

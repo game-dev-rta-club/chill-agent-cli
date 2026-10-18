@@ -9,6 +9,13 @@ import {join} from 'node:path';
 import {createGoalView} from '../public/goal-view.js';
 import {fileURLToPath} from 'node:url';
 import {expectHidden} from './hidden-failures.mjs';
+import {goalCommentMarks} from '../lib/agents/index.mjs';
+
+// What the Goal page reads for its comments, in this fixture's data directory.
+async function pageMarks(f,goalId) {
+  const previous={...process.env};Object.assign(process.env,f.env);
+  try{return await goalCommentMarks(goalId);}finally{for(const key of Object.keys(process.env))if(!(key in previous))delete process.env[key];Object.assign(process.env,previous);}
+}
 const execute=promisify(execFile), cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 const hook=fileURLToPath(new URL('../bin/chill-hook.mjs',import.meta.url));
 const thread='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
@@ -36,22 +43,23 @@ test('verified root assignment hands child comments with their Goal, and a reass
   await assert.rejects(f.run('assign','--id','2','--thread-id',thread),/root Goal only/);
   await assert.rejects(f.run('assign','--id','1','--thread-id','00000000-0000-0000-0000-999999999999'),/Chat not found/);
   await f.run('assign','--id','1','--thread-id',thread);
-  const [{feedback},{delivery}]=await f.feedback();
-  assert.equal(delivery.threadId,thread);assert.equal(feedback.version,undefined);
+  const [{feedback},{comment}]=await f.feedback();
+  assert.equal(comment.mark,'handed');assert.equal(feedback.version,undefined);
   const queue=await f.json('fake-queue.json'),text=queue[0].input[0].text;
   assert.match(text,/PORT='4199'/);assert.match(text,/"eventId":1,"goalId":"2"/);
   assert.match(text,/show --id 2 --since 0 --format text/);
   assert.equal((await f.run('show','--id','2','--version','1')).root.scope,'Only editor changes');
   await f.run('assign','--id','1','--thread-id',other);
-  await f.run('retry','--event','1');
+  await pageMarks(f,'2');
   assert.equal((await f.json('fake-queue.json')).length,1,'a handed comment is not handed again to the new chat');
 });
 
-test('assignment never replays local feedback; an explicit retry hands it to the new owner once',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
-  const f=await fixture(t);await f.note();assert.equal((await f.feedback())[1].delivery.status,'unlinked');
+test('feedback saved before a chat is assigned reaches it once, when chill next reads the Goal',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+  const f=await fixture(t);await f.note();
+  const {comment}=(await f.feedback())[1];assert.equal(comment.mark,'saved');assert.equal(comment.unassigned,true);
   await f.run('assign','--id','1','--thread-id',thread);
-  await assert.rejects(f.json('fake-queue.json'),{code:'ENOENT'});
-  await f.run('retry','--event','1');await f.run('retry','--event','1');
+  await assert.rejects(f.json('fake-queue.json'),{code:'ENOENT'},'assigning sends nothing by itself');
+  assert.deepEqual((await pageMarks(f,'2')).map(m=>m.mark),['handed']);await pageMarks(f,'2');
   assert.equal((await f.json('fake-queue.json')).length,1);
   await f.run('comment','--id','2','--text','Received');
   assert.equal((await f.run('show','--id','2','--version','1')).conversation.at(-1).text,'Received');

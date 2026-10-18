@@ -100,9 +100,9 @@ export async function runConnection({codex, log, options}) {
     const text = `Connection probe ${nonce}. Run the shell command pwd as your very first command. Then reply on this Goal with exactly one comment saying "probe reply ${nonce}", using the chill-agent reply command given with this feedback. Do not read, create or edit any file and run no other command.`;
     const mark = A.notes.length, usageBefore = lastUsage(A, chatId);
     const sent = await chill(['feedback', '--id', goalId, '--input-file', '-'], JSON.stringify({text, requestId: `probe-${nonce}`}));
-    const deliveries = sent.stdout.trim().split('\n').map(line => { try { return JSON.parse(line); } catch { return {}; } });
-    const delivery = deliveries.at(-1)?.delivery;
-    check('goal feedback saves the message and sends it to the idle chat as its next message', sent.code === 0 && delivery?.status === 'queued', sent.stderr || JSON.stringify(delivery));
+    const lines = sent.stdout.trim().split('\n').map(line => { try { return JSON.parse(line); } catch { return {}; } });
+    const comment = lines.at(-1)?.comment;
+    check('goal feedback saves the message and sends it to the idle chat as its next message', sent.code === 0 && comment?.mark === 'handed', sent.stderr || JSON.stringify(comment));
 
     const started = await A.waitNote(note => note.method === 'turn/started' && note.params.threadId === chatId, 60000, mark);
     check('the queued feedback starts a turn in the chat', Boolean(started));
@@ -111,7 +111,7 @@ export async function runConnection({codex, log, options}) {
     check(`the turn completes within ${timeout / 1000} s`, finished, 'timed out; the turn was interrupted');
 
     const turns = (await direct('thread/turns/list', {threadId: chatId, itemsView: 'full', limit: 5})).result?.data ?? [];
-    const eventId = deliveries[0]?.feedback?.changeId ?? 1;
+    const eventId = lines[0]?.feedback?.changeId ?? 1;
     const turn = turns.find(entry => entry.items.some(item => item.type === 'userMessage' && JSON.stringify(item.content).includes(`probe reply ${nonce}`)));
     check('the turn\'s userMessage carries the feedback as data, with its event ID', turn && JSON.stringify(turn.items[0].content).includes(`\\"eventId\\":${eventId},`), JSON.stringify(turn?.items[0]).slice(0, 200));
     const commands = (turn?.items ?? []).filter(item => item.type === 'commandExecution').map(item => item.command);
@@ -123,8 +123,9 @@ export async function runConnection({codex, log, options}) {
     check('the model\'s comment is in the Goal\'s Conversation', Boolean(reply), JSON.stringify(shown.conversation?.map(entry => entry.text)).slice(0, 300));
     const queue = await direct('thread/queue/list', {threadId: chatId});
     check('Codex\'s queue is empty afterwards', queue.result?.data?.length === 0, JSON.stringify(queue));
-    const view = (await (await import('../lib/agents/index.mjs')).deliveriesWithWork(String(goalId))).find(entry => entry.eventId === eventId);
-    check('the reply answers the Goal, and chill reads the turn\'s output back as its Think', view?.status === 'completed' && view.work?.source === 'turn' && view.work.status === 'completed' && view.work.turnId === turn?.id && view.work.messages.length > 0, JSON.stringify(view).slice(0, 300));
+    const marks = await (await import('../lib/agents/index.mjs')).goalCommentMarks(String(goalId));
+    const activity = await (await import('../lib/agent-status.mjs')).readGoalActivity(String(goalId));
+    check('the reply answers the Goal, and chill reads the turn\'s output back as its Think', marks.find(entry => entry.eventId === eventId)?.mark === null && activity?.work?.messages.length > 0, JSON.stringify({marks, activity}).slice(0, 300));
     const settings = await readTurnSettings((await direct('thread/read', {threadId: chatId, includeTurns: false})).result.thread.path, turn?.id);
     check('the turn ran on the configured model and effort', fake ? settings?.model === 'fake-model' : settings?.model === model && settings.reasoning === effort, JSON.stringify(settings));
 

@@ -92,7 +92,7 @@ into memory, and removes temporary files. It does not alter ordinary settings.
 Claude Code 2.1.289 passed all 13 checks on 2026-10-06. The continuation kept the
 same native prompt ID and needed no new user input. Local tests additionally cover
 concurrent/repeated Stops, Off/Pause, pending input in other Roots, resumed feedback,
-subagents, clear, unknown output and delayed receipts.
+subagents, clear, unknown output and delayed replies.
 
 The additional `--setup-resume` probe first saves an earlier conversation without
 chill hooks ($0.15/45-second bound), installs experimental project hooks through

@@ -77,14 +77,13 @@ async function main() {
   if(command==='feedback') {
     const feedback=await appendFeedback({...await input(v['--input-file']),goalId:id});
     console.log(JSON.stringify({feedback}));
-    console.log(JSON.stringify({delivery:await deliverFeedback(feedback.changeId)})); return;
+    console.log(JSON.stringify({comment:await deliverFeedback(feedback.changeId)})); return;
   }
   if(command==='image') {
     const mimeType={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp'}[extname(v['--file']).toLowerCase()];
     const image=await saveAttachment(await readFile(v['--file']),mimeType);
     return output({...image,src:`/api/images/${image.id}`});
   }
-  if(command==='retry') return console.log(JSON.stringify({delivery:await deliverFeedback(v['--event'])}));
-  if(command==='send-now') return console.log(JSON.stringify({delivery:await sendFeedbackNow(v['--event'])}));
+  if(command==='send-now') return console.log(JSON.stringify({comment:await sendFeedbackNow(v['--event'])}));
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1;});
