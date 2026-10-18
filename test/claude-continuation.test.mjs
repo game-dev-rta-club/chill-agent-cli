@@ -66,11 +66,8 @@ test('Off and explicit continuation Pause preserve the attempt history',async t=
  await f.configure(false);await f.configure();assert.equal(await f.stop(),null,'On does not release a manual continuation pause');
  await f.pause(false);assert.equal((await f.stop()).decision,'block');
 });
-test('a child hold suppresses continuation, and input in another owned Root is handed before any request',async t=>{
- const f=await fixture(t),child=await createGoal({title:'Held child',parentId:f.root.id});await f.configure();
- const holds=join(process.env.CHILL_AGENT_DATA_DIR,'workspace/feedback-holds');await mkdir(holds,{recursive:true});await writeFile(join(holds,`${child.id}.json`),JSON.stringify({phase:'paused'}));
- assert.equal(await f.stop(),null);assert.equal((await f.read()).status,'paused');
- await writeFile(join(holds,`${child.id}.json`),JSON.stringify({phase:'sent'}));
+test('input in another owned Root is handed before any request',async t=>{
+ const f=await fixture(t);await f.configure();
  await f.action('create-goal',{title:'Other Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);await appendFeedback({goalId:other.id,text:'Wait for my correction'});
  assert.match((await f.stop()).reason,/Wait for my correction/);assert.equal((await f.read()).attempts.length,0);
 });

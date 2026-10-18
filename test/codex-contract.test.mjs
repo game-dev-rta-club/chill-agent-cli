@@ -130,11 +130,7 @@ test('queued submissions leave the fake without the thread they were queued on',
     ['thread/queue/add', {threadId: 't1', clientUserMessageId: 'm1', input: [{type: 'text', text: 'one', text_elements: []}]}],
     ['thread/queue/add', {threadId: 't2', clientUserMessageId: 'm2', input: [{type: 'text', text: 'two', text_elements: []}]}],
     ['thread/queue/list', {threadId: 't1', limit: 100}],
-    ['thread/queue/delete', {threadId: 't1', queuedSubmissionId: 'queue-1'}],
-    ['thread/queue/list', {threadId: 't1'}],
   ]);
   assert.deepEqual(Object.keys(replies[0].result.queuedSubmission).sort(), ['clientUserMessageId', 'id', 'input']);
   assert.deepEqual(replies[2].result.data.map(e => e.clientUserMessageId), ['m1']);
-  assert.equal(replies[3].result.deleted, true);
-  assert.deepEqual(replies[4].result.data, []);
 });

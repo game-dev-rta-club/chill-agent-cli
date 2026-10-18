@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {agentPresence,readPresenceSnapshot,displayPresence} from '../lib/agents/codex-observation.mjs';
+import {agentPresence} from '../lib/agents/codex-observation.mjs';
+import {createCodexDesktopConnection} from '../lib/codex-desktop-connection.mjs';
 import {presenceLabel,presenceMark} from '../public/agent-presence.js';
 import {activityMarkup,agentMarkup,runActivityMarkup,runOutputMarkup} from '../public/agent-menu.js';
 import {codexThread,contractStub} from './codex-contract.mjs';
 
-test('presence covers runs without feedback, manual pauses, idle, and unavailable evidence',()=>{
+test('presence covers runs without feedback, interrupted turns, idle, and unavailable evidence',()=>{
  const now=1000000;
  assert.equal(agentPresence({threadState:'active'}),'working');
  assert.equal(agentPresence({threadState:'notLoaded',turn:{id:'auto',completedAt:null,status:'inProgress'}}),'working');
@@ -16,9 +17,6 @@ test('presence covers runs without feedback, manual pauses, idle, and unavailabl
  assert.equal(agentPresence({...interrupted,selection:{turnId:'old',heartbeatAt:new Date(now).toISOString()}},now),'unknown');
  assert.equal(agentPresence({threadState:'notLoaded',turn:{status:'completed',completedAt:1}}),'idle');
  assert.equal(agentPresence({threadState:'notLoaded',turn:{status:'interrupted',completedAt:1}}),'paused');
- assert.equal(agentPresence({threadState:'idle',holds:[{phase:'paused'}]}),'paused');
- assert.equal(agentPresence({threadState:'active',holds:[{phase:'paused'}]}),'working','independent active work takes precedence over an old held Goal');
- assert.equal(agentPresence({view:{status:'unknown'},threadState:'active'}),'unknown','a pending stop is not confirmed');
  assert.equal(agentPresence({threadState:'systemError',turn:{status:'completed',completedAt:1}}),'unknown');
  assert.equal(agentPresence({threadState:'notLoaded'}),'unknown');
  assert.equal(agentPresence({threadState:'idle'}),'idle');
@@ -29,13 +27,12 @@ test('extension messages render as escaped text; missing old snapshots are not r
  assert.match(html,/Message not saved/);assert.match(html,/No work reported/);assert.match(html,/History/);
 });
 
-test('presence collects turn and thread state with one native connection and retains pending pause evidence',async()=>{
+test('presence collects turn and thread state with one native connection',async()=>{
  let connects=0;const calls=[];
- const options={readControl:async()=>({action:'stop',turnId:'t',target:{goalId:'2'}}),readHeartbeat:async()=>null,connect:async run=>{connects++;return run(contractStub(async method=>{calls.push(method);return method==='thread/read'?{thread:codexThread({id:'chat',status:{type:'active',activeFlags:[]}})}:method==='thread/queue/list'?{data:[]}:{data:[{id:'t',completedAt:null,status:'inProgress',items:[]}]};}));}};
- const snapshot=await readPresenceSnapshot('chat',options);
+ const options={readHeartbeat:async()=>null,run:async run=>{connects++;return run(contractStub(async method=>{calls.push(method);return method==='thread/read'?{thread:codexThread({id:'chat',status:{type:'active',activeFlags:[]}})}:method==='thread/queue/list'?{data:[]}:{data:[{id:'t',completedAt:null,status:'inProgress',items:[]}]};}));}};
+ const snapshot=await createCodexDesktopConnection('chat',options).readRunSnapshot();
  assert.equal(connects,1);assert.deepEqual(calls.sort(),['thread/queue/list','thread/read','thread/turns/list']);
- assert.equal(agentPresence(snapshot),'unknown','an unconfirmed pause is not presented as Running');
- assert.equal(agentPresence({...snapshot,view:null}),'working');
+ assert.equal(agentPresence(snapshot),'working');
 });
 test('AutoContinue omits counts and empty labels while retaining its toggle and history',()=>{
  const data={label:'AutoContinue',total:14,activeCount:0,entries:[{id:'done',status:'Run ended',message:'done'}]};
@@ -57,17 +54,7 @@ test('hooks confirm a live chat before selecting a Goal, but cannot outlive its 
  assert.equal(agentPresence(snapshot,now+120001),'unknown');
 });
 
-test('pending queue and checking share Running display without changing control facts',()=>{
- const idle={threadState:'idle',turn:{id:'ended',status:'completed',completedAt:1}};
- const pending={threadState:'notLoaded',turn:{id:'new',status:'interrupted',completedAt:null}};
- assert.equal(displayPresence({...idle,queue:{data:[{id:'q'}]}}),'queued');
- assert.equal(displayPresence(pending),'checking');
- assert.equal(agentPresence(pending),'unknown','display does not confirm execution');
- assert.equal(displayPresence({...pending,view:{status:'unknown'}}),'checking');
- assert.equal(displayPresence({...idle,holds:[{phase:'paused'}],queue:{data:[]}}),'paused');
- assert.equal(displayPresence({...idle,holds:[{phase:'paused'}],queue:{data:[{id:'q'}]}}),'queued','another queued job remains active while a branch is paused');
- assert.equal(displayPresence({threadState:'systemError'}),'unknown');
- assert.equal(displayPresence(idle),'idle');
+test('a queued or checking agent shares the Running display',()=>{
  for(const state of ['queued','checking']){
   assert.equal(presenceLabel(state),'Running');assert.match(presenceMark(state),/status working/);
  }

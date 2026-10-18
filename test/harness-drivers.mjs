@@ -6,9 +6,8 @@
 //   agentStartsResponse()           the agent begins a response (a Codex turn, a Claude response)
 //   agentEndsResponse({background}) that response ends. Resolves to the reason when chill holds the stop, and the
 //                                   response then goes on; else null. `background`: work of the agent keeps running.
-//   agentTakesFeedback(eventId)     the agent's next opportunity to read Web feedback (Codex then sends its
-//                                   `activity working` receipt). An idle agent is woken by the feedback, which starts
-//                                   its response. Resolves to the feedback IDs that reached it.
+//   agentTakesFeedback(eventId)     the agent's next opportunity to read Web feedback. An idle agent is woken by the
+//                                   feedback, which starts its response. Resolves to the feedback IDs that reached it.
 //   strangerAnswers(eventId)        a conversation the Goal is not assigned to tries to answer the feedback
 //   agentReplies(eventId, text)     the agent's reply on the feedback's Goal
 //   agentSelectsWork()              `goal work` on the Root Goal for the current response
@@ -120,7 +119,7 @@ async function workspace(t,prefix,env) {
 
 // ---- Codex ----------------------------------------------------------------------
 
-const codexFeedbackIds=text=>[...new Set([...text.matchAll(/^Feedback: #(\d+)$/gm),...text.matchAll(/feedback #(\d+)/g)].map(match=>Number(match[1])))];
+const feedbackIds=text=>[...text.matchAll(/"eventId":(\d+),"goalId"/g)].map(match=>Number(match[1]));
 
 async function codexSession(t) {
   const dir=await workspace(t,'chill-scenario-codex-',{CHILL_AGENT_CODEX_PATH:fakeCodex});
@@ -138,7 +137,7 @@ async function codexSession(t) {
     await writeHistory({type:'active',activeFlags:[]});
   };
   const queue=async()=>JSON.parse(await readFile(join(data,'fake-queue.json'),'utf8').catch(()=>'[]'));
-  let continuing=false;
+  let continuing=false,handoff=null;
   const root=await createGoal({title:'A useful outcome'});
   await assignGoal(root.id,thread);
   await writeHistory({type:'idle'});
@@ -151,7 +150,7 @@ async function codexSession(t) {
         last_assistant_message:'Done.',cwd:dir,model:'gpt-5.5',permission_mode:'default',transcript_path:null}});
       const hold=output.trim()?JSON.parse(output):null;
       continuing=hold?.decision==='block';
-      if(continuing)return hold.reason;
+      if(continuing){handoff=hold.reason;return hold.reason;}
       Object.assign(turns.at(-1),{status:'completed',completedAt:Math.floor(Date.now()/1000)});
       await writeHistory({type:'idle'});
       passTime();
@@ -161,23 +160,21 @@ async function codexSession(t) {
       let ids;
       if(running()) {
         const output=await runWith(codexHook,[],{env,input:{hook_event_name:'PostToolUse',session_id:thread,turn_id:running().id}});
-        ids=output?codexFeedbackIds(JSON.parse(output).hookSpecificOutput.additionalContext):[];
+        ids=handoff?feedbackIds(handoff):output?feedbackIds(JSON.parse(output).hookSpecificOutput.additionalContext):[];
+        handoff=null;
       } else {
-        // The chat's native Queue starts its next turn from the queued message.
-        const entries=await queue(),entry=entries.find(item=>codexFeedbackIds(item.input[0].text).includes(eventId));
+        // The chat starts its next turn from the message chill sent it.
+        const entries=await queue(),entry=entries.find(item=>feedbackIds(item.input[0].text).includes(eventId));
         if(!entry)return [];
         await writeFile(join(data,'fake-queue.json'),JSON.stringify(entries.filter(item=>item!==entry)));
         await startTurn([{type:'userMessage',id:randomUUID(),content:entry.input}]);
-        ids=codexFeedbackIds(entry.input[0].text);
+        ids=feedbackIds(entry.input[0].text);
       }
-      if(ids.includes(eventId))await runWith(cli,['activity','--event',String(eventId),'--state','working'],{env});
       return ids;
     },
-    strangerAnswers:eventId=>runWith(cli,['activity','--event',String(eventId),'--state','completed'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
-    async agentReplies(eventId,text) {
-      await runWith(cli,['comment','--id',root.id,'--text',text],{env});
-      await runWith(cli,['activity','--event',String(eventId),'--state','completed'],{env});
-    },
+    // Another chat in the same project replies on the Goal.
+    strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
+    agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
@@ -186,7 +183,6 @@ async function codexSession(t) {
 
 // ---- Claude Code ----------------------------------------------------------------
 
-const claudeFeedbackIds=text=>[...text.matchAll(/"eventId":(\d+),"goalId"/g)].map(match=>Number(match[1]));
 
 async function claudeSession(t) {
   const dir=await workspace(t,'chill-scenario-claude-',{CHILL_AGENT_CODEX_PATH:'/never/call/codex'});
@@ -231,7 +227,7 @@ async function claudeSession(t) {
         text=await claimClaudeFeedbackForWatcher(sessionId);
         if(text){await append([claudeEntry.prompt(randomUUID(),'chill-agent watcher')]);responding=true;}
       }
-      return claudeFeedbackIds(text);
+      return feedbackIds(text);
     },
     // Another conversation in the same project replies on the Goal.
     async strangerAnswers() {
@@ -250,9 +246,6 @@ const win32Codex=process.platform==='win32'&&'Codex Desktop harness is macOS-onl
 
 export const drivers=[
   {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'queued',
-    // Codex still answers feedback by its receipts and its turn; it moves to the shared rules next.
-    todo:{'the agent\'s reply answers the Goal at once, while its work still runs':'Codex shows Running until its turn ends',
-      'the end of the work without a reply leaves the Goal awaiting one':'Codex shows Done when its turn ends'},
     // Approve all and settings are Claude features; pausing a Codex chat needs the running Desktop app.
     // Codex's Stop hook input names no background work, so chill cannot see it.
     capabilities:{approveAll:false,pause:false,backgroundWork:false}},

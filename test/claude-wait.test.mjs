@@ -16,7 +16,6 @@ import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
 import {fileURLToPath} from 'node:url';
 import {hookFor} from './claude-fixtures.mjs';
-const writeFeedbackHold=(id,value)=>writeJsonAtomically(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/feedback-holds',`${id}.json`),value);
 
 async function fixture(t) {
  const dir=await mkdtemp(join(tmpdir(),'claude-wait-test-')),data=join(dir,'data'),cwd=join(dir,'project');await mkdir(cwd);
@@ -111,20 +110,18 @@ test('repeated SessionStart keeps one set of exports and preserves other hooks',
  assert(lines.includes('export OTHER_HOOK=1'));
 });
 
-test('all owned Goals count; holds, other owners and handed comments do not',async t=>{
+test('all owned Goals count; other owners and handed comments do not',async t=>{
  const f=await fixture(t),child=await createGoal({title:'Child',parentId:f.root.id});
  await appendFeedback({goalId:f.root.id,text:'handed'});await f.action('inbox');
  const foreign=await createGoal({title:'Foreign'});await appendFeedback({goalId:foreign.id,text:'other owner'});
  assert.equal(await hasSavedClaudeFeedback(f.connection),false);
  await appendFeedback({goalId:child.id,text:'child reply'});assert.equal(await hasSavedClaudeFeedback(f.connection),true);
- await writeFeedbackHold(child.id,{phase:'paused'});assert.equal(await hasSavedClaudeFeedback(f.connection),false,'a hold on the Goal path');
 });
 
-test('cached history still observes holds and ownership changes',async t=>{
- const f=await fixture(t);await appendFeedback({goalId:f.root.id,text:'paused'});
+test('cached history still observes ownership changes',async t=>{
+ const f=await fixture(t);await appendFeedback({goalId:f.root.id,text:'saved'});
  const readEvents=createClaudeFeedbackReader();await readEvents();
- await writeFeedbackHold(f.root.id,{phase:'pending'});assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),false);
- await writeFeedbackHold(f.root.id,{phase:'sent'});assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),true);
+ assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),true);
  const path=join(f.data,'workspace/goals',f.root.id,'goal.json'),goal=JSON.parse(await readFile(path,'utf8'));
  await writeFile(path,JSON.stringify({...goal,connection:{...goal.connection,contextId:randomUUID()}}));
  assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),false);

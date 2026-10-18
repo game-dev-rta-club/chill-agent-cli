@@ -8,14 +8,14 @@ import {expectHidden} from './hidden-failures.mjs';
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const connection=(harnessId,readRunSnapshot)=>({harnessId,sessionId:'same-native-id',readRunSnapshot});
 
-test('run, pause and heartbeat evidence never crosses harnesses with equal session IDs',async()=>{
+test('run and heartbeat evidence never crosses harnesses with equal session IDs',async()=>{
  const store=createAgentObservationStore(),wait=deferred();let reads=0;
  const first=connection('codex-desktop',()=>{reads++;return wait.promise;});
- const second=connection('other-harness',async()=>({threadState:'idle',turn:null,view:null,heartbeat:null}));
+ const second=connection('other-harness',async()=>({threadState:'idle',turn:null,heartbeat:null}));
  const one=store.read(first),also=store.read(first);
  const other=await store.read(second);
  assert.equal(reads,1);assert.equal(agentPresence(other),'idle');
- wait.resolve({threadState:'notLoaded',turn:{id:'run',completedAt:null},view:{status:'paused'},heartbeat:{turnId:'run'}});
+ wait.resolve({threadState:'notLoaded',turn:{id:'run',status:'interrupted',completedAt:1},heartbeat:{turnId:'run'}});
  const stopped=await one;
  assert.equal(await also,stopped);assert.equal(agentPresence(stopped),'paused');
  assert.equal(await store.read(second),other);assert.equal(other.heartbeat,null);
@@ -57,7 +57,6 @@ test('an unsupported observer stays unknown and incomplete identities cannot sha
 function nativeFixture({threadId='native',queueError=false,threadError=false}={}) {
  const calls=[];
  const adapter=createCodexDesktopConnection('native',{
-  readControl:async()=>({action:'stop',turnId:'run',target:{goalId:'2'}}),
   readHeartbeat:async()=>({turnId:'run',heartbeatAt:'2026-10-06T00:00:00.000Z'}),
   run:async action=>action(contractStub(async(method,params)=>{
    calls.push({method,params});
@@ -70,10 +69,10 @@ function nativeFixture({threadId='native',queueError=false,threadError=false}={}
  return {adapter,calls};
 }
 
-test('Codex observation keeps pause evidence and returns no transcript, input or error text',async()=>{
+test('Codex observation reads an interrupted turn and returns no transcript, input or error text',async()=>{
  const {adapter,calls}=nativeFixture();
  const result=await adapter.readRunSnapshot();
- assert.equal(agentPresence(result),'paused');assert.equal(result.view.goalId,'2');
+ assert.equal(agentPresence(result),'paused');
  assert.deepEqual(result.turn,{id:'run',status:'interrupted',completedAt:12});
  assert.deepEqual(result.queue,{data:[{id:'pending'}]});
  assert.equal(result.heartbeat.turnId,'run');assert.doesNotMatch(JSON.stringify(result),/private|secret/);

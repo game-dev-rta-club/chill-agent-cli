@@ -44,7 +44,8 @@ export const isWaitingDelivery = (delivery, state) =>
 
 // The state a feedback shows under it, from its delivery, the work of its turn and the Activity row.
 export function deliveryDisplay({delivery, work, activity, continuedTo}) {
-  const state = activity ? activity.status : continuedTo ? 'continued' : work?.status || (work?.live ? 'working' : '') || delivery?.status || 'saved';
+  // An answered comment shows no mark, though the work it started may still run.
+  const state = delivery?.status === 'completed' ? 'completed' : activity ? activity.status : continuedTo ? 'continued' : work?.status || (work?.live ? 'working' : '') || delivery?.status || 'saved';
   const waiting = isWaitingDelivery(delivery, state);
   return {state: waiting ? 'waiting' : state, waiting};
 }

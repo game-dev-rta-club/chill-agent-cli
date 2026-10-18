@@ -6,7 +6,6 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {readFile,writeFile} from './record-fixture.mjs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {observeExecution,heartbeatTTL} from '../lib/agents/codex-execution.mjs';
 import {createGoalView} from '../public/goal-view.js';
 import {fileURLToPath} from 'node:url';
 import {expectHidden} from './hidden-failures.mjs';
@@ -32,7 +31,7 @@ async function fixture(t){
   return {root,env,run,json,patch,history,note,feedback,selectionPath};
 }
 
-test('verified root assignment routes old child Notes with root/path context, not Note author',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+test('verified root assignment hands child comments with their Goal, and a reassigned Root keeps what it handed',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
   const f=await fixture(t);await f.note();await f.note('2','notice');
   await assert.rejects(f.run('assign','--id','2','--thread-id',thread),/root Goal only/);
   await assert.rejects(f.run('assign','--id','1','--thread-id','00000000-0000-0000-0000-999999999999'),/Chat not found/);
@@ -40,32 +39,21 @@ test('verified root assignment routes old child Notes with root/path context, no
   const [{feedback},{delivery}]=await f.feedback();
   assert.equal(delivery.threadId,thread);assert.equal(feedback.version,undefined);
   const queue=await f.json('fake-queue.json'),text=queue[0].input[0].text;
-  assert.match(text,/PORT='4199'/);
-  assert.match(text,/Goal: #2 "Root agreement" \/ "Waiting branch"/);
-  assert.doesNotMatch(text,/Root Goal:|Goal path:/);
+  assert.match(text,/PORT='4199'/);assert.match(text,/"eventId":1,"goalId":"2"/);
   assert.match(text,/show --id 2 --since 0 --format text/);
   assert.equal((await f.run('show','--id','2','--version','1')).root.scope,'Only editor changes');
   await f.run('assign','--id','1','--thread-id',other);
   await f.run('retry','--event','1');
-  assert.equal((await f.json('fake-queue.json')).length,1,'already sent events stay with their original recipient');
-  assert.equal((await f.json('workspace/deliveries/1.json')).threadId,thread);
+  assert.equal((await f.json('fake-queue.json')).length,1,'a handed comment is not handed again to the new chat');
 });
 
-test('assignment never replays local feedback; an explicit retry enrolls it for the new owner',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+test('assignment never replays local feedback; an explicit retry hands it to the new owner once',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
   const f=await fixture(t);await f.note();assert.equal((await f.feedback())[1].delivery.status,'unlinked');
   await f.run('assign','--id','1','--thread-id',thread);
   await assert.rejects(f.json('fake-queue.json'),{code:'ENOENT'});
   await f.run('retry','--event','1');await f.run('retry','--event','1');
   assert.equal((await f.json('fake-queue.json')).length,1);
-  // Originally unlinked events can now be claimed while working on this Goal.
-  await f.run('work','--id','2');
-  const script=`import {hookOutput} from ${JSON.stringify(new URL('../bin/chill-hook.mjs',import.meta.url).href)}; console.log(JSON.stringify(await hookOutput({hook_event_name:'PostToolUse',session_id:'${thread}',turn_id:'${turn}'},'${thread}')));`;
-  const out=await execute(process.execPath,['--input-type=module','-e',script],{env:f.env});
-  assert.match(out.stdout,/PORT='4199'/);assert.match(out.stdout,/Root Goal #1/);assert.match(out.stdout,/feedback #1/);
-  await f.run('activity','--event','1','--state','working');
-  assert.equal((await f.json('fake-queue.json')).length,0);
   await f.run('comment','--id','2','--text','Received');
-  await f.run('activity','--event','1','--state','completed');
   assert.equal((await f.run('show','--id','2','--version','1')).conversation.at(-1).text,'Received');
 });
 
@@ -80,7 +68,7 @@ test('one selected branch works while another waits; turn end returns to Idle',{
   const page=await f.run('show','--id','1');
   assert.equal(page.goal.state,tree.state);assert.equal(page.goal.progress,tree.progress);
   assert.equal(page.splitGoals[1].execution.goalId,'3');assert.equal(page.goal.storedState,'idle');
-  await f.feedback();await f.run('activity','--event','1','--state','working');
+  await f.feedback();
   assert.equal((await f.json(f.selectionPath)).goalId,'3','receiving A does not switch work away from B');
   await f.patch('2',{state:'idle'});await f.run('work','--id','2');
   tree=(await f.run('tree'))[0];assert.equal(tree.children[0].state,'working');assert.equal(tree.children[1].state,'idle');
@@ -89,20 +77,19 @@ test('one selected branch works while another waits; turn end returns to Idle',{
   await assert.rejects(f.run('work','--id','2'),/No current unfinished/);
 });
 
-test('connection loss and reassignment clear activity; unfinished turns can remain Checking',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
- expectHidden(t,'codex-desktop-connection.queue','goal-execution.observe');
+test('connection loss and reassignment clear Running; a stale unfinished turn is not shown Running',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+ expectHidden(t,'codex-desktop-connection.queue','codex-work.observe');
   const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);await f.run('work','--id','3');
+  assert.equal((await f.run('tree'))[0].children[1].state,'working');
   await f.history({fail:true});let tree=(await f.run('tree'))[0];
-  assert.equal(tree.state,'idle');assert.equal(tree.children[1].execution.status,'unknown');
-  const page=await f.run('show','--id','3');
-  assert.equal(page.goal.state,'idle');assert.equal(page.goal.execution.status,'unknown');
-  const selection=await f.json(f.selectionPath);selection.heartbeatAt=new Date(Date.now()-heartbeatTTL-1000).toISOString();
+  assert.equal(tree.state,'idle');assert.equal(tree.children[1].execution,undefined);
+  const selection=await f.json(f.selectionPath);selection.heartbeatAt=new Date(Date.now()-120001).toISOString();
   await writeFile(join(f.root,f.selectionPath),JSON.stringify(selection));
   await f.history({turns:[{id:turn,status:'interrupted',completedAt:null}]});
-  tree=(await f.run('tree'))[0];assert.equal(tree.children[1].execution.status,'checking');assert.equal(tree.state,'working');
+  tree=(await f.run('tree'))[0];assert.equal(tree.children[1].execution,undefined);assert.equal(tree.state,'idle');
   const nextTurn='00000000-0000-0000-0000-000000000011';
   await f.history({turns:[{id:nextTurn,status:'inProgress',completedAt:null}]});
-  tree=(await f.run('tree'))[0];assert.equal(tree.state,'idle');
+  tree=(await f.run('tree'))[0];assert.equal(tree.state,'idle','the selection belongs to the earlier turn');
   await f.run('work','--id','3');assert.equal((await f.json(f.selectionPath)).turnId,nextTurn);
   await f.run('work','--id','3','--stop');assert.equal((await f.run('tree'))[0].state,'idle');
   await f.run('work','--id','3');await f.run('assign','--id','1','--thread-id',other);
@@ -121,16 +108,6 @@ test('a Done Goal requires an explicit reopen before work selection',{skip:proce
   assert.equal((await f.run('tree'))[0].children[1].state,'working');
   await f.run('work','--id','3','--stop');
   assert.equal((await f.run('tree'))[0].children[1].state,'idle');
-});
-
-test('completedAt wins over heartbeat; a recent hook can confirm an externally notLoaded turn',()=>{
-  const now=Date.now(),selection={turnId:turn,heartbeatAt:new Date(now).toISOString()};
-  const owner={status:{type:'notLoaded'}},unfinished={id:turn,status:'interrupted',completedAt:null};
-  assert.equal(observeExecution(selection,owner,unfinished,now).status,'working');
-  assert.equal(observeExecution(selection,owner,{...unfinished,completedAt:now/1000},now).status,'idle');
-  assert.equal(observeExecution(selection,owner,unfinished,now+heartbeatTTL+1).status,'checking');
-  assert.equal(observeExecution(selection,{status:{type:'systemError'}},unfinished,now).status,'unknown');
-  assert.equal(observeExecution(selection,owner,null,now).status,'unknown');
 });
 
 test('the Web renders Working only on the selected branch and its ancestors',()=>{
@@ -160,8 +137,8 @@ test('a hook tracks chat liveness before work selection; Goal and header use the
   {env:f.env,cwd:fileURLToPath(new URL('..',import.meta.url))})).stdout);
  const hookCall=async extra=>execute(process.execPath,['--input-type=module','-e',
   `import {hookOutput} from ${JSON.stringify(new URL('../bin/chill-hook.mjs',import.meta.url).href)};await hookOutput(${JSON.stringify({hook_event_name:'PostToolUse',session_id:thread,turn_id:turn,...extra})},'${thread}');`],{env:f.env});
- assert.equal((await read()).status,'checking');
- await hookCall({agent_id:'child'});assert.equal((await read()).status,'checking');
+ assert.equal((await read()).status,'unknown','an unfinished turn nobody vouches for');
+ await hookCall({agent_id:'child'});assert.equal((await read()).status,'unknown');
  await hookCall({});assert.equal((await read()).status,'working');
  await assert.rejects(f.json(f.selectionPath),{code:'ENOENT'},'a heartbeat does not select work');
  await f.run('work','--id','3');
@@ -174,23 +151,21 @@ test('a hook tracks chat liveness before work selection; Goal and header use the
  assert.equal((await read()).status,'idle');assert.equal((await f.run('tree','--id','1'))[0].state,'idle');
 });
 
-test('Done stays stored while queued, checking, and running feedback takes display priority',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+test('Done stays stored while queued and running feedback takes display priority',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
  const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);
  await f.patch('2',{state:'done'});await f.patch('3',{state:'done'});await f.patch('1',{state:'done'});
  await f.history({status:{type:'idle'},turns:[{id:turn,status:'completed',completedAt:1}]});
- const [{feedback}]=await f.feedback();
+ await f.feedback();
  let page=await f.run('show','--id','2');
  assert.equal(page.goal.state,'working');assert.equal(page.goal.execution.status,'queued');assert.equal(page.goal.storedState,'done');assert.equal(page.goal.progress,100);assert.equal(page.root.state,'working');
  const next='00000000-0000-0000-0000-000000000011';
- await f.history({turns:[{id:next,status:'interrupted',completedAt:null}]});
- await f.run('activity','--event',String(feedback.changeId),'--state','working');
- page=await f.run('show','--id','2');assert.equal(page.goal.state,'working');assert.equal(page.goal.execution.status,'checking');
+ await writeFile(join(f.root,'fake-queue.json'),'[]');
+ await f.history({status:{type:'active',activeFlags:[]},turns:[{id:next,status:'inProgress',completedAt:null}]});
+ page=await f.run('show','--id','2');assert.equal(page.goal.state,'working');assert.equal(page.goal.execution.status,'working');
  assert.equal((await f.json('workspace/goals/2/goal.json')).state,'done');
  await assert.rejects(f.json(f.selectionPath),{code:'ENOENT'},'display does not select work');
- await f.history({turns:[{id:next,status:'inProgress',completedAt:null}]});
- page=await f.run('show','--id','2');assert.equal(page.goal.execution.status,'working');
+ await f.run('comment','--id','2','--text','Answered');
  await f.history({turns:[{id:next,status:'completed',completedAt:2}]});
- await f.run('activity','--event',String(feedback.changeId),'--state','completed');
  page=await f.run('show','--id','2');assert.equal(page.goal.state,'done');assert.equal(page.root.state,'done');
  // Marking a selected Goal Done also keeps its live activity until the turn ends.
  await f.patch('2',{state:'idle'});await f.history({turns:[{id:next,status:'inProgress',completedAt:null}]});await f.run('work','--id','2');await f.patch('2',{state:'done'});

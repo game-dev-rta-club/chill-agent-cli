@@ -3,7 +3,6 @@ import test from 'node:test';
 import {goalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
 import {createGoalView} from '../public/goal-view.js';
-import {notificationText} from '../lib/delivery.mjs';
 const goal=(id,parentId,extra={})=>({id,parentId,title:`Goal ${id}`,scope:`Scope ${id}`,criteria:`Outcome ${id}`,state:'idle',briefs:[],conversation:[],briefPath:`/goals/${id}/deliverable.md`,...extra});
 const brief=(goalId,version)=>({goalId,version,body:`# Deliverable ${version}`});
 const letter=(id,goalId)=>({id,changeId:id,goalId,type:'letter',author:'agent',title:`Question ${id}`,text:`Question body ${id}`,updatedAt:'2026-09-30T00:00:00Z'});
@@ -21,15 +20,6 @@ test('historical Deliverable keeps the current tree and whole Goal conversation'
  assert.equal(goalPage(goals,'3').brief,null);
  for(const options of [{version:0},{version:99},{since:-1}])assert.throws(()=>goalPage(goals,'2',options));
 });
-test('feedback protocol addresses Goal conversation and answers without version targeting',()=>{
- const event={id:42,changeId:42,goalId:'2',author:'user',text:'Hello',annotations:[{kind:'letter',source:{kind:'comment',eventId:3},text:'A'}]},state={eventId:42,goalId:'2',messageId:'test'};
- const context={root:{id:'1'},path:[{title:'Root'},{title:'Child'}]};
- const text=notificationText(state,event,'Child','',context);
- assert.match(text,/Goal: #2 "Root" \/ "Child"\nFeedback: #42/);assert.doesNotMatch(text,/Note:|--version|reopen/);
- assert.match(text,/show --id 2 --since 41 --format text/);assert.match(text,/comment --id 2/);assert.match(text,/letter --id 2/);
- assert.equal(JSON.parse(text.match(/```json\n([\s\S]*?)\n```/)[1]).messages[0].notes[0].source.eventId,3);
-});
-
 test('history pages preserve original Letter questions and offer older cursors',()=>{
  const events=[letter(1,'1'),...Array.from({length:7},(_,i)=>({id:i+2,changeId:i+2,goalId:'1',type:'comment',author:'user',text:`Message ${i+2}`}))];
  events.at(-1).annotations=[{kind:'letter',source:{eventId:1},text:'Answer to the older Letter'}];

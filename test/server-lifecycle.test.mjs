@@ -316,16 +316,15 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   assert.equal(f.child.exitCode,null,'saved feedback is still being delivered');
   // Wait for the queue receipt rather than a fixed time, so a busy machine
   // does not fail the test; the server must stay up the whole time.
-  let delivery;
+  let queue = [];
   for (let i = 0; i < 60; i++) {
-    delivery = JSON.parse(await readFile(join(f.root,'workspace','deliveries','1.json'),'utf8'));
-    if (delivery.status === 'queued' || f.child.exitCode !== null) break;
+    queue = JSON.parse(await readFile(join(f.root,'fake-queue.json'),'utf8').catch(() => '[]'));
+    if (queue.length || f.child.exitCode !== null) break;
     await delay(100);
   }
-  assert.equal(delivery.status,'queued');
-  assert.equal(JSON.parse(await readFile(join(f.root,'fake-queue.json'),'utf8')).length,1);
-  assert.equal(f.child.exitCode,null,'native queued work also prevents idle shutdown');
+  assert.equal(queue.length,1,'the idle chat was sent the comment');
+  assert.equal(f.child.exitCode,null,'the server stayed up while it was sent');
+  // A message waiting in the Codex app keeps the server up until the chat takes it.
   await writeFile(join(f.root,'fake-queue.json'),'[]');
-  await f.run(['activity','--event','1','--state','completed']);
   assert.equal((await f.exited)[0],0);
 });

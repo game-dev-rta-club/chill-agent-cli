@@ -1,6 +1,6 @@
 // The `connection` part of scripts/probe-codex.mjs: one real round trip with a real model, in a disposable CODEX_HOME,
 // project and chill data directory. Feedback goes through chill's CLI into a chat held by a long-lived app-server
-// (standing in for Desktop); the model must be guided by chill's hook and answer through chill's CLI.
+// (standing in for Desktop); the model must answer through chill's CLI.
 import {execFile} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {existsSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync} from 'node:fs';
@@ -97,12 +97,12 @@ export async function runConnection({codex, log, options}) {
     const assigned = await chill(['assign', '--id', goalId, '--thread-id', chatId]);
     check('goal assign accepts the chat (thread/read and thread/queue/list from chill\'s own app-server)', assigned.code === 0, assigned.stderr || assigned.stdout);
 
-    const text = `Connection probe ${nonce}. Run the shell command pwd as your very first command, before any chill-agent command, even though the instructions below say to record a receipt first. Then follow the chill-agent instructions that arrive with pwd's result: record the working receipt, post exactly one comment on this Goal saying "probe reply ${nonce}", and record the completed receipt. Do not read, create or edit any file and run no other command.`;
+    const text = `Connection probe ${nonce}. Run the shell command pwd as your very first command. Then reply on this Goal with exactly one comment saying "probe reply ${nonce}", using the chill-agent reply command given with this feedback. Do not read, create or edit any file and run no other command.`;
     const mark = A.notes.length, usageBefore = lastUsage(A, chatId);
     const sent = await chill(['feedback', '--id', goalId, '--input-file', '-'], JSON.stringify({text, requestId: `probe-${nonce}`}));
     const deliveries = sent.stdout.trim().split('\n').map(line => { try { return JSON.parse(line); } catch { return {}; } });
     const delivery = deliveries.at(-1)?.delivery;
-    check('goal feedback saves the message and queues it in the chat', sent.code === 0 && delivery?.status === 'queued' && typeof delivery.queueId === 'string', sent.stderr || JSON.stringify(delivery));
+    check('goal feedback saves the message and sends it to the idle chat as its next message', sent.code === 0 && delivery?.status === 'queued', sent.stderr || JSON.stringify(delivery));
 
     const started = await A.waitNote(note => note.method === 'turn/started' && note.params.threadId === chatId, 60000, mark);
     check('the queued feedback starts a turn in the chat', Boolean(started));
@@ -111,25 +111,20 @@ export async function runConnection({codex, log, options}) {
     check(`the turn completes within ${timeout / 1000} s`, finished, 'timed out; the turn was interrupted');
 
     const turns = (await direct('thread/turns/list', {threadId: chatId, itemsView: 'full', limit: 5})).result?.data ?? [];
+    const eventId = deliveries[0]?.feedback?.changeId ?? 1;
     const turn = turns.find(entry => entry.items.some(item => item.type === 'userMessage' && JSON.stringify(item.content).includes(`probe reply ${nonce}`)));
-    const state = await (await import('../lib/delivery.mjs')).readDeliveryState(deliveries[0]?.feedback?.changeId ?? 1);
-    check('the turn\'s userMessage carries chill\'s [chill-agent:<id>] marker', turn && state && JSON.stringify(turn.items[0].content).includes(`[chill-agent:${state.messageId}]`), JSON.stringify(turn?.items[0]).slice(0, 200));
+    check('the turn\'s userMessage carries the feedback as data, with its event ID', turn && JSON.stringify(turn.items[0].content).includes(`\\"eventId\\":${eventId},`), JSON.stringify(turn?.items[0]).slice(0, 200));
     const commands = (turn?.items ?? []).filter(item => item.type === 'commandExecution').map(item => item.command);
     const traces = tap.read();
-    const guided = traces.filter(entry => String(entry.output).includes('New user feedback assigned to this chat'));
-    check('the PostToolUse hook ran in that turn', traces.length > 0 && traces.every(entry => entry.code === 0), `${traces.length} runs, commands: ${commands.join(' | ').slice(0, 300)}`);
-    check('the hook gave the model chill\'s guidance for this feedback', guided.length > 0 && guided.some(entry => entry.output.includes(`activity --event ${state?.eventId} `)), 'no hook output carried the feedback notice; the model may have claimed the feedback before its first tool result');
-    check('the model recorded the working and completed receipts through chill', commands.some(command => /activity --event \d+ --state working/.test(command)) && commands.some(command => /activity --event \d+ --state completed/.test(command)), commands.join(' | ').slice(0, 400));
+    check('the PostToolUse hook ran in that turn and handed nothing twice', traces.length > 0 && traces.every(entry => entry.code === 0 && entry.output === ''), `${traces.length} runs, commands: ${commands.join(' | ').slice(0, 300)}`);
+    check('the model replied on the Goal through chill', commands.some(command => new RegExp(`comment --id ${goalId}\\b`).test(command)), commands.join(' | ').slice(0, 400));
     const shown = JSON.parse((await chill(['show', '--id', goalId, '--format', 'json'])).stdout || '{}');
     const reply = shown.conversation?.find(entry => entry.author === 'agent' && String(entry.text).includes(`probe reply ${nonce}`));
     check('the model\'s comment is in the Goal\'s Conversation', Boolean(reply), JSON.stringify(shown.conversation?.map(entry => entry.text)).slice(0, 300));
-    const final = await (await import('../lib/delivery.mjs')).readDeliveryState(state?.eventId ?? 1);
-    check('the delivery ends completed, reported by the agent, with its queue entry cleared', final?.status === 'completed' && final.agentReported === true && final.queueCleared === true, JSON.stringify({status: final?.status, agentReported: final?.agentReported, queueCleared: final?.queueCleared, queueError: final?.queueError}));
     const queue = await direct('thread/queue/list', {threadId: chatId});
     check('Codex\'s queue is empty afterwards', queue.result?.data?.length === 0, JSON.stringify(queue));
-    await (await import('../lib/agents/codex-delivery.mjs')).refreshCodexWorkOutputs(String(goalId));
-    const withWork = await (await import('../lib/delivery.mjs')).readDeliveryState(state?.eventId ?? 1);
-    check('chill reads the turn\'s progress back: the turn, its completion and the model\'s messages', withWork?.work?.source === 'turn' && withWork.work.status === 'completed' && withWork.work.turnId === turn?.id && withWork.work.messages.length > 0, JSON.stringify(withWork?.work).slice(0, 300));
+    const view = (await (await import('../lib/agents/index.mjs')).deliveriesWithWork(String(goalId))).find(entry => entry.eventId === eventId);
+    check('the reply answers the Goal, and chill reads the turn\'s output back as its Think', view?.status === 'completed' && view.work?.source === 'turn' && view.work.status === 'completed' && view.work.turnId === turn?.id && view.work.messages.length > 0, JSON.stringify(view).slice(0, 300));
     const settings = await readTurnSettings((await direct('thread/read', {threadId: chatId, includeTurns: false})).result.thread.path, turn?.id);
     check('the turn ran on the configured model and effort', fake ? settings?.model === 'fake-model' : settings?.model === model && settings.reasoning === effort, JSON.stringify(settings));
 
@@ -137,7 +132,7 @@ export async function runConnection({codex, log, options}) {
     const usage = lastUsage(A, chatId);
     result.usage = {thisFeedbackTurn: diff(usage, usageBefore), chat: usage};
     const plain = command => command.replace(/^\S*zsh -lc /, '').replace(/PORT='\d+' CHILL_AGENT_DATA_DIR='[^']*' '[^']*' '[^']*chill-agent\.mjs'/g, 'chill').replaceAll('"', '').slice(0, 200);
-    result.turn = {tools: commands.map(plain), hookRuns: traces.length, hookGuided: guided.length, messages: (turn?.items ?? []).filter(item => item.type === 'agentMessage' && item.text).map(item => item.text.slice(0, 200))};
+    result.turn = {tools: commands.map(plain), hookRuns: traces.length, messages: (turn?.items ?? []).filter(item => item.type === 'agentMessage' && item.text).map(item => item.text.slice(0, 200))};
     log(`usage  this feedback turn ${JSON.stringify(result.usage.thisFeedbackTurn)}; the chat so far ${JSON.stringify(usage)}`);
   } finally {
     await A.stop(); await fake?.close();
@@ -153,15 +148,15 @@ export async function runConnection({codex, log, options}) {
 const lastUsage = (server, threadId) => server.notes.filter(note => note.method === 'thread/tokenUsage/updated' && note.params.threadId === threadId).at(-1)?.params.tokenUsage.total ?? null;
 const diff = (now, before) => now && Object.fromEntries(Object.entries(now).filter(([, value]) => typeof value === 'number').map(([key, value]) => [key, value - (before?.[key] ?? 0)]));
 
-// A stand-in for the real model that follows the same path: a first command, then chill's receipts and a comment.
+// A stand-in for the real model that follows the same path: a first command, then a reply on the Goal.
 function scriptedAgent(nonce) {
   return request => {
-    const at = request.input.findLastIndex(item => item.role === 'user' && JSON.stringify(item.content).includes('[chill-agent:'));
+    const at = request.input.findLastIndex(item => item.role === 'user' && JSON.stringify(item.content).includes('chill-agent · User Feedback'));
     if (at < 0) return [textItem('ready')];
     const calls = request.input.slice(at + 1).filter(item => item.type === 'function_call').length;
     const feedback = request.input[at].content.map(part => part.text).join('\n');
-    const prefix = feedback.match(/^(PORT=.*) activity --event (\d+) --state working$/m), goal = feedback.match(/Goal: #(\d+)/)?.[1];
-    const steps = ['pwd', `${prefix?.[1]} activity --event ${prefix?.[2]} --state working`, `${prefix?.[1]} comment --id ${goal} --text 'probe reply ${nonce}'`, `${prefix?.[1]} activity --event ${prefix?.[2]} --state completed`];
+    const prefix = feedback.match(/this answers it\): (PORT=.*) comment --id <goalId>/)?.[1], goal = feedback.match(/"goalId":"(\d+)"/)?.[1];
+    const steps = ['pwd', `${prefix} comment --id ${goal} --text 'probe reply ${nonce}'`];
     return calls < steps.length ? [shellCall(steps[calls])] : [textItem('done')];
   };
 }

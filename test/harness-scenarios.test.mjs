@@ -34,12 +34,12 @@ scenario('feedback saved while the agent responds shows Waiting and reaches it w
   assert.equal(await s.shown(event),'working');
 });
 
-scenario('Send now delivers feedback that waits for the running response',async (s,driver)=>{
+scenario('Send now delivers feedback that waits for the running response',async s=>{
   await s.agentStartsResponse();
   const event=await s.saveFeedback('Right now');
   assert.equal(await s.shown(event),'waiting');
   await s.sendNow(event);
-  assert.equal(await s.shown(event),driver.pending);
+  assert.equal(await s.shown(event),'saved','no longer Waiting; the running work receives it at its next chance');
   assert.deepEqual(await s.agentTakesFeedback(event),[event]);
   assert.equal(await s.shown(event),'working');
 });
@@ -142,13 +142,14 @@ scenario('a stop with nothing running and nothing said about feedback the agent 
   assert.equal(await s.agentEndsResponse(),null);
   await s.agentStartsResponse();
   await s.agentComments('Waiting for CI; I will check again in 10 minutes.');
-  assert.equal(await s.agentEndsResponse(),null,'a progress comment since the last stop');
-  await s.agentStartsResponse();
+  assert.equal(await s.agentEndsResponse(),null,'a progress comment answers the Goal');
+  const more=await s.saveFeedback('Also update the docs');
+  await s.agentTakesFeedback(more);
   const background=await s.agentEndsResponse({background:true});
   if(driver.capabilities.backgroundWork)assert.equal(background,null,'background work wakes the agent later');
   else {assert.match(background??'',/where things stand/,'the harness reports no background work');await s.agentEndsResponse();}
   await s.agentStartsResponse();
-  await s.agentReplies(event,'Fixed');
+  await s.agentReplies(more,'Fixed');
   assert.equal(await s.agentEndsResponse(),null,'the reply answers the Goal');
-  assert.equal(await s.shown(event),'completed');
+  assert.equal(await s.shown(event),'completed');assert.equal(await s.shown(more),'completed');
 });
