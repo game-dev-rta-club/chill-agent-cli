@@ -58,4 +58,4 @@ use [execution eligibility](../extensions/requests.md), not interpret a UI label
 
 Implementation: [shared observation](../../lib/agents/codex-observation.mjs),
 [Codex adapter](../../lib/codex-desktop-connection.mjs),
-[Goal overlay](../../lib/agent-activity.mjs), [display priority](../../public/goal-state.js).
+[Goal overlay](../../lib/agents/codex-activity.mjs), [display priority](../../public/goal-state.js).

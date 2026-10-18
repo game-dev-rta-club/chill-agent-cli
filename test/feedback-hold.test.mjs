@@ -10,9 +10,10 @@ import {randomUUID} from 'node:crypto';
 import {createGoal,appendFeedback} from '../lib/goal-store.mjs';
 import {prepareDelivery,deliverFeedback,readDeliveryState,sendFeedbackNow,updateDelivery} from '../lib/delivery.mjs';
 import {collectHookFeedback} from '../lib/agents/codex-delivery.mjs';
-import {pauseFeedback,readFeedbackHold,resumeHeldFeedback,reconcileFeedbackHold} from '../lib/feedback-hold.mjs';
+import {pauseFeedback,resumeHeldFeedback,reconcileFeedbackHold} from '../lib/agents/codex-hold.mjs';
+import {readFeedbackHold} from '../lib/feedback-hold.mjs';
 import {withCodex} from '../lib/codex-client.mjs';
-import {readAgentActivity,invalidateActivity} from '../lib/agent-activity.mjs';
+import {readAgentActivity,invalidateActivity} from '../lib/agents/codex-activity.mjs';
 import {fileURLToPath} from 'node:url';
 const thread='00000000-0000-0000-0000-000000000001',turn='00000000-0000-0000-0000-000000000002';
 async function fixture(run){

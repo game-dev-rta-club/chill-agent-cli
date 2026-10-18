@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createControlService,controlView} from '../lib/agent-control.mjs';
+import {createControlService,controlView} from '../lib/agents/codex-control.mjs';
 import {activityControlMarkup} from '../public/activity-controls.js';
 import {agentMarkup} from '../public/agent-menu.js';
 const thread='00000000-0000-0000-0000-000000000001',turnId='00000000-0000-0000-0000-000000000002',requestId='00000000-0000-0000-0000-000000000003',next='00000000-0000-0000-0000-000000000004';

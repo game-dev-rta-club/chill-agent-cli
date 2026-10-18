@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,mkdir,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {activityOwner,activityOwnerFromInput,overlayGoalActivity,invalidateActivity} from '../lib/agent-activity.mjs';
+import {activityOwner,activityOwnerFromInput,overlayGoalActivity,invalidateActivity} from '../lib/agents/codex-activity.mjs';
 import {goalState} from '../public/goal-state.js';
 import {createGoalView} from '../public/goal-view.js';
 import {fileURLToPath} from 'node:url';

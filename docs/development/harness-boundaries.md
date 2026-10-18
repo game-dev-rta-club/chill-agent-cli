@@ -2,6 +2,7 @@
 keyPoints: >-
   Shared skills own outcome decisions; trusted runtime adapters select setup and
   operation guidance. Native CLI implementations retain identity enforcement. Add a harness through one registry, not host branches in references.
+  Core code reaches adapter code only through lib/agents/index.mjs; a test checks the import graph.
 ---
 
 # Separate harness behavior from the skill
@@ -72,3 +73,37 @@ Current verification covers routing, setup option retention, workspace isolation
 Web reuse, packaged command availability and a disposable native Claude skill
 invocation through the interface. It does not qualify another host or replace
 interactive first-use approval and long-running reception tests.
+
+## Keep harness code behind the agent interface
+
+Core code never imports harness code directly. A harness's code is its adapter
+files: everything in `lib/agents/` except `index.mjs`, `lib/claude-*`,
+`lib/codex-*`, `lib/desktop-settings.mjs` and `extensions/harnesses/<id>.mjs`.
+Every other file under `lib`, `bin`, `public`, `extensions` and `server.mjs` is
+core. Core reaches an adapter through two doors only.
+
+| Door | Use |
+| --- | --- |
+| [`lib/agents/index.mjs`](../../lib/agents/index.mjs) | Per-Root agent interface (presence, status, controls, activity, continuation, work selection, delivery carrier) and a few named exports. Its header comment lists every member. |
+| [`extensions/harnesses/index.mjs`](../../extensions/harnesses/index.mjs) | Registry that selects a harness by ID for setup and `session`. |
+
+[`test/harness-boundary.test.mjs`](../../test/harness-boundary.test.mjs) enforces
+the rule from the import graph. It reads every static and literal dynamic
+import, so `import {withCodex} from './codex-client.mjs'` in core fails the check.
+It also fails when core code names a harness (`claude-code`, `codex-desktop`,
+`CODEX_THREAD_ID`, `nativeConnection`, `harnessId`).
+
+A core file that must pick a harness is listed in that test with its reason.
+Today these are `bin/chill-hook.mjs` (Codex's own hook command),
+`bin/chill-connection.mjs` (Claude Code's hook subcommands) and
+`bin/chill-setup.mjs` (the harness the user names). A listed file that stops
+importing adapter code fails the check, so the list cannot go stale.
+
+When core needs something a harness provides, add it to the agent interface, not
+an import. Keep the data core shares across harnesses in a core module and the
+operations that talk to one harness in its adapter. A Goal's feedback hold is
+the example: `lib/feedback-hold.mjs` holds the record and the `feedbackHeld`
+question that every agent honors, and `lib/agents/codex-hold.mjs` holds the
+Codex-only queue, interrupt and resend. The public extension API
+(`lib/extension-api.mjs`) keeps its exported names and reaches adapters through
+the same index.

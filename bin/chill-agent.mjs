@@ -7,7 +7,7 @@ import { extname } from 'node:path';
 import { appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
 import { deliverFeedback, prepareDelivery, recordActivity, sendFeedbackNow } from '../lib/delivery.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
-import {assignGoal} from '../lib/goal-execution.mjs';
+import {assignGoal} from '../lib/agents/index.mjs';
 import {selectAgentWork} from '../lib/agents/index.mjs';
 import {readConnectedTree,readGoalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
