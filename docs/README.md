@@ -22,6 +22,7 @@ The integrating application decides what work to pursue and when to continue it.
 | Try an unreleased CLI commit in another project | [Use a development version](development/use-development-version.md) |
 | Add a host or change host-specific setup and operation guidance | [Harness boundaries](development/harness-boundaries.md) |
 | Qualify Auto mode continuation in a native Claude conversation | [Claude Auto mode](development/claude-auto-mode.md) |
+| Keep test data tied to a real Claude Code release | [Claude contract samples](development/claude-contract.md) |
 | Change Web navigation, layout updates or focus without scroll jumps | [Scrolling guidelines](development/scrolling.md) |
 | Understand the SQLite replacement under development | [SQLite workspace](runtime/sqlite.md) |
 | Locate data or update an installation | [Data and runtime updates](runtime/data-and-updates.md) |

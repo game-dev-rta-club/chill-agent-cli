@@ -14,13 +14,14 @@ import {readAgentStatus} from '../lib/agent-status.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
 import {fileURLToPath} from 'node:url';
 import {expectHidden} from './hidden-failures.mjs';
+import {hookFor} from './claude-fixtures.mjs';
 const exec=promisify(execFile);
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'claude-status-')),data=join(dir,'data'),cwd=join(dir,'project'),envFile=join(dir,'env');await mkdir(cwd);await writeFile(envFile,'');
  const old=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=data;
  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
  const sessionId=randomUUID(),promptId=randomUUID();let clock=1000,env;
- const event=(name,patch={})=>({hook_event_name:name,session_id:sessionId,prompt_id:promptId,cwd,...patch});
+ const event=hookFor({session_id:sessionId,prompt_id:promptId,cwd});
  async function start(source='startup'){const r=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CLAUDE_CODE_SESSION_ID:sessionId};}
  const hook=(name,patch={})=>handleClaudeToolHook(event(name,patch));
  const action=(name,payload)=>runClaudeAction(name,payload,{env});

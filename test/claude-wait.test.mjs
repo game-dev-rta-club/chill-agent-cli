@@ -15,6 +15,7 @@ import {readDeliveryState,prepareDelivery,updateDelivery} from '../lib/delivery.
 import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
 import {fileURLToPath} from 'node:url';
+import {hookFor} from './claude-fixtures.mjs';
 const writeFeedbackHold=(id,value)=>writeJsonAtomically(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/feedback-holds',`${id}.json`),value);
 
 async function fixture(t) {
@@ -23,7 +24,7 @@ async function fixture(t) {
  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
  const envFile=join(dir,'env');await writeFile(envFile,'');
  let record,env;const sessionId=randomUUID(),promptId=randomUUID();
- const event=(name,patch={})=>({hook_event_name:name,session_id:sessionId,prompt_id:promptId,cwd,...patch});
+ const event=hookFor({session_id:sessionId,prompt_id:promptId,cwd});
  async function start(source='startup'){record=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CHILL_AGENT_CONNECTION_GENERATION:record.generation};return record;}
  async function action(name,payload={}) {const r=await runClaudeAction(name,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await start();const created=await action('create-goal',{title:'Wait receipt',scope:'Test',criteria:'No duplicate'});const root=(await listGoals())[0];
@@ -161,7 +162,7 @@ test('reply posts on the Web and completes the receipt in one action',async t=>{
 
 test('a Web pause holds feedback, refuses tool calls and survives compact; Resume wakes once',async t=>{
  const {setClaudePause,readClaudePause,claudePauseGuard}=await import('../lib/claude-pause.mjs');
- const f=await fixture(t),tool=name=>claudePauseGuard({hook_event_name:'PreToolUse',session_id:f.connection.sessionId,tool_name:name});
+ const f=await fixture(t),tool=name=>claudePauseGuard(f.event('PreToolUse',{tool_name:name}));
  assert.equal(await tool('Read'),null,'nothing is refused before a pause');
  await setClaudePause(f.connection,true);
  await appendFeedback({goalId:f.root.id,text:'sent while paused'});
@@ -178,12 +179,12 @@ test('a Web pause holds feedback, refuses tool calls and survives compact; Resum
 
 test('Approve all answers permission prompts for its conversation only while on, and survives compact',async t=>{
  const {setClaudeApproveAll,readClaudeApproveAll,claudePermissionDecision}=await import('../lib/claude-permissions.mjs');
- const f=await fixture(t),prompt=()=>claudePermissionDecision({hook_event_name:'PermissionRequest',session_id:f.connection.sessionId,tool_name:'mcp__computer-use__request_access'});
+ const f=await fixture(t),prompt=()=>claudePermissionDecision(f.event('PermissionRequest',{tool_name:'mcp__computer-use__request_access'}));
  assert.equal(await prompt(),null,'prompts ask normally by default');
  await setClaudeApproveAll(f.connection,true);
  assert.equal((await prompt()).hookSpecificOutput.decision.behavior,'allow');
  await f.start('compact');assert.equal(await readClaudeApproveAll(f.connection),true);
- assert.equal(await claudePermissionDecision({hook_event_name:'PermissionRequest',session_id:'other-session',tool_name:'Bash'}),null);
+ assert.equal(await claudePermissionDecision(f.event('PermissionRequest',{session_id:'other-session'})),null);
  await setClaudeApproveAll(f.connection,false);assert.equal(await prompt(),null);
  await assert.rejects(setClaudeApproveAll(f.connection,'yes'),/On or Off/);
 });
