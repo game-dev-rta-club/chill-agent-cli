@@ -427,7 +427,7 @@ function mountHTMLBrief(id,version) {
     if(!frame.isConnected){ready();return;}
     const doc=frame.contentDocument,body=doc?.querySelector('.brief-body');if(!body){ready();return;}
     body.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
-    const size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
+    const size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(doc.body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
     const observer=new ResizeObserver(size);observer.observe(body);
     for(const type of ['wheel','touchmove','keydown'])doc.addEventListener(type,briefScrollIntent,{passive:true});
     doc.addEventListener('selectionchange',updateSelectionAction);
