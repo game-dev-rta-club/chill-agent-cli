@@ -8,7 +8,7 @@ import {withCodex, verifyThread} from '../lib/codex-client.mjs';
 import {readTurnSettings} from '../lib/agents/codex-turn-settings.mjs';
 import {installHook} from '../bin/chill-hook.mjs';
 import {contractMethods, requestViolations, responseViolations, schema} from '../test/codex-contract.mjs';
-import {AppServer, fakeModel, hookTap, makeDir, makeHome, shapeDiff, shapeOf, shellCall, sleep, textItem, uuid} from './probe-codex-kit.mjs';
+import {AppServer, fakeModel, hookTap, makeDir, makeHome, removeMade, shapeDiff, shapeOf, shellCall, sleep, textItem, uuid} from './probe-codex-kit.mjs';
 
 const fakeCodex = fileURLToPath(new URL('../test/fake-codex.mjs', import.meta.url));
 const message = error => error?.message ?? String(error);
@@ -227,7 +227,7 @@ export async function runProtocol({codex, log}) {
       check(`schema: every ${method} request and response matches test/fixtures/codex-app-server-schema.json`, !violations.has(method), (violations.get(method) ?? []).slice(0, 3).join('; '));
     }
   } finally {
-    await A.stop(); await fake?.stop(); await model.close();
+    await A.stop(); await fake?.stop(); await model.close(); removeMade();
     for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   }
   return {checks, differences, validatedMethods: [...validated].sort(), unvalidatedMethods: contractMethods.filter(method => !validated.has(method))};

@@ -10,7 +10,7 @@ import {fileURLToPath} from 'node:url';
 import {installHook} from '../bin/chill-hook.mjs';
 import {readTurnSettings} from '../lib/agents/codex-turn-settings.mjs';
 import {contractMethods, requestViolations, responseViolations} from '../test/codex-contract.mjs';
-import {AppServer, fakeModel, hookTap, makeDir, makeHome, shellCall, sleep, textItem, uuid} from './probe-codex-kit.mjs';
+import {AppServer, fakeModel, hookTap, makeDir, makeHome, removeMade, shellCall, sleep, textItem, uuid} from './probe-codex-kit.mjs';
 
 // The latest Sol confirmed to work with chill; update when a newer one is confirmed. Override with --model and --effort.
 export const SOL = {model: 'gpt-6.1-sol', effort: 'medium'};
@@ -142,8 +142,10 @@ export async function runConnection({codex, log, options}) {
   } finally {
     await A.stop(); await fake?.close();
     try { unlinkSync(authLink); } catch { /* no link in a rehearsal */ }
+    const linkGone = !existsSync(authLink);
+    removeMade();
     for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
-    if (!rehearsal) check('the Codex login file is unchanged and the probe\'s link to it is removed', sha(userAuth) === authBefore && !existsSync(authLink));
+    if (!rehearsal) check('the Codex login file is unchanged and the probe\'s link to it is removed', sha(userAuth) === authBefore && linkGone);
   }
   return {...result, checks};
 }

@@ -2,7 +2,7 @@
 // a disposable CODEX_HOME, and a fake Responses-API model that answers at zero cost.
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:http';
-import {mkdtempSync, readFileSync, realpathSync, writeFileSync} from 'node:fs';
+import {mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createInterface} from 'node:readline';
@@ -83,7 +83,10 @@ export async function fakeModel(script = (_request, index) => [textItem(`reply $
   return {requests, port, close: () => new Promise(resolve => server.close(resolve)), top, tables, config: top + tables};
 }
 
-export const makeDir = prefix => realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+const made = [];
+export const makeDir = prefix => { const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix))); made.push(dir); return dir; };
+// Removes every directory makeDir created. rmSync unlinks a symlink such as auth.json without following it.
+export const removeMade = () => { for (const dir of made.splice(0)) rmSync(dir, {recursive: true, force: true}); };
 export const makeHome = (prefix, config) => {
   const home = makeDir(prefix);
   writeFileSync(join(home, 'config.toml'), config);
