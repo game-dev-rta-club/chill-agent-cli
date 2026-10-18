@@ -2,9 +2,9 @@
   "codex": "codex-cli 0.163.0-alpha.10.2",
   "protocol": {
     "passed": true,
-    "date": "2026-10-18T06:30:56.780Z",
+    "date": "2026-10-18T07:23:55.229Z",
     "chill": {
-      "commit": "285de45",
+      "commit": "61cc874",
       "uncommittedChanges": false
     },
     "checks": [
@@ -185,6 +185,10 @@
         "ok": true
       },
       {
+        "name": "hooks/list accepts the Stop hook installHook writes, with the same command",
+        "ok": true
+      },
+      {
         "name": "a new hook is untrusted until the user trusts it",
         "ok": true
       },
@@ -222,6 +226,38 @@
       },
       {
         "name": "Codex reports the hook run completed",
+        "ok": true
+      },
+      {
+        "name": "a turn in a chat with chill's trusted Stop hook completes",
+        "ok": true
+      },
+      {
+        "name": "the Stop hook runs once as a turn ends, with session_id, turn_id and stop_hook_active false",
+        "ok": true
+      },
+      {
+        "name": "chill's Stop hook prints nothing for a chat without taken feedback",
+        "ok": true
+      },
+      {
+        "name": "a turn whose Stop chill holds still completes",
+        "ok": true
+      },
+      {
+        "name": "chill's Stop hook answers {decision:\"block\",reason} naming the quiet feedback",
+        "ok": true
+      },
+      {
+        "name": "Codex continues the turn and sends the hold reason to the model",
+        "ok": true
+      },
+      {
+        "name": "the continued turn's next Stop has stop_hook_active true, and chill lets it end",
+        "ok": true
+      },
+      {
+        "name": "Codex reports the held Stop run as blocked and the next one as completed",
         "ok": true
       },
       {
