@@ -4,6 +4,7 @@ import {createAgentSettingsStore} from '../lib/agent-settings.mjs';
 import {resolveAgentConnection,connectionKey} from '../lib/agents/connection.mjs';
 import {createCodexDesktopConnection} from '../lib/codex-desktop-connection.mjs';
 
+import {expectHidden} from './hidden-failures.mjs';
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 function fixture(harnessId='test-harness') {
   let current={model:'provider/first',label:'First',reasoning:'deliberate'};
@@ -87,7 +88,8 @@ test('concurrent saves are rejected for one connection but do not lock another h
   assert.equal(other.writes.length,1);
 });
 
-test('Codex adapter normalizes private RPC data, keeps partial failures separate and maps CAS writes',async()=>{
+test('Codex adapter normalizes private RPC data, keeps partial failures separate and maps CAS writes',async t=>{
+ expectHidden(t,'codex-desktop-connection.snapshot-usage');
   const calls=[],updates=[],probes=[];
   const connection=createCodexDesktopConnection('thread',{
     run:async action=>action({request:async(method,params)=>{

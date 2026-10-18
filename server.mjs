@@ -29,6 +29,7 @@ import {deliveriesWithWork} from './lib/agents/index.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
 import {largeSize} from './lib/limits.mjs';
+import {recordHidden} from './lib/hidden-failure.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
@@ -227,7 +228,7 @@ const server = createServer(async (request, response) => {
   const extensionPath=/^\/api\/goals\/([1-9][0-9]*)\/extensions(?:\/([a-z][a-z0-9-]*))?$/.exec(path);
   if(extensionPath&&request.method==='GET'&&!extensionPath[2]){
     try{return sendJson(response,200,await extensions.controls(extensionPath[1],{activity:url.searchParams.get('activity')==='1',clientId:/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(url.searchParams.get('clientId')||'')?url.searchParams.get('clientId'):null}));}
-    catch(error){return sendJson(response,503,{error:error.message});}
+    catch(error){recordHidden('server.extension-controls',error);return sendJson(response,503,{error:error.message});}
   }
   if(extensionPath&&request.method==='POST'&&extensionPath[2]){
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
@@ -237,7 +238,7 @@ const server = createServer(async (request, response) => {
   const presencePath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/presence$/.exec(path);
   if(presencePath&&request.method==='GET'){
     try{return sendJson(response,200,await readAgentPresence(presencePath[1]));}
-    catch{return sendJson(response,503,{error:'Could not read Agent status.'});}
+    catch(error){recordHidden('server.agent-presence',error);return sendJson(response,503,{error:'Could not read Agent status.'});}
   }
   const skillsPath=/^\/api\/goals\/([1-9][0-9]*)\/skills$/.exec(path);
   if(skillsPath&&request.method==='GET'){
@@ -247,7 +248,7 @@ const server = createServer(async (request, response) => {
   const agentPath=/^\/api\/goals\/([1-9][0-9]*)\/agent$/.exec(path);
   if(agentPath&&request.method==='GET') {
     try {return sendJson(response,200,await readAgentStatus(agentPath[1]));}
-    catch {return sendJson(response,503,{error:'Could not read Agent information.'});}
+    catch(error) {recordHidden('server.agent-status',error);return sendJson(response,503,{error:'Could not read Agent information.'});}
   }
   if(agentPath&&request.method==='POST') {
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
@@ -257,7 +258,7 @@ const server = createServer(async (request, response) => {
   const activityPath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/activity$/.exec(path);
   if(activityPath&&request.method==='GET'){
     try{return sendJson(response,200,await readAgentActivityRow(activityPath[1]));}
-    catch{return sendJson(response,503,{error:'Could not read activity controls.'});}
+    catch(error){recordHidden('server.agent-activity',error);return sendJson(response,503,{error:'Could not read activity controls.'});}
   }
   const controlPath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/control$/.exec(path);
   if(controlPath&&request.method==='POST'){
@@ -327,7 +328,7 @@ const server = createServer(async (request, response) => {
       const deliveries = await listDeliveries(retryPath[1]);
       if (!deliveries.some(item => item.eventId === Number(retryPath[2]))) return sendJson(response, 404, { error: 'Delivery not found.' });
       return callCli([retryPath[3], '--event', retryPath[2]], undefined, response, 'delivery');
-    } catch { return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
+    } catch (error) { recordHidden('server.delivery-retry', error); return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
   }
   if (path === '/api/images' && request.method === 'POST') {
     if (!allowedOrigin(request)) return sendJson(response, 403, { error: 'Only same-origin uploads are accepted.' });
@@ -359,7 +360,7 @@ const server = createServer(async (request, response) => {
     try {
       return sendJson(response, 200, await deliveriesWithWork(deliveryPath[1]));
     }
-    catch { return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
+    catch (error) { recordHidden('server.deliveries', error); return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
   }
   const infoPath = /^\/api\/attachments\/([0-9a-f-]{36})$/.exec(path);
   if (infoPath) {

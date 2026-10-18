@@ -10,6 +10,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {workReader, needsWorkRefresh, presentDelivery} from '../lib/work-output.mjs';
 import {workProgressGroups, workDisclosure} from '../public/work-ui.js';
 import {fileURLToPath} from 'node:url';
+import {expectHidden} from './hidden-failures.mjs';
 
 const thread='00000000-0000-0000-0000-000000000001';
 const turn='00000000-0000-0000-0000-000000000002';
@@ -19,6 +20,7 @@ const meta={id:turn,startedAt:start/1000-10,completedAt:null,status:'interrupted
 const message=(id,text,at=start+100,turnId=turn)=>({turnId,startedAtMs:at,item:{id,type:'agentMessage',phase:'commentary',text}});
 const clientFor=(entries, metadata=meta)=>({request:async(method,p)=>{
   assert.equal(p.threadId,thread);
+  if(method==='thread/read')return {thread:{}};
   if(method==='thread/turns/list')return {data:[metadata],nextCursor:null};
   assert.equal(method,'thread/items/list');assert.equal(p.turnId,turn);return {data:entries,nextCursor:null};
 }});
@@ -46,6 +48,7 @@ test('queued notices bind automatically without activity receipts, never to unre
   const calls=[];
   const reader=workReader({request:async(method,p)=>{
     calls.push([method,p]);
+    if(method==='thread/read')return {thread:{}};
     if(method==='thread/turns/list') return p.cursor
       ? {data:[{...meta,items:[{type:'userMessage',content:[{type:'text',text:'[chill-agent:notice-1]'}]}]}],nextCursor:null}
       : {data:[{id:'unrelated',items:[]}],nextCursor:'older'};
@@ -135,6 +138,7 @@ test('follow-ups share an indicator only after joining the same work, within the
 
 test('Queue fallback after an unclaimed hook replaces even a cached old turn',async()=>{
   const reader=workReader({request:async(method,p)=>{
+    if(method==='thread/read')return {thread:{}};
     if(method==='thread/turns/list')return {data:[
       {...meta,items:[{type:'userMessage',content:[{type:'text',text:'[chill-agent:notice-1]'}]}]},
       {id:'old-hook',items:[]}
@@ -144,7 +148,7 @@ test('Queue fallback after an unclaimed hook replaces even a cached old turn',as
   assert.equal((await reader({...state,hookTurnId:'old-hook',work:{turnId:'old-hook'}})).turnId,turn);
 });
 
-test('Web collects before receipt and after activity completion, then freezes only the actual completed turn',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
+test('Web collects before receipt and after activity completion, then freezes only the actual completed turn',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
   const dir=await mkdtemp(join(tmpdir(),'chill-work-test-'));
   const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)),CODEX_THREAD_ID:thread};
   const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
@@ -168,6 +172,7 @@ test('Web collects before receipt and after activity completion, then freezes on
     assert.equal(live.work.messages[0].text,'Opening before receipt');
     await run(['activity','--event','1','--state','working']);
     history.fail=true;await saveHistory();
+    expectHidden(t,'codex-delivery.progress');
     const unavailable=(await run(['activity','--event','1','--state','working'])).delivery;
     assert.ok(unavailable.workError);assert.equal(unavailable.work.messages[0].text,'Opening before receipt');
     history.fail=false;history.items[turn].push(message('progress','Progress update',Date.now()));await saveHistory();

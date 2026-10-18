@@ -9,6 +9,7 @@ import {join} from 'node:path';
 import {observeExecution,heartbeatTTL} from '../lib/goal-execution.mjs';
 import {createGoalView} from '../public/goal-view.js';
 import {fileURLToPath} from 'node:url';
+import {expectHidden} from './hidden-failures.mjs';
 const execute=promisify(execFile), cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 const hook=fileURLToPath(new URL('../bin/chill-hook.mjs',import.meta.url));
 const thread='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
@@ -89,6 +90,7 @@ test('one selected branch works while another waits; turn end returns to Idle',{
 });
 
 test('connection loss and reassignment clear activity; unfinished turns can remain Checking',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
+ expectHidden(t,'codex-desktop-connection.queue','goal-execution.observe');
   const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);await f.run('work','--id','3');
   await f.history({fail:true});let tree=(await f.run('tree'))[0];
   assert.equal(tree.state,'idle');assert.equal(tree.children[1].execution.status,'unknown');

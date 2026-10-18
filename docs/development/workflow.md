@@ -77,6 +77,33 @@ fix with verification when the cause is clear; otherwise revert the offending
 change through a checked PR. Avoid reset/force-push recovery. Record the failure,
 recovery and affected dependants so another run does not repeat the same attempt.
 
+## Keep tests off the real machine and honest about hidden failures
+
+`npm run check` loads `test/isolate-env.mjs` before every test file. It gives the
+process a throwaway home: `HOME`, `USERPROFILE`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`
+and `XDG_DATA_HOME` point into a temporary directory removed on exit, and
+`CHILL_AGENT_CODEX_PATH` names a Codex that does not exist. A test that forgets
+to set up a fake therefore finds nothing instead of the developer's Codex, Claude
+or data. Tests that run `test/fake-codex.mjs` set their own path.
+
+Production hides some harness failures on purpose and shows "unknown" or
+"checking". Each such catch calls `hidden('site.name', fallback)` or
+`recordHidden('site.name', error)` from `lib/hidden-failure.mjs`. When
+`CHILL_AGENT_HIDDEN_FAILURES` names a file, the call appends one JSON line
+`{where, message}`; the test preload sets it, and child processes inherit it.
+After every test, any line the test did not declare fails it with the site and
+message. A test that injects a failure on purpose declares it:
+
+```js
+test('lost queue receipts are reconciled', async t => {
+  expectHidden(t, 'codex-delivery.queue-add'); // or a RegExp, or several sites
+```
+
+A declaration that never happens also fails, so stale ones do not linger. Record
+a new catch only when it means chill could not see or do something it expected
+to. A missing file, a partial JSON line, a stopped sleep or a tried-next
+candidate is an ordinary state and stays silent.
+
 ## Keep long runs bounded and recoverable
 
 At each completed slice and before ending a run, check open PRs, unmerged local
