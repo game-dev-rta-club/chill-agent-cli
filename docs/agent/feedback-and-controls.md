@@ -100,4 +100,4 @@ unavailable integration is not represented as a successful change.
 See [model settings](model-settings.md) for the adapter boundary and save checks.
 
 Implementation: [delivery](../../lib/delivery.mjs),
-[held feedback](../../lib/feedback-hold.mjs), [controls](../../lib/agent-status.mjs).
+[held feedback](../../lib/feedback-hold.mjs), [Codex pause and resume](../../lib/agents/codex-hold.mjs), [controls](../../lib/agent-status.mjs).

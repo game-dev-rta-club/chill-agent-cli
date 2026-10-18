@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAgentSettingsStore} from '../lib/agent-settings.mjs';
+import {createAgentSettingsStore} from '../lib/agents/settings-store.mjs';
 import {resolveAgentConnection,connectionKey} from '../lib/agents/connection.mjs';
 import {createCodexDesktopConnection} from '../lib/codex-desktop-connection.mjs';
 import {codexModel,codexThread,contractStub} from './codex-contract.mjs';

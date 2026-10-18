@@ -9,7 +9,7 @@ import { collectHookFeedback } from '../lib/agents/codex-delivery.mjs';
 import { dataDirectory, writeJsonAtomically } from '../lib/goal-store.mjs';
 import { notificationReminder } from '../lib/notification-reminder.mjs';
 import {agentGuide} from '../lib/agent-guidance.mjs';
-import {recordWorkHeartbeat} from '../lib/goal-execution.mjs';
+import {recordWorkHeartbeat} from '../lib/agents/codex-execution.mjs';
 import { stableNodePath } from '../lib/node-path.mjs';
 import {largeSize} from '../lib/limits.mjs';
 

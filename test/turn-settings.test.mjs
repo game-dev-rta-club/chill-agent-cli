@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,appendFile,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {readTurnSettings} from '../lib/turn-settings.mjs';
+import {readTurnSettings} from '../lib/agents/codex-turn-settings.mjs';
 const context=(id,model,effort)=>JSON.stringify({timestamp:'2026-10-04',type:'turn_context',payload:{turn_id:id,model,effort}});
 test('Activity settings match the actual turn across chunks, preserve history, and update on append',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'turn-settings-')),path=join(dir,'rollout.jsonl');

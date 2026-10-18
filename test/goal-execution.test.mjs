@@ -6,7 +6,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {readFile,writeFile} from './record-fixture.mjs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {observeExecution,heartbeatTTL} from '../lib/goal-execution.mjs';
+import {observeExecution,heartbeatTTL} from '../lib/agents/codex-execution.mjs';
 import {createGoalView} from '../public/goal-view.js';
 import {fileURLToPath} from 'node:url';
 import {expectHidden} from './hidden-failures.mjs';

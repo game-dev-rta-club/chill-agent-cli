@@ -4,8 +4,9 @@ import {mkdtemp,rm,mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createGoal} from '../lib/goal-store.mjs';
-import {createControlService} from '../lib/agent-control.mjs';
-import {continuationObservation,continuationEligibility} from '../lib/continuation-observation.mjs';
+import {createControlService} from '../lib/agents/codex-control.mjs';
+import {continuationObservation} from '../lib/agents/codex-continuation-observation.mjs';
+import {continuationEligibility} from '../lib/continuation-eligibility.mjs';
 import {codexThread,contractStub} from './codex-contract.mjs';
 
 test('current-run pause without feedback blocks continuation until explicit resume',async()=>{

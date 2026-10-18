@@ -76,4 +76,4 @@ run's target from today's work selection. Public messages and turn settings are
 returned, never private reasoning or tool input/output.
 
 Implementation: [request reservation](../../lib/extension-api.mjs),
-[observation and eligibility](../../lib/continuation-observation.mjs).
+[observation](../../lib/agents/codex-continuation-observation.mjs), [eligibility](../../lib/continuation-eligibility.mjs).
