@@ -24,6 +24,8 @@ const paged = (list, {limit, cursor}) => {
   if (!Number.isInteger(start) || start < 0) throw rpcError(-32600, `Invalid cursor: ${cursor}`);
   return {data: list.slice(start, start + size), nextCursor: start + size < list.length ? String(start + size) : null};
 };
+// Codex's default itemsView is `summary`: the first user message and the last agent message only (verified by scripts/probe-codex.mjs).
+const shownItems = (items, view) => view === 'full' ? items : view === 'notLoaded' ? [] : [items.find(item => item.type === 'userMessage'), items.findLast(item => item.type === 'agentMessage')].filter(Boolean);
 const rateLimits = {limitId: 'codex', limitName: 'Codex', primary: {usedPercent: 12, windowDurationMins: 10080, resetsAt: 1791595319}, secondary: null, credits: {hasCredits: true, unlimited: false, balance: '62500'}};
 
 const handlers = {
@@ -35,11 +37,11 @@ const handlers = {
     if (process.env.CHILL_TEST_READ_DELAY) await delay(Number(process.env.CHILL_TEST_READ_DELAY));
     return {thread: codexThread({id: threadId, cwd: resolve(root), model: history.model || 'gpt-6-astra', reasoningEffort: history.reasoningEffort || 'medium', status: history.status || {type: 'notLoaded'}, turns: includeTurns ? inOrder(history.turns || [], 'asc', 'desc').map(turn => ({items: [], ...turn})) : []})};
   },
-  async 'thread/turns/list'({itemsView, sortDirection, ...page}) {
+  async 'thread/turns/list'({itemsView = 'summary', sortDirection, ...page}) {
     const history = await readHistory();
     if (history.fail) throw rpcError(-32600, 'History unavailable');
     const {data, nextCursor} = paged(inOrder(history.turns || [], sortDirection ?? 'desc', 'desc'), page);
-    return {data: data.map(turn => itemsView === 'notLoaded' ? {...turn, items: [], itemsView} : {items: [], ...turn}), nextCursor};
+    return {data: data.map(turn => ({...turn, items: shownItems(turn.items ?? [], itemsView), itemsView})), nextCursor};
   },
   async 'thread/items/list'({turnId, sortDirection, ...page}) {
     const history = await readHistory();
