@@ -4,7 +4,7 @@ import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
-import { workProgressGroups, workDisclosure } from './work-ui.js';
+import { workProgressGroups, workDisclosure, deliveryDisplay, isWaitingDelivery } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
 import { briefBody } from './brief-body.js';
@@ -234,18 +234,12 @@ function workMarkup(work) {
     ${work.truncated ? '<p class="work-hint">Showing latest updates.</p>' : ''}
     </div></details>`;
 }
-// Saved while the agent works: it arrives when that work ends, unless sent now.
-function isWaiting(event, work, state) {
-  const delivery = deliveries.get(event.changeId);
-  return Boolean(delivery?.waitForIdle && !delivery.sendNow && !delivery.agentReported && (delivery.status === 'waiting' || state === 'queued'));
-}
+const isWaiting = (event, work, state) => isWaitingDelivery(deliveries.get(event.changeId), state);
 function deliveryMarkup(event, work, continuedTo) {
   const delivery = deliveries.get(event.changeId);
   const activity=continuedTo?null:work?.activity||activityControls.forEvent(event.changeId);
   if (!delivery && !event.threadId && !activity) return '';
-  let state = activity?activity.status:continuedTo ? 'continued' : work?.status || (work?.live ? 'working' : '') || delivery?.status || 'saved';
-  const waiting = isWaiting(event, work, state);
-  if (waiting) state = 'waiting';
+  const {state, waiting} = deliveryDisplay({delivery, work, activity, continuedTo});
   const labels = { saved: 'Saved', waiting: 'Waiting', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
   const descriptions = { saved: delivery?.notice||'', waiting: 'Arrives when the current work ends.', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
   const retry = state === 'saved' || (state === 'failed' && !delivery?.mayHaveSent);

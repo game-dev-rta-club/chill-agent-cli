@@ -37,3 +37,14 @@ export function workProgressGroups(events, deliveries, activity=null) {
 export function workDisclosure(previous, live) {
   return !previous || previous.live !== live ? {live, open: live} : previous;
 }
+
+// Saved while the agent works: it arrives when that work ends, unless sent now.
+export const isWaitingDelivery = (delivery, state) =>
+  Boolean(delivery?.waitForIdle && !delivery.sendNow && !delivery.agentReported && (delivery.status === 'waiting' || state === 'queued'));
+
+// The state a feedback shows under it, from its delivery, the work of its turn and the Activity row.
+export function deliveryDisplay({delivery, work, activity, continuedTo}) {
+  const state = activity ? activity.status : continuedTo ? 'continued' : work?.status || (work?.live ? 'working' : '') || delivery?.status || 'saved';
+  const waiting = isWaitingDelivery(delivery, state);
+  return {state: waiting ? 'waiting' : state, waiting};
+}

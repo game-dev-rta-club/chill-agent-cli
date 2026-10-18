@@ -104,6 +104,20 @@ a new catch only when it means chill could not see or do something it expected
 to. A missing file, a partial JSON line, a stopped sleep or a tried-next
 candidate is an ordinary state and stays silent.
 
+## Give every user-visible flow a scenario for each agent
+
+Per-harness tests cover protocol detail. What a user sees and does (feedback
+reaching an idle or busy agent, Waiting and Send now, a reply closing the
+feedback, the Running mark, the Agent menu) is written once in
+`test/harness-scenarios.test.mjs` and runs against the fake Codex and a Claude
+Code conversation, through the drivers in `test/harness-drivers.mjs`. A change to
+shared code that breaks one agent therefore fails that agent's run of the scenario.
+
+A new flow is not done until it has a scenario there. A harness that lacks the
+feature declares it in its driver's `capabilities`, and the scenario asserts the
+interface says so instead of skipping. A scenario that fails for one harness and
+cannot be fixed in the same change goes in that driver's `todo` with the reason.
+
 ## Keep long runs bounded and recoverable
 
 At each completed slice and before ending a run, check open PRs, unmerged local
