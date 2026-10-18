@@ -17,7 +17,6 @@ async function pageMarks(f,goalId) {
   try{return await goalCommentMarks(goalId);}finally{for(const key of Object.keys(process.env))if(!(key in previous))delete process.env[key];Object.assign(process.env,previous);}
 }
 const execute=promisify(execFile), cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
-const hook=fileURLToPath(new URL('../bin/chill-hook.mjs',import.meta.url));
 const thread='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
 const turn='00000000-0000-0000-0000-000000000010';
 async function fixture(t){
@@ -86,7 +85,7 @@ test('one selected branch works while another waits; turn end returns to Idle',{
 });
 
 test('connection loss and reassignment clear Running; a stale unfinished turn is not shown Running',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
- expectHidden(t,'codex-desktop-connection.queue','codex-work.observe');
+ expectHidden(t,'codex-work.observe');
   const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);await f.run('work','--id','3');
   assert.equal((await f.run('tree'))[0].children[1].state,'working');
   await f.history({fail:true});let tree=(await f.run('tree'))[0];

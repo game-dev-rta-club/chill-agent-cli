@@ -9,14 +9,14 @@ import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {recordClaudeWork,reportClaudeHook} from '../lib/claude-agent-work.mjs';
 import {runClaudeAction,handleClaudeToolHook,claimClaudeFeedbackForWatcher} from '../lib/claude-actions.mjs';
-import {initializeStore,createGoal,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
+import {createGoal,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
 import {createClaudeRoot} from '../lib/claude-roots.mjs';
 import {assignGoal} from '../lib/agents/codex-execution.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
 import {fileURLToPath} from 'node:url';
-import {claudeEntry,claudeHook,claudeLine,claudeLines,hookFor} from './claude-fixtures.mjs';
+import {claudeHook,hookFor} from './claude-fixtures.mjs';
 
 async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-claude-actions-'));
@@ -198,7 +198,6 @@ test('Pause on a Claude Goal holds the conversation\'s comments until Resume',as
 
 test('goal work from a Claude conversation marks its Goal Running for the current response',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
-  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs');
   const {selectAgentWork,agentFor}=await import('../lib/agents/index.mjs');
   const {createGoal}=await import('../lib/goal-store.mjs');
   const child=await createGoal({title:'Child work',parentId:goal.id});

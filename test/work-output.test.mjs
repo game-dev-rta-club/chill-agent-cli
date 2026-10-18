@@ -1,16 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {mkdtemp, readFile, writeFile} from 'node:fs/promises';
+import {mkdtemp, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {execFile, spawn} from 'node:child_process';
-import {promisify} from 'node:util';
-import {once} from 'node:events';
-import {setTimeout as delay} from 'node:timers/promises';
 import {workReader} from '../lib/agents/codex-work-output.mjs';
 import {activityDisplay, commentMarkDisplay, workDisclosure} from '../public/work-ui.js';
-import {fileURLToPath} from 'node:url';
-import {expectHidden} from './hidden-failures.mjs';
 import {codexThread, contractStub} from './codex-contract.mjs';
 
 const thread='00000000-0000-0000-0000-000000000001';

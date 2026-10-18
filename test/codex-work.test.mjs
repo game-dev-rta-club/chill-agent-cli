@@ -60,7 +60,7 @@ test('a dozen waiting comments go to an idle chat in one message, none dropped',
 test('a chat Codex cannot read keeps the comment saved, and a later hand-off sends it',async t=>{
   const f=await fixture(t);
   await writeFile(join(f.dir,'fake-history.json'),JSON.stringify({fail:true}));invalidateAgentObservation(f.thread);
-  expectHidden(t,'codex-work.observe');expectHidden(t,'codex-desktop-connection.queue');
+  expectHidden(t,'codex-work.observe');
   const event=await appendFeedback({goalId:f.root.id,text:'Later'});
   assert.equal((await deliverFeedback(event.changeId)).mark,'saved');
   assert.deepEqual(await f.queue(),[]);

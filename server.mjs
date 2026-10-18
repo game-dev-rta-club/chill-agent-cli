@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listStoredGoals, listGoals, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
 import { createTunnelController } from './lib/tunnel-controller.mjs';

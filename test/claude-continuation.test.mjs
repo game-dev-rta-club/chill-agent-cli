@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
-import {runClaudeAction,handleClaudeToolHook,collectClaudeHookFeedback,handleClaudeStop} from '../lib/claude-actions.mjs';
+import {runClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
 import {listGoals,createGoal,appendFeedback,appendAgentComment,updateGoal,readGoal} from '../lib/goal-store.mjs';
 import {transferClaudeRoot} from '../lib/claude-roots.mjs';
 import {readForWeb,configureFromWeb,onStop} from '../lib/claude-continuation.mjs';
