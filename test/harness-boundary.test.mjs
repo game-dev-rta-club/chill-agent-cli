@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
-import {dirname,join,relative} from 'node:path';
+import {posix} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 // Core code works through the agent connection interface (lib/agents/index.mjs)
@@ -31,7 +31,7 @@ export function adapterImports(sources){
  for(const [file,source] of Object.entries(sources)){
   if(adapterCode(file)||doors.has(file))continue;
   for(const [,specifier] of source.matchAll(importSpecifier)){
-   const target=relative('.',join(dirname(file),specifier));
+   const target=posix.join(posix.dirname(file),specifier);
    if(adapterCode(target))found.push(`${file} -> ${target}`);
   }
  }
