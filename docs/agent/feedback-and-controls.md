@@ -36,8 +36,11 @@ data, with the command to read each Goal and the command to reply.
 Feedback saved while the agent's own work runs is marked Waiting. It is handed
 when that work ends: Codex's and Claude's Stop hooks hand it and the work goes on.
 Background work alone (a subagent, a background command) does not make feedback
-wait. **Send now** on the Web (`goal send-now --event <ID>`) hands every waiting
-comment of the Root to the running work at its next tool hook.
+wait. Feedback saved before the work started is not Waiting: it is what woke the
+agent, and the work takes it at its next tool hook. **Send now** on the Web
+(`goal send-now --event <ID>`) hands that comment, with the ones before it, to
+the running work at its next tool hook; comments written after it keep waiting.
+The comments before it go too, so the cursor keeps the order.
 
 ## Replying
 
@@ -60,13 +63,16 @@ runs. The rule is `quietGoals` in [agent rules](../../lib/agent-rules.mjs).
 
 ## What the Web shows
 
-- The Goal list and heading show **Awaiting reply** or **Replied**, and Running on
-  the Goals the agent works on now; a parent runs while a Split Goal runs.
+- The Goal list and heading show **Awaiting reply** while the Goal waits for a
+  reply, and Running on the Goals the agent works on now; a parent runs while a
+  Split Goal runs.
 - Under a comment that still waits for a reply, one small mark says where it is:
   Saved, Waiting, Paused, Sent or Interrupted. A reply on the Goal clears them.
-- After the conversation, the agent's state on this Goal (Running, Queued,
+- In the conversation, the agent's state on this Goal (Running, Queued,
   Paused, Interrupted, Ended) with its Pause or Resume and Think: the public text
-  of its current or last work here.
+  of its current or last work here. A live state stays after the conversation;
+  an ended one stands where the work ended, before later comments. A running
+  parent instead links to the Split Goal the work is in.
 
 ## Pause, Resume and Interrupted
 

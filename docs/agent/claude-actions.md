@@ -68,7 +68,8 @@ conversation owns cannot be taken over.
 Each Root keeps one hand-off cursor: the last user comment handed to the
 conversation that owns it. Comments after the cursor wait; handing them moves
 the cursor forward, so nothing is handed twice. `inbox` hands what waits and
-lists the handed comments whose Goals still wait for a reply. Pause from the
+lists the handed comments whose Goals still wait for a reply; the ones handed
+earlier, by a hook or the watcher, are listed apart from the new ones. Pause from the
 Web holds everything until Resume. It never falls back to Codex or another
 transport.
 

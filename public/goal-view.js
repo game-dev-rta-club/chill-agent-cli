@@ -37,13 +37,9 @@ function status(id){
   const link=tag==='a'?` href="#/goal/${activity.goalId}/activity/${activity.eventId}"`:'';
   return `<${tag}${link} class="status ${s}" title="${escapeHTML(description)}">${s==='done'?icon('check'):s==='waiting'?icon('coffee'):s==='paused'?icon('pause'):'<span class="dot" aria-hidden="true"></span>'}<span>${labels[s]}</span></${tag}>`;
 }
-// Whether the user waits for the agent's reply in this Goal. Rows show only the waiting.
-function reply(id,{answered=true}={}){
-  const conversation=goals[id].conversation;
-  if(!conversation.some(e=>e.author==='user'&&e.type==='comment'&&!e.deletedAt))return '';
-  const waiting=awaitsReply(conversation);
-  if(!waiting&&!answered)return '';
-  return `<span class="reply-state ${waiting?'awaiting':'answered'}" title="${waiting?'You commented after the agent’s last reply':'The agent replied after your last comment'}">${icon('message')}<span>${waiting?'Awaiting reply':'Replied'}</span></span>`;
+// Whether the user waits for the agent's reply in this Goal. A replied Goal shows nothing.
+function reply(id){
+  return awaitsReply(goals[id].conversation)?`<span class="reply-state awaiting" title="You commented after the agent’s last reply">${icon('message')}<span>Awaiting reply</span></span>`:'';
 }
 function progress(id){
   const scores=descendants(id).filter(n=>!goals[n].children.length).map(n=>ownGoalProgress(goals[n]));
@@ -74,7 +70,7 @@ function treeNodes(ids){return `<ul>${ids.map(id=>{
   const goal=goals[id],canExpand=goal.children.length>0||pendingLetters(id).length>0,open=canExpand&&!collapsed.has(id);
   const contents=canExpand?(goal.children.length?treeNodes(goal.children):'')+lettersList(id):'';
   const toggle=canExpand?`<button type="button" class="tree-row-toggle" aria-expanded="${open}" aria-controls="goal-children-${id}" aria-label="${open?'Collapse':'Expand'} ${escapeHTML(goal.title)}" data-toggle="${id}"><span class="tree-chevron">${icon('chevron')}</span></button>`:`<span class="tree-row-label"><span class="tree-chevron tree-leaf-dot" aria-hidden="true">·</span></span>`;
-  return `<li><div class="tree-row${canExpand?'':' tree-leaf'}"${canExpand?` data-row-toggle="${id}"`:''}><div class="tree-identity">${toggle}<a class="tree-name" href="${href(id)}" title="${escapeHTML(goal.title)}">${escapeHTML(goal.title)}</a></div><span class="row-summary">${status(id)}${reply(id,{answered:false})}${progress(id)}<span class="letters-slot">${lettersButton(id)}</span></span></div>${canExpand?`<div class="goal-children" id="goal-children-${id}" ${open?'':'hidden'}>${contents}</div>`:''}</li>`;
+  return `<li><div class="tree-row${canExpand?'':' tree-leaf'}"${canExpand?` data-row-toggle="${id}"`:''}><div class="tree-identity">${toggle}<a class="tree-name" href="${href(id)}" title="${escapeHTML(goal.title)}">${escapeHTML(goal.title)}</a></div><span class="row-summary">${status(id)}${reply(id)}${progress(id)}<span class="letters-slot">${lettersButton(id)}</span></span></div>${canExpand?`<div class="goal-children" id="goal-children-${id}" ${open?'':'hidden'}>${contents}</div>`:''}</li>`;
 }).join('')}</ul>`;}
 function splitGoals(id){
   const children=goals[id].children;
@@ -91,6 +87,6 @@ function pager(id,version){
   return `<nav class="version-pager" aria-label="Deliverable history"><span class="history-label">History</span>${step('previous',version-1)}<span class="version-label" aria-label="Version ${version}">v${version}</span>${step('next',version+1)}</nav>`;
 }
 function brief(id){return `${breadcrumb(id)}<section class="surface goal-brief" aria-labelledby="goal-title"><header class="goal-heading"><h1 id="goal-title">${escapeHTML(goals[id].title)}</h1><div class="goal-topline"><div class="badges">${status(id)}${reply(id)}${progress(id)}</div></div></header>${splitGoals(id)}</section>`;}
-function index(){const roots=Object.keys(goals).filter(id=>!goals[id].parentId);return `<div class="goals-index"><h1>Goals</h1>${roots.length?roots.map(id=>`<section class="surface goal-brief"><header class="goal-heading"><h2><a class="goal-index-link" href="${href(id)}">${escapeHTML(goals[id].title)} ↗</a></h2><div class="badges"><span class="root-agent" data-root-agent="${escapeHTML(id)}"></span>${status(id)}${reply(id,{answered:false})}${progress(id)}<span class="letters-count${letterCount(id)?'':' is-empty'}" aria-label="${letterCount(id)} unanswered Letters under ${escapeHTML(goals[id].title)}" title="Unanswered Letters, including Split Goals">${icon('letter')}<span>${letterCount(id)}</span></span></div></header></section>`).join(''):'<p class="empty-state">No Goals yet. Create a Goal from the CLI to begin.</p>'}</div>`;}
+function index(){const roots=Object.keys(goals).filter(id=>!goals[id].parentId);return `<div class="goals-index"><h1>Goals</h1>${roots.length?roots.map(id=>`<section class="surface goal-brief"><header class="goal-heading"><h2><a class="goal-index-link" href="${href(id)}">${escapeHTML(goals[id].title)} ↗</a></h2><div class="badges"><span class="root-agent" data-root-agent="${escapeHTML(id)}"></span>${status(id)}${reply(id)}${progress(id)}<span class="letters-count${letterCount(id)?'':' is-empty'}" aria-label="${letterCount(id)} unanswered Letters under ${escapeHTML(goals[id].title)}" title="Unanswered Letters, including Split Goals">${icon('letter')}<span>${letterCount(id)}</span></span></div></header></section>`).join(''):'<p class="empty-state">No Goals yet. Create a Goal from the CLI to begin.</p>'}</div>`;}
 return {brief,index,pager,brandTarget,descendants,letterCount,lettersButton,splitGoals};
 }
