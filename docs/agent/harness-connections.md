@@ -118,7 +118,7 @@ which harness it is: the agent's name and model come back as display strings, an
 | `control`, `controlActivity`, `setApproveAll`, `saveSettings` | Pause/Resume of the run or one message's run, permissions, model settings |
 | `isCaller`, `token` | Whether a command runs in the agent's own conversation; a key that changes on reassignment |
 | `continuation` | AutoContinue: read, switch, show a run's output; polled agents also tick |
-| `deliveryCarrier(state)` | How a saved feedback is sent and how its receipts are recorded |
+| `deliveryCarrier(state)` | How a saved feedback is sent, how its receipts are recorded, and whether the agent has it in hand (`taken`) |
 
 Each adapter lives in `lib/agents/` (`codex*.mjs`, `claude*.mjs`). Codex pushes
 feedback into the chat's native Queue and is polled for AutoContinue. Claude

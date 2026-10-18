@@ -12,7 +12,7 @@ export default {
    beforeCreate:'Identify the actual calling Codex conversation. Hook trust and Goal ownership are separate: do not wait for Hook approval to create/read a Root bound to this verified identity. Saved feedback also has native Queue delivery; an unverified Hook alone does not prove all Web replies are blocked.',
    whenUserActionNeeded:'Only ask for Hook review when native state or a native warning establishes that review is needed. A settings file or connectionVerified:false does not establish that. Never approve trust on the user\'s behalf or bypass it.',
    userMessage:'To receive Web replies while I am working, Codex needs you to review the chill-agent connection (Hook). {observedReviewAction} After that, continue on {goalUrl}.',
-   reviewAction:'Use the approval/review control actually offered by the installed Desktop. Identify the project and the chill-agent: Check Web feedback Hook. /hooks is documented for the Codex CLI, not a guaranteed Desktop command. Do not send the user to an unverified menu or ask them to approve every Hook.',
+   reviewAction:'Use the approval/review control actually offered by the installed Desktop. Identify the project and the two chill-agent Hooks, "chill-agent: Check Web feedback" (PostToolUse) and "chill-agent: Check the user has heard back" (Stop). /hooks is documented for the Codex CLI, not a guaranteed Desktop command. Do not send the user to an unverified menu or ask them to approve every Hook.',
    confirmation:'Do not call installation proof of native trust. Verify the saved Goal owner; distinguish that from an observed Hook receipt or an actual Web round trip. If trust cannot be inspected, state that it is unverified and continue work that does not depend on it.'
   },
   nextActions:[

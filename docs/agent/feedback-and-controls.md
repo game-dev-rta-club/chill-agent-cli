@@ -54,6 +54,33 @@ events. When the requested work is finished, record `completed`. There is no
 failed receipt; report what could not be done in a comment. An activity receipt
 does not select a work Goal or mark a Goal Done. See [execution state](execution-state.md).
 
+## When the agent stops
+
+The user reads only the Web. An agent that ends its turn while it waits for CI,
+with nothing running and no word to the user, makes the Web look stopped. So
+each time the agent stops, chill holds the stop once, asking it to tell the user
+where things stand, when both hold:
+
+1. Feedback the agent took (received or working, not completed) has had no reply
+   and no agent Comment or Letter on its Goal since the agent last stopped. A reply
+   completes the feedback; a progress `goal comment` leaves it open.
+2. Nothing of the agent keeps running after this stop, such as a background
+   subagent or command, as far as the harness reports it.
+
+The agent then replies if the work is handled, or posts a progress comment that
+says what it waits for and when it will check. The stop right after a hold is
+never held, so the agent can always end; a later stop with still nothing said is
+held again.
+
+The decision is one rule in `lib/quiet-stop.mjs`, over chill's own records: the
+agent's last stop (the largest change ID then and whether it was held, in
+`workspace/agent-stops/`), the deliveries its carrier reports as taken, and the
+agent's Comments and Letters. Each harness only reports the stop and carries the
+hold back as a Stop hook block. Claude Code names its background work in the Stop
+input. Codex's Stop input names none, so a Codex chat is held even while a
+background terminal runs. Codex's Stop hook is installed with its PostToolUse hook
+and needs the same hook trust.
+
 ## Read the handoff
 
 Delivery keeps the user's original text, annotations, attachments and event IDs
