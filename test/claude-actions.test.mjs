@@ -7,6 +7,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
+import {recordClaudeWork,reportClaudeHook} from '../lib/claude-agent-work.mjs';
 import {runClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
 import {initializeStore,createGoal,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
 import {createClaudeRoot} from '../lib/claude-roots.mjs';
@@ -132,7 +133,8 @@ test('the connection CLI acts at once and prints its result; piping the output c
   const execute=promisify(execFile),entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
   const {stdout,stderr}=await execute('/bin/sh',['-c','"$1" "$2" create-goal --title "CLI outcome" | head -1','probe',process.execPath,entry],{cwd:f.cwd,env:{...process.env,...s.env}});
   assert.equal(stderr,'');assert.match(stdout,/^Created Goal #1/);assert.equal((await listGoals()).length,1);
-  const event=await appendFeedback({goalId:'1',text:'CLI feedback'});
+  // Saved while the conversation is idle, so a tool hook may hand it over.
+  const event=await appendFeedback({goalId:'1',text:'CLI feedback'});await deliverFeedback(event.changeId);
   const path=join(f.dir,'hook.json');await writeFile(path,JSON.stringify(s.hook({agent_id:'child'})));
   const run=()=>execute('/bin/sh',['-c','exec "$1" "$2" claude-hook < "$3"','probe',process.execPath,entry,path],{cwd:f.cwd,env:process.env});
   assert.equal((await run()).stdout,'','a subagent hook never receives Web input');
@@ -228,9 +230,7 @@ test('goal work from a Claude conversation marks its Goal Running for the curren
   const {selectAgentWork,agentFor}=await import('../lib/agents/index.mjs');
   const {createGoal}=await import('../lib/goal-store.mjs');
   const child=await createGoal({title:'Child work',parentId:goal.id});
-  const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
-  await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
-  await writeFile(transcript,claudeLine(claudeEntry.prompt('p1')));
+  await reportClaudeHook(s.event('UserPromptSubmit'));
   await assert.rejects(selectAgentWork(child.id,{env:{}}),/handshake|assigned chat/);
   const work=await selectAgentWork(child.id,{env:s.env});
   assert.equal(work.goalId,child.id);
@@ -239,10 +239,12 @@ test('goal work from a Claude conversation marks its Goal Running for the curren
   assert.equal((await readGoal(child.id)).started,true);
   await selectAgentWork(child.id,{stop:true,env:s.env});
   assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
-  // The selection ends with the response that made it.
+  // The selection ends with the work that made it.
   await selectAgentWork(child.id,{env:s.env});
-  await writeFile(transcript,claudeLine(claudeEntry.stop({uuid:'s1'})),{flag:'a'});
+  assert.equal(await handleClaudeToolHook(s.event('Stop')),null);
   assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null);
+  await reportClaudeHook(s.event('UserPromptSubmit'));
+  assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).goalId,null,'the next work does not inherit it');
 });
 
 test('a Claude reply that leaves a subagent working keeps its Goal and message Running until the subagent ends',async t=>{
@@ -258,13 +260,18 @@ test('a Claude reply that leaves a subagent working keeps its Goal and message R
   await writeFile(transcript,claudeLines([claudeEntry.prompt('p1','Wake'),claudeEntry.toolResult('r0','toolu_inbox',JSON.stringify([{offerId}])),claudeEntry.launchAgent('a1','toolu_agent'),
     claudeEntry.agentLaunched('r1','toolu_agent','a1b2c3'),claudeEntry.stop({uuid:'s1'})]));
   await s.act('reply',{eventId:event.changeId,text:'Started the test; I will report the result.'});
+  // Claude Code lists the background agent when the response stops.
+  await handleClaudeToolHook(s.event('Stop',{transcript_path:transcript,background_tasks:[{id:'a1b2c3',type:'subagent',status:'running',agent_type:'general-purpose'},{id:'b1',type:'shell',status:'running',command:'npm run dev'}]}));
   const presence=await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence();
   assert.equal(presence.status,'working');assert.equal(presence.goalId,goal.id);
   const delivery=await readDeliveryState(event.changeId);
   assert.equal(delivery.status,'completed');
   assert.equal((await withClaudeReception([delivery]))[0].status,'working','answered, but still Running while its subagent works');
+  // It reports back: a new response that stops with nothing left in the background.
   await writeFile(transcript,claudeLine(claudeEntry.notice({taskId:'a1b2c3',toolUseId:'toolu_agent'})),{flag:'a'});
-  assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).status,'idle');
+  await reportClaudeHook(s.event('UserPromptSubmit'));
+  await handleClaudeToolHook(s.event('Stop',{transcript_path:transcript,background_tasks:[{id:'b1',type:'shell',status:'running',command:'npm run dev'}]}));
+  assert.equal((await agentFor((await listGoals()).find(g=>g.id===goal.id)).presence()).status,'idle','a background shell such as a dev server is not counted');
   assert.equal((await withClaudeReception([delivery]))[0].status,'completed');
 });
 
@@ -275,7 +282,7 @@ test('Claude feedback saved while a response runs waits for its end unless the u
   const {sendFeedbackNow}=await import('../lib/delivery.mjs');
   const location=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId),transcript=join(f.dir,'session.jsonl');
   await writeFile(location.record,JSON.stringify({...JSON.parse(await readFile(location.record,'utf8')),transcriptPath:transcript}));
-  await writeFile(transcript,claudeLine(claudeEntry.prompt('p1')));
+  await reportClaudeHook(s.event('UserPromptSubmit'));
   const first=await appendFeedback({goalId:goal.id,text:'One more thing'});await deliverFeedback(first.changeId);
   assert.equal((await readDeliveryState(first.changeId)).waitForIdle,true);
   assert.equal((await withClaudeReception([await readDeliveryState(first.changeId)]))[0].status,'waiting');
@@ -285,13 +292,12 @@ test('Claude feedback saved while a response runs waits for its end unless the u
   assert.equal(stop.decision,'block');assert.match(stop.reason,/One more thing/);
   assert.equal((await readDeliveryState(first.changeId)).status,'unknown','offered to the conversation');
   // Send now offers the next one to the running response.
-  await writeFile(transcript,claudeLine(claudeEntry.prompt('p2','Continue')),{flag:'a'});
   const second=await appendFeedback({goalId:goal.id,text:'Urgent fix'});await deliverFeedback(second.changeId);
   assert.equal(await handleClaudeToolHook(s.hook()),null);
   await sendFeedbackNow(second.changeId);
   assert.match(context(await handleClaudeToolHook(s.hook())),/Urgent fix/);
   // Feedback saved while idle is offered at once, as before.
-  await writeFile(transcript,claudeLine(claudeEntry.stop({uuid:'s2'})),{flag:'a'});
+  await recordClaudeWork(s.record.sessionId,[{type:'finished'}]);
   const idle=await appendFeedback({goalId:goal.id,text:'While idle'});await deliverFeedback(idle.changeId);
   assert.equal((await readDeliveryState(idle.changeId)).waitForIdle,undefined);
 });

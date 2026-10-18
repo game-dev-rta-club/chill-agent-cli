@@ -25,8 +25,9 @@ const hookReads = {
   PermissionRequest: {session_id: 'string', tool_name: 'string'},
   PostToolUse: {session_id: 'string', tool_name: 'string', tool_response: 'unknown', agent_id: 'string?'},
   Stop: {session_id: 'string', transcript_path: 'string', stop_hook_active: 'boolean', prompt_id: 'string?', agent_id: 'string?', background_tasks: 'array?'},
+  StopFailure: {session_id: 'string', agent_id: 'string?'},
 };
-const hookFiles = ['lib/claude-entry.mjs', 'lib/claude-actions.mjs', 'lib/claude-pause.mjs', 'lib/claude-permissions.mjs', 'lib/claude-rm-guard.mjs', 'bin/chill-connection.mjs'];
+const hookFiles = ['lib/claude-entry.mjs', 'lib/claude-actions.mjs', 'lib/claude-pause.mjs', 'lib/claude-permissions.mjs', 'lib/claude-rm-guard.mjs', 'lib/claude-agent-work.mjs', 'bin/chill-connection.mjs'];
 
 test('the recorded samples are one Claude Code release and carry nothing private', async () => {
   assert.equal(hookSchema.claudeCodeVersion, version, 'hooks.json and the transcripts come from different releases');
