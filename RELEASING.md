@@ -55,7 +55,9 @@ the successful main commit. An explicit user request to publish authorizes that 
 rule does not require asking again for the same action.
 
 1. Open a release PR updating `package.json`, the lockfile, and `CHANGELOG.md`.
-2. Run `npm ci`, `npm run check`, and `npm pack`. Test a clean archive install.
+2. Run `npm ci`, `npm run check`, and `npm pack`. Test a clean archive install. On a Mac with Codex Desktop, run
+   the [Codex verification](docs/development/codex-verification.md) (`node scripts/probe-codex.mjs`,
+   `node scripts/probe-codex.mjs connection --run` and the Desktop checklist), and commit the record it writes.
 3. Merge after required CI. Create `v<version>` on the reviewed commit.
 4. The release workflow reruns checks and attaches the npm-installable archive to
    a GitHub Release. Tags cannot be updated or deleted.
