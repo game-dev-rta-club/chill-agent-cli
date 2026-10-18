@@ -61,10 +61,11 @@ export async function runConnection({codex, log, options}) {
   const result = {model: fake ? 'scripted fake model (rehearsal, nothing recorded)' : model, effort: fake ? 'medium' : effort, usage: {}, rehearsal};
   try {
     log(`codex ${codex.version}; model ${result.model}${fake ? '' : `, effort ${effort}`}; disposable CODEX_HOME ${home}`);
+    const violations = [], validated = new Set();
     const validate = (method, params, reply) => {
       if (!contractMethods.includes(method)) return;
-      const bad = [...requestViolations(method, params), ...(reply.result ? responseViolations(method, reply.result) : [])];
-      if (bad.length) check(`schema: ${method} matches test/fixtures/codex-app-server-schema.json`, false, bad.join('; '));
+      validated.add(method);
+      violations.push(...[...requestViolations(method, params), ...(reply.result ? responseViolations(method, reply.result) : [])].map(text => `${method}: ${text}`));
     };
     const direct = async (method, params) => { const res = await A.call(method, params, 30000); const reply = res.error ? {error: res.error} : res.timeout ? {error: {message: 'timeout'}} : {result: res.result}; validate(method, params, reply); return reply; };
     await A.init();
@@ -132,6 +133,7 @@ export async function runConnection({codex, log, options}) {
     const settings = await readTurnSettings((await direct('thread/read', {threadId: chatId, includeTurns: false})).result.thread.path, turn?.id);
     check('the turn ran on the configured model and effort', fake ? settings?.model === 'fake-model' : settings?.model === model && settings.reasoning === effort, JSON.stringify(settings));
 
+    check(`schema: the round trip's ${[...validated].join(', ')} requests and responses match test/fixtures/codex-app-server-schema.json`, violations.length === 0, violations.slice(0, 3).join('; '));
     const usage = lastUsage(A, chatId);
     result.usage = {thisFeedbackTurn: diff(usage, usageBefore), chat: usage};
     const plain = command => command.replace(/^\S*zsh -lc /, '').replace(/PORT='\d+' CHILL_AGENT_DATA_DIR='[^']*' '[^']*' '[^']*chill-agent\.mjs'/g, 'chill').replaceAll('"', '').slice(0, 200);
