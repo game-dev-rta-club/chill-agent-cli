@@ -44,6 +44,8 @@ stubs wrapped with `contractStub`, are checked against Codex's own protocol sche
 (`test/fixtures/codex-app-server-schema.json`), so a request or answer Codex would
 reject fails the run. After a Codex update, run `node scripts/update-codex-schema.mjs`
 and review the diff; the script is not part of `npm run check`.
+The fakes are still written by hand, so before a release (and after a Codex update) run the
+[Codex verification](docs/development/codex-verification.md), which checks them against the installed app-server.
 
 ## Documentation ownership
 

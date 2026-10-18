@@ -56,7 +56,8 @@ change, batching what was already tried.
    the final behavior, tests, dependency revision and rollout implications.
 2. Verify a fresh checkout with its recorded dependencies. Run relevant tests
    while developing and `npm run check` before integration. Document native probes
-   separately; do not run them against an active user's workspace.
+   separately; do not run them against an active user's workspace. The Codex probe is described in
+   [Codex verification](codex-verification.md).
 3. Review the actual final diff. Integrate the latest `develop` into the topic,
    resolve conflicts and retest affected behavior plus required checks. Do not
    repeatedly rebase shared topic history.
