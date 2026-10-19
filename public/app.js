@@ -288,6 +288,8 @@ function timelineMarkup(id) {
   // Mentions older than the loaded history wait until it is loaded.
   const mentions=(goalMetadata.get(id)?.mentions||[]).map(m=>({...m,at:new Date(m.at)})).filter(m=>hasGoal(m.goalId)&&(!history?.hasMore||visible[0]&&m.at>=visible[0].at)).sort((a,b)=>a.at-b.at);
   const mentioned=event=>{let markup='';while(mentions.length&&(!event||mentions[0].at<event.at))markup+=mentionMarkup(mentions.shift());return markup;};
+  // Waiting comments reach the agent when its work ends, so they follow the activity.
+  let waitingMarkup='';
   const older=history?.hasMore?`<li class="conversation-gap"><button type="button" data-action="load-older-conversation" ${history.loading?'disabled':''}>${history.loading?'Loading…':'Load earlier conversation'}</button></li>`:'';
   return older+conversationWindow.segments(id, visible, pinned).map(segment => {
     if (segment.kind === 'gap') {
@@ -301,13 +303,15 @@ function timelineMarkup(id) {
     const letter=letterState(event,visible);
     const time=timeMarkup(event.at);
     const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
-    return `${before(event)}${mentioned(event)}<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
+    const item = `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
       <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
       ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<img class="event-image" src="${src}" alt="Attached image">`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
+    if (waiting) { waitingMarkup += item; return ''; }
+    return `${before(event)}${mentioned(event)}${item}`;
     }).join('');
-  }).join('')+mentioned(null)+activity;
+  }).join('')+mentioned(null)+activity+waitingMarkup;
 }
 
 function conversationPins(id, messages = conversationFor(id)) {
