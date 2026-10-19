@@ -77,6 +77,9 @@
 .event-meta time { font-size: 10px; color: var(--muted); }
 .event-meta time { margin-left: auto; }
 .event-text { font-size: 13px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.mention-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 28px; margin: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.mention-entry a { color: var(--ink); font-weight: 600; }
+.mention-entry time { margin-left: auto; font-size: 10px; }
 .activity-entry { min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 12px; }
 .activity-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-height: 24px; }
 .activity-heading strong { font-size: 12px; }

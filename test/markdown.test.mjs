@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseFragment} from 'parse5';
-import {markdownHTML,markdownText} from '../lib/markdown.mjs';
+import {markdownHTML,markdownText,goalReferences} from '../lib/markdown.mjs';
 const textOf=n=>n.nodeName==='#text'?n.value:(n.childNodes||[]).map(textOf).join('');
 const nodes=(n,tag)=>[...(n.tagName===tag?[n]:[]),...(n.childNodes||[]).flatMap(c=>nodes(c,tag))];
 test('Markdown renders GFM and creates initially closed, nested heading sections',()=>{
@@ -50,4 +50,12 @@ test('an autolink inside Japanese text stops at the URL and keeps the text uncha
   assert.match(markdownHTML('see https://example.com/a_(b) now'), /href="https:\/\/example\.com\/a_\(b\)"/);
   assert.match(markdownHTML('https://example.com/path.'), /href="https:\/\/example\.com\/path">https:\/\/example\.com\/path<\/a>\./);
   assert.match(markdownHTML('[ラベル](https://example.com/y)'), /href="https:\/\/example\.com\/y">ラベル</);
+});
+
+test('#N links to Goal N as on GitHub, except in code, links and words', () => {
+  const source = 'Goal #52 と(#3)、これは#4です。abc#5 /#6 #7a `#8` [x](https://e.com/#9) #0\n\n```\n#12\n```';
+  const goals = [...markdownHTML(source).matchAll(/<a href="#\/goal\/(\d+)" data-goal="\1">#\1<\/a>/g)].map(m => m[1]);
+  assert.deepEqual(goals, ['52', '3', '4']);
+  assert.deepEqual(goalReferences(source), ['52', '3', '4']);
+  assert.equal(markdownText(source), markdownText(source.replaceAll('#', '＃')).replaceAll('＃', '#'));
 });

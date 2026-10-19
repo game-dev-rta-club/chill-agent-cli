@@ -15,7 +15,7 @@ test('historical Deliverable keeps the current tree and whole Goal conversation'
  assert.equal(page.latestVersion,2);assert.equal(page.root.scope,'Scope 1');
  const web=Object.fromEntries(goals.map(g=>[g.id,{...g,children:goals.filter(c=>c.parentId===g.id).map(c=>c.id)}]));
  const view=createGoalView(web,'2',new Set());assert.equal(view.letterCount('2'),page.goal.letterCount);
- const text=renderGoalPage({...page,attachments:[]});assert.match(text,/Root agreement #1/);assert.match(text,/Deliverable · v1/);assert.match(text,/Answer target · Letter #1/);assert.match(text,/Answer to Letter #1:\nAnswer/);
+ const text=renderGoalPage({...page,attachments:[]});assert.match(text,/Root agreement #1/);assert.match(text,/Deliverable · v1/);assert.match(text,/Answer target · Letter 1/);assert.match(text,/Answer to Letter 1:\nAnswer/);
  assert.match(text,/Editable Markdown: \/goals\/2\/deliverable.md/);
  assert.equal(goalPage(goals,'3').brief,null);
  for(const options of [{version:0},{version:99},{since:-1}])assert.throws(()=>goalPage(goals,'2',options));

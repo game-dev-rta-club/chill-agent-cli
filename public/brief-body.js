@@ -1,7 +1,8 @@
 // HTML is parsed and filtered on the server. Restore only disclosure state here.
-export function briefBody(html, replyId = null, opened = new Set()) {
+export function briefBody(html, {hasGoal, replyId = null, opened = new Set()}) {
   const template = document.createElement('template');
   template.innerHTML = html;
+  template.content.querySelectorAll('a[data-goal]').forEach(link => { if (!hasGoal(link.dataset.goal)) link.replaceWith(link.textContent); });
   template.content.querySelectorAll('a[href]').forEach(link => {
     // A link that is not a valid URL stays as text; it must not stop the page.
     let origin = null;

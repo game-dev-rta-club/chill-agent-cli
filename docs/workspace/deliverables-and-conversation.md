@@ -63,6 +63,13 @@ links and disclosures, alongside Markdown. Both authors use the same sanitizer;
 scripts, forms, custom styles and remote images are removed. Use a standalone
 HTML Deliverable when the explanation needs its own layout or styling.
 
+`#N` in a message or a Markdown Deliverable always names Goal N, as on GitHub. It
+links to that Goal unless it is inside code or a link, glued to a word or path
+(`abc#1`, `/#1`), or no such Goal exists. A Goal named from another Goal's
+Conversation shows "Mentioned in #M" in its own Conversation, once per Goal, at
+the first Comment that named it. chill never writes Comment or Letter numbers with
+`#`; it writes `comment 1006` or `Letter 868`.
+
 When a delivered Comment answers a Letter, the agent records it before other
 work with `goal close-letter --id 1 --event <LETTER_ID> --answer <COMMENT_ID>`,
 and the Letter shows as Replied. Each delivery lists the open Letters with that
