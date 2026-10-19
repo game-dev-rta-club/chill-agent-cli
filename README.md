@@ -10,7 +10,7 @@ keyPoints: >-
 
 Local workspace infrastructure for developers building agent workflows. Use its CLI, Web interface, and harness connection independently of the chill-agent skills and continuation policy.
 
-For the ready-to-use experience, start with [chill-agent](https://github.com/game-dev-rta-club/chill-agnet).
+For the ready-to-use experience, start with [chill-agent](https://github.com/game-dev-rta-club/chill-agent).
 
 ## Responsibilities
 
