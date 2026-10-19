@@ -45,7 +45,7 @@ test('an idle chat is sent waiting comments as one message, quoting the user as 
   await appendAgentComment({goalId:child.id,type:'letter',title:'Still open?',text:'And this?'});
   const second=await appendFeedback({goalId:child.id,text:'And the child',annotations:[{kind:'letter',source:{kind:'comment',eventId:letter.changeId},text:'A'}]});await deliverFeedback(second.changeId);
   assert.equal(JSON.parse((await f.queue())[1].input[0].text.split('\n')[2])[0].notes[0].source.eventId,letter.changeId,'notes keep their source');
-  assert.match((await f.queue())[1].input[0].text,/Open Letters[\s\S]*Letter #\d+ "Still open\?"/);
+  assert.match((await f.queue())[1].input[0].text,/Open Letters[\s\S]*Letter \d+ "Still open\?"/);
   assert.deepEqual((await f.queue()).map(e=>ids(e.input[0].text)),[[first],[second.changeId]]);
   assert.equal((await handIdleCodex(f.thread)).length,0,'nothing is sent twice');
 });

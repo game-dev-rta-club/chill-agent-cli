@@ -19,6 +19,7 @@ import {createSkillMenu} from './skill-menu.js';
 history.scrollRestoration='manual';
 const briefsByGoal = new Map();
 const goalMetadata = new Map();
+const hasGoal = id => goalMetadata.has(id);
 const events = [];
 const historyPages=new Map();
 const letterStatuses=new Map();
@@ -40,6 +41,7 @@ const icons = {
   file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
   expandOlder: '<path d="M12 16V4m-5 5 5-5 5 5M4 20h16"/>',
   expandNewer: '<path d="M12 8v12m-5-5 5 5 5-5M4 4h16"/>',
+  mention: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">${icons[name]}</svg>`;
 const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -82,7 +84,7 @@ const openReplies = new Set();
 const conversationWindow = createConversationWindow();
 // Deleted agent comments arrive as tombstones and are not shown.
 const conversationFor = id => events.filter(event => event.goalId === id && !event.deletedAt);
-function letterTitle(id) {return events.find(e=>e.id===id)?.title||`Letter #${id}`;}
+function letterTitle(id) {return events.find(e=>e.id===id)?.title||`Letter ${id}`;}
 let pendingUpdateId = null;
 const hasNewBrief = createBriefArrivalTracker();
 const updateNotice = document.querySelector('#update-notice');
@@ -265,9 +267,16 @@ function activityMarkup(id) {
     </div></li>`;
 }
 
+const timeMarkup = at => `<time datetime="${at.toISOString()}">${at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
+function mentionMarkup(mention) {
+  const title = goalMetadata.get(mention.goalId)?.title;
+  return `<li class="timeline-event"><span class="timeline-marker" aria-hidden="true">${icon('mention')}</span>
+    <p class="mention-entry">Mentioned in <a href="#/goal/${escapeHTML(mention.goalId)}/activity/${escapeHTML(mention.eventId)}">#${escapeHTML(mention.goalId)}${title ? ` ${escapeHTML(title)}` : ''}</a>${timeMarkup(mention.at)}</p></li>`;
+}
+
 function replyMarkup(event) {
   const source = event.author === 'agent' ? `data-annotation-reply="${event.id}"` : '';
-  return `<div class="event-text markdown-body" ${source} lang="ja">${briefBody(event.html || '', event.id, openReplies)}</div>`;
+  return `<div class="event-text markdown-body" ${source} lang="ja">${briefBody(event.html || '', {hasGoal, replyId:event.id, opened:openReplies})}</div>`;
 }
 
 function timelineMarkup(id) {
@@ -276,6 +285,9 @@ function timelineMarkup(id) {
   const history=historyPages.get(id),end=activityEnd(id);
   let activity=activityMarkup(id);
   const before=event=>{if(!activity||event.at.getTime()<=end)return '';const markup=activity;activity='';return markup;};
+  // Mentions older than the loaded history wait until it is loaded.
+  const mentions=(goalMetadata.get(id)?.mentions||[]).map(m=>({...m,at:new Date(m.at)})).filter(m=>hasGoal(m.goalId)&&(!history?.hasMore||visible[0]&&m.at>=visible[0].at)).sort((a,b)=>a.at-b.at);
+  const mentioned=event=>{let markup='';while(mentions.length&&(!event||mentions[0].at<event.at))markup+=mentionMarkup(mentions.shift());return markup;};
   const older=history?.hasMore?`<li class="conversation-gap"><button type="button" data-action="load-older-conversation" ${history.loading?'disabled':''}>${history.loading?'Loading…':'Load earlier conversation'}</button></li>`:'';
   return older+conversationWindow.segments(id, visible, pinned).map(segment => {
     if (segment.kind === 'gap') {
@@ -287,15 +299,15 @@ function timelineMarkup(id) {
     }
     return segment.messages.map(event => {
     const letter=letterState(event,visible);
-    const time=`<time datetime="${event.at.toISOString()}">${event.at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
+    const time=timeMarkup(event.at);
     const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
-    return `${before(event)}<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
+    return `${before(event)}${mentioned(event)}<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
       <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
       ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<a class="event-image-link" href="${src}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="${src}" alt="Attached image"></a>`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
     }).join('');
-  }).join('')+activity;
+  }).join('')+mentioned(null)+activity;
 }
 
 function conversationPins(id, messages = conversationFor(id)) {
@@ -372,7 +384,7 @@ function refreshGoalFrame() {
   if(slot&&activeGoalId)keepReadingPosition(()=>{slot.innerHTML=goalView().brief(activeGoalId);});
 }
 function renderGoal(id,version) {
-  const brief=briefAt(id,version),isHTML=brief?.format==='html',body=isHTML?'':briefBody(brief?.html||''),view=goalView();
+  const brief=briefAt(id,version),isHTML=brief?.format==='html',body=isHTML?'':briefBody(brief?.html||'',{hasGoal}),view=goalView();
   const imageTemplate=document.createElement('template');imageTemplate.innerHTML=body;
   imageNames.clear();
   imageTemplate.content.querySelectorAll('img').forEach((img,index)=>{
@@ -1472,7 +1484,7 @@ async function updateCurrentBrief(version) {
   if(/\/v[1-9][0-9]*$/.test(currentRoute)){
     currentRoute=versionRoute(id,version);history.replaceState(null,'',currentRoute);
   }
-  section.innerHTML=`<div class="section-heading document-heading"><h2>Deliverable</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable"><div class="brief-body markdown-body" lang="ja" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'')}</div></article>`;
+  section.innerHTML=`<div class="section-heading document-heading"><h2>Deliverable</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable"><div class="brief-body markdown-body" lang="ja" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal})}</div></article>`;
   imageNames.clear();
   section.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
   main.querySelector('.annotation-form').dataset.version=String(version);

@@ -28,7 +28,7 @@ command finds its conversation from `CLAUDE_CODE_SESSION_ID`, which Claude Code
 sets in every shell, and the recorded entry for it: the current context is
 always used, so compact or resume never breaks a running command and a command
 after clear acts for the new context. The command does its work and prints the
-result, such as `Created Goal #1` or `Replied on Goal #1 (comment #2)`. Its
+result, such as `Created Goal #1` or `Replied on Goal #1 (comment 2)`. Its
 output can be piped or shortened like any other command.
 
 `reply` posts the answer in the Goal's Conversation. There are no per-comment

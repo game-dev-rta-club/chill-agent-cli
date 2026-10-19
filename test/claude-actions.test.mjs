@@ -341,6 +341,6 @@ test('one reply answers the Goal, whichever of its comments it answers',async t=
   const output=await s.act('reply',{goalId:goal.id,text:'Done both'});
   for(const event of [first,second])assert.equal((await deliverFeedback(event.changeId)).mark,null);
   const {readEvent}=await import('../lib/goal-store.mjs');
-  const commentId=Number(/comment #(\d+)/.exec(output)[1]);
+  const commentId=Number(/comment (\d+)/.exec(output)[1]);
   assert.equal((await readEvent(commentId)).text,'Done both');assert.equal(await readEvent(commentId+1),null,'the reply is posted once');
 });
