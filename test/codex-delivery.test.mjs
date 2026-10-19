@@ -8,6 +8,7 @@ import test from 'node:test';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
 import {fileURLToPath} from 'node:url';
 import {expectHidden} from './hidden-failures.mjs';
+import {sentTo,usedChat} from './fake-codex-desktop.mjs';
 // These cases cover the host's own notification path, used when bundled extensions are off.
 process.env.CHILL_AGENT_EXTENSIONS='none';
 
@@ -30,6 +31,7 @@ function runHook(f, input = {}, extra = {}) {
 }
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'chill-delivery-test-'));
+  await usedChat(root);
   const env = { ...process.env, CHILL_AGENT_DATA_DIR: root, CHILL_AGENT_CODEX_PATH: fake, CODEX_THREAD_ID: thread };
   const run = (args, extra = {}) => execute(process.execPath, [cli, ...args], { env: { ...env, ...extra } });
   const json = async path => JSON.parse(await readFile(join(root, path), 'utf8'));
@@ -104,7 +106,7 @@ test('saved notification preferences reach a new chat in its message, and are re
   await f.publish(other);
   const [, {comment}] = await f.feedback({});
   assert.equal(comment.mark, 'handed');
-  const queued = (await f.json('fake-queue.json'))[0].input[0].text;
+  const queued = (await sentTo(f.root, thread))[0];
   assert.match(queued, /notice --id 1 --event <saved-event-id>/);
   assert.equal((await runHook(f,{session_id:other},{CODEX_THREAD_ID:other})).stdout, '', 'nothing is handed twice');
   // A message can outlive the settings that created it. Its command re-reads
@@ -128,7 +130,7 @@ test('invalid optional notification settings do not block publishing or receivin
   assert.equal(JSON.parse(applied.stdout).version,2);
   const [, {comment}] = await f.feedback({});
   assert.equal(comment.mark, 'handed');
-  const queued = (await f.json('fake-queue.json'))[0].input[0].text;
+  const queued = (await sentTo(f.root, thread))[0];
   assert.match(queued, /"eventId":1,/);
   assert.match(queued, /Could not read saved user notification preferences/);
 });

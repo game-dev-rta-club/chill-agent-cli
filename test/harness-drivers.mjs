@@ -28,7 +28,7 @@
 // A capability the harness lacks is declared in `capabilities` and the scenario asserts the interface says so.
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
-import {appendFile,mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
+import {appendFile,mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -42,6 +42,7 @@ import {claimClaudeFeedbackForWatcher} from '../lib/claude-actions.mjs';
 import {executionState,isRunning} from '../public/goal-state.js';
 import {activityDisplay,commentMarkDisplay} from '../public/work-ui.js';
 import {claudeEntry,claudeLine,hookFor} from './claude-fixtures.mjs';
+import {desktopChat} from './fake-codex-desktop.mjs';
 
 // Codex's reads of a chat are cached for a few seconds. Moving this process's clock past them stands for time passing,
 // so a read after the response ended is not answered from the read made while it ran.
@@ -127,57 +128,43 @@ async function codexSession(t) {
   const data=process.env.CHILL_AGENT_DATA_DIR,thread=randomUUID();
   await mkdir(data,{recursive:true});
   passTime();
-  const env={...process.env,CODEX_THREAD_ID:thread},turns=[];
-  const writeHistory=async status=>{
-    await writeFile(join(data,'fake-history.json'),JSON.stringify({status,turns:turns.slice().reverse()}));
-    invalidateAgentObservation(thread);
-  };
-  const running=()=>turns.at(-1)?.completedAt===null?turns.at(-1):null;
-  const startTurn=async items=>{
-    turns.push({id:randomUUID(),status:'inProgress',completedAt:null,items});
-    await writeHistory({type:'active',activeFlags:[]});
-  };
-  const queue=async()=>JSON.parse(await readFile(join(data,'fake-queue.json'),'utf8').catch(()=>'[]'));
-  let continuing=false,handoff=null;
+  const env={...process.env,CODEX_THREAD_ID:thread};
+  // Desktop runs the chat; chill sees it from a second process, as the real one (test/fake-codex-desktop.mjs).
+  const chat=await desktopChat(data,thread,()=>invalidateAgentObservation(thread));
+  const hook=async(name,turnId,extra={})=>{const output=await runWith(codexHook,[],{env,input:{hook_event_name:name,session_id:thread,turn_id:turnId,...extra}});return output.trim()?JSON.parse(output):null;};
+  // A tool call in the running turn: Codex runs PostToolUse, which is how chill learns the turn works.
+  const tool=async()=>{const output=await hook('PostToolUse',(await chat.running()).id);if(output)handoff.push(...feedbackIds(output.hookSpecificOutput.additionalContext));};
+  let continuing=false,handoff=[];
+  const read=new Set();
   const root=await createGoal({title:'A useful outcome'});
   await assignGoal(root.id,thread);
-  await writeHistory({type:'idle'});
   const session={
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
-    async agentStartsResponse() {await startTurn([]);},
+    async agentStartsResponse() {await chat.startTurn();await tool();},
     // Codex runs the Stop hook as the turn ends; a block continues the turn with the reason.
     async agentEndsResponse() {
-      const output=await runWith(codexHook,[],{env,input:{hook_event_name:'Stop',session_id:thread,turn_id:turns.at(-1)?.id??randomUUID(),stop_hook_active:continuing,
-        last_assistant_message:'Done.',cwd:dir,model:'gpt-5.5',permission_mode:'default',transcript_path:null}});
-      const hold=output.trim()?JSON.parse(output):null;
+      const turn=await chat.running();
+      const hold=await hook('Stop',turn?.id??randomUUID(),{stop_hook_active:continuing,last_assistant_message:'Done.',cwd:dir,model:'gpt-5.5',permission_mode:'default',transcript_path:null});
       continuing=hold?.decision==='block';
-      if(continuing){handoff=hold.reason;return hold.reason;}
-      Object.assign(turns.at(-1),{status:'completed',completedAt:Math.floor(Date.now()/1000)});
-      await writeHistory({type:'idle'});
+      if(continuing){handoff.push(...feedbackIds(hold.reason));return hold.reason;}
+      if(turn)await chat.endTurn('completed');
       passTime();
       return null;
     },
     // Codex's own commands start no turn.
     async userRunsLocalCommand() {},
     async agentIsInterrupted() {
-      Object.assign(turns.at(-1),{status:'interrupted',completedAt:Math.floor(Date.now()/1000)});
-      await writeHistory({type:'idle'});
-      continuing=false;handoff=null;passTime();
+      await chat.endTurn('interrupted');
+      continuing=false;handoff=[];passTime();
     },
-    async agentTakesFeedback(eventId) {
-      let ids;
-      if(running()) {
-        const output=await runWith(codexHook,[],{env,input:{hook_event_name:'PostToolUse',session_id:thread,turn_id:running().id}});
-        ids=handoff?feedbackIds(handoff):output?feedbackIds(JSON.parse(output).hookSpecificOutput.additionalContext):[];
-        handoff=null;
-      } else {
-        // The chat starts its next turn from the message chill sent it.
-        const entries=await queue(),entry=entries.find(item=>feedbackIds(item.input[0].text).includes(eventId));
-        if(!entry)return [];
-        await writeFile(join(data,'fake-queue.json'),JSON.stringify(entries.filter(item=>item!==entry)));
-        await startTurn([{type:'userMessage',id:randomUUID(),content:entry.input}]);
-        ids=feedbackIds(entry.input[0].text);
-      }
+    async agentTakesFeedback() {
+      const turn=await chat.running();
+      if(!turn)return [];
+      // A turn Codex started from a message chill sent: the model reads it, then calls its first tool.
+      const message=turn.items[0]?.clientId&&!read.has(turn.id)?turn.items[0].content[0].text:null;
+      if(message){read.add(turn.id);handoff.push(...feedbackIds(message));}
+      await tool();
+      const ids=handoff;handoff=[];
       return ids;
     },
     // Another chat in the same project replies on the Goal.

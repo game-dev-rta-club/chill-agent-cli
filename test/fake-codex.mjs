@@ -1,22 +1,28 @@
 #!/usr/bin/env node
 // A fake `codex app-server`. Every request and response is held to the real protocol (test/codex-contract.mjs).
 // A violation is answered with a JSON-RPC error that names it and is recorded for test/isolate-env.mjs to fail the run.
+// It answers as the real one does to chill, which always runs in a second process beside Codex Desktop
+// (verified by scripts/probe-codex.mjs): the chat reads notLoaded, a live turn reads interrupted with
+// completedAt null, a chat is invisible before its first turn, and an idle chat starts a turn from its queue.
 import {createInterface} from 'node:readline';
-import {appendFile, mkdir, readFile, writeFile} from 'node:fs/promises';
+import {appendFile, mkdir} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 import {join, resolve} from 'node:path';
+import {desktopFiles, liveTurn} from './fake-codex-desktop.mjs';
 import {codexModel, codexThread, contractError, contractMethods, recordViolation, requestViolations, responseViolations} from './codex-contract.mjs';
 if (process.argv.includes('--version')) { console.log('codex-cli 0.158.0-test'); process.exit(0); }
 const root = process.env.CHILL_AGENT_DATA_DIR;
 await mkdir(root, {recursive: true});
-const path = join(root, 'fake-queue.json');
+const desktop = desktopFiles(root);
 // Entries keep the `threadId` they were queued on; the protocol never shows it.
-let queue = [];
-try { queue = JSON.parse(await readFile(path, 'utf8')); } catch {}
 const queued = ({id, clientUserMessageId, input}) => ({id, clientUserMessageId, input});
 const send = message => console.log(JSON.stringify(message));
 const rpcError = (code, message) => Object.assign(new Error(message), {code});
-const readHistory = async () => { try { return JSON.parse(await readFile(join(root, 'fake-history.json'), 'utf8')); } catch { return {}; } };
+const readHistory = desktop.history;
+// Only the process that runs a turn sees it inProgress.
+const seen = turn => liveTurn(turn) && turn.status === 'inProgress' ? {...turn, status: 'interrupted'} : turn;
+const unread = threadId => rpcError(-32600, `thread not loaded: ${threadId}`);
 // fake-history.json is a script, not a payload: turns newest first and items oldest first (the protocol defaults for `sortDirection`), and a turn may omit `items`.
 const inOrder = (list, direction, authored) => direction === authored ? list : [...list].reverse();
 const paged = (list, {limit, cursor}) => {
@@ -34,14 +40,16 @@ const handlers = {
     if (threadId.endsWith('999999999999')) throw rpcError(-32600, 'Chat not found.');
     const history = await readHistory();
     if (history.fail) throw rpcError(-32600, 'History unavailable');
+    if (!history.turns?.length) throw unread(threadId);
     if (process.env.CHILL_TEST_READ_DELAY) await delay(Number(process.env.CHILL_TEST_READ_DELAY));
-    return {thread: codexThread({id: threadId, cwd: resolve(root), model: history.model || 'gpt-6-astra', reasoningEffort: history.reasoningEffort || 'medium', status: history.status || {type: 'notLoaded'}, turns: includeTurns ? inOrder(history.turns || [], 'asc', 'desc').map(turn => ({items: [], ...turn})) : []})};
+    return {thread: codexThread({id: threadId, cwd: resolve(root), model: history.model || 'gpt-6-astra', reasoningEffort: history.reasoningEffort || 'medium', status: {type: 'notLoaded'}, turns: includeTurns ? inOrder(history.turns, 'asc', 'desc').map(turn => ({items: [], ...seen(turn)})) : []})};
   },
-  async 'thread/turns/list'({itemsView = 'summary', sortDirection, ...page}) {
+  async 'thread/turns/list'({threadId, itemsView = 'summary', sortDirection, ...page}) {
     const history = await readHistory();
     if (history.fail) throw rpcError(-32600, 'History unavailable');
-    const {data, nextCursor} = paged(inOrder(history.turns || [], sortDirection ?? 'desc', 'desc'), page);
-    return {data: data.map(turn => ({...turn, items: shownItems(turn.items ?? [], itemsView), itemsView})), nextCursor};
+    if (!history.turns?.length) throw unread(threadId);
+    const {data, nextCursor} = paged(inOrder(history.turns, sortDirection ?? 'desc', 'desc'), page);
+    return {data: data.map(turn => ({...seen(turn), items: shownItems(turn.items ?? [], itemsView), itemsView})), nextCursor};
   },
   async 'thread/items/list'({turnId, sortDirection, ...page}) {
     const history = await readHistory();
@@ -54,12 +62,16 @@ const handlers = {
     if ((await readHistory()).usageFail) throw rpcError(-32600, 'Usage unavailable');
     return {accountId: 'private-account', rateLimits, rateLimitsByLimitId: {codex: rateLimits}};
   },
-  'thread/queue/list': ({threadId, ...page}) => paged(queue.filter(entry => entry.threadId === threadId).map(queued), page),
+  async 'thread/queue/list'({threadId, ...page}) {
+    if (!(await readHistory()).turns?.length) throw rpcError(-32600, `failed to read thread: invalid thread-store request: no rollout found for thread id ${threadId}`);
+    return paged((await desktop.queue()).filter(entry => entry.threadId === threadId).map(queued), page);
+  },
   async 'thread/queue/add'({threadId, input, clientUserMessageId}) {
     if (process.env.CHILL_TEST_QUEUE_DELAY) await delay(Number(process.env.CHILL_TEST_QUEUE_DELAY));
-    const entry = {id: `queue-${queue.length + 1}`, input, clientUserMessageId, threadId};
-    queue.push(entry); await writeFile(path, JSON.stringify(queue));
+    const queue = await desktop.queue(), entry = {id: `queue-${randomUUID()}`, input, clientUserMessageId, threadId};
+    await desktop.writeQueue([...queue, entry]);
     if (process.env.CHILL_TEST_DROP_AFTER_ADD === '1') process.exit(0);
+    await desktop.runQueue(threadId);
     return {queuedSubmission: queued(entry)};
   },
 };
@@ -75,6 +87,7 @@ createInterface({input: process.stdin}).on('line', line => {
   chain = chain.then(async () => {
     const request = JSON.parse(line);
     if (request.id === undefined) return;
+    if (request.params?.threadId) await desktop.runQueue(request.params.threadId);
     await appendFile(join(root, 'fake-requests.jsonl'), JSON.stringify(request) + '\n');
     const bad = requestViolations(request.method, request.params);
     if (bad.length) return violation(request.id, request.method, 'request', bad);

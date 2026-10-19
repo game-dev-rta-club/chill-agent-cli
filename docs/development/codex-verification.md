@@ -66,8 +66,13 @@ It checks, as named lines:
   `test/fixtures/codex-app-server-schema.json` is validated, so a drifted field shows up as a failing `schema:` line.
 
 Then it replays the same requests on `test/fake-codex.mjs`, seeded with the turns the real Codex produced, and lists
-where the answers differ in shape or behavior. That list is the backlog of fake fixes. The probe fixed the one that was
-small and clear (the default `itemsView`); the others are in the record.
+where the answers differ in shape or behavior. That list is the backlog of fake fixes.
+
+The fake answers as the real Codex answers chill, which always reads from a second process beside Desktop. The chat
+reads `notLoaded`. A live turn reads `interrupted` with `completedAt` null, so chill knows a turn works only from
+its tool hooks. A chat is invisible before its first message. An idle chat runs the next queued input as a turn at
+once. `test/fake-codex-desktop.mjs` holds that chat, and tests change it as Desktop and its model would: start or end a
+turn, read what chill sent. On `0.163.0-alpha.10.2` only optional fields the fake omits and the model count remain.
 
 #### Trusting a hook without touching your config
 
@@ -116,8 +121,8 @@ uncommitted changes, and every check with its detail. The connection part adds t
 adds `differences`. A new Codex version gets a new file, so the history of verified versions stays in Git.
 
 `differences` entries name the requests they cover and what differs. "Only in real" means the fake omits an optional
-field, which matters only if a test starts to read it. A behavior entry, such as the fake never starting a turn from its
-queue, marks something tests cannot learn from the fake.
+field, which matters only if a test starts to read it. A behavior entry marks something tests cannot learn from the
+fake until the fake is fixed.
 
 ## When a check fails
 

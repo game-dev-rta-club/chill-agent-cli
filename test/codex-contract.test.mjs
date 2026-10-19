@@ -126,6 +126,7 @@ test('the fake Codex orders and pages like Codex: turns newest first, items olde
 
 test('queued submissions leave the fake without the thread they were queued on', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'chill-fake-queue-'));
+  await writeFile(join(directory, 'fake-history.json'), JSON.stringify({turns: [{id: 'busy', status: 'inProgress', completedAt: null}]}));
   const {replies} = await talk(directory, [
     ['thread/queue/add', {threadId: 't1', clientUserMessageId: 'm1', input: [{type: 'text', text: 'one', text_elements: []}]}],
     ['thread/queue/add', {threadId: 't2', clientUserMessageId: 'm2', input: [{type: 'text', text: 'two', text_elements: []}]}],
@@ -133,4 +134,23 @@ test('queued submissions leave the fake without the thread they were queued on',
   ]);
   assert.deepEqual(Object.keys(replies[0].result.queuedSubmission).sort(), ['clientUserMessageId', 'id', 'input']);
   assert.deepEqual(replies[2].result.data.map(e => e.clientUserMessageId), ['m1']);
+});
+
+test('the fake answers chill as real Codex answers a second process beside Desktop', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'chill-fake-desktop-'));
+  const input = text => ({threadId: 't', clientUserMessageId: text, input: [{type: 'text', text, text_elements: []}]});
+  const before = (await talk(directory, [['thread/read', {threadId: 't'}], ['thread/turns/list', {threadId: 't'}], ['thread/queue/list', {threadId: 't'}]])).replies;
+  assert.deepEqual(before.map(r => r.error?.message), ['thread not loaded: t', 'thread not loaded: t', 'failed to read thread: invalid thread-store request: no rollout found for thread id t'], 'a chat is invisible before its first turn');
+  await writeFile(join(directory, 'fake-history.json'), JSON.stringify({status: {type: 'active', activeFlags: []}, turns: [{id: 'done', status: 'completed', completedAt: 1}]}));
+  const idle = (await talk(directory, [['thread/queue/add', input('one')], ['thread/queue/add', input('two')], ['thread/queue/list', {threadId: 't'}], ['thread/turns/list', {threadId: 't', itemsView: 'full'}], ['thread/read', {threadId: 't'}]])).replies;
+  assert.deepEqual(idle[2].result.data.map(e => e.clientUserMessageId), ['two'], 'an idle chat runs the first input at once; the second waits for it');
+  const [running] = idle[3].result.data;
+  assert.equal(running.items[0].clientId, 'one');
+  assert.deepEqual([running.status, running.completedAt], ['interrupted', null], 'a live turn reads interrupted with completedAt null');
+  assert.equal(idle[4].result.thread.status.type, 'notLoaded', 'the chat reads notLoaded, whatever Desktop shows');
+  const history = JSON.parse(await readFile(join(directory, 'fake-history.json'), 'utf8'));
+  Object.assign(history.turns[0], {status: 'completed', completedAt: 2});
+  await writeFile(join(directory, 'fake-history.json'), JSON.stringify(history));
+  const after = (await talk(directory, [['thread/queue/list', {threadId: 't'}], ['thread/turns/list', {threadId: 't', limit: 1}]])).replies;
+  assert.deepEqual([after[0].result.data, after[1].result.data[0].items[0].clientId], [[], 'two'], 'the queue drains into the next turn when the chat is idle');
 });

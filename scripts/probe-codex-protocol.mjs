@@ -311,10 +311,16 @@ async function compareWithFake({A, chill, direct, threadId, slowSet, differences
   const turns = (await chill(call => call('thread/turns/list', {threadId, itemsView: 'full', limit: 50}))).result.data;
   const entries = (await chill(call => call('thread/items/list', {threadId, limit: 200}))).result.data;
   const items = {}; for (const entry of entries) (items[entry.turnId] ??= []).push(entry);
-  writeFileSync(join(root, 'fake-history.json'), JSON.stringify({turns: turns.filter(turn => turn.completedAt !== null), items}));
-  const fake = new AppServer(fakeCodex, root, 'fake', {CHILL_AGENT_DATA_DIR: root});
-  await fake.init();
-  await sequence(async (label, method, params) => keep('fake', label, method, outcomeOf(await fake.call(method, params))), {fresh: 'fresh-chat', main: threadId, submission});
+  const history = join(root, 'fake-history.json');
+  writeFileSync(history, JSON.stringify({turns: turns.filter(turn => turn.completedAt !== null), items}));
+  // The fake holds one chat per data directory; a chat with no messages gets its own.
+  const freshRoot = makeDir('chill-codex-probe-fake-fresh-');
+  const fake = new AppServer(fakeCodex, root, 'fake', {CHILL_AGENT_DATA_DIR: root}), fresh = new AppServer(fakeCodex, freshRoot, 'fake-fresh', {CHILL_AGENT_DATA_DIR: freshRoot});
+  await Promise.all([fake.init(), fresh.init()]);
+  await sequence(async (label, method, params) => keep('fake', label, method, outcomeOf(await (params.threadId === 'fresh-chat' ? fresh : fake).call(method, params))), {fresh: 'fresh-chat', main: threadId, submission,
+    busy: async () => { const seeded = JSON.parse(readFileSync(history, 'utf8')); writeFileSync(history, JSON.stringify({...seeded, turns: [{id: 'busy', status: 'inProgress', startedAt: Math.floor(Date.now() / 1000), completedAt: null, items: []}, ...seeded.turns]})); },
+  });
+  await fresh.stop();
   const groups = new Map();
   for (const real of outcomes.real) {
     if (real.label === 'turn id') continue;
@@ -330,11 +336,7 @@ async function compareWithFake({A, chill, direct, threadId, slowSet, differences
     const key = JSON.stringify(lines);
     groups.set(key, {requests: [...(groups.get(key)?.requests ?? []), `${real.method}: ${real.label}`], differences: lines});
   }
-  differences.push(...groups.values(), ...[
-    {requests: ['thread/queue/add on an idle chat'], differences: ['real: Codex starts a turn from the queue by itself and announces thread/queue/changed, thread/status/changed and turn/started; fake: the entry stays queued forever and no notification is ever sent']},
-    {requests: ['thread/turns/list on a chat running in another app-server process'], differences: ['real: the live turn reads status interrupted with completedAt null; fake: shows whatever the fixture says']},
-    {requests: ['any request from a second app-server process'], differences: ['real: the chat has status notLoaded there, and a chat is invisible before its first message; fake: one shared file, never differs, has no thread/start']},
-  ]);
+  differences.push(...groups.values());
   for (const entry of differences) log(`diff  ${entry.requests.join('; ')}\n        ${entry.differences.slice(0, 6).join('\n        ')}${entry.differences.length > 6 ? `\n        and ${entry.differences.length - 6} more` : ''}`);
   return fake;
 }
