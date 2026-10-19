@@ -232,7 +232,7 @@ function workMarkup(key, work, live) {
   const settings = work.settings?.model ? `<p class="activity-settings">${escapeHTML(work.settings.model)}${work.settings.reasoning ? ` · ${escapeHTML(work.settings.reasoning)}` : ''}</p>` : '';
   return `<details class="work-progress" data-work-id="${escapeHTML(key)}" ${view.open ? 'open' : ''}>
     <summary>Think</summary><div class="work-output" aria-label="Think">${settings}
-    ${work.messages.map(message => `<p class="work-message" lang="ja">${escapeHTML(message.text)}</p>`).join('')}
+    ${work.messages.map(message => `<p class="work-message">${escapeHTML(message.text)}</p>`).join('')}
     ${!work.messages.length ? '<p class="work-hint">No text yet.</p>' : ''}
     </div></details>`;
 }
@@ -267,7 +267,7 @@ function activityMarkup(id) {
     </div></li>`;
 }
 
-const timeMarkup = at => `<time datetime="${at.toISOString()}">${at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
+const timeMarkup = at => `<time datetime="${at.toISOString()}">${at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
 function mentionMarkup(mention) {
   const title = goalMetadata.get(mention.goalId)?.title;
   return `<li class="timeline-event"><span class="timeline-marker" aria-hidden="true">${icon('mention')}</span>
@@ -276,7 +276,7 @@ function mentionMarkup(mention) {
 
 function replyMarkup(event) {
   const source = event.author === 'agent' ? `data-annotation-reply="${event.id}"` : '';
-  return `<div class="event-text markdown-body" ${source} lang="ja">${briefBody(event.html || '', {hasGoal, replyId:event.id, opened:openReplies})}</div>`;
+  return `<div class="event-text markdown-body" ${source}>${briefBody(event.html || '', {hasGoal, replyId:event.id, opened:openReplies})}</div>`;
 }
 
 function timelineMarkup(id) {
@@ -398,7 +398,7 @@ function renderGoal(id,version) {
   main.innerHTML=`<div class="goal-layout"><div class="goal-primary"><div id="goal-frame">${view.brief(id)}</div><div class="history-grid">
     <section class="document-section"><div class="section-heading document-heading"><h2>Deliverable</h2>${brief?view.pager(id,version):''}</div>
       <article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable">
-        <div class="brief-body markdown-body" lang="ja" ${isHTML?'hidden':''}>${body||'<p class="empty-state">No Deliverable yet. You can start the conversation below.</p>'}</div>
+        <div class="brief-body markdown-body" ${isHTML?'hidden':''}>${body||'<p class="empty-state">No Deliverable yet. You can start the conversation below.</p>'}</div>
       </article>${brief&&version<latestVersion(id)?`<div class="history-notice"><span>Earlier Deliverable</span><a href="${versionRoute(id,latestVersion(id))}">View current →</a></div>`:''}
     </section>
     <form class="annotation-form" data-form="annotation" data-goal-id="${id}" data-version="${version}" hidden><fieldset>
@@ -908,7 +908,7 @@ function renderAnnotations(openingEditor=false) {
 function openSavedPreview(entry, element) {
   const {note, event} = entry;
   annotationPreview.innerHTML = `<div class="annotation-heading"><strong>Note</strong><button type="button" class="text-button" data-note-action="close" aria-label="Close note">✕</button></div>
-    <blockquote class="annotation-quote">${escapeHTML(noteSourceLabel(note) + noteLabel(note))}</blockquote><p class="event-text" lang="ja">${escapeHTML(note.text)}</p>${noteImageMarkup(note, true)}
+    <blockquote class="annotation-quote">${escapeHTML(noteSourceLabel(note) + noteLabel(note))}</blockquote><p class="event-text">${escapeHTML(note.text)}</p>${noteImageMarkup(note, true)}
     <button type="button" class="text-button" data-note-action="conversation" data-event-id="${event.id}">Conversation ↘</button>`;
   annotationPreview.hidden = false;
   const rect = viewportRect(element);
@@ -1490,7 +1490,7 @@ async function updateCurrentBrief(version) {
   if(/\/v[1-9][0-9]*$/.test(currentRoute)){
     currentRoute=versionRoute(id,version);history.replaceState(null,'',currentRoute);
   }
-  section.innerHTML=`<div class="section-heading document-heading"><h2>Deliverable</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable"><div class="brief-body markdown-body" lang="ja" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal})}</div></article>`;
+  section.innerHTML=`<div class="section-heading document-heading"><h2>Deliverable</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable"><div class="brief-body markdown-body" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal})}</div></article>`;
   imageNames.clear();
   section.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
   main.querySelector('.annotation-form').dataset.version=String(version);
