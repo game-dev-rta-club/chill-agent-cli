@@ -72,7 +72,9 @@ inbox and delivery through the main hooks. Every route hands comments by the
 same Root cursor ([hand-off](../../lib/hand-off.mjs)), which moves only after the
 text is handed, so no route hands a comment twice. The inbox lists every Goal
 that still waits for a reply, handed or not, so a comment whose hand-off was
-lost is found again there. Optional
+lost is found again there; it lists what was handed earlier apart from the new
+feedback, because in Claude Desktop both the watcher hook and the waiter task can
+wake the conversation for the same comment. Optional
 [connection hooks](../extensions/connection-hooks.md) support continuation policy
 without adding it to the standalone CLI. The product extension has passed a
 packaged native Stop roundtrip. The [feedback rules](feedback-and-controls.md)

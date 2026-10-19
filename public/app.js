@@ -231,7 +231,7 @@ function workMarkup(key, work, live) {
   return `<details class="work-progress" data-work-id="${escapeHTML(key)}" ${view.open ? 'open' : ''}>
     <summary>Think</summary><div class="work-output" aria-label="Think">${settings}
     ${work.messages.map(message => `<p class="work-message" lang="ja">${escapeHTML(message.text)}</p>`).join('')}
-    ${!work.messages.length ? '<p class="work-hint">Waiting for updates.</p>' : ''}
+    ${!work.messages.length ? '<p class="work-hint">No text yet.</p>' : ''}
     </div></details>`;
 }
 // The small mark under a comment that still awaits a reply.
@@ -240,10 +240,23 @@ function commentMarkMarkup(event) {
   if (!shown) return '';
   return `<p class="comment-mark" data-mark="${shown.state}">${shown.state === 'waiting' ? `<span class="comment-mark-icon">${icon('pending')}</span>` : '<span class="comment-mark-dot" aria-hidden="true"></span>'}<strong>${escapeHTML(shown.label)}</strong>${shown.description ? `<span>${escapeHTML(shown.description)}</span>` : ''}${shown.sendNow ? `<button type="button" class="text-button" data-action="send-now" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${icon('send')}Send now</button>` : ''}</p>`;
 }
-// The agent as this Goal shows it, after the conversation.
+// The agent as this Goal shows it: after the conversation while it runs, is
+// queued or paused; otherwise where its work ended, before what came later.
+const liveActivity=new Set(['running','queued','paused']);
+function activityEnd(id) {
+  const activity = activityControls.current(), shown = activityDisplay(activity);
+  if (!shown || activity.goalId !== id || liveActivity.has(shown.state)) return Infinity;
+  return Math.max(Date.parse(activity.work?.startedAt) || 0, ...(activity.work?.messages || []).map(message => Number(message.at) || 0)) || Infinity;
+}
 function activityMarkup(id) {
   const activity = activityControls.current(), shown = activityDisplay(activity);
   if (!shown || activity.goalId !== id) return '';
+  if (activity.in) {
+    const title = goalMetadata.get(activity.in)?.title;
+    return `<li class="timeline-event activity-event" id="goal-activity">
+    <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
+    <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><a href="#/goal/${escapeHTML(activity.in)}">Running in #${escapeHTML(activity.in)}${title ? ` ${escapeHTML(title)}` : ''} →</a></div></div></li>`;
+  }
   return `<li class="timeline-event activity-event" id="goal-activity">
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
     <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><strong>${escapeHTML(shown.label)}</strong>${activityControls.controls()}</div>
@@ -260,7 +273,9 @@ function replyMarkup(event) {
 function timelineMarkup(id) {
   const visible = conversationFor(id);
   const pinned = conversationPins(id, visible);
-  const history=historyPages.get(id);
+  const history=historyPages.get(id),end=activityEnd(id);
+  let activity=activityMarkup(id);
+  const before=event=>{if(!activity||event.at.getTime()<=end)return '';const markup=activity;activity='';return markup;};
   const older=history?.hasMore?`<li class="conversation-gap"><button type="button" data-action="load-older-conversation" ${history.loading?'disabled':''}>${history.loading?'Loading…':'Load earlier conversation'}</button></li>`:'';
   return older+conversationWindow.segments(id, visible, pinned).map(segment => {
     if (segment.kind === 'gap') {
@@ -274,13 +289,13 @@ function timelineMarkup(id) {
     const letter=letterState(event,visible);
     const time=`<time datetime="${event.at.toISOString()}">${event.at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
     const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
-    return `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
+    return `${before(event)}<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
       <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
       ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<a class="event-image-link" href="${src}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="${src}" alt="Attached image"></a>`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
     }).join('');
-  }).join('')+activityMarkup(id);
+  }).join('')+activity;
 }
 
 function conversationPins(id, messages = conversationFor(id)) {
@@ -412,7 +427,7 @@ function mountHTMLBrief(id,version) {
     if(!frame.isConnected){ready();return;}
     const doc=frame.contentDocument,body=doc?.querySelector('.brief-body');if(!body){ready();return;}
     body.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
-    const size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
+    const size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(doc.body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
     const observer=new ResizeObserver(size);observer.observe(body);
     for(const type of ['wheel','touchmove','keydown'])doc.addEventListener(type,briefScrollIntent,{passive:true});
     doc.addEventListener('selectionchange',updateSelectionAction);
@@ -1209,7 +1224,8 @@ async function saveFeedback(id, input) {
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Could not save feedback.');
-  if(activeGoalId===id){if(result.comment)commentMarks.set(result.comment.eventId,result.comment);void activityControls.refresh();}
+  // The Web answers once the comment is saved; its mark is read right after.
+  if(activeGoalId===id){void refreshCommentMarks().catch(()=>{});void activityControls.refresh();}
   return { ...result.feedback, at: new Date(result.feedback.updatedAt) };
 }
 

@@ -10,7 +10,8 @@ import {migrateBriefFormats} from '../scripts/migrate-brief-formats.mjs';
 test('HTML Deliverable isolates author styling and preserves only static content',()=>{
  const source='<html><head><title>Not an annotation</title><style>body{color:red}</style></head><body><h1>Title</h1><script>alert(1)</script><p onclick="alert(1)">Readable</p><svg viewBox="0 0 20 20"><text>Diagram</text><rect width="20" height="20"/></svg><form><input/></form><img src="https://example.com/tracker"></body></html>';
  const html=briefHTML(source,'html');assert.ok(!/script|onclick|<form|<input|<img/.test(html));assert.match(html,/viewBox/);assert.equal(briefText(source,'html'),'TitleReadable');
- const doc=briefDocument(source);assert.match(doc,/body\{color:red\}/);assert.match(doc,/class="brief-body"/);assert.ok(!doc.includes('alert(1)'));
+ const doc=briefDocument(source);assert.match(doc,/body\{color:red\}/);
+ assert.ok(doc.indexOf('body{margin:0;padding:')<doc.indexOf('body{color:red}'),'the Deliverable has the card\'s margins unless its own style sets them');assert.match(doc,/class="brief-body"/);assert.ok(!doc.includes('alert(1)'));
  assert.throws(()=>briefHTML('source','pdf'),/format/);assert.equal(briefReadableText('<h1>A</h1><p>B</p>','html'),'A\n\nB');
 });
 test('switching Deliverable formats keeps both originals, exact histories and HTML annotation coordinates',async t=>{

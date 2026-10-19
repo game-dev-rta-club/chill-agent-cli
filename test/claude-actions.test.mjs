@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
+import {setTimeout as delay} from 'node:timers/promises';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {recordClaudeWork,reportClaudeHook} from '../lib/claude-agent-work.mjs';
@@ -14,6 +15,7 @@ import {createClaudeRoot} from '../lib/claude-roots.mjs';
 import {assignGoal} from '../lib/agents/codex-execution.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
+import {goalCommentMarks} from '../lib/agents/index.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
 import {fileURLToPath} from 'node:url';
 import {claudeHook,hookFor} from './claude-fixtures.mjs';
@@ -92,7 +94,8 @@ test('two Roots and a child hand their comments to the same conversation, and on
   const output=await s.act('inbox');
   assert.match(output,/first/);assert.match(output,/second/);
   assert.equal((await deliverFeedback(e1.changeId)).mark,'handed');
-  assert.match(await s.act('inbox'),/first/,'what still awaits a reply is listed again');
+  const listedAgain=await s.act('inbox');
+  assert.match(listedAgain,/Handed to you earlier and still awaiting your reply:\n[^]*first/,'what still awaits a reply is listed again, apart from new feedback');
   assert.match(await s.act('reply',{goalId:child.id,text:'Done'}),/Replied on Goal/);
   const again=await s.act('inbox');
   assert.doesNotMatch(again,/"text":"first"/);assert.match(again,/second/);
@@ -140,8 +143,8 @@ test('a tool hook hands what the user sent now, from every owned Goal, once; the
   const f=await automaticFixture(t),child=await createGoal({title:'Child',parentId:f.goal.id});
   await f.s.act('create-goal',goalInput);
   const second=(await listGoals()).at(-1);
+  await reportClaudeHook(f.s.event('UserPromptSubmit'));await delay(5);
   const first=await appendFeedback({goalId:child.id,text:'child feedback'}),other=await appendFeedback({goalId:second.id,text:'other root feedback'});
-  await reportClaudeHook(f.s.event('UserPromptSubmit'));
   assert.equal(await f.handle(f.call()),null,'the running work is not interrupted');
   for(const event of [first,other])await sendFeedbackNow(event.changeId);
   const results=await Promise.all([f.handle(f.call({tool_name:'Read'})),f.handle(f.call())]);
@@ -151,6 +154,37 @@ test('a tool hook hands what the user sent now, from every owned Goal, once; the
   await appendFeedback({goalId:f.goal.id,text:'arrived later'});
   assert.equal(await f.handle(f.call()),null);
   assert.match((await f.handle(f.s.event('Stop'))).reason,/arrived later/,'the end of the work hands what waited for it');
+});
+
+test('Send now hands the comments up to the one sent; a comment written after it waits for the stop',async t=>{
+  const f=await automaticFixture(t);
+  await reportClaudeHook(f.s.event('UserPromptSubmit'));await delay(5);
+  const [a,b,c]=[await appendFeedback({goalId:f.goal.id,text:'before'}),await appendFeedback({goalId:f.goal.id,text:'sent now'}),await appendFeedback({goalId:f.goal.id,text:'after'})];
+  const mark=await sendFeedbackNow(b.changeId);assert.deepEqual([mark.mark,mark.sendNow],['saved',true]);
+  const marks=Object.fromEntries((await goalCommentMarks(f.goal.id)).map(m=>[m.eventId,m.mark]));
+  assert.deepEqual([a,b,c].map(e=>marks[e.changeId]),['saved','saved','waiting']);
+  const text=context(await f.handle(f.call()));
+  assert.match(text,/before/);assert.match(text,/sent now/);assert.doesNotMatch(text,/"after"/);
+  assert.match((await f.handle(f.s.event('Stop'))).reason,/"after"/);
+});
+
+test('a running parent Goal points to the Split Goal the work is in, without its Think or Pause',async t=>{
+  const f=await automaticFixture(t),child=await createGoal({title:'Child work',parentId:f.goal.id});
+  const {readGoalActivity}=await import('../lib/agent-status.mjs');
+  await reportClaudeHook(f.s.event('UserPromptSubmit'));
+  await appendFeedback({goalId:child.id,text:'work on the child'});await f.handle(f.s.event('Stop'));
+  const [parent,own]=[await readGoalActivity(f.goal.id),await readGoalActivity(child.id)];
+  assert.deepEqual([parent.status,parent.in,parent.work,parent.capabilities.stop],['running',child.id,null,false]);
+  assert.deepEqual([own.status,own.in,own.capabilities.stop],['running',undefined,true]);
+});
+
+test('a comment saved before the work started is handed at its first tool hook, never shown Waiting',async t=>{
+  const f=await automaticFixture(t),woke=await appendFeedback({goalId:f.goal.id,text:'wake up'});await delay(5);
+  await reportClaudeHook(f.s.event('UserPromptSubmit'));await delay(5);
+  const later=await appendFeedback({goalId:f.goal.id,text:'written while it works'});
+  const marks=Object.fromEntries((await goalCommentMarks(f.goal.id)).map(m=>[m.eventId,m.mark]));
+  assert.deepEqual([marks[woke.changeId],marks[later.changeId]],['saved','waiting']);
+  const text=context(await f.handle(f.call()));assert.match(text,/wake up/);assert.doesNotMatch(text,/written while it works/);
 });
 
 test('automatic hand-offs skip subagents and interrupted tools, and never reach another owner\'s comments',async t=>{

@@ -15,7 +15,7 @@ right now comes from its transcript (below).
 
 | Status | Meaning |
 | --- | --- |
-| Waiting for Web replies | A [watcher](claude-wait.md) refreshed its record in the last 90 seconds |
+| Receives Web replies | A [watcher](claude-wait.md) refreshed its record in the last 90 seconds |
 | Connected / Response finished | The conversation is recorded (the last hook was not Stop / was Stop), but no watcher is running |
 | Session ended | A SessionEnd hook was recorded |
 | Conversation context changed | The Goal belongs to an earlier context; a new context does not inherit it |

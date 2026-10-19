@@ -48,10 +48,12 @@ button in the header; "the Goal's activity" is the block after the Goal's conver
    Resume. Expected: Claude wakes once and receives the held comment.
 5. **Waiting and Send now.** While Claude works, post a comment. Expected:
    Waiting with Send now. Leave it: it reaches Claude when the response ends.
-   Repeat and press Send now: it reaches Claude after its next tool call.
+   Repeat and press Send now: it reaches Claude after its next tool call. Post
+   three comments in a row and press Send now on the second: the first two reach
+   Claude at its next tool call and the third keeps Waiting until the response
+   ends. A comment that wakes an idle conversation never shows Waiting.
 6. **A reply clears the marks.** When Claude replies on the Goal, the marks under
-   the comments it answered disappear at once and the Goal shows Replied, even
-   while Claude keeps working.
+   the comments it answered disappear at once, even while Claude keeps working.
 7. **Background work keeps it Running.** Ask Claude to start a background
    subagent and reply. Expected: the Agent and the Goal stay Running until the
    subagent ends; a background dev server alone does not keep them Running.

@@ -56,11 +56,11 @@ test('comments wait only while the agent\'s own work runs',()=>{
   const cases=[
     ['idle',idleWork,{},{hand:[5],hold:null}],
     ['working',replay({type:'started'}),{},{hand:[],hold:'waiting'}],
-    ['working, Send now',replay({type:'started'}),{sendNow:true},{hand:[5],hold:null}],
+    ['working, Send now',replay({type:'started'}),{sendNow:5},{hand:[5],hold:null}],
     ['only a background agent runs',replay({type:'started'},{type:'background',count:1},{type:'finished'}),{},{hand:[5],hold:null}],
     ['interrupted',replay({type:'started'},{type:'interrupted'}),{},{hand:[5],hold:null}],
     ['paused',idleWork,{paused:true},{hand:[],hold:'paused'}],
-    ['paused, Send now',replay({type:'started'}),{paused:true,sendNow:true},{hand:[],hold:'paused'}],
+    ['paused, Send now',replay({type:'started'}),{paused:true,sendNow:5},{hand:[],hold:'paused'}],
     ['no conversation',idleWork,{linked:false},{hand:[],hold:'unlinked'}],
   ];
   for(const [name,work,patch,expected] of cases){
@@ -68,6 +68,22 @@ test('comments wait only while the agent\'s own work runs',()=>{
     assert.deepEqual({hand:result.hand.map(e=>e.id),hold:result.hold},expected,name);
   }
   assert.deepEqual(handing({pending:[],work:idleWork}),{hand:[],hold:null});
+});
+
+test('Send now hands the comments up to the one sent; later ones wait for the end of the work',()=>{
+  const at=time=>({updatedAt:`2026-10-19T08:${time}:00.000Z`}),comment=(id,time)=>({...user(id),...at(time)});
+  const work={...replay({type:'started'}),startedAt:at('10').updatedAt},pending=[comment(5,'20'),comment(6,'21'),comment(7,'22')];
+  const run=sendNow=>{const r=handing({pending,work,sendNow});return {hand:r.hand.map(e=>e.id),hold:r.hold};};
+  assert.deepEqual(run(0),{hand:[],hold:'waiting'});
+  assert.deepEqual(run(6),{hand:[5,6],hold:'waiting'},'a comment written after the one sent now keeps waiting');
+  assert.deepEqual(run(7),{hand:[5,6,7],hold:null});
+});
+
+test('the work takes at its first step the comments saved before it started: they woke it',()=>{
+  const at=time=>`2026-10-19T08:${time}:00.000Z`,comment=(id,time)=>({...user(id),updatedAt:at(time)});
+  const work={...replay({type:'started'}),startedAt:at('10')};
+  const r=handing({pending:[comment(5,'09'),comment(6,'11')],work});
+  assert.deepEqual({hand:r.hand.map(e=>e.id),hold:r.hold},{hand:[5],hold:'waiting'});
 });
 
 test('the cursor hands each comment once, and a lost hand-off still awaits a reply',()=>{
