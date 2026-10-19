@@ -19,7 +19,7 @@ Use `@game-dev-rta-club/chill-agent-cli/extension-api` and call
 
 The CLI supplies mechanisms. The integrating application owns scheduling policy,
 request wording and its journal. The standalone CLI does not include AutoContinue;
-[chill-agent](https://github.com/game-dev-rta-club/chill-agnet) supplies that policy.
+[chill-agent](https://github.com/game-dev-rta-club/chill-agent) supplies that policy.
 
 The current source of the public exports is [extension-api.mjs](../lib/extension-api.mjs).
 Check the version you package: optional capabilities can be added within protocol v1.
