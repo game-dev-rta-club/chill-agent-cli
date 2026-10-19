@@ -179,17 +179,20 @@ test('a request through the tunnel sees nothing until the phone signs in with th
   assert.match(code,/^[2-9A-HJ-NP-Z]{8}$/);
   assert.ok(qr);
   assert.equal((await fetch(f.url+'/api/extensions/public-link/state?goalId=1',{headers:phone})).status,401);
-  const wrong = await fetch(f.url+'/login',{method:'POST',headers:{...phone,Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:'code=22222222'});
+  const form = (code,origin) => fetch(f.url+'/',{method:'POST',headers:{...phone,Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:`code=${code}`,redirect:'manual'});
+  assert.equal((await form(code,'https://elsewhere.test')).status,403,'only the public link posts the form');
+  const wrong = await form('22222222',origin);
   assert.equal(wrong.status,401);
   assert.match(await wrong.text(),/wrong, used or expired/);
-  const signIn = await fetch(f.url+`/login?code=${code.toLowerCase()}&goal=1`,{headers:phone,redirect:'manual'});
+  // The form posts back to its page, which the browser reopens with its #/goal/N.
+  const signIn = await form(code.toLowerCase(),origin);
   assert.equal(signIn.status,303);
-  assert.equal(signIn.headers.get('location'),'/#/goal/1');
+  assert.equal(signIn.headers.get('location'),'/');
   const cookie = signIn.headers.get('set-cookie');
   assert.match(cookie,/^chill_session=[A-Za-z0-9_-]{43}; Path=\/; Max-Age=\d+; HttpOnly; Secure; SameSite=Lax$/);
   const session = {...phone,Cookie:cookie.split(';')[0]};
   assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,200);
-  assert.equal((await fetch(f.url+`/login?code=${code}`,{headers:phone,redirect:'manual'})).status,401,'a code works once');
+  assert.equal((await form(code,origin)).status,401,'a code works once');
   assert.notEqual((await panel()).code,code);
   assert.equal((await fetch(f.url+'/api/extensions/public-link/sign-out',{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'})).status,200);
   assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,401,'signing out removes the phone');
