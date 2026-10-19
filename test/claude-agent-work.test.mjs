@@ -4,7 +4,7 @@ import {mkdtemp,mkdir,rm,utimes,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
-import {backgroundActivity,backgroundTasks,hookWorkEvent,observedClaudeWork,recordClaudeWork,reportClaudeHook,silentMs} from '../lib/claude-agent-work.mjs';
+import {backgroundTasks,hookWorkEvent,observedClaudeWork,recordClaudeWork,reportClaudeHook,silentMs} from '../lib/claude-agent-work.mjs';
 import {handleClaudeToolHook} from '../lib/claude-actions.mjs';
 import {readJson} from '../lib/storage.mjs';
 import {agentStatus} from '../lib/agent-rules.mjs';
@@ -30,21 +30,15 @@ test('each main hook reports what the conversation is doing; a subagent reports 
   ];
   for(const [name,type] of cases)assert.equal(hookWorkEvent(claudeHook(name))?.type??null,type,name);
   assert.equal(hookWorkEvent(claudeHook('StopFailure')).type,'interrupted','an API error ends the response without Stop');
-  assert.equal(hookWorkEvent(subagentHook('PostToolUse')),null);
+  assert.deepEqual(hookWorkEvent(subagentHook('PostToolUse',{agent_id:'a1'}),new Date('2026-10-19T10:00:00Z')),{type:'subagent',task:{id:'a1',type:'subagent',name:'general-purpose',description:null},at:'2026-10-19T10:00:00.000Z'},'a subagent\'s tool shows it is active');
+  assert.deepEqual(hookWorkEvent(subagentHook('SubagentStop',{agent_id:'a1'})),{type:'subagent-stopped',id:'a1'});
+  assert.equal(hookWorkEvent(subagentHook('Stop')),null);
 });
 
 test('background agents count; shells such as a dev server or chill\'s own waiter do not',()=>{
   assert.deepEqual(backgroundTasks([{id:'1',type:'subagent',status:'running',agent_type:'general-purpose',description:'Review'},{id:'2',type:'monitor',status:'running',server:'ci',tool:'watch'},{id:'3',type:'shell',status:'running',command:'npm run dev'},{id:'4',type:'shell',status:'running',command:'chill connection wait'},{id:'5',type:'subagent',status:'completed'}]),
     [{id:'1',type:'subagent',name:'general-purpose',description:'Review'},{id:'2',type:'monitor',name:'ci watch',description:null}]);
   assert.deepEqual(backgroundTasks(undefined),[]);
-});
-
-test('a background subagent shows when it last wrote its own transcript; other tasks show none',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'chill-claude-background-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  const sessionId='7d1b148a-2700-47c3-9e5f-0a00c1e9c27b',folder=join(dir,sessionId,'subagents'),at=new Date('2026-10-19T10:47:00Z');
-  await mkdir(folder,{recursive:true});await writeFile(join(folder,'agent-a1.jsonl'),'');await utimes(join(folder,'agent-a1.jsonl'),at,at);
-  const tasks=[{id:'a1',type:'subagent',name:'general-purpose',description:'Review'},{id:'m1',type:'monitor',name:'ci watch',description:null},{id:'a2',type:'subagent',name:null,description:null}];
-  assert.deepEqual((await backgroundActivity({sessionId,transcriptPath:join(dir,`${sessionId}.jsonl`)},tasks)).map(task=>task.activeAt),[at.toISOString(),null,null]);
 });
 
 test('work runs from the first hook until a Stop that nothing continues',async t=>{
@@ -88,6 +82,33 @@ test('a stop ends the work, and the background agents it leaves keep the convers
   await recordClaudeWork(c.sessionId,[{type:'started'}]);
   await handleClaudeToolHook(c.event('Stop',{background_tasks:[{id:'a',type:'subagent',status:'running'}]}));
   const work=(await c.record()).agentWork;
-  assert.deepEqual([work.phase,work.background],['idle',[{id:'a',type:'subagent',name:null,description:null}]]);
+  assert.deepEqual([work.phase,work.background.map(t=>[t.id,t.type])],['idle',[['a','subagent']]]);
   assert.equal(agentStatus({work}),'running');
+});
+
+test('a subagent runs from SubagentStart to SubagentStop, as its own hooks report',async t=>{
+  const c=await conversation(t),subagent=(name,patch)=>reportClaudeHook(c.event(name,{agent_id:'a1',agent_type:'general-purpose',...patch}));
+  await reportClaudeHook(c.event('UserPromptSubmit'));
+  await subagent('SubagentStart');
+  await handleClaudeToolHook(c.event('Stop',{background_tasks:[{id:'a1',type:'subagent',status:'running',agent_type:'general-purpose',description:'Review'}]}));
+  const listed=(await c.observed()).work;
+  assert.equal(agentStatus({work:listed}),'running','the response ended; the subagent still runs');
+  assert.deepEqual(listed.background.map(t=>[t.id,t.name,t.description]),[['a1','general-purpose','Review']]);
+  await subagent('PreToolUse',{tool_name:'Bash',tool_input:{command:'sleep 1'}});
+  assert.ok((await c.record()).agentWork.background[0].activeAt,'its tools show when it was last active');
+  await subagent('SubagentStop',{stop_hook_active:false,agent_transcript_path:'/example/a1.jsonl'});
+  assert.equal(agentStatus({work:(await c.observed()).work}),'idle','its end needs no further Stop');
+});
+
+test('a background task stopped without SubagentStop ends with the notice Claude Code writes, and silence makes it unknown',async t=>{
+  const c=await conversation(t);
+  await reportClaudeHook(c.event('UserPromptSubmit'));
+  await reportClaudeHook(c.event('SubagentStart',{agent_id:'a2',agent_type:'general-purpose'}));
+  await handleClaudeToolHook(c.event('Stop',{background_tasks:[{id:'a2',type:'subagent',status:'running'},{id:'m1',type:'monitor',status:'running',server:'ci',tool:'watch'}]}));
+  assert.equal((await c.observed({now:()=>Date.now()+silentMs+60000})).known,false,'nothing active for that long is unknown, not Running');
+  await writeFile(c.transcript,claudeLine(claudeEntry.notice('a2',{timestamp:new Date(Date.now()+1000).toISOString()})));
+  assert.deepEqual((await c.observed()).work.background.map(t=>t.id),['m1'],'the stopped subagent is gone');
+  assert.equal((await c.record()).agentWork.background.length,2,'reading changes nothing');
+  await writeFile(c.transcript,claudeLine(claudeEntry.notice('m1',{timestamp:'2020-01-01T00:00:00.000Z'})),{flag:'a'});
+  assert.deepEqual((await c.observed()).work.background.map(t=>t.id),['m1'],'a notice from before the task was listed is an earlier run');
 });

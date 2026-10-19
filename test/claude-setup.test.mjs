@@ -96,7 +96,7 @@ test('an exec-form hook from an earlier Windows setup is replaced by the shell f
  await writeFile(f.path,JSON.stringify(config));await writeFile(record,JSON.stringify(old));
  assert.equal((await configureClaudeHooks(f.project,f.options)).configured,true);
  const hooks=Object.values((await f.read()).hooks).flat().flatMap(g=>g.hooks);
- assert.equal(hooks.filter(h=>h.args).length,0);assert.equal(hooks.filter(h=>/ connection claude-hook$/.test(h.command)).length,8);
+ assert.equal(hooks.filter(h=>h.args).length,0);assert.equal(hooks.filter(h=>/ connection claude-hook$/.test(h.command)).length,10);
  // The watcher runs in the background from SessionStart and Stop and wakes the model itself.
  const watchers=Object.entries((await f.read()).hooks).flatMap(([event,groups])=>groups.flatMap(g=>g.hooks.filter(h=>/ connection claude-watch$/.test(h.command)).map(h=>({event,...h}))));
  assert.deepEqual(watchers.map(h=>[h.event,h.asyncRewake,h.timeout]),[['SessionStart',true,604800],['Stop',true,604800]]);
