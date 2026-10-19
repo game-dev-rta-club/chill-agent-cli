@@ -29,7 +29,7 @@ import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
 import {largeSize} from './lib/limits.mjs';
 import {recordHidden} from './lib/hidden-failure.mjs';
-import {createPublicAccess,sessionCookie,sessionFrom,codeAlphabet} from './lib/public-access.mjs';
+import {createPublicAccess,sessionCookie,sessionFrom,codeAlphabet,deviceName} from './lib/public-access.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
@@ -57,30 +57,30 @@ const extensions=createExtensionHost(registeredExtensions({tunnel:publicTunnel,a
 const allowedOrigin = request => request.headers.origin === `http://127.0.0.1:${server.address().port}`
   || (tunnelOrigin !== null && request.headers.origin === tunnelOrigin);
 
-// Through the public link, only a phone signed in with the panel's code sees anything.
-function signInPage(response,nonce,{status=401,message=''}={}){
+// Through the public link, only a device connected with the panel's access code sees anything.
+function connectPage(response,nonce,{status=401,message=''}={}){
   // Under no-referrer, browsers send Origin: null when the form posts, and the gate would refuse it.
   response.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Referrer-Policy':'same-origin'});
-  response.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · chill</title>
+  response.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect · chill</title>
 <style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui,-apple-system,sans-serif;background:#f4f6f2;color:#243b3e}form{width:min(320px,calc(100vw - 32px));display:grid;gap:12px}h1{font-size:20px;margin:0}p{margin:0;color:#56655f;font-size:14px}input{font:600 22px ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;padding:12px;border:1px solid #b9c4bd;border-radius:8px}button{font:600 16px system-ui,sans-serif;padding:12px;border:0;border-radius:8px;background:#2f5d50;color:#fff}.error{color:#a03a2c}</style>
-<form method="post"><h1>Sign in to chill</h1><p>Enter the 8-character code shown in Public link on your computer.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="12" pattern="[${codeAlphabet}${codeAlphabet.toLowerCase()} -]{8,12}" aria-label="Sign-in code" autofocus><button>Sign in</button></form></html>`);
+<form method="post"><h1>Connect to chill</h1><p>Enter the 8-character access code shown in Public link on your computer.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="12" pattern="[${codeAlphabet}${codeAlphabet.toLowerCase()} -]{8,12}" aria-label="Access code" autofocus><button>Connect</button></form></html>`);
 }
-// Signed out, every page is the sign-in form. The form posts back to its own page,
-// so after signing in the browser returns there with its #/goal/N.
+// Not connected, every page is the connect form. The form posts back to its own page,
+// so after connecting the browser returns there with its #/goal/N.
 async function publicGate(request,response,url,nonce){
   const localHost=`127.0.0.1:${server.address().port}`;
   if(request.headers.host===localHost&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'])return false;
-  if(await publicAccess.signedIn(sessionFrom(request)))return false;
+  if(await publicAccess.connected(sessionFrom(request)))return false;
   if(request.method==='POST'&&String(request.headers['content-type']||'').startsWith('application/x-www-form-urlencoded')){
-    if(tunnelOrigin===null||request.headers.origin!==tunnelOrigin){sendJson(response,403,{error:'Sign in from the public link.'});return true;}
+    if(tunnelOrigin===null||request.headers.origin!==tunnelOrigin){sendJson(response,403,{error:'Connect from the public link.'});return true;}
     let code=null;try{code=new URLSearchParams((await readUpload(request)).toString()).get('code');}catch{}
-    const session=await publicAccess.signIn(code);
-    if(!session){signInPage(response,nonce,{message:'That code is wrong, used or expired. Check the code on your computer.'});return true;}
+    const session=await publicAccess.connect(code,{device:deviceName(request.headers['user-agent'])});
+    if(!session){connectPage(response,nonce,{message:'That code is wrong, used or expired. Check the access code on your computer.'});return true;}
     response.writeHead(303,{'Set-Cookie':`${sessionCookie}=${session}; Path=/; Max-Age=34560000; HttpOnly; Secure; SameSite=Lax`,Location:url.pathname});
     response.end();return true;
   }
-  if(request.method==='GET'&&(request.headers.accept||'').includes('text/html'))signInPage(response,nonce);
-  else sendJson(response,401,{error:'Sign in with the code shown in Public link on your computer.'});
+  if(request.method==='GET'&&(request.headers.accept||'').includes('text/html'))connectPage(response,nonce);
+  else sendJson(response,401,{error:'Connect with the access code shown in Public link on your computer.'});
   return true;
 }
 
@@ -209,7 +209,7 @@ const server = createServer(async (request, response) => {
     return response.end('Invalid request URL');
   }
   try{if(await publicGate(request,response,url,styleNonce))return;}
-  catch(error){recordHidden('server.public-sign-in',error);return sendJson(response,503,{error:'Could not check the sign-in. Please try again.'});}
+  catch(error){recordHidden('server.public-connect',error);return sendJson(response,503,{error:'Could not check the connection. Please try again.'});}
   if(path==='/api/service/shutdown'){
     // Only the local service may stop Web: browsers always send Origin or
     // Sec-Fetch-Site on a POST, and tunnelled requests carry Cloudflare headers.

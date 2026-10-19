@@ -164,14 +164,14 @@ test('restart drains an active connection and rejects a pipelined request withou
   assert.doesNotMatch(f.output(), /TypeError/);
 });
 
-test('a request through the tunnel sees nothing until the phone signs in with the panel code', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+test('a request through the tunnel sees nothing until the device connects with the panel code', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
   const f = await tunnelFixture(t,'1h');
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const {url: origin} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
-  const phone = {'cf-connecting-ip':'203.0.113.5'};
+  const phone = {'cf-connecting-ip':'203.0.113.5','User-Agent':'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile/15E148 Safari/604.1'};
   const page = await fetch(f.url+'/', {headers:{...phone,Accept:'text/html'}});
   assert.equal(page.status,401);
-  assert.match(await page.text(),/Sign in to chill/);
+  assert.match(await page.text(),/Connect to chill/);
   assert.equal(page.headers.get('referrer-policy'),'same-origin','the form posts with its Origin, not null');
   assert.equal((await fetch(f.url+'/api/goals',{headers:phone})).status,401);
   assert.equal((await fetch(f.url+'/api/goals')).status,200,'the local Web needs no sign-in');
@@ -195,8 +195,10 @@ test('a request through the tunnel sees nothing until the phone signs in with th
   assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,200);
   assert.equal((await form(code,origin)).status,401,'a code works once');
   assert.notEqual((await panel()).code,code);
-  assert.equal((await fetch(f.url+'/api/extensions/public-link/sign-out',{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'})).status,200);
-  assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,401,'signing out removes the phone');
+  const [device] = (await panel()).devices;
+  assert.equal(device.device,'iPhone · Safari','the panel lists the connected device');
+  assert.equal((await fetch(f.url+'/api/extensions/public-link/disconnect',{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:JSON.stringify({id:device.id})})).status,200);
+  assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,401,'disconnecting removes the device');
 });
 test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'chill-named-connector-'));
