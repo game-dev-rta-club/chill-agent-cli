@@ -27,13 +27,13 @@ test('two clicks launch once; stale confirmation and launch failure do not chang
  const options=await fixture(t);let launches=0;
  const provider=async()=>({current:async()=>a,candidate:async()=>({key:b})});
  const updater=createRuntimeUpdater({...options,provider,launch:async()=>{launches++;}});
- await assert.rejects(updater.start({candidate:c,id:randomUUID()}),/更新内容が変わりました/);
+ await assert.rejects(updater.start({candidate:c,id:randomUUID()}),/The update changed/);
  const results=await Promise.all([updater.start({candidate:b,id:randomUUID()}),updater.start({candidate:b,id:randomUUID()})]);
  assert.equal(launches,1);assert.equal(results[0].id,results[1].id);
  assert.equal(await readJson(join(options.directory,'runtime','installation.json')),null);
  const other=await fixture(t);
  const failed=createRuntimeUpdater({...other,provider,launch:async()=>{throw Error('launch failed');}});
- await assert.rejects(failed.start({candidate:b,id:randomUUID()}),/開始できませんでした/);
+ await assert.rejects(failed.start({candidate:b,id:randomUUID()}),/Could not start the update/);
  assert.equal((await failed.status()).phase,'idle');assert.ok((await failed.status()).error);
 });
 async function worker(t,{acquireError=false,changePin=false,changePointer=false,restartError=false}={}){

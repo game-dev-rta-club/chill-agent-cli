@@ -12,7 +12,7 @@ function settingsMarkup(data){
  return `<form data-agent-settings><label>Model<select name="model" aria-label="Model">${data.models.map(m=>`<option value="${esc(m.id)}" ${m.id===s.model?'selected':''}>${esc(m.label)}</option>`).join('')}</select></label><label>Reasoning<select name="effort" aria-label="Reasoning"></select></label><p class="agent-muted" data-settings-message role="status"></p></form>`;
 }
 function timeMarkup(at,seconds=false){
- const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString())}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}))}</time>`;
+ const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString('en-US'))}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}))}</time>`;
 }
 function workMarkup(work,root={}){
  const active=isRunning(work?.status)||work?.status==='paused';

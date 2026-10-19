@@ -37,7 +37,7 @@ try{
   let after;
   for(let i=0;i<120;i++){
    await new Promise(resolve=>setTimeout(resolve,500));
-   try{after=await (await fetch(url+'/api/runtime-update')).json();if(after.error)throw Error(after.error);if(after.instance!==state.instance&&after.phase==='idle'&&!after.available)break;}catch(error){if(error.message==='更新できませんでした。もう一度お試しください。')throw error;}
+   try{after=await (await fetch(url+'/api/runtime-update')).json();if(after.error)throw Error(after.error);if(after.instance!==state.instance&&after.phase==='idle'&&!after.available)break;}catch(error){if(error.message==='The update failed. Please try again.')throw error;}
   }
   assert.notEqual(after?.instance,state.instance);assert.equal(after?.phase,'idle');assert.equal(after?.available,false);
   assert.deepEqual(await (await fetch(url+'/api/goals')).json(),before);
