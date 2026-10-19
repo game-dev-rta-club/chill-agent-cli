@@ -42,7 +42,10 @@ async function main() {
     // A stopped background task releases its refresh, so a new waiter starts at once.
     const controller=new AbortController();
     for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
-    console.log(waitResultText(await waitForClaudeFeedback({signal:controller.signal})));
+    const result=await waitForClaudeFeedback({signal:controller.signal}),text=waitResultText(result);
+    // A stalled waiter may still hold I/O that never settles: leave rather than wait for it.
+    if(result.status==='stalled'){process.stdout.write(`${text}\n`,()=>process.exit(0));return;}
+    console.log(text);
     return;
   }
   if(['create-goal','adopt','inbox','reply'].includes(action)) {
@@ -64,7 +67,8 @@ async function main() {
     for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
     // Claude Code is the parent; when it exits this process is reparented.
     const parent=process.ppid;
-    const text=watcherWakeText(await watchClaudeConversation({sessionId:input.session_id,hook:true,signal:controller.signal,attached:()=>process.ppid===parent}));
+    const result=await watchClaudeConversation({sessionId:input.session_id,hook:true,signal:controller.signal,attached:()=>process.ppid===parent}),text=watcherWakeText(result);
+    if(result.status==='stalled'){process.stderr.write(`${text}\n`,()=>process.exit(2));return;}
     if(text){process.stderr.write(`${text}\n`);process.exitCode=2;}
     return;
   }
