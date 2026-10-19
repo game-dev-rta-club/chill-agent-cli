@@ -23,7 +23,8 @@ async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-codex-work-')),previous={};
   for(const [key,value] of Object.entries({CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:fake})){previous[key]=process.env[key];process.env[key]=value;}
   t.after(async()=>{for(const [key,value] of Object.entries(previous))value===undefined?delete process.env[key]:process.env[key]=value;await rm(dir,{recursive:true,force:true});});
-  const thread=randomUUID(),chat=await desktopChat(dir,thread,()=>invalidateAgentObservation(thread));
+  const thread=randomUUID(),chat=await desktopChat(dir,thread,()=>invalidateAgentObservation(thread),{codexHome:process.env.CODEX_HOME});
+  t.after(chat.close);
   const root=await createGoal({title:'Outcome'});await assignGoal(root.id,thread);
   return {dir,thread,root,...chat,
     // Chill knows a turn works from its tool hooks: Codex shows a second process no live turn as running.
