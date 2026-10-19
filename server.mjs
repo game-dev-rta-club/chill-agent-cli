@@ -59,7 +59,8 @@ const allowedOrigin = request => request.headers.origin === `http://127.0.0.1:${
 
 // Through the public link, only a phone signed in with the panel's code sees anything.
 function signInPage(response,nonce,{status=401,message=''}={}){
-  response.writeHead(status,{'Content-Type':'text/html; charset=utf-8'});
+  // Under no-referrer, browsers send Origin: null when the form posts, and the gate would refuse it.
+  response.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Referrer-Policy':'same-origin'});
   response.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · chill</title>
 <style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui,-apple-system,sans-serif;background:#f4f6f2;color:#243b3e}form{width:min(320px,calc(100vw - 32px));display:grid;gap:12px}h1{font-size:20px;margin:0}p{margin:0;color:#56655f;font-size:14px}input{font:600 22px ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;padding:12px;border:1px solid #b9c4bd;border-radius:8px}button{font:600 16px system-ui,sans-serif;padding:12px;border:0;border-radius:8px;background:#2f5d50;color:#fff}.error{color:#a03a2c}</style>
 <form method="post"><h1>Sign in to chill</h1><p>Enter the 8-character code shown in Public link on your computer.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="12" pattern="[${codeAlphabet}${codeAlphabet.toLowerCase()} -]{8,12}" aria-label="Sign-in code" autofocus><button>Sign in</button></form></html>`);
