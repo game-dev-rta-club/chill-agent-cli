@@ -1,22 +1,33 @@
 ---
 keyPoints: >-
-  More → Public link opens access controls and a phone QR. Temporary links expose the
-  workspace; fixed URLs and Access are prepared in the user's own Cloudflare CLI.
+  More → Public link opens access controls and a phone QR. A phone signs in once with the
+  panel's 8-character code; fixed URLs and Access are prepared in the user's own Cloudflare CLI.
 ---
 
 # Open the workspace on your phone
 
 On your computer, choose **More → Public link** and turn it On. Confirm the
-scope, then scan the QR with your phone's camera. **Copy link** offers the same
-address. The **More** link inside that panel explains access and custom URLs.
+scope, then scan the QR with your phone's camera. The QR signs the phone in.
+**Copy link** copies the address without the code; a phone that opens it asks
+for the 8-character sign-in code shown under the QR. The **More** link inside
+that panel explains access and custom URLs.
+
+## Who can open it
+
+A phone opens the workspace only after it signs in. The sign-in code has eight
+letters and digits, leaving out ones that are easy to misread (0, 1, I, O).
+A code works once, changes after 10 minutes, and stops working after five wrong
+tries; the panel then shows a new one. A signed-in phone stays signed in.
+**Sign out phones** in the panel signs every phone out, and each needs a new
+code to come back. The computer running chill-agent never needs to sign in.
 
 The skill checks for `cloudflared` during first setup and asks before installing
 it. If you chose local-only use, ask your agent to prepare Public link when you
 need it. A failed link does not mean your local workspace has stopped; ask the
 agent to check the tool and connection instead of repeatedly toggling On.
 
-Temporary links need `cloudflared` installed. They expose every Goal in this
-workspace, including replies, to anyone with the link. Off closes the tunnel
+Temporary links need `cloudflared` installed. Signed-in phones can view and
+reply to every Goal in this workspace. Off closes the tunnel
 while the local Web stays available. It preserves the saved custom connection
 and notification registrations. A connection failure leaves local Web usable
 and does not silently switch a custom connection to a temporary one.

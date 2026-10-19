@@ -128,9 +128,10 @@ test('the service token stops Web only from a local request that no browser can 
   const token = 'a'.repeat(64);
   const f = await fixture(t, '1h', {CHILL_AGENT_SERVICE_TOKEN:token});
   const stop = (headers, method = 'POST') => fetch(f.url + '/api/service/shutdown', {method, headers});
-  for (const headers of [{}, {'x-chill-service':'b'.repeat(64)}, {'x-chill-service':token, Origin:f.url}, {'x-chill-service':token, 'Sec-Fetch-Site':'same-origin'}, {'x-chill-service':token, 'cf-ray':'1'}]) {
+  for (const headers of [{}, {'x-chill-service':'b'.repeat(64)}, {'x-chill-service':token, Origin:f.url}, {'x-chill-service':token, 'Sec-Fetch-Site':'same-origin'}]) {
     assert.equal((await stop(headers)).status, 404);
   }
+  assert.equal((await stop({'x-chill-service':token, 'cf-ray':'1'})).status, 401, 'a tunnelled request stops at sign-in');
   assert.equal((await stop({'x-chill-service':token}, 'GET')).status, 404);
   assert.equal((await stop({'x-chill-service':token})).status, 202);
   assert.deepEqual(await f.exited, [0, null]);
@@ -163,6 +164,36 @@ test('restart drains an active connection and rejects a pipelined request withou
   assert.doesNotMatch(f.output(), /TypeError/);
 });
 
+test('a request through the tunnel sees nothing until the phone signs in with the panel code', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+  const f = await tunnelFixture(t,'1h');
+  for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
+  const {url: origin} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
+  const phone = {'cf-connecting-ip':'203.0.113.5'};
+  const page = await fetch(f.url+'/', {headers:{...phone,Accept:'text/html'}});
+  assert.equal(page.status,401);
+  assert.match(await page.text(),/Sign in to chill/);
+  assert.equal((await fetch(f.url+'/api/goals',{headers:phone})).status,401);
+  assert.equal((await fetch(f.url+'/api/goals')).status,200,'the local Web needs no sign-in');
+  const panel = async () => (await (await fetch(f.url+'/api/extensions/public-link/state?goalId=1')).json());
+  const {code,qr} = await panel();
+  assert.match(code,/^[2-9A-HJ-NP-Z]{8}$/);
+  assert.ok(qr);
+  assert.equal((await fetch(f.url+'/api/extensions/public-link/state?goalId=1',{headers:phone})).status,401);
+  const wrong = await fetch(f.url+'/login',{method:'POST',headers:{...phone,Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:'code=22222222'});
+  assert.equal(wrong.status,401);
+  assert.match(await wrong.text(),/wrong, used or expired/);
+  const signIn = await fetch(f.url+`/login?code=${code.toLowerCase()}&goal=1`,{headers:phone,redirect:'manual'});
+  assert.equal(signIn.status,303);
+  assert.equal(signIn.headers.get('location'),'/#/goal/1');
+  const cookie = signIn.headers.get('set-cookie');
+  assert.match(cookie,/^chill_session=[A-Za-z0-9_-]{43}; Path=\/; Max-Age=\d+; HttpOnly; Secure; SameSite=Lax$/);
+  const session = {...phone,Cookie:cookie.split(';')[0]};
+  assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,200);
+  assert.equal((await fetch(f.url+`/login?code=${code}`,{headers:phone,redirect:'manual'})).status,401,'a code works once');
+  assert.notEqual((await panel()).code,code);
+  assert.equal((await fetch(f.url+'/api/extensions/public-link/sign-out',{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'})).status,200);
+  assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,401,'signing out removes the phone');
+});
 test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'chill-named-connector-'));
   const binary = join(dir, 'cloudflared');

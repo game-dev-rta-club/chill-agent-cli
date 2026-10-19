@@ -29,6 +29,7 @@ import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
 import {largeSize} from './lib/limits.mjs';
 import {recordHidden} from './lib/hidden-failure.mjs';
+import {createPublicAccess,sessionCookie,sessionFrom,codeAlphabet} from './lib/public-access.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
@@ -50,10 +51,40 @@ let activeWrites = 0, activeCommands = 0, stopIdleWatch;
 let tunnelOrigin = null, closing = false;
 const instanceToken=randomBytes(32).toString('hex');
 const updates=createRuntimeUpdater({port:()=>server.address().port,duration});
+const publicAccess=createPublicAccess();
 const publicTunnel=createTunnelController({directory:dataDirectory(),port:()=>server.address().port,onOrigin:origin=>{tunnelOrigin=origin;}});
-const extensions=createExtensionHost(registeredExtensions({tunnel:publicTunnel,configured}));
+const extensions=createExtensionHost(registeredExtensions({tunnel:publicTunnel,access:publicAccess,configured}));
 const allowedOrigin = request => request.headers.origin === `http://127.0.0.1:${server.address().port}`
   || (tunnelOrigin !== null && request.headers.origin === tunnelOrigin);
+
+// Through the public link, only a phone signed in with the panel's code sees anything.
+function signInPage(response,nonce,{status=401,message=''}={}){
+  response.writeHead(status,{'Content-Type':'text/html; charset=utf-8'});
+  response.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · chill</title>
+<style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui,-apple-system,sans-serif;background:#f4f6f2;color:#243b3e}form{width:min(320px,calc(100vw - 32px));display:grid;gap:12px}h1{font-size:20px;margin:0}p{margin:0;color:#56655f;font-size:14px}input{font:600 22px ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;padding:12px;border:1px solid #b9c4bd;border-radius:8px}button{font:600 16px system-ui,sans-serif;padding:12px;border:0;border-radius:8px;background:#2f5d50;color:#fff}.error{color:#a03a2c}</style>
+<form method="post" action="/login"><h1>Sign in to chill</h1><p>Enter the 8-character code shown in Public link on your computer.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="12" pattern="[${codeAlphabet}${codeAlphabet.toLowerCase()} -]{8,12}" aria-label="Sign-in code" autofocus><button>Sign in</button></form></html>`);
+}
+async function publicGate(request,response,url,nonce){
+  const localHost=`127.0.0.1:${server.address().port}`;
+  if(request.headers.host===localHost&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'])return false;
+  if(url.pathname==='/login'&&['GET','POST'].includes(request.method)){
+    let code=url.searchParams.get('code');
+    if(request.method==='POST'){
+      if(tunnelOrigin===null||request.headers.origin!==tunnelOrigin){sendJson(response,403,{error:'Sign in from the public link.'});return true;}
+      try{code=new URLSearchParams((await readUpload(request)).toString()).get('code');}catch{code=null;}
+    }
+    if(code===null){signInPage(response,nonce,{status:200});return true;}
+    const session=await publicAccess.signIn(code);
+    if(!session){signInPage(response,nonce,{message:'That code is wrong, used or expired. Check the code on your computer.'});return true;}
+    const goal=url.searchParams.get('goal');
+    response.writeHead(303,{'Set-Cookie':`${sessionCookie}=${session}; Path=/; Max-Age=34560000; HttpOnly; Secure; SameSite=Lax`,Location:`/${/^[1-9][0-9]*$/.test(goal||'')?`#/goal/${goal}`:''}`});
+    response.end();return true;
+  }
+  if(await publicAccess.signedIn(sessionFrom(request)))return false;
+  if(request.method==='GET'&&(request.headers.accept||'').includes('text/html'))signInPage(response,nonce);
+  else sendJson(response,401,{error:'Sign in with the code shown in Public link on your computer.'});
+  return true;
+}
 
 function shutdown(preserveTunnel=false) {
   if (closing) return;
@@ -179,6 +210,8 @@ const server = createServer(async (request, response) => {
     response.writeHead(400);
     return response.end('Invalid request URL');
   }
+  try{if(await publicGate(request,response,url,styleNonce))return;}
+  catch(error){recordHidden('server.public-sign-in',error);return sendJson(response,503,{error:'Could not check the sign-in. Please try again.'});}
   if(path==='/api/service/shutdown'){
     // Only the local service may stop Web: browsers always send Origin or
     // Sec-Fetch-Site on a POST, and tunnelled requests carry Cloudflare headers.
