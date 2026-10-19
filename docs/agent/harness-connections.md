@@ -12,7 +12,7 @@ keyPoints: >-
 **Partly implemented: Codex boundaries and an experimental Claude busy-delivery path; broader Claude support remains in qualification.**
 A user should be able to start using chill
 from Codex Desktop or, later, Claude Code, and keep working in that harness's
-conversation. Goal pages, Briefs and Letters provide the shared workspace. The
+conversation. Goal pages, Deliverables and Letters provide the shared workspace. The
 connected conversation retains its own history and context throughout the work.
 
 This scope does not include transferring an existing Goal to a different agent,
@@ -33,9 +33,9 @@ Codex Desktop conversation       Claude Code conversation
           |                       | (future entry)
      native adapter          native adapter / verified bridge
           \                       /
-       chill: assignment, feedback receipts and holds
+       chill: assignment, the Root's hand-off cursor, replies
                          |
-           Goals / Briefs / Letters / Auto mode
+           Goals / Deliverables / Letters / Auto mode
 ```
 
 Setup recognizes the calling harness and binds its conversation. Web feedback
@@ -63,7 +63,7 @@ report such limitations explicitly rather than claiming full Auto mode support.
 | Cancel a run | Target a known run and confirm its terminal state. Missing support remains unavailable. |
 | Continue autonomously | Deliver the next action request into the bound conversation without losing its context, bypassing a pause or starting duplicate work. |
 
-Chill owns durable receipts and holds. Native transport and reconciliation belong
+Chill owns the hand-off cursor and the reply rules. Native transport belongs
 to each adapter. Pause holds the relevant input and may cancel a known run;
 resume delivers the preserved input. A protocol's cancellation method alone is
 not this complete behavior. A disconnect after dispatch remains uncertain and
@@ -93,9 +93,9 @@ That refactor alone does not enable a Claude native return path.
 
 The [Claude entry handshake](claude-entry.md) now passes native session identity
 and a connection generation to the CLI in isolated qualification sessions.
-Experimental [main-hook actions](claude-actions.md) add new-Root ownership,
-explicit inbox reads and receipts, with request IDs for crash recovery. A verified
-native prompt also receives new input on ordinary main-session tool hooks. Context
+Experimental [connection actions](claude-actions.md) add new-Root ownership,
+explicit inbox reads and replies on the Goal. The conversation also receives new input on
+ordinary main-session tool hooks. Context
 IDs separate clear/fork from resume/compact. Local protocol tests and authenticated
 print-mode probes pass. The [reply waiter](claude-wait.md) wakes an idle
 conversation through a background task; chill's results tell the agent when to
@@ -105,17 +105,33 @@ Experimental project hooks can be installed through [explicit setup](claude-setu
 [connection hooks](../extensions/connection-hooks.md) now support the product Auto
 mode policy; its packaged native Stop probe passes.
 
-| Current code | Intended boundary |
+### One agent interface
+
+Core code reaches an agent only through [`lib/agents/index.mjs`](../../lib/agents/index.mjs).
+`agentFor(root)` returns the Root's agent connection, or none. Core never learns
+which harness it is: the agent's name and model come back as display strings, and
+`capabilities` says what the Web may offer (settings, Pause, Resume, Approve all).
+
+| The interface provides | Used for |
 | --- | --- |
-| Setup, hook input and Root `threadId` | Calling-harness identity and a backward-compatible binding |
-| `lib/codex-client.mjs`, `lib/desktop-settings.mjs` | Existing Codex Desktop adapter; retain supported-path checks |
-| `lib/agent-status.mjs`, `public/agent-menu.js` | Connection facts and dynamic settings, preserving the current UI |
-| `lib/delivery.mjs`, `lib/agent-control.mjs` | Shared receipts/holds and native transport/reconciliation |
-| `lib/agent-observation.mjs`, `lib/extension-api.mjs` | Provider-neutral facts, request identity and fresh validation |
+| `status`, `presence`, `activity`, `comments` | Agent menu, Goal list Running marks, the agent's state after a Goal's conversation, the marks under its comments |
+| `control`, `setApproveAll`, `saveSettings` | Pause/Resume of the current work, permissions, model settings |
+| `isCaller`, `token` | Whether a command runs in the agent's own conversation; a key that changes on reassignment |
+| `continuation` | AutoContinue: read, switch, show a run's output; polled agents also tick |
+| `deliveryCarrier(state)` | How a saved feedback is handed: `deliver` and `sendNow`, each returning the comment's mark |
+
+Each adapter lives in `lib/agents/` (`codex*.mjs`, `claude*.mjs`). Both hand
+feedback by the Root's cursor ([hand-off](../../lib/hand-off.mjs)). Codex sends an
+idle chat one Queue message and is polled for AutoContinue. Claude receives
+feedback through its hooks and watcher, and continues at its own Stop. A Comment
+on the Goal answers it; no harness records receipts. Behavior that a harness cannot
+offer is a capability set to false, not a branch in core code.
+[`test/harness-boundary.test.mjs`](../../test/harness-boundary.test.mjs) fails
+if core code names a harness outside a shrinking list of files still being moved.
 
 First wrap and verify the working Codex path. For Claude, qualify the entry point,
 caller identity and return path to the **same** conversation before choosing a
-transport library. Verify feedback across Goals, completion receipts, interrupted
+transport library. Verify feedback across Goals, replies, interrupted
 work, manual Pause, Auto mode continuation and unavailable controls. No successful
 check may depend on silently moving work into a fresh agent.
 

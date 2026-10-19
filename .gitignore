@@ -12,3 +12,5 @@ dist/
 public/vendor/
 
 *.tgz
+extensions/public-link/guide.html
+extensions/public-link/notifications.html

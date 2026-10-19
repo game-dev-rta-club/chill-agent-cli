@@ -1,9 +1,9 @@
 {
   "name": "@game-dev-rta-club/chill-agent-cli",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": false,
   "type": "module",
-  "description": "A local Goal workspace with editable Briefs and Letters in Conversation.",
+  "description": "A local Goal workspace with editable Deliverables and Letters in Conversation.",
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
@@ -12,14 +12,17 @@
     "server:status": "node bin/chill-server.mjs status",
     "hooks:install": "node bin/chill-hook.mjs --install",
     "setup": "node bin/chill-setup.mjs",
-    "check": "npm run web:build && node --check server.mjs && node --check lib/goal-store.mjs && node --check bin/chill-agent.mjs && node --check bin/chill-hook.mjs && node --check public/app.js && node --test test/*.test.mjs",
+    "check": "npm run web:build && node --check server.mjs && node --check lib/goal-store.mjs && node --check bin/chill-agent.mjs && node --check bin/chill-hook.mjs && node --check public/app.js && node --import ./test/isolate-env.mjs --test test/*.test.mjs",
     "web:build": "node scripts/build-web.mjs",
     "predev": "npm run web:build",
     "prestart": "npm run web:build",
     "presetup": "npm run web:build",
     "prehooks:install": "npm run web:build",
     "prepack": "npm run web:build",
-    "release:check": "node scripts/check-release.mjs"
+    "release:check": "node scripts/check-release.mjs",
+    "prepare": "npm run web:build",
+    "use-in": "node scripts/use-in.mjs",
+    "try-local": "node scripts/try-local.mjs"
   },
   "bin": {
     "chill-agent-cli": "bin/chill-entry.mjs"
@@ -30,7 +33,9 @@
   "dependencies": {
     "marked": "18.0.14",
     "parse5": "8.0.1",
-    "sanitize-html": "2.18.0"
+    "qrcode": "1.5.4",
+    "sanitize-html": "2.18.0",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
@@ -53,7 +58,9 @@
     "licenses",
     "LICENSE",
     "README.md",
-    "npm-shrinkwrap.json"
+    "npm-shrinkwrap.json",
+    "extensions",
+    "extensions.json"
   ],
   "bundleDependencies": [
     "marked",

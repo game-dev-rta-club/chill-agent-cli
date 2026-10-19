@@ -13,14 +13,21 @@ The integrating application decides what work to pursue and when to continue it.
 | I want to… | Read |
 | --- | --- |
 | Understand Goals, completion and progress | [Goal lifecycle](workspace/goals.md) |
-| Publish a plan or ask a question | [Briefs and Conversation](workspace/briefs-and-conversation.md) |
+| Publish a plan or ask a question | [Deliverables and Conversation](workspace/deliverables-and-conversation.md) |
 | Find the next relevant Goal without reading everything | [Read in layers](workspace/reading-goals.md) |
-| Understand page loading, live updates and Brief history | [Web navigation](workspace/web-navigation.md) |
+| Understand page loading, live updates and Deliverable history | [Web navigation](workspace/web-navigation.md) |
 | Separate projects, ports and extension choices | [Project workspaces](runtime/projects.md) |
 | Choose branches, commit milestones and prepare a PR | [Development workflow](development/workflow.md) |
+| Try a local CLI change in a project's Web, without GitHub | [Try a local change](development/try-local.md) |
+| Try an unreleased CLI commit in another project | [Use a development version](development/use-development-version.md) |
+| Add a host or change host-specific setup and operation guidance | [Harness boundaries](development/harness-boundaries.md) |
+| Qualify Auto mode continuation in a native Claude conversation | [Claude Auto mode](development/claude-auto-mode.md) |
+| Keep test data tied to a real Claude Code release | [Claude contract samples](development/claude-contract.md) |
+| Check chill against the installed Codex and Codex Desktop before a release | [Codex verification](development/codex-verification.md) |
 | Change Web navigation, layout updates or focus without scroll jumps | [Scrolling guidelines](development/scrolling.md) |
 | Understand the SQLite replacement under development | [SQLite workspace](runtime/sqlite.md) |
 | Locate data or update an installation | [Data and runtime updates](runtime/data-and-updates.md) |
+| Let an application choose the CLI version it runs | [Version file](runtime/version-file.md) |
 | Start Web or understand when it exits | [Server lifetime](runtime/server.md) |
 | Connect feedback, pause and resume | [Feedback delivery and controls](agent/feedback-and-controls.md) |
 | Read or change the current model | [Model settings](agent/model-settings.md) |
@@ -28,7 +35,7 @@ The integrating application decides what work to pursue and when to continue it.
 | Plan a return path to the current Claude conversation | [Claude conversation proposal](agent/claude-conversation.md) |
 | Qualify Claude's local hook-to-CLI identity handoff | [Claude entry handshake](agent/claude-entry.md) |
 | Prepare project-local hooks for the same Claude conversation | [Experimental Claude setup](agent/claude-setup.md) |
-| Create a new Claude Root and read its feedback through a main hook | [Experimental Claude actions](agent/claude-actions.md) |
+| Create a new Claude Root and read its feedback | [Experimental Claude actions](agent/claude-actions.md) |
 | Receive a reply after Claude finishes responding | [Reply waiter](agent/claude-wait.md) |
 | Check whether Claude is waiting for Web replies | [Recorded Claude connection status](agent/claude-status.md) |
 | Interpret Running, Done or an unknown state | [Execution state](agent/execution-state.md) |

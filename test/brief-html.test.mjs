@@ -7,17 +7,19 @@ import {createGoal,briefSource,updateBrief,readBrief,appendFeedback} from '../li
 import {briefHTML,briefText,briefDocument,briefReadableText} from '../lib/brief.mjs';
 import {migrateBriefFormats} from '../scripts/migrate-brief-formats.mjs';
 
-test('HTML Brief isolates author styling and preserves only static content',()=>{
+test('HTML Deliverable isolates author styling and preserves only static content',()=>{
  const source='<html><head><title>Not an annotation</title><style>body{color:red}</style></head><body><h1>Title</h1><script>alert(1)</script><p onclick="alert(1)">Readable</p><svg viewBox="0 0 20 20"><text>Diagram</text><rect width="20" height="20"/></svg><form><input/></form><img src="https://example.com/tracker"></body></html>';
  const html=briefHTML(source,'html');assert.ok(!/script|onclick|<form|<input|<img/.test(html));assert.match(html,/viewBox/);assert.equal(briefText(source,'html'),'TitleReadable');
- const doc=briefDocument(source);assert.match(doc,/body\{color:red\}/);assert.match(doc,/class="brief-body"/);assert.ok(!doc.includes('alert(1)'));
+ const doc=briefDocument(source);assert.match(doc,/body\{color:red\}/);
+ assert.ok(doc.indexOf('body{margin:0;padding:')<doc.indexOf('body{color:red}'),'the Deliverable has the card\'s margins unless its own style sets them');assert.match(doc,/class="brief-body"/);assert.ok(!doc.includes('alert(1)'));
  assert.throws(()=>briefHTML('source','pdf'),/format/);assert.equal(briefReadableText('<h1>A</h1><p>B</p>','html'),'A\n\nB');
 });
-test('switching Brief formats keeps both originals, exact histories and HTML annotation coordinates',async t=>{
+test('switching Deliverable formats keeps both originals, exact histories and HTML annotation coordinates',async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-brief-html-'));process.env.CHILL_AGENT_DATA_DIR=root;t.after(()=>rm(root,{recursive:true,force:true}));
  const goal=await createGoal({title:'Compare formats'});
- await writeFile(goal.briefPath,'# Markdown\n\nOriginal');const markdown=await updateBrief(goal.id);
- const source=await briefSource(goal.id,'html');assert.match(source.path,/brief.html$/);assert.equal((await briefSource(goal.id)).format,'markdown');
+ assert.match(goal.briefPath,/deliverable.html$/,'a new Goal starts with an HTML source');
+ await writeFile((await briefSource(goal.id,'markdown')).path,'# Markdown\n\nOriginal');const markdown=await updateBrief(goal.id);
+ const source=await briefSource(goal.id,'html');assert.match(source.path,/deliverable.html$/);assert.equal((await briefSource(goal.id)).format,'markdown');
  const html='<style>p {color:green}</style><h1>HTML</h1><p>Readable answer</p>';
  await writeFile(source.path,html);const saved=await updateBrief(goal.id,'html');assert.equal(saved.format,'html');assert.equal(saved.version,2);
  assert.equal((await briefSource(goal.id)).format,'html');assert.equal((await updateBrief(goal.id)).changed,false);
@@ -32,10 +34,18 @@ test('one-time format conversion preserves snapshots, originals and conversation
  const work=join(root,'workspace');await mkdir(join(work,'goals/1/briefs'),{recursive:true});await mkdir(join(work,'events'));
  const old={goalId:1,version:1,body:'# Original',createdAt:'2026-10-04T00:00:00Z'};
  await writeFile(join(work,'schema.json'),JSON.stringify({format:'goal-workspace',version:6}));
- await writeFile(join(work,'goals/1/briefs/v1.json'),JSON.stringify(old));await writeFile(join(work,'goals/1/brief.md'),'# Edited');await writeFile(join(work,'events/2.json'),'{}');
+ await writeFile(join(work,'goals/1/briefs/v1.json'),JSON.stringify(old));await writeFile(join(work,'goals/1/deliverable.md'),'# Edited');await writeFile(join(work,'events/2.json'),'{}');
  const result=await migrateBriefFormats(root);assert.equal(result.snapshots,1);
  assert.deepEqual(JSON.parse(await readFile(join(work,'goals/1/briefs/v1.json'))),{...old,format:'markdown'});
  assert.deepEqual(JSON.parse(await readFile(join(result.backup,'goals/1/briefs/v1.json'))),old);
- assert.equal(await readFile(join(work,'goals/1/brief.md'),'utf8'),'# Edited');assert.equal(await readFile(join(work,'events/2.json'),'utf8'),'{}');
+ assert.equal(await readFile(join(work,'goals/1/deliverable.md'),'utf8'),'# Edited');assert.equal(await readFile(join(work,'events/2.json'),'utf8'),'{}');
  assert.equal(JSON.parse(await readFile(join(work,'schema.json'))).version,7);await assert.rejects(migrateBriefFormats(root),/schema 6/);
+});
+
+test('agents see annotation sources named deliverable while stored ones keep the internal name',async()=>{
+ const {agentAnnotations}=await import('../lib/brief.mjs');
+ const stored=[{kind:'text',source:{kind:'brief',version:2}},{kind:'text',source:{kind:'comment',eventId:5}}];
+ assert.deepEqual(agentAnnotations(stored).map(n=>n.source.kind),['deliverable','comment']);
+ assert.equal(stored[0].source.kind,'brief','the stored record is not changed');
+ assert.equal(agentAnnotations(undefined),undefined);
 });

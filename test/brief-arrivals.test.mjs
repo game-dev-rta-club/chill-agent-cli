@@ -16,7 +16,7 @@ test('historical browsing does not trigger latest-following notifications',()=>{
  assert.equal(arrival('1',5,5),false);
  assert.equal(arrival('1',5,6),true);
 });
-test('new visits and empty Briefs use the current version as baseline',()=>{
+test('new visits and empty Deliverables use the current version as baseline',()=>{
  const arrival=createBriefArrivalTracker();
  assert.equal(arrival('1',0,0),false);assert.equal(arrival('1',0,1),true);
  assert.equal(arrival('2',2,2),false);assert.equal(arrival('1',1,1),false);

@@ -1,6 +1,7 @@
 import {isRunning} from './goal-state.js';
 import {presenceMark,presenceLabel} from './agent-presence.js';
-import {extensionIcon} from './extension-buttons.js';
+import {extensionIcon,announceControls} from './extension-buttons.js';
+import {confirmAction} from './confirmation-dialog.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const period=m=>m===null?'Usage':m%1440===0?`${m/1440}d`:m%60===0?`${m/60}h`:`${m}m`;
 const date=seconds=>new Intl.DateTimeFormat('en-US',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}).format(new Date(seconds*1000));
@@ -11,12 +12,12 @@ function settingsMarkup(data){
  return `<form data-agent-settings><label>Model<select name="model" aria-label="Model">${data.models.map(m=>`<option value="${esc(m.id)}" ${m.id===s.model?'selected':''}>${esc(m.label)}</option>`).join('')}</select></label><label>Reasoning<select name="effort" aria-label="Reasoning"></select></label><p class="agent-muted" data-settings-message role="status"></p></form>`;
 }
 function timeMarkup(at,seconds=false){
- const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString())}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}))}</time>`;
+ const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString('en-US'))}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}))}</time>`;
 }
 function workMarkup(work,root={}){
  const active=isRunning(work?.status)||work?.status==='paused';
  const id=work?.goalId||root.rootId,title=work?.goalId?work.title:root.rootTitle;
- return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
+ return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${!active&&!root.recent?.length&&work?.last?.goalId?`<a class="agent-work-link" href="#/goal/${esc(work.last.goalId)}${work.last.eventId?`/activity/${esc(work.last.eventId)}`:''}">Last · #${esc(work.last.goalId)} ${esc(work.last.title||'Goal')} →</a>`:''}${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}${work?.goalId&&work.eventId?`/activity/${esc(work.eventId)}`:''}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
 }
 function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div class="agent-auto-meta">${timeMarkup(entry.at)}<span>${esc(entry.result?.label||entry.status)}</span></div><p>${esc(entry.summary)}</p>${entry.detail?`<p class="agent-muted">${esc(entry.detail)}</p>`:''}${entry.message?`<details data-agent-detail="${esc(id)}"><summary>View message</summary><pre class="agent-auto-message">${esc(entry.message)}</pre></details>`:'<p class="agent-muted">Message not saved.</p>'}</article>`;}
 export function runActivityMarkup(controls){
@@ -33,18 +34,32 @@ export function activityMarkup(controls){
   return `<section class="agent-section agent-auto"><div class="agent-section-heading"><h3>${esc(a.label||c.label)}</h3>${c.configured===false?`<button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup?.label||'Set up')}</button>`:`<button type="button" class="extension-trigger agent-auto-toggle" data-agent-extension="${esc(c.id)}" aria-label="${esc(c.label)}" aria-pressed="${c.enabled}" title="${esc(c.label)}: ${c.enabled?'ON · Turn off':'OFF · Turn on'}">${extensionIcon(c.icon)}<span>${c.enabled?'On':'Off'}</span></button>`}</div>${c.detail?`<p class="agent-muted agent-auto-empty agent-extension-detail" title="${esc(c.detail)}">${esc(c.detail)}${c.configured&&c.setup?` <button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup.label)}</button>`:''}</p>`:''}${entries.length?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-activity"><summary>History</summary>${a.total>entries.length?`<p class="agent-muted">Latest ${entries.length}</p>`:''}${entries.map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}<p class="agent-muted" data-extension-message role="status"></p></section>`;
  }).join('');
 }
+// Every agent shares the same extension sections, such as AutoContinue.
+// Recent Goals of this agent, newest first, each once.
+const currentGoal=id=>new RegExp(`^#/goal/${id}(?:/|$)`).test(globalThis.location?.hash||'');
+const recentMarkup=recent=>recent?.length?`<h4 class="agent-recent-heading">Recent</h4><ol class="agent-recent">${recent.map(g=>`<li><a href="#/goal/${esc(g.goalId)}" class="${currentGoal(g.goalId)?'is-current':''}"><span class="agent-recent-id">#${esc(g.goalId)}</span><span class="agent-recent-title">${esc(g.title||'Goal')}</span></a></li>`).join('')}</ol>`:'';
+const currentMarkup=(data,controls='')=>`<section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current" data-markup="${esc(workMarkup(data.work,data))}">${workMarkup(data.work,data)}</div>${controls}</div>${recentMarkup(data.recent)}</section>`;
+const extensionsMarkup=data=>data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions);
+// The menu reads one data shape for every agent: display strings in data.agent
+// and what it can do in data.capabilities. Which harness it is never matters here.
+function headerMarkup(data){
+ const a=data.agent||{},caps=data.capabilities||{};
+ const model=caps.settings?`<div class="agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</div>`:a.model?.model?`<p class="agent-muted">${esc(a.model.model)}${a.model.reasoning?` · ${esc(a.model.reasoning)}`:''}</p>`:'';
+ const status=a.status?`<p title="${esc(a.status.detail||'')}">${esc(a.status.label)}${a.status.at?` · ${timeMarkup(a.status.at)}`:''}</p>`:'';
+ const approve=caps.approveAll?`<label class="agent-extension"><span>Approve all</span><input type="checkbox" role="switch" data-agent-approve-all aria-label="Approve all permission prompts" ${data.approveAll?'checked':''}></label><p class="extension-message" data-approve-message role="status"></p>`:'';
+ const usage=data.usage===undefined?'':`<section class="agent-section"><h3 title="${esc(data.usageScope||'')}">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>`;
+ return `<section class="agent-section"><h3>${esc(a.name||'Agent')}</h3>${model}${status}${approve}</section>${usage}`;
+}
+const controlsMarkup=data=>`<div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div>`;
+function queueMarkup(queue){
+ return `<section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>`;
+}
 export function agentMarkup(data) {
- if(data.nativeConnection){
-  const s=data.nativeConnection.status;
-  return `<section class="agent-section"><h3>Claude Code</h3>${s?`<p>${esc(s.label)}</p><p class="agent-muted">${esc(s.detail)}</p>${s.waiterCheckedAt?`<p class="agent-muted">Waiter checked ${timeMarkup(s.waiterCheckedAt,true)}</p>`:''}${s.observedAt?`<p class="agent-muted">Last contact ${timeMarkup(s.observedAt)}</p>`:''}`:''}<p class="agent-muted">${esc(data.nativeConnection.detail)}</p></section>`;
- }
  if(!data.connected)return '<p class="agent-empty">No agent connected.</p>';
- const work=data.work,queue=data.queue;
- return `<section class="agent-section agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</section>
- <section class="agent-section"><h3 title="Shared across your Codex account">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>
- <section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current">${workMarkup(work,data)}</div><div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div></div></section>
- <section class="agent-section"><h3>Queue${queue?` <span class="agent-count">${queue.items.length}${queue.truncated?'+':''}</span>`:''}</h3>${queue?queue.items.length?`<ol class="agent-queue">${queue.items.map(q=>`<li>${q.goalId?`<a href="#/goal/${esc(q.goalId)}">#${esc(q.goalId)} ${esc(q.title)}</a>`:esc(q.title)}</li>`).join('')}</ol>`:'<p class="agent-muted">Empty</p>':'<p class="agent-muted">Queue unavailable.</p>'}</section>
- ${data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions)}`;
+ return `${headerMarkup(data)}
+ ${currentMarkup(data,controlsMarkup(data))}
+ ${queueMarkup(data.queue)}
+ ${extensionsMarkup(data)}`;
 }
 export function createAgentMenu({button,panel,content,getGoalId}) {
  const setupRequests=new Map();
@@ -55,6 +70,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  function render(data){
   const expanded=new Set([...content.querySelectorAll('details[open][data-agent-detail]')].map(d=>d.dataset.agentDetail)),scroll=panel.scrollTop;
   current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>c.placement!=='header'&&!c.activity));
+  if(data.extensions)announceControls(data.extensions);
   for(const d of content.querySelectorAll('details[data-agent-detail]'))d.open=expanded.has(d.dataset.agentDetail);
   panel.scrollTop=scroll;
   for(const c of data.extensions||[]){if(c.setup&&setupRequests.get(setupKey(getGoalId(),c))?.done){const b=content.querySelector(`[data-extension-setup="${c.id}"]`);if(b){b.textContent='Requested';b.disabled=true;}}}
@@ -66,10 +82,10 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  content.addEventListener('submit',event=>event.preventDefault());
  async function loadRun(details,{fresh=false}={}){
   if(!details?.open||!current)return;
-  const goalId=getGoalId(),threadId=current.threadId,extension=current.extensions?.find(c=>c.id===details.dataset.extensionRun);
+  const goalId=getGoalId(),token=current.token,extension=current.extensions?.find(c=>c.id===details.dataset.extensionRun);
   const entry=extension?.activity?.runs?.find(e=>e.id===details.dataset.runId);
   if(!entry?.logPath)return;
-  const key=JSON.stringify([extension.rootId,threadId,extension.id,entry.id]);
+  const key=JSON.stringify([extension.rootId,token,extension.id,entry.id]);
   const target=details.querySelector('[data-run-output]');
   if(fresh)runLogs.delete(key);
   if(!runLogs.has(key))runLogs.set(key,(async()=>{
@@ -78,7 +94,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   })());
   try{
    const data=await runLogs.get(key);
-   if(goalId!==getGoalId()||threadId!==current?.threadId||!target.isConnected)return;
+   if(goalId!==getGoalId()||token!==current?.token||!target.isConnected)return;
    target.innerHTML=runOutputMarkup(data);
    if(!data.work?.endedAt||data.error)runLogs.delete(key);
   }catch(error){runLogs.delete(key);if(target.isConnected&&goalId===getGoalId())target.innerHTML='<p class="agent-muted">Log unavailable.</p><button type="button" class="text-button" data-run-refresh>Retry</button>';}
@@ -126,7 +142,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   content.querySelectorAll('input,select,button').forEach(el=>el.disabled=true);
   const message=content.querySelector('[data-agent-control-message]');if(message)message.textContent=action==='stop'?'Pausing…':'Resuming…';
   try{
-   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'current',action,threadId:snapshot.threadId,turnId:snapshot.control.turnId,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
+   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'current',action,token:snapshot.token,turnId:snapshot.control?.turnId??null,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
    const result=await response.json();if(!response.ok)throw Error(result.error||'Action unconfirmed. Refresh to check.');
    if(opened&&id===getGoalId()&&token===request)render({...result,extensions:snapshot.extensions});
   }catch(error){
@@ -136,6 +152,20 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
    }
   }finally{saving=false;refreshButton.disabled=false;}
  }
+ // When the agent supports it: answer its permission prompts automatically.
+ content.addEventListener('change',async event=>{
+  const input=event.target.closest('[data-agent-approve-all]');if(!input||saving)return;
+  // Turning it on is consequential, so the explanation lives in a confirmation.
+  if(input.checked&&!await confirmAction({title:'Approve all',message:"The agent's permission prompts in this conversation will be answered with Allow, so unattended work keeps going without asking you. Prompts the agent never lets an automatic answer approve, such as removing critical paths, still ask.",confirmLabel:'Turn on'})){input.checked=false;return;}
+  const id=getGoalId(),snapshot=current,token=++request;controller?.abort();saving=true;input.disabled=true;
+  const message=content.querySelector('[data-approve-message]');if(message)message.textContent='';
+  try{
+   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'permissions',token:snapshot?.token,approveAll:input.checked}),signal:AbortSignal.timeout(30000)});
+   const result=await response.json();if(!response.ok)throw Error(result.error||'Could not save.');
+   if(opened&&id===getGoalId()&&token===request)render({...result,extensions:snapshot.extensions});
+  }catch(error){if(opened&&id===getGoalId()&&token===request){input.checked=!input.checked;input.disabled=false;const m=content.querySelector('[data-approve-message]');if(m)m.textContent=error.name==='TimeoutError'?'Save unconfirmed. Refresh to check.':error.message;}}
+  finally{saving=false;}
+ });
  content.addEventListener('change',async event=>{
   if(event.target.matches('[data-extension]')){
    void saveExtension(event.target.dataset.extension,event.target.checked,`[data-extension="${event.target.dataset.extension}"]`);return;
@@ -143,7 +173,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   const form=event.target.closest('[data-agent-settings]');if(!form||saving)return;
   const focusName=event.target.name;
   const id=getGoalId(),data=current;
-  const input={threadId:data.threadId,model:form.elements.model.value,effort:form.elements.effort.value,expected:{model:data.settings.model,effort:data.settings.reasoning}};
+  const input={token:data.token,model:form.elements.model.value,effort:form.elements.effort.value,expected:{model:data.settings.model,effort:data.settings.reasoning}};
   if(input.model===data.settings.model&&input.effort===data.settings.reasoning)return;
   const token=++request;controller?.abort();saving=true;
   content.querySelectorAll('input,select,button').forEach(el=>el.disabled=true);
@@ -167,8 +197,10 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  function open(){if(!getGoalId())return;opened=true;focusBefore=document.activeElement;panel.hidden=false;button.setAttribute('aria-expanded','true');content.innerHTML='<p class="agent-empty">Loading…</p>';panel.querySelector('[data-agent-close]').focus({preventScroll:true});void refresh();timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);}
  button.addEventListener('click',()=>opened?close({restore:true}):open());
  panel.querySelector('[data-agent-close]').addEventListener('click',()=>close({restore:true}));refreshButton.addEventListener('click',refresh);
- document.addEventListener('pointerdown',e=>{if(opened&&!panel.contains(e.target)&&!button.contains(e.target))close();});
- document.addEventListener('focusin',e=>{if(opened&&!panel.contains(e.target)&&!button.contains(e.target))close();});
+ // A confirmation opened from the menu belongs to it.
+ const outside=e=>opened&&!panel.contains(e.target)&&!button.contains(e.target)&&!e.target.closest?.('.extension-confirm');
+ document.addEventListener('pointerdown',e=>{if(outside(e))close();});
+ document.addEventListener('focusin',e=>{if(outside(e))close();});
  document.addEventListener('keydown',e=>{if(opened&&e.key==='Escape'){e.preventDefault();close({restore:true});}});
  panel.addEventListener('click',e=>{if(e.target.closest('a'))close({restore:true});});
  window.addEventListener('blur',()=>setTimeout(()=>{if(opened&&document.activeElement?.tagName==='IFRAME')close();},0));
@@ -177,7 +209,9 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  window.addEventListener('chill-agent-presence',event=>{
   if(!opened||event.detail.routeGoalId!==getGoalId()||!current?.connected)return;
   current.work=event.detail;const target=content.querySelector('.agent-current');
-  if(target&&!target.contains(document.activeElement))target.innerHTML=workMarkup(event.detail,current);
+  const markup=workMarkup(event.detail,current);
+  // Redraw only on change, so a link under the pointer stays clickable.
+  if(target&&!target.contains(document.activeElement)&&target.dataset.markup!==markup){target.innerHTML=markup;target.dataset.markup=markup;}
  });
  return {routeChanged(){close();current=null;button.hidden=!getGoalId();},close};
 }

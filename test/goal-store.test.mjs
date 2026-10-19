@@ -6,7 +6,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {promisify} from 'node:util';
 import test from 'node:test';
-const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+import {fileURLToPath} from 'node:url';
+const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 async function fixture(t,storage){
  const root=await mkdtemp(join(tmpdir(),'chill-goals-'));t.after(()=>rm(root,{recursive:true,force:true}));
  const env={...process.env,...(storage?{CHILL_AGENT_STORAGE:storage}:{}),CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
@@ -15,23 +16,24 @@ async function fixture(t,storage){
  let serial=0;
  const update=async(id,patch)=>{const file=join(root,`patch-${serial++}.json`);await writeFile(file,JSON.stringify(patch));return run('update','--id',id,'--input-file',file);};
  const feedback=async(id,input)=>{const file=join(root,`feedback-${serial++}.json`);await writeFile(file,JSON.stringify(input));return (await invoke('feedback','--id',id,'--input-file',file)).stdout.trim().split('\n').map(JSON.parse)[0].feedback;};
- const brief=async(id,body)=>{const {path}=await run('brief','path','--id',id);await writeFile(path,body);return run('brief','update','--id',id);};
+ const brief=async(id,body)=>{const {path}=await run('deliverable','path','--id',id);await writeFile(path,body);return run('deliverable','update','--id',id);};
  return {root,run,invoke,update,feedback,brief};
 }
 test('empty Goals accept Conversation; stable Markdown updates only publish changes',async t=>{
  const f=await fixture(t),goal=await f.run('create','--title','Stable Goal');
- assert.equal(await readFile(goal.briefPath,'utf8'),'');
- assert.equal((await f.run('show','--id','1')).brief,null);
- await f.run('comment','--id','1','--text','Before Brief');
+ assert.equal(await readFile(goal.deliverablePath,'utf8'),'');
+ assert.equal((await f.run('show','--id','1')).deliverable,null);
+ await f.run('comment','--id','1','--text','Before Deliverable');
  const first=await f.brief('1','# Plan\n\nOriginal'),path=join(f.root,'workspace/goals/1/briefs/v1.json'),bytes=await readFile(path,'utf8');
  assert.equal(first.changed,true);
- const unchanged=await f.run('brief','update','--id','1');assert.equal(unchanged.changed,false);assert.equal(unchanged.version,1);
- await writeFile(goal.briefPath,'# Plan\n\nEdited');
- assert.equal((await f.run('show','--id','1')).brief.body,'# Plan\n\nOriginal','unpublished edits stay local');
- await f.run('brief','update','--id','1');
+ await assert.rejects(f.invoke('deliverable','update','--id','1'),error=>/Not published: .*deliverable\.html is the same as v1\./.test(error.stderr)&&error.code===1,'an unchanged file fails so a failed edit is noticed');
+ assert.equal((await f.run('show','--id','1')).deliverable.version,1);
+ await writeFile(goal.deliverablePath,'# Plan\n\nEdited');
+ assert.equal((await f.run('show','--id','1')).deliverable.body,'# Plan\n\nOriginal','unpublished edits stay local');
+ await f.run('deliverable','update','--id','1');
  await f.run('comment','--id','1','--text','After update');
  const past=await f.run('show','--id','1','--version','1');
- assert.equal(past.goal.title,'Stable Goal');assert.equal(past.brief.body,first.body);
+ assert.equal(past.goal.title,'Stable Goal');assert.equal(past.deliverable.body,first.body);
  assert.equal(past.conversation.length,2);assert.equal(past.latestVersion,2);
  assert.equal(await readFile(path,'utf8'),bytes);
 });
@@ -41,10 +43,10 @@ test('typed Agent posts require a title for Letters and no legacy entrypoints ar
  await assert.rejects(f.run('comment','--id','1','--title','title','--text','x'),/Unknown option/);
  for(const command of ['note','reply','reopen'])await assert.rejects(f.run(command,'--id','1'),/Unknown command/);
  await f.run('letter','--id','1','--title','Which way?','--text','Would you prefer A or B?');
- const page=await f.run('show','--id','1');assert.equal(page.letters.length,1);assert.equal(page.brief,null);
+ const page=await f.run('show','--id','1');assert.equal(page.letters.length,1);assert.equal(page.deliverable,null);
  assert.equal(page.conversation[0].type,'letter');assert.equal(page.conversation[0].version,undefined);
 });
-test('explicit answers close only targeted Letters; unrelated comments and Brief never close them',async t=>{
+test('explicit answers close only targeted Letters; unrelated comments and Deliverable never close them',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');
  const a=await f.run('letter','--id','1','--title','A','--text','A?'),b=await f.run('letter','--id','1','--title','B','--text','B?');
  await f.feedback('1',{text:'Just a comment'});await f.brief('1','Plan');
@@ -121,16 +123,18 @@ test('Agent receipt preserves the Letter and its annotation targets; counts and 
  assert.equal(answered.changed,false);assert.equal(answered.status,'answered');assert.equal(answered.receivedAt,undefined);
  assert.equal((await f.run('tree'))[0].letterCount,0);
 });
-test('concurrent Goal creation and identical Brief updates allocate without duplicates',async t=>{
+test('concurrent Goal creation and identical Deliverable updates allocate without duplicates',async t=>{
  const f=await fixture(t);const goals=await Promise.all(Array.from({length:4},()=>f.run('create','--title','Goal')));
  assert.deepEqual(goals.map(g=>g.id).sort(),['1','2','3','4']);
- await writeFile(goals.find(g=>g.id==='1').briefPath,'# Current');
- const saved=await Promise.all(Array.from({length:4},()=>f.run('brief','update','--id','1')));
- assert.equal(saved.filter(s=>s.changed).length,1);assert.ok(saved.every(s=>s.version===1));
+ await writeFile(goals.find(g=>g.id==='1').deliverablePath,'# Current');
+ const saved=await Promise.allSettled(Array.from({length:4},()=>f.run('deliverable','update','--id','1')));
+ assert.equal(saved.filter(s=>s.status==='fulfilled'&&s.value.changed&&s.value.version===1).length,1);
+ assert.ok(saved.filter(s=>s.status==='rejected').every(s=>/Not published: .* is the same as v1\./.test(s.reason.stderr)));
+ assert.equal((await f.run('show','--id','1')).deliverable.version,1);
  await assert.rejects(f.update('1',{state:'working'}),/Live Working/);
  await assert.rejects(f.update('1',{state:'waiting'}),/Waiting reason/);
 });
-test('completed leaf count is independent of Brief, comments and Letter answers',async t=>{
+test('completed leaf count is independent of Deliverable, comments and Letter answers',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');
  for(const title of ['Done','Started','Waiting'])await f.run('create','--title',title,'--parent','1');
  await f.update('2',{state:'done'});await f.update('3',{started:true});await f.update('4',{state:'waiting',waitReason:'Input'});
@@ -194,4 +198,54 @@ test('legacy no-reply Letters preserve counts without exposing a separate messag
  assert.equal((await f.run('close-letter','--id','1','--event',String(notice.id))).changed,false);
  await assert.rejects(f.run('comment','--id','1','--no-reply','--text','x'),/Unknown option/);
  await assert.rejects(f.feedback('1',{type:'letter',replyRequired:false,title:'x',text:'x'}),/replyRequired/);
+});
+
+test('editable sources from before the Deliverable rename move to their new names once',async t=>{
+ const f=await fixture(t);await f.run('create','--title','Renamed');
+ const dir=join(f.root,'workspace/goals/1');
+ const {rm:remove}=await import('node:fs/promises');await remove(join(dir,'deliverable.md'),{force:true});
+ await writeFile(join(dir,'brief.md'),'# Earlier source');
+ const {path}=await f.run('deliverable','path','--id','1','--format','markdown');
+ assert.equal(path,join(dir,'deliverable.md'));assert.equal(await readFile(path,'utf8'),'# Earlier source');
+ await assert.rejects(readFile(join(dir,'brief.md'),'utf8'));
+ // An existing new source is never overwritten by a leftover earlier one.
+ await writeFile(join(dir,'brief.md'),'# Leftover');
+ await f.run('deliverable','path','--id','1','--format','markdown');
+ assert.equal(await readFile(path,'utf8'),'# Earlier source');
+ await assert.rejects(f.invoke('brief','path','--id','1'),/renamed to goal deliverable/);
+});
+
+test('an agent Comment or Letter posted by mistake can be deleted; user comments cannot',async t=>{
+ const f=await fixture(t);await f.run('create','--title','Root');
+ const kept=await f.run('comment','--id','1','--text','Keep this');
+ const wrong=await f.run('comment','--id','1','--text','Posted to the wrong project');
+ const letter=await f.run('letter','--id','1','--title','Wrong question','--text','Which one?');
+ const user=await f.feedback('1',{text:'A user comment'});
+ const deleted=await f.run('delete-comment','--id','1','--event',String(wrong.id));assert.equal(deleted.changed,true);
+ await f.run('delete-comment','--id','1','--event',String(letter.id));
+ assert.equal((await f.run('delete-comment','--id','1','--event',String(wrong.id))).changed,false,'deleting again changes nothing');
+ const text=(await f.invoke('show','--id','1','--format','text')).stdout;
+ assert.match(text,/Keep this/);assert.doesNotMatch(text,/wrong project|Wrong question/);
+ assert.equal((await f.run('show','--id','1')).letters.length,0,'a deleted Letter is not open');
+ await assert.rejects(f.invoke('delete-comment','--id','1','--event',String(user.id)),/Only agent/);
+ await assert.rejects(f.invoke('delete-comment','--id','1','--event','999'),/not found/);
+ assert.ok(kept.id);
+});
+test('large titles and feedback are accepted instead of hitting small caps',async t=>{
+ const f=await fixture(t),title='T'.repeat(5000),text='x'.repeat(300000);
+ assert.equal((await f.run('create','--title',title)).title,title);
+ assert.equal((await f.feedback('1',{text})).text.length,text.length);
+});
+test('a Letter answered by an ordinary Comment is recorded with --answer and shows as Replied',async t=>{
+ const f=await fixture(t);await f.run('create','--title','Root');
+ const before=await f.feedback('1',{text:'Earlier note'});
+ const letter=await f.run('letter','--id','1','--title','Go ahead?','--text','May I proceed?');
+ const reply=await f.feedback('1',{text:'Yes, go ahead.'});
+ await assert.rejects(f.run('close-letter','--id','1','--event',String(letter.id),'--answer',String(before.id)),/after the Letter/);
+ await assert.rejects(f.run('close-letter','--id','1','--event',String(letter.id),'--answer',String(letter.id)),/user Comment/);
+ const closed=await f.run('close-letter','--id','1','--event',String(letter.id),'--answer',String(reply.id));
+ assert.equal(closed.status,'answered');assert.equal(closed.answeredBy,reply.id);
+ assert.equal((await f.run('show','--id','1')).letters.length,0);
+ const {letterState}=await import('../public/letter-state.js');
+ assert.deepEqual(letterState(closed,[]),{status:'answered',lastAnswerId:reply.id});
 });

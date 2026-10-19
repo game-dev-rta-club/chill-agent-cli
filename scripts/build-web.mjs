@@ -1,5 +1,6 @@
 import {build} from 'esbuild';
-import {mkdir,copyFile} from 'node:fs/promises';
+import {mkdir,copyFile,readFile,writeFile} from 'node:fs/promises';
+import {marked} from 'marked';
 import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
 export async function buildWeb() {
@@ -9,5 +10,11 @@ export async function buildWeb() {
     bundle:true, format:'esm', splitting:false, minify:true, legalComments:'external',
     outfile:fileURLToPath(new URL('../public/vendor/mermaid.js',import.meta.url))});
   await copyFile(new URL('../node_modules/mermaid/LICENSE',import.meta.url),new URL('../public/vendor/mermaid.LICENSE',import.meta.url));
+  // The public-link panel links to these user guides; render them from docs/using.
+  for(const [source,output] of [['public-link','guide'],['notifications','notifications']]){
+    const markdown=(await readFile(new URL(`../docs/using/${source}.md`,import.meta.url),'utf8')).replace(/^---[\s\S]*?---\n/,'');
+    const html=marked.parse(markdown).replaceAll('href="notifications.md"','href="notifications.html"').replaceAll('href="public-link.md"','href="guide.html"');
+    await writeFile(new URL(`../extensions/public-link/${output}.html`,import.meta.url),`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>chill-agent · ${source}</title><link rel="stylesheet" href="/extensions/public-link/guide.css"><main>${html}</main></html>`);
+  }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await buildWeb();

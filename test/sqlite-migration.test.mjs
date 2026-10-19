@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {createMigrationBundle,verifyMigrationBundle,restoreMigrationSource,verifyRestoredSource,prepareMigrationWorkspace,verifyPreparedWorkspace} from '../lib/sqlite-migration.mjs';
 import {openSqliteWorkspace} from '../lib/sqlite-workspace.mjs';
+import {fileURLToPath} from 'node:url';
 async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chill-migrate-')),source=join(root,'old'),destination=join(root,'bundle');
  t.after(()=>rm(root,{recursive:true,force:true}));
@@ -109,7 +110,7 @@ test('prepared SQLite workspace preserves durable files and quarantines runtime 
   assert.equal(store.db.prepare('SELECT change_id FROM events WHERE id=4').get().change_id,10);
  }finally{store.close();}
  const {execFile}=await import('node:child_process');const {promisify}=await import('node:util');
- await assert.rejects(promisify(execFile)(process.execPath,[new URL('../bin/chill-agent.mjs',import.meta.url).pathname,'show','--id','8'],{env:{...process.env,CHILL_AGENT_DATA_DIR:destination}}),/offline-prepared/);
+ await assert.rejects(promisify(execFile)(process.execPath,[fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url)),'show','--id','8'],{env:{...process.env,CHILL_AGENT_DATA_DIR:destination}}),/offline-prepared/);
  await assert.rejects(prepareMigrationWorkspace(f.destination,destination),/already exists/);
  await assert.rejects(prepareMigrationWorkspace(f.destination,join(f.destination,'data')),/outside/);
  await writeFile(join(workspace,'deliveries/9.json'),'changed');

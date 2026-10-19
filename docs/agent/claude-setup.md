@@ -2,8 +2,9 @@
 keyPoints: >-
   Explicit Claude setup adds project-local hooks without changing permissions or
   other hooks. Repeating preparation reconciles owned entries; status reports
-  configuration, not live activation. Native resume preserves the existing chat;
-  native tool permissions remain separate from chill Auto mode.
+  configuration, not live activation. A conversation that was already running
+  connects with connection join, without resuming. A Git worktree shares its
+  main checkout's project; native tool permissions remain separate from Auto mode.
 ---
 
 # Prepare hooks for a Claude conversation
@@ -17,9 +18,28 @@ node bin/chill-entry.mjs setup prepare --harness claude-code --project /absolute
 
 Codex remains the default when `--harness` is omitted. The Claude route does not
 look up Codex. It prepares the [stable runtime](../runtime/data-and-updates.md)
-and adds SessionStart, UserPromptSubmit, PostToolUse, Stop and SessionEnd hooks
-to `.claude/settings.local.json`. It does not start Claude or the Web server,
-enable Auto mode, assign an existing Goal, or change native permissions.
+and adds SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse,
+Stop and SessionEnd hooks to `.claude/settings.local.json`. It does not start
+Claude or the Web server, enable Auto mode, assign an existing Goal, or change
+native permissions.
+
+PermissionRequest answers Claude's permission prompts with Allow only while the conversation's Approve all switch in the Agent menu is on (Claude only); otherwise prompts ask as usual. Prompts Claude Code never lets a hook approve still ask. PreToolUse applies a [Web pause](claude-status.md#pause-resume-and-queue) to every tool call. For Bash it also keeps unattended work from stopping at a prompt. Claude
+Code asks a person before `rm` or `rmdir` whose target is a glob or trailing
+slash directly under a shell variable, such as `rm -f $DIR/*.png`, even in
+bypass mode, and no allow rule or hook may approve it (its
+[critical paths](https://code.claude.com/docs/en/permission-modes#critical-paths)
+check). The hook finds that form first and denies it with a reason asking Claude
+to rewrite it as `rm -f "${DIR:?}"/*.png` or with a literal path, which Claude
+Code accepts. It never approves a command. Other commands pass without output;
+the check adds about 0.15 seconds per Bash call.
+
+Each hook is the same shell command on every platform: it runs the short `chill`
+entry, which uses the recorded Node or, if that is gone, the Node on PATH. On
+Windows, Claude Code runs hooks and the Bash tool in Git Bash, so setup stops
+with an installation hint when Git Bash is not found (it also honours
+`CLAUDE_CODE_GIT_BASH_PATH`). Hooks written as exec form by an earlier Windows
+setup are replaced on the next prepare. PowerShell and cmd can use
+`runtime\chill.cmd`, which runs the Node on PATH.
 
 The installer preserves other settings and hooks. It replaces only its exact
 recorded entries, so repeating setup does not add duplicate hooks. Edited or
@@ -29,30 +49,35 @@ to reconcile either settings version on the next prepare, without copying a
 backup of credential-bearing settings.
 
 Claude's [settings locations](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-repository)
-matter: a Git project or worktree may use the main repository's root local file.
-Choose that directory explicitly. A local file created outside Claude may need
-an entry in your repository's ignore rules. Setup does not modify global Git
+matter: a conversation in a linked Git worktree also loads the main checkout's
+local file. Setup therefore treats a worktree as its main checkout: the hooks go
+to the main checkout's `.claude/settings.local.json`, and every worktree shares
+that project's data, Web and Goals. Conversations stay separate by their native
+session. A local file created outside Claude may need an entry in your
+repository's ignore rules. Setup does not modify global Git
 excludes, user settings or managed policy.
 
 ## Activate it in the same conversation
 
-Review the configured hooks with Claude's native `/hooks`. Hook-file changes and
-a successful settings write do not establish the SessionStart environment required
-by chill. If that handshake has not run in the current chat, use Claude's normal
-exit and resume flow to reopen **that same conversation**. Do not clear, fork or
-launch a concurrent copy as a connection repair.
+Review the configured hooks when Claude asks. A conversation started after setup
+receives its identity at SessionStart. A conversation that was already running
+connects with `connection join`: Claude names its session in every shell.
+Claude loads hooks written during a conversation for its next
+tool call, so no resume is needed. Do not clear, fork or launch a concurrent copy
+as a connection repair.
 
 Use the exact command prefix printed by setup for these main Bash calls:
 
 ```sh
 chill connection show
+chill connection join        # only when show reports no connection
 chill connection create-goal --title 'The agreed outcome'
 ```
 
-`show` verifies only the current native identity handoff. The main hook confirms
-the new Root separately. Keep its returned command and identity; the project
-directory alone never selects a conversation. See [main-hook actions](claude-actions.md)
-for feedback and receipt handling. Native policy, hook disablement or permissions
+`show` verifies only the current native identity handoff; `create-goal` creates
+the Root at once. The project directory alone never selects a conversation. See
+[connection actions](claude-actions.md)
+for feedback and reply handling. Native policy, hook disablement or permissions
 may still prevent activation; setup does not override them.
 
 Setup and installed hook messages use the same short entry, `<data>/runtime/chill`.
@@ -61,12 +86,19 @@ Node on PATH if that binary disappears. Runtime updates keep that entry usable. 
 checkout invocations keep their own entry; they do not borrow a different store's
 installation.
 
+A version update (the Web's Update button, or a changed version file at server
+start) also brings the hooks setup recorded for each project up to the new
+version, for example when it handles a new event. Only chill's own recorded
+groups are replaced. A project whose hooks were removed, or whose chill hook was
+edited by hand, is left as it is. So a teammate only pulls the project and
+presses Update; setup is needed once per machine.
+
 ## Allow the operations you intend to delegate
 
 Claude may ask to read the plugin's references and run chill commands. These are
 native tool permissions: turning on chill Auto mode does not answer them or grant
 tools. With one-time permissions, later Web feedback can reach the conversation
-but handling its receipt can still wait for another Bash approval.
+but replying to it can still wait for another Bash approval.
 
 Follow [Leave a Claude conversation working](claude-unattended.md) to review the
 actual operations, try one Web reply and recover without sending it twice.
@@ -113,7 +145,7 @@ default native permissions with no pre-granted tools. It first saves a conversat
 without hooks, explicitly prepares the project, resumes that session with the
 packaged Skill and waits for synthetic Web feedback. The operator approves the
 specified individual test operations and exits after each phase. It verifies
-the previous context, successful full-reference read, Root binding and receipts.
+the previous context, successful full-reference read, Root binding and replies.
 The eight-minute wall limit bounds the session; interactive mode has no dollar
 budget. Authentication is imported only when explicitly requested and is not
 copied into the report. Normal settings and production Goals are untouched.

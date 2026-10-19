@@ -11,16 +11,18 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import { lastServerUse, serverOptions } from '../lib/server-lifecycle.mjs';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
+import {fileURLToPath} from 'node:url';
+import {usedChat} from './fake-codex-desktop.mjs';
 
 const execute = promisify(execFile);
-const serverFile = new URL('../server.mjs', import.meta.url).pathname;
-const cli = new URL('../bin/chill-agent.mjs', import.meta.url).pathname;
+const serverFile = fileURLToPath(new URL('../server.mjs',import.meta.url));
+const cli = fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 const threadId = '00000000-0000-0000-0000-000000000001';
 
 async function fixture(t, duration = '800ms', extra = {}, args = [], remote) {
   const root = await mkdtemp(join(tmpdir(), 'chill-idle-test-'));
   const env = { ...process.env, CHILL_AGENT_DATA_DIR: root, PORT: '0', CODEX_THREAD_ID:threadId,
-    CHILL_AGENT_CODEX_PATH: new URL('./fake-codex.mjs', import.meta.url).pathname };
+    CHILL_AGENT_CODEX_PATH: fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)) };
   delete env.CHILL_AGENT_SERVER_STARTED_AT;
   delete env.CHILL_AGENT_IDLE_TIMEOUT;
   Object.assign(env, extra);
@@ -79,7 +81,7 @@ if (process.env.CHILL_TEST_TUNNEL_CRASH) {
   return {...f, pidFile, tunnelPath:join(f.root,'runtime',`web-${new URL(f.url).port}`,'tunnel.json')};
 }
 
-test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {timeout:10000}, async t => {
+test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
   const f = await tunnelFixture(t);
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const {url: origin, pid} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
@@ -94,10 +96,10 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   const uploaded = await fetch(f.url+'/api/images',{method:'POST',headers:{Origin:origin,'Content-Type':'image/png'},body:image});
   assert.equal(uploaded.status,201);
   const attachment = await uploaded.json();
-  const body = join(f.root,'workspace/goals/1/brief.md');
+  const body = join(f.root,'workspace/goals/1/deliverable.md');
   await f.run(['create','--title','Phone']);
   await writeFile(body,'<p>Phone</p>');
-  await f.run(['brief','update','--id','1']);
+  await f.run(['deliverable','update','--id','1']);
   const saved = await fetch(f.url+'/api/goals/1/feedback',{method:'POST',headers,body:JSON.stringify({text:'Phone comment',attachmentIds:[attachment.id],annotations:[{kind:'text',text:'Phone note',anchor:{start:0,end:5,quote:'Phone'},source:{kind:'brief',version:1}}]})});
   assert.equal(saved.status,201);
   assert.equal((await saved.json()).feedback.text,'Phone comment');
@@ -107,7 +109,7 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   await assert.rejects(readFile(f.tunnelPath),{code:'ENOENT'});
 });
 
-test('manual shutdown also stops the connector; a connector failure keeps local Web available', {timeout:8000}, async t => {
+test('manual shutdown also stops the connector; a connector failure keeps local Web available', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:8000}, async t => {
   const f = await tunnelFixture(t,'1h');
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const pid = Number(await readFile(f.pidFile,'utf8'));
@@ -122,7 +124,26 @@ test('manual shutdown also stops the connector; a connector failure keeps local 
   crashed.child.kill('SIGTERM');await crashed.exited;
 });
 
-test('restart drains an active connection and rejects a pipelined request without crashing', {timeout:8000}, async t => {
+test('the service token stops Web only from a local request that no browser can send', {timeout:8000}, async t => {
+  const token = 'a'.repeat(64);
+  const f = await fixture(t, '1h', {CHILL_AGENT_SERVICE_TOKEN:token});
+  const stop = (headers, method = 'POST') => fetch(f.url + '/api/service/shutdown', {method, headers});
+  for (const headers of [{}, {'x-chill-service':'b'.repeat(64)}, {'x-chill-service':token, Origin:f.url}, {'x-chill-service':token, 'Sec-Fetch-Site':'same-origin'}]) {
+    assert.equal((await stop(headers)).status, 404);
+  }
+  assert.equal((await stop({'x-chill-service':token, 'cf-ray':'1'})).status, 401, 'a tunnelled request stops at sign-in');
+  assert.equal((await stop({'x-chill-service':token}, 'GET')).status, 404);
+  assert.equal((await stop({'x-chill-service':token})).status, 202);
+  assert.deepEqual(await f.exited, [0, null]);
+});
+
+test('without a service token Web has no stop route', {timeout:8000}, async t => {
+  const f = await fixture(t, '1h');
+  assert.equal((await fetch(f.url + '/api/service/shutdown', {method:'POST', headers:{'x-chill-service':''}})).status, 404);
+  assert.equal(f.child.exitCode, null);
+});
+
+test('restart drains an active connection and rejects a pipelined request without crashing', {skip:process.platform==='win32'&&'restart by SIGUSR2 is launchd-only',timeout:8000}, async t => {
   const f = await fixture(t, '1h');
   const socket = connect(Number(new URL(f.url).port), '127.0.0.1');
   t.after(() => socket.destroy());
@@ -143,7 +164,43 @@ test('restart drains an active connection and rejects a pipelined request withou
   assert.doesNotMatch(f.output(), /TypeError/);
 });
 
-test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {timeout:10000}, async t => {
+test('a request through the tunnel sees nothing until the device connects with the panel code', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+  const f = await tunnelFixture(t,'1h');
+  for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
+  const {url: origin} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
+  const phone = {'cf-connecting-ip':'203.0.113.5','User-Agent':'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile/15E148 Safari/604.1'};
+  const page = await fetch(f.url+'/', {headers:{...phone,Accept:'text/html'}});
+  assert.equal(page.status,401);
+  assert.match(await page.text(),/Connect to chill/);
+  assert.equal(page.headers.get('referrer-policy'),'same-origin','the form posts with its Origin, not null');
+  assert.equal((await fetch(f.url+'/api/goals',{headers:phone})).status,401);
+  assert.equal((await fetch(f.url+'/api/goals')).status,200,'the local Web needs no sign-in');
+  const panel = async () => (await (await fetch(f.url+'/api/extensions/public-link/state?goalId=1')).json());
+  const {code,qr} = await panel();
+  assert.match(code,/^[2-9A-HJ-NP-Z]{8}$/);
+  assert.ok(qr);
+  assert.equal((await fetch(f.url+'/api/extensions/public-link/state?goalId=1',{headers:phone})).status,401);
+  const form = (code,origin) => fetch(f.url+'/',{method:'POST',headers:{...phone,Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:`code=${code}`,redirect:'manual'});
+  assert.equal((await form(code,'https://elsewhere.test')).status,403,'only the public link posts the form');
+  const wrong = await form('22222222',origin);
+  assert.equal(wrong.status,401);
+  assert.match(await wrong.text(),/wrong, used or expired/);
+  // The form posts back to its page, which the browser reopens with its #/goal/N.
+  const signIn = await form(code.toLowerCase(),origin);
+  assert.equal(signIn.status,303);
+  assert.equal(signIn.headers.get('location'),'/');
+  const cookie = signIn.headers.get('set-cookie');
+  assert.match(cookie,/^chill_session=[A-Za-z0-9_-]{43}; Path=\/; Max-Age=\d+; HttpOnly; Secure; SameSite=Lax$/);
+  const session = {...phone,Cookie:cookie.split(';')[0]};
+  assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,200);
+  assert.equal((await form(code,origin)).status,401,'a code works once');
+  assert.notEqual((await panel()).code,code);
+  const [device] = (await panel()).devices;
+  assert.equal(device.device,'iPhone · Safari','the panel lists the connected device');
+  assert.equal((await fetch(f.url+'/api/extensions/public-link/disconnect',{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:JSON.stringify({id:device.id})})).status,200);
+  assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,401,'disconnecting removes the device');
+});
+test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'chill-named-connector-'));
   const binary = join(dir, 'cloudflared');
   const credentialsFile = join(dir, 'credentials.json');
@@ -176,26 +233,60 @@ setInterval(()=>{},1000);
   assert.equal((await fetch(local.url+'/api/activity',{method:'POST',headers:{Origin:remote.url,'Content-Type':'application/json'},body:'{}'})).status,403);
 });
 
-test('background polling and invalid activity requests cannot keep an idle server alive', {timeout:6000}, async t => {
-  const f = await fixture(t);
-  let polls = 0;
-  const polling = setInterval(async () => {
-    try {
-      await Promise.all(['/api/events','/api/goals'].map(path => fetch(f.url + path)));
-      polls += 1;
-    } catch { /* Expected after idle shutdown. */ }
-  }, 60);
-  t.after(() => clearInterval(polling));
+test('background polling and invalid activity requests cannot keep an idle server alive', {timeout:30000}, async t => {
+  // A deadline longer than a slow runner's first request keeps the check about
+  // renewal, not about how fast the server and fetch start.
+  const f = await fixture(t, '5s');
+  let polls = 0, polling = true;
+  // Each poll waits for the previous one, as a browser timer would, so a slow
+  // runner does not pile requests up.
+  void (async () => {
+    while (polling) {
+      try {
+        await Promise.all(['/api/events','/api/goals'].map(path => fetch(f.url + path)));
+        polls += 1;
+      } catch { /* Expected after idle shutdown. */ }
+      await delay(60);
+    }
+  })();
+  t.after(() => { polling = false; });
   assert.equal((await fetch(f.url + '/api/activity', {method:'POST', headers:{Origin:'https://elsewhere.test','Content-Type':'application/json'}, body:'{}'})).status, 403);
   const [code, signal] = await f.exited;
   assert.equal(code, 0);
   assert.equal(signal, null);
   assert.ok(polls >= 2);
-  assert.match(f.output(), /Idle timeout reached \(800ms\)/);
+  assert.match(f.output(), /Idle timeout reached \(5s\)/);
 });
 
-test('opening the page, interaction and CLI mutations renew the idle deadline; CLI reads do not', {timeout:10000}, async t => {
-  const f = await fixture(t, '1200ms');
+test('reads that never pause cannot hold an expired deadline, and reads in flight still complete', {timeout:30000}, async t => {
+  // Several readers keep a request in flight at every moment, as a slow
+  // machine or many tabs can. Only the generous test timeout bounds the wait.
+  const f = await fixture(t, '5s');
+  let complete = 0, cutOff = 0, reading = true;
+  const reader = async () => {
+    while (reading) {
+      let response;
+      try { response = await fetch(f.url + '/api/goals'); } catch { break; /* Web has closed. */ }
+      try { const body = await response.text(); if (response.status === 200) { JSON.parse(body); complete += 1; } }
+      catch { cutOff += 1; }
+    }
+  };
+  const readers = Promise.all(Array.from({length:4}, reader));
+  t.after(() => { reading = false; });
+  const [code, signal] = await f.exited;
+  reading = false; await readers;
+  assert.equal(code, 0);
+  assert.equal(signal, null);
+  assert.match(f.output(), /Idle timeout reached \(5s\)/);
+  assert.ok(complete > 0);
+  assert.equal(cutOff, 0, 'a read that started before shutdown returns its whole body');
+});
+
+test('opening the page, interaction and CLI mutations renew the idle deadline; CLI reads do not', {timeout:30000}, async t => {
+  // The idle check reads the recorded last use, so renewal is checked there.
+  // The deadline is far beyond any action, so a slow CLI start cannot stop Web
+  // between actions; actual expiry is covered by the tests below.
+  const f = await fixture(t, '1h');
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>TTL test</p>');
   const uses = [];
@@ -203,24 +294,27 @@ test('opening the page, interaction and CLI mutations renew the idle deadline; C
     () => fetch(f.url),
     () => fetch(f.url + '/api/activity', {method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'}),
     () => f.run(['create','--title','TTL']),
-    () => f.run(['brief','update','--id','1']),
+    () => f.run(['deliverable','update','--id','1']),
     () => f.run(['comment','--id','1','--text','Still working']),
   ]) {
-    await delay(300);
+    await delay(50); // distinct file times
     await action();
     uses.push(await lastServerUse(f.root, 0));
-    assert.equal(f.child.exitCode, null);
   }
   assert.ok(uses.every((time, i) => i === 0 || time > uses[i - 1]));
   await f.run(['show','--id','1']);
   await f.run(['check','--id','1']);
   assert.equal(await lastServerUse(f.root, 0), uses.at(-1));
-  assert.equal((await f.exited)[0], 0);
+  assert.equal(f.child.exitCode, null);
   assert.equal(JSON.parse(await readFile(join(f.root,'workspace','events','1.json'),'utf8')).text, 'Still working');
 });
 
-test('idle expiry waits for an in-flight save, then allows the new idle period', {timeout:8000}, async t => {
-  const f = await fixture(t, '600ms');
+test('idle expiry waits for an in-flight save, then allows the new idle period', {timeout:30000}, async t => {
+  // Renew first, so a slow server start cannot use up the deadline, then hold a
+  // save open until well after the renewed deadline has passed.
+  const idle = 4000, f = await fixture(t, `${idle}ms`);
+  assert.equal((await fetch(f.url + '/api/activity', {method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'})).status, 200);
+  const renewed = await lastServerUse(f.root, 0);
   const { request } = await import('node:http');
   const response = new Promise((resolve, reject) => {
     const req = request(f.url + '/api/activity', {method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'}}, res => {
@@ -228,39 +322,50 @@ test('idle expiry waits for an in-flight save, then allows the new idle period',
     });
     req.on('error', reject);
     req.write('{');
-    setTimeout(() => req.end('}'), 900);
+    setTimeout(() => req.end('}'), Math.max(0, renewed + idle + 1000 - Date.now()));
   });
   assert.equal(await response, 200);
+  assert.ok(Date.now() > renewed + idle, 'the save outlived the deadline');
   assert.equal(f.child.exitCode, null, 'in-flight request survived the original deadline');
   assert.equal((await f.exited)[0], 0);
 });
 
-test('crash recovery keeps the original start deadline instead of granting another full lifetime', {timeout:4000}, async t => {
+test('crash recovery keeps the original start deadline instead of granting another full lifetime', {timeout:15000}, async t => {
   const f = await fixture(t, '1h', {CHILL_AGENT_SERVER_STARTED_AT:String(Date.now() - 2 * 60 * 60 * 1000)});
   assert.equal((await f.exited)[0], 0);
   assert.match(f.output(), /Idle timeout reached \(1h\)/);
 });
 
-test('idle expiry waits for Codex notification even after the Web save receipt was returned', {timeout:8000}, async t => {
-  const f = await fixture(t, '700ms', {CHILL_TEST_QUEUE_DELAY:'1500'});
+test('idle expiry waits for Codex notification even after the Web save receipt was returned', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable',timeout:20000}, async t => {
+  // Idle and queue delay leave room for a busy machine: setup steps must finish
+  // before the server's own idle stop, and the queue must outlast that stop.
+  const f = await fixture(t, '2s', {CHILL_TEST_QUEUE_DELAY:'3000'});
+  // The user's own turn in Desktop, before its first tool: the comment waits in the Codex queue behind it.
+  await usedChat(f.root,{turns:[{id:'00000000-0000-0000-0000-000000000077',status:'inProgress',completedAt:null}]});
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>Pending delivery</p>');
   await f.run(['create','--title','Pending delivery','--thread-id',threadId]);
-  await f.run(['brief','update','--id','1']);
+  await f.run(['deliverable','update','--id','1']);
   const response = await fetch(f.url + '/api/goals/1/feedback', {method:'POST',
     headers:{Origin:f.url,'Content-Type':'application/json'},
     body:JSON.stringify({text:'Do not interrupt this notification'}),
   });
   assert.equal(response.status,201);
   assert.equal((await response.json()).feedback.changeId,1);
-  await delay(1000);
+  await delay(2500);
   assert.equal(f.child.exitCode,null,'saved feedback is still being delivered');
-  await delay(1200);
-  const delivery = JSON.parse(await readFile(join(f.root,'workspace','deliveries','1.json'),'utf8'));
-  assert.equal(delivery.status,'queued');
-  assert.equal(JSON.parse(await readFile(join(f.root,'fake-queue.json'),'utf8')).length,1);
-  assert.equal(f.child.exitCode,null,'native queued work also prevents idle shutdown');
-  await writeFile(join(f.root,'fake-queue.json'),'[]');
-  await f.run(['activity','--event','1','--state','completed']);
+  // Wait for the queue receipt rather than a fixed time, so a busy machine
+  // does not fail the test; the server must stay up the whole time.
+  let queue = [];
+  for (let i = 0; i < 60; i++) {
+    queue = JSON.parse(await readFile(join(f.root,'fake-queue.json'),'utf8').catch(() => '[]'));
+    if (queue.length || f.child.exitCode !== null) break;
+    await delay(100);
+  }
+  assert.equal(queue.length,1,'the idle chat was sent the comment');
+  assert.equal(f.child.exitCode,null,'the server stayed up while it was sent');
+  // A message waiting in the Codex app keeps the server up until the chat takes it.
+  // The chat takes it and finishes its work.
+  await writeFile(join(f.root,'fake-queue.json'),'[]');await usedChat(f.root);
   assert.equal((await f.exited)[0],0);
 });

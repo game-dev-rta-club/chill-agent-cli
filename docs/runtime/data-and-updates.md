@@ -10,18 +10,20 @@ Fresh setup allocates a [separate workspace for each project](projects.md).
 Within a workspace, use one data directory for the CLI, Web server, project hook and any composed
 application that shares the workspace. `CHILL_AGENT_DATA_DIR` overrides the
 default. On macOS the default is `~/Library/Application Support/chill-agent`;
-elsewhere it is `$XDG_DATA_HOME/chill-agent`, falling back to
-`~/.local/share/chill-agent`.
+on Windows it is `%USERPROFILE%\.chill-agent`; elsewhere it is
+`$XDG_DATA_HOME/chill-agent`, falling back to `~/.local/share/chill-agent`.
+Windows avoids AppData because packaged apps such as Claude Desktop have their
+AppData writes redirected to a private folder that other processes cannot see.
 
 | Area | Purpose |
 | --- | --- |
-| `workspace/` | Goals, Brief versions, Conversation, attachments and coordination records |
+| `workspace/` | Goals, Deliverable versions, Conversation, attachments and coordination records |
 | `settings/` | Shared notification and remote-access preferences |
 | `runtime/` | Prepared code snapshots, installation pointer and server records |
 
 These paths explain ownership, not a storage API. Use CLI commands and the
 [public extension API](../extensions.md), rather than editing internal JSON.
-The editable Brief path returned by `goal brief path` is the intended exception.
+The editable Deliverable path returned by `goal deliverable path` is the intended exception.
 
 ## Prepare once, use the stable command
 
@@ -65,9 +67,9 @@ Implementation: [data directory](../../lib/data-directory.mjs),
 
 ## Update from Web
 
-An application can register `runtimeUpdates` in its trusted `extensions.json`.
-On a managed macOS server, the local Web shows an update icon when the installed
-skill selects a different application commit. Confirming it acquires the candidate,
+The built-in provider follows the [version file](version-file.md) recorded at
+setup. On a managed macOS server, the local Web shows an update icon when that
+file selects a different package than the running snapshot. Confirming it acquires the candidate,
 prepares a snapshot and restarts Web at the same URL. Closing the confirmation
 leaves the current version running. Detection alone never downloads or activates
 code. Public links do not expose the update action: they do not authenticate an

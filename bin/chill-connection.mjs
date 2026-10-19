@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 import '../lib/quiet-sqlite-warning.mjs';
 import {readFile} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
+import {join} from 'node:path';
+import {listGoals,workspaceDirectory} from '../lib/goal-store.mjs';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
-import {waitForClaudeFeedback,waitResultText} from '../lib/claude-wait.mjs';
+import {waitForClaudeFeedback,waitResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
+import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
+import {claudePauseGuard} from '../lib/claude-pause.mjs';
+import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
+import {reportClaudeHook} from '../lib/claude-agent-work.mjs';
+import {settleClaudeQuestion} from '../lib/claude-question.mjs';
+import {hidden} from '../lib/hidden-failure.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
-import {requestClaudeAction,handleClaudeToolHook,inspectClaudeRequest,claudeSessionStartContext} from '../lib/claude-actions.mjs';
+import {runClaudeAction,joinClaudeConversation,handleClaudeToolHook,claudeSessionStartContext} from '../lib/claude-actions.mjs';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -13,41 +22,68 @@ async function main() {
   const [action, ...options] = args;
   const values=parseOptions(`connection ${action}`, options);
   if (action === 'show') {
-    const caller=await identifyClaudeCaller();
-    const status=await readClaudeConnectionStatus({...caller.identity,contextId:caller.contextId});
-    console.log(JSON.stringify({...caller,status}, null, 2));
+    const {identity,contextId,observedAt,source}=await identifyClaudeCaller();
+    const status=await readClaudeConnectionStatus({...identity,contextId});
+    // Several conversations can share one project; name the Roots this one owns.
+    // Read-only: a project without saved Goals is not created here.
+    const roots=(existsSync(join(workspaceDirectory(),'workspace.sqlite'))?await listGoals():[]).filter(g=>!g.parentId&&g.connection?.sessionId===identity.sessionId&&g.connection.contextId===contextId)
+      .map(({id,title,state})=>({id,title,state}));
+    console.log(JSON.stringify({identity,contextId,observedAt,source,roots,status}, null, 2));
     return;
   }
-  if(action==='request') {
-    const result=await inspectClaudeRequest(values['--id'],{retry:values['--retry']===true});
-    if(result.marker)console.log(result.marker);
-    console.log(JSON.stringify(result));
+  if(action==='join') {
+    console.log(await joinClaudeConversation());
+    return;
+  }
+  if(action==='wake') {
+    const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
+    console.log(JSON.stringify(await scheduleClaudeWake({minutes:values['--in']===undefined?undefined:Number(values['--in']),reason:values['--reason']||'',cancel:values['--cancel']===true}),null,2));
     return;
   }
   if(action==='wait') {
-    console.log(waitResultText(await waitForClaudeFeedback()));
+    // A stopped background task releases its refresh, so a new waiter starts at once.
+    const controller=new AbortController();
+    for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
+    const result=await waitForClaudeFeedback({signal:controller.signal}),text=waitResultText(result);
+    // A stalled waiter may still hold I/O that never settles: leave rather than wait for it.
+    if(result.status==='stalled'){process.stdout.write(`${text}\n`,()=>process.exit(0));return;}
+    console.log(text);
     return;
   }
-  if(['create-goal','inbox','activity','reply'].includes(action)) {
+  if(['create-goal','adopt','inbox','reply'].includes(action)) {
     const payload=action==='create-goal'?{title:values['--title'],scope:values['--scope']||'',criteria:values['--criteria']||''}:
-      action==='activity'?{eventId:Number(values['--event']),state:values['--state']}:
-      action==='reply'?{eventId:Number(values['--event']),text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
-    const request=await requestClaudeAction(action,payload);
-    console.log(request.marker);
-    console.log('Pending main-session hook confirmation. A shell receipt alone does not confirm this action.');
+      action==='adopt'?{goalId:values['--goal']}:
+      action==='reply'?{goalId:values['--goal'],text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
+    console.log((await runClaudeAction(action,payload)).text);
     return;
   }
   const chunks = [];
-  let bytes = 0;
-  for await (const chunk of process.stdin) {
-    bytes += chunk.length;
-    if (bytes > 65536) throw Error('Claude hook input is too large.');
-    chunks.push(chunk);
-  }
+  for await (const chunk of process.stdin) chunks.push(chunk);
   let input;
   try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw Error('Invalid Claude hook JSON.'); }
-  if(input?.hook_event_name==='SessionStart') {
+  if(action==='claude-watch') {
+    // An asyncRewake hook: exit 2 makes Claude Code wake the model with stderr.
+    if(input?.agent_id!=null||!['SessionStart','Stop'].includes(input?.hook_event_name)||typeof input.session_id!=='string')return;
+    const controller=new AbortController();
+    for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
+    // Claude Code is the parent; when it exits this process is reparented.
+    const parent=process.ppid;
+    const result=await watchClaudeConversation({sessionId:input.session_id,hook:true,signal:controller.signal,attached:()=>process.ppid===parent}),text=watcherWakeText(result);
+    if(result.status==='stalled'){process.stderr.write(`${text}\n`,()=>process.exit(2));return;}
+    if(text){process.stderr.write(`${text}\n`);process.exitCode=2;}
+    return;
+  }
+  // Every main hook reports what the conversation is doing before it is handled.
+  await reportClaudeHook(input);
+  await settleClaudeQuestion(input).catch(hidden('connection.question'));
+  if(input?.hook_event_name==='PermissionRequest') {
+    const output=await claudePermissionDecision(input);
+    if(output)console.log(JSON.stringify(output));
+  } else if(input?.hook_event_name==='PreToolUse') {
+    const output=await claudePauseGuard(input)??claudeRmGuard(input);
+    if(output)console.log(JSON.stringify(output));
+  } else if(input?.hook_event_name==='SessionStart') {
     const output=await claudeSessionStartContext(await captureClaudeEntry(input));
     if(output)console.log(JSON.stringify(output));
   } else {

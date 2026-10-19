@@ -34,7 +34,9 @@ calling harness as described in [Claude setup](../agent/claude-setup.md).
 
 Stores live under the normal application data directory in `projects/<id>/`.
 The ID comes from the canonical project path. Symlink aliases reuse the same
-store; another folder or Git worktree receives a different one. Renaming a
+store, and a linked Git worktree uses its main checkout's store, so agents
+working in separate worktrees share one Web and one set of Goals. Another
+folder receives a different one. Renaming a
 project changes this identity. Moving existing history is not automatic.
 
 ## Select extensions
@@ -64,7 +66,7 @@ A failed save keeps the previous theme.
 The theme colors the workspace controls and reading surfaces. Status meanings
 stay consistent: Letters, waiting and work in progress use amber; answered
 Letters and completed Goals use green. Dark palettes adjust their contrast. Attached images
-and authored HTML Briefs retain their own colors. Legacy shared stores have one
+and authored HTML Deliverables retain their own colors. Legacy shared stores have one
 shared theme; different Root Goals in the same store are not separate projects.
 
 ## Preserve an existing workspace

@@ -1,115 +1,112 @@
 ---
 keyPoints: >-
-  Main-hook confirmation creates new Claude Roots and handles explicit inbox reads
-  and receipts; their results name the reply waiter when none is running. A
-  verified native prompt also receives new feedback through ordinary tool hooks.
-  Optional connection hooks support a separately qualified Auto mode extension.
-  Live controls remain unavailable.
+  Claude connection commands act at once for the conversation Claude Code names
+  in its shell, as Codex commands do; there is no request marker to confirm.
+  Web input reaches a conversation only through its main hooks (tool hooks and
+  the watcher), which never run for a subagent. A Goal waits for a reply while
+  the user commented after the agent; `reply --goal` answers it. Stop holds a
+  response once when a handed Goal still waits for a reply with nothing left
+  running. Optional connection extensions run the same way.
 ---
 
-# Confirm an action in the Claude main conversation
+# Act from a Claude conversation
 
 These development commands extend the [entry handshake](claude-entry.md).
 Use the explicit [project setup](claude-setup.md) for experimental native hooks.
-Default Codex setup does not install them. Configure `connection claude-hook` for native `SessionStart`, all `PostToolUse`
-events, `UserPromptSubmit`, `Stop` and `SessionEnd` in an isolated session, using the same chill data directory.
-The official [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse)
-can return `hookSpecificOutput.additionalContext` to that conversation.
+Default Codex setup does not install them.
 
-## Request, confirm, then use the result
-
-Run one connection action per main-session Bash tool call:
+## Commands act at once
 
 ```sh
 chill connection create-goal --title 'The agreed outcome' --scope 'Scope' --criteria 'Evidence of success'
 chill connection inbox
-chill connection reply --event 1 --text 'What I did'
+chill connection reply --goal 1 --text 'What I did'
 ```
 
-Use the prepared runtime's `runtime/chill` entry in place of `chill`.
-`reply` posts the answer in the feedback's Goal Conversation and records the
-completed receipt in one confirmation; a retry of the same request does not post
-twice. `connection activity --event 1 --state working|failed` records other
-receipt states, for example before long work.
-Each command saves an intent and prints a request marker; this is not success.
-The main Bash PostToolUse hook checks the saved intent against the current native
-session, context and generation, then returns the created Goal ID, saved feedback
-or receipt. Subagent hooks cannot commit an intent merely because their shell
-inherited the main session's environment. Other tools cannot confirm actions;
-interrupted Bash calls are ignored. Normal Goal read, Brief and Comment commands remain usable.
-`goal work` and live execution tracking are still Codex-specific.
+Use the prepared runtime's `runtime/chill` entry in place of `chill`. Each
+command finds its conversation from `CLAUDE_CODE_SESSION_ID`, which Claude Code
+sets in every shell, and the recorded entry for it: the current context is
+always used, so compact or resume never breaks a running command and a command
+after clear acts for the new context. The command does its work and prints the
+result, such as `Created Goal #1` or `Replied on Goal #1 (comment 2)`. Its
+output can be piped or shortened like any other command.
+
+`reply` posts the answer in the Goal's Conversation. There are no per-comment
+receipts: a Goal waits for a reply while the user's latest comment is after the
+agent's latest one, so one reply answers everything the user said there.
+`goal work --id <GOAL>` marks the Goal the current response works on, as in a
+Codex turn; the mark ends with that response.
+
+A subagent shares the conversation's shell environment, so its commands act for
+the same conversation. That is the conversation's own work: Codex commands
+behave the same way.
 
 This is coordination between trusted same-user processes, not authentication.
-The marker is a local capability backed by a saved request; do not treat parsing
-arbitrary terminal output as proof of user authorization. Native tool permissions
-remain with Claude. No permission mode is changed by this protocol.
+Native tool permissions remain with Claude. No permission mode is changed.
 
-## Preserve ownership and receipt identity
+## Preserve ownership
 
 A new Root stores `connection: {harnessId, sessionId, contextId}` and no Codex
-`threadId`. A child inherits its Root. Existing Roots cannot be reassigned through
-these commands, and native-owned trees cannot be moved to another Root. Resume
-and compact retain the context ID; startup, clear and fork replace it. Every
-SessionStart rotates the shell generation, so old shell intents need explicit
-recovery even when the context is retained.
+`threadId`. A child inherits its Root. Native-owned trees cannot be moved to
+another Root. Resume and compact retain the context ID; startup, clear and fork
+replace it.
 
-`inbox` reads up to ten unclaimed events across this connection's Goals. Each
-user event keeps its original connection and event ID. Manual holds, different
-contexts and completed/claimed events are excluded. Offering context persists
-`unknown`, `mayHaveSent` and a stable offer ID before hook stdout; a missing output
-does not count as a receipt. A deliberate new `inbox` call may re-read an unclaimed
-offer with the same ID. It never falls back to Codex or another transport.
-
-`activity` confirms a receipt only for this context's offered event. Completed or
-failed receipts cannot regress. A receipt does not prove live execution or complete
-the Goal. The Agent menu labels the native binding as a development connection;
-model settings, usage, live status and controls are not inferred from it.
-
-## Receive feedback during a verified prompt
-
-A successful main-hook action records the native `prompt_id` alongside the
-connection generation and context. Ordinary main-session tool hooks in that
-prompt can then offer newly saved Web replies across all of its Goals, without
-an `inbox` call. Startup identity alone cannot enable this route.
-
-Each tool hook reserves a delivery scan before emitting context. A repeated
-hook is silent even when new input has arrived since its first execution.
-Different hooks serialize their scans; previously offered events remain
-unconfirmed until an Agent receipt and are not automatically offered again.
-Manual holds, other connections and terminal receipts stay excluded.
-
-`Stop` clears the verified prompt and leaves a checkpoint for connection
-extensions. UserPromptSubmit, SessionStart and SessionEnd also clear old prompt
-state; a new prompt or generation needs a fresh confirmed action.
-Subagent hooks cannot enable or receive this route. An explicit `inbox` remains
-the recovery path for an uncertain offer. This is busy delivery within a verified
-prompt; replies after the response ends use the [reply waiter](claude-wait.md). A trusted composed
-[connection extension](../extensions/connection-hooks.md) may separately request
-continuation at a verified Stop, reserving before output. Its next ordinary tool
-resumes feedback delivery in that same prompt.
-
-## Recover an interrupted call
+When Claude continues a conversation in a new session, for example after its
+context limit, the new session owns nothing. If the user asks it to continue a
+Goal, it takes the Root over:
 
 ```sh
-chill connection request --id <request-uuid>
-chill connection request --id <request-uuid> --retry
+chill connection adopt --goal 1
 ```
 
-Inspection returns the saved status and result IDs. Retry reuses the same pending
-intent, including after a native resume, and needs a new main-hook confirmation.
-Creation carries its request ID through the Goal store's lock, so a crash after
-writing the Goal cannot create a second one. Completed requests are never
-re-executed or used to replay feedback. A repeated hook for a completed intent is
-silent. For an inbox output lost after confirmation, deliberately read `inbox`
-again; for a receipt already claimed, inspect its event/Goal before resuming work.
-Clear/fork cannot recover requests from the previous context.
+The Root and its Split Goals move to the new connection, the earlier one is kept
+in `previousConnections`, and feedback saved for the earlier owner is delivered
+to the new one. A comment in Web records the move. The earlier owner's watcher
+ends when it next finds that conversation owns nothing. Goals that no Claude
+conversation owns cannot be taken over.
+
+Each Root keeps one hand-off cursor: the last user comment handed to the
+conversation that owns it. Comments after the cursor wait; handing them moves
+the cursor forward, so nothing is handed twice. `inbox` hands what waits and
+lists the handed comments whose Goals still wait for a reply; the ones handed
+earlier, by a hook or the watcher, are listed apart from the new ones. Pause from the
+Web holds everything until Resume. It never falls back to Codex or another
+transport.
+
+## Receive feedback through hooks
+
+Every main-session PostToolUse hook hands newly saved Web replies across all
+of the conversation's Roots, without an `inbox` call. Feedback saved while the
+conversation's own work runs waits until that work ends, unless the user
+presses Send now. The hook reads its input whatever its size, so a tool result
+with images never stops delivery.
+
+The main hooks also record what the conversation is doing: UserPromptSubmit and
+the tool hooks start its work, a Stop that lets it end finishes it, StopFailure
+or an Esc interrupt in the transcript interrupts it, and SessionEnd ends the
+conversation. Work that writes nothing for 30 minutes is shown as unknown.
+
+Subagent hooks never hand feedback: a subagent that received it would end with
+it, and the main conversation would never see it. Replies after a response ends
+reach the conversation through the [watcher hook](claude-wait.md).
+
+When a response ends, the Stop hook applies the shared
+[quiet-stop rule](feedback-and-controls.md#when-the-agent-stops): if a Goal it
+was handed feedback on still waits for a reply and has had no Comment since it
+last stopped, and Claude Code lists no background work in the Stop input's `background_tasks`
+(chill's own `connection wait` task does not count), the hook blocks once and
+asks the agent to reply or post a progress comment. The stop right after that
+hold ends. A trusted composed
+[connection extension](../extensions/connection-hooks.md) may separately request
+a continuation at Stop. UserPromptSubmit, Stop and SessionEnd record the last
+hook for the Web status.
 
 ## Verify the boundary before enabling a real session
 
-Local tests cover main/subagent separation, concurrent and repeated hooks,
-interrupted Root creation, request recovery, separate contexts, resume/clear,
-all-Goal input, holds, receipts, Stop and unchanged Codex delivery. They exercise
-actual CLI stdin/stdout as well as store functions.
+Local tests cover main/subagent separation for delivery, separate contexts,
+resume/clear, all-Goal input, holds, replies, Stop and unchanged Codex
+delivery. They exercise actual CLI stdin/stdout, including piped command output
+and large hook inputs, as well as store functions.
 
 The opt-in probe uses temporary settings and data, a fixed allowed Bash runner,
 a $0.75 model budget and a 120-second timeout:
@@ -121,7 +118,7 @@ node scripts/probe-claude-roundtrip.mjs --run --automatic --auth-settings /absol
 
 `--automatic` tests an ordinary tool result receiving synthetic Web feedback
 without invoking `inbox`. Both modes create one disposable print-mode conversation,
-make a Root, and verify the feedback receipt and retention of an initial context
+make a Root, and verify the reply on its Goal and retention of an initial context
 token. Neither resumes or replaces an existing user conversation.
 
 Isolation excludes normal settings. If native authentication is unavailable,
@@ -143,5 +140,5 @@ Native clear/fork behavior and packaged user-facing setup still require
 qualification. Explicit project installation is covered separately
 in the [setup guide](claude-setup.md). A composed Auto mode extension has passed its
 separate native Stop probe through [connection hooks](../extensions/connection-hooks.md).
-Replies after a response ends use the [reply waiter](claude-wait.md). See the
+Replies after a response ends use the [watcher hook](claude-wait.md). See the
 full [connection criteria](claude-conversation.md#qualify-before-exposing-controls).

@@ -31,7 +31,7 @@ Include:
 ## Scope
 
 The shipped CLI, Web interface and extension host are in scope. Skills and
-continuation policy belong to [chill-agent](https://github.com/game-dev-rta-club/chill-agnet/blob/main/SECURITY.md).
+continuation policy belong to [chill-agent](https://github.com/game-dev-rta-club/chill-agent/blob/main/SECURITY.md).
 Report vulnerabilities in third-party services to their upstream project.
 Do not include private Goal data, credentials or user conversations in reports.
 

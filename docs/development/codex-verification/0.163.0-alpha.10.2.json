@@ -1,0 +1,550 @@
+{
+  "codex": "codex-cli 0.163.0-alpha.10.2",
+  "protocol": {
+    "passed": true,
+    "date": "2026-10-19T10:27:43.215Z",
+    "chill": {
+      "commit": "efe07a7",
+      "uncommittedChanges": true
+    },
+    "checks": [
+      {
+        "name": "the committed protocol schema is from the installed Codex",
+        "ok": true
+      },
+      {
+        "name": "initialize accepts clientInfo with experimentalApi",
+        "ok": true
+      },
+      {
+        "name": "thread/start creates a saved chat with a rollout path",
+        "ok": true
+      },
+      {
+        "name": "another process cannot read a chat before its first message",
+        "ok": true
+      },
+      {
+        "name": "thread/turns/list before the first message is an error",
+        "ok": true
+      },
+      {
+        "name": "thread/queue/list before the first message is empty",
+        "ok": true
+      },
+      {
+        "name": "queue/add answers queuedSubmission with the input and clientUserMessageId",
+        "ok": true
+      },
+      {
+        "name": "an idle chat runs a queued input as a turn",
+        "ok": true
+      },
+      {
+        "name": "thread/read from another process reports the chat notLoaded and the same rollout path",
+        "ok": true
+      },
+      {
+        "name": "queue/add from another process (2) is accepted",
+        "ok": true
+      },
+      {
+        "name": "the long-lived process runs that input as a turn (2)",
+        "ok": true
+      },
+      {
+        "name": "queue/add from another process (3) is accepted",
+        "ok": true
+      },
+      {
+        "name": "the long-lived process runs that input as a turn (3)",
+        "ok": true
+      },
+      {
+        "name": "the running process announces thread/status/changed, turn/started and turn/completed",
+        "ok": true
+      },
+      {
+        "name": "Codex asks the client for nothing while a turn only talks",
+        "ok": true
+      },
+      {
+        "name": "turns/list lists the newest turn first",
+        "ok": true
+      },
+      {
+        "name": "a queued input comes back verbatim as the turn's userMessage, with its marker, text_elements and clientId",
+        "ok": true
+      },
+      {
+        "name": "itemsView full lists every item oldest first (user message, then the agent messages)",
+        "ok": true
+      },
+      {
+        "name": "the default itemsView keeps only the first user message and the last agent message; notLoaded has no items",
+        "ok": true
+      },
+      {
+        "name": "sortDirection asc lists the oldest turn first",
+        "ok": true
+      },
+      {
+        "name": "limit and cursor page through turns newest first and end with a null cursor",
+        "ok": true
+      },
+      {
+        "name": "thread/read includeTurns returns the turns with their items, oldest first",
+        "ok": true
+      },
+      {
+        "name": "thread/read without includeTurns carries no turns",
+        "ok": true
+      },
+      {
+        "name": "turn startedAt and completedAt are Unix seconds",
+        "ok": true
+      },
+      {
+        "name": "items/list lists one turn's items oldest first, each as {turnId, item, startedAtMs, completedAtMs}",
+        "ok": true
+      },
+      {
+        "name": "item startedAtMs is Unix milliseconds",
+        "ok": true
+      },
+      {
+        "name": "sortDirection desc lists the last item first",
+        "ok": true
+      },
+      {
+        "name": "limit and cursor page through items and end with a null cursor",
+        "ok": true
+      },
+      {
+        "name": "items/list without a turnId lists every turn's items",
+        "ok": true
+      },
+      {
+        "name": "the rollout at thread.path has a turn_context with the turn's model and effort",
+        "ok": true
+      },
+      {
+        "name": "chill's verifyThread accepts a used Desktop chat",
+        "ok": true
+      },
+      {
+        "name": "chill's verifyThread rejects a chat that is not a saved Desktop chat",
+        "ok": true
+      },
+      {
+        "name": "the first queued input starts at once",
+        "ok": true
+      },
+      {
+        "name": "a running chat reports status active",
+        "ok": true
+      },
+      {
+        "name": "the running process reports its turn inProgress with completedAt null",
+        "ok": true
+      },
+      {
+        "name": "another process reports that live turn as interrupted, still with completedAt null (chill closes a turn only on completedAt)",
+        "ok": true
+      },
+      {
+        "name": "queue/list keeps pending inputs in order with their clientUserMessageId, and pages by limit and cursor",
+        "ok": true
+      },
+      {
+        "name": "the queued entry carries the exact input",
+        "ok": true
+      },
+      {
+        "name": "the queue drains into turns after the running one",
+        "ok": true
+      },
+      {
+        "name": "the queue ends empty",
+        "ok": true
+      },
+      {
+        "name": "turns started from the queue complete oldest to newest in queue order",
+        "ok": true
+      },
+      {
+        "name": "the project trust level is writable through config/value/write",
+        "ok": true
+      },
+      {
+        "name": "hooks/list accepts the hooks.json chill's installHook writes, with no errors or warnings",
+        "ok": true
+      },
+      {
+        "name": "hooks/list accepts the Stop hook installHook writes, with the same command",
+        "ok": true
+      },
+      {
+        "name": "a new hook is untrusted until the user trusts it",
+        "ok": true
+      },
+      {
+        "name": "a turn with a tool call completes",
+        "ok": true
+      },
+      {
+        "name": "an untrusted hook does not run",
+        "ok": true
+      },
+      {
+        "name": "config/value/write of hooks.state.\"<key>\".trusted_hash trusts a hook",
+        "ok": true
+      },
+      {
+        "name": "a chat that started before the hook was trusted keeps running without it",
+        "ok": true
+      },
+      {
+        "name": "a chat started after trusting completes",
+        "ok": true
+      },
+      {
+        "name": "a trusted hook runs once per tool call in a chat started after trusting",
+        "ok": true
+      },
+      {
+        "name": "the hook receives hook_event_name PostToolUse, the chat id as session_id and the turn id as turn_id",
+        "ok": true
+      },
+      {
+        "name": "chill's hook command exits 0 and prints nothing when no feedback is pending",
+        "ok": true
+      },
+      {
+        "name": "Codex reports the hook run completed",
+        "ok": true
+      },
+      {
+        "name": "a turn in a chat with chill's trusted Stop hook completes",
+        "ok": true
+      },
+      {
+        "name": "the Stop hook runs once as a turn ends, with session_id, turn_id and stop_hook_active false",
+        "ok": true
+      },
+      {
+        "name": "chill's Stop hook prints nothing for a chat without handed feedback",
+        "ok": true
+      },
+      {
+        "name": "a turn whose Stop chill holds still completes",
+        "ok": true
+      },
+      {
+        "name": "chill's Stop hook answers {decision:\"block\",reason} naming the Goal that awaits a reply",
+        "ok": true
+      },
+      {
+        "name": "Codex continues the turn and sends the hold reason to the model",
+        "ok": true
+      },
+      {
+        "name": "the continued turn's next Stop has stop_hook_active true, and chill lets it end",
+        "ok": true
+      },
+      {
+        "name": "Codex reports the held Stop run as blocked and the next one as completed",
+        "ok": true
+      },
+      {
+        "name": "schema: every initialize request and response matches test/fixtures/codex-app-server-schema.json",
+        "ok": true
+      },
+      {
+        "name": "schema: every model/list request and response matches test/fixtures/codex-app-server-schema.json",
+        "ok": true
+      },
+      {
+        "name": "schema: every thread/items/list request and response matches test/fixtures/codex-app-server-schema.json",
+        "ok": true
+      },
+      {
+        "name": "schema: every thread/queue/add request and response matches test/fixtures/codex-app-server-schema.json",
+        "ok": true
+      },
+      {
+        "name": "schema: every thread/queue/list request and response matches test/fixtures/codex-app-server-schema.json",
+        "ok": true
+      },
+      {
+        "name": "schema: every thread/read request and response matches test/fixtures/codex-app-server-schema.json",
+        "ok": true
+      },
+      {
+        "name": "schema: every thread/turns/list request and response matches test/fixtures/codex-app-server-schema.json",
+        "ok": true
+      }
+    ],
+    "differences": [
+      {
+        "requests": [
+          "thread/read: thread/read",
+          "thread/read: thread/read includeTurns"
+        ],
+        "differences": [
+          "$.thread.environments: only in real",
+          "$.thread.extra: only in real",
+          "$.thread.forkedFromId: only in real",
+          "$.thread.parentThreadId: only in real",
+          "$.thread.section: only in real",
+          "$.thread.sectionEnteredAt: only in real",
+          "$.thread.historyMode: only in real",
+          "$.thread.recencyAt: only in real",
+          "$.thread.path: only in real",
+          "$.thread.originator: only in real",
+          "$.thread.canAcceptDirectInput: only in real",
+          "$.thread.threadSource: only in real",
+          "$.thread.agentNickname: only in real",
+          "$.thread.agentRole: only in real",
+          "$.thread.gitInfo: only in real",
+          "$.thread.name: only in real",
+          "$.thread.daybreakEnabled: only in real",
+          "$.readState: only in real"
+        ]
+      },
+      {
+        "requests": [
+          "thread/turns/list: turns/list default",
+          "thread/turns/list: turns/list limit 1",
+          "thread/turns/list: turns/list limit 2",
+          "thread/turns/list: turns/list limit 2, next page",
+          "thread/turns/list: turns/list asc",
+          "thread/turns/list: turns/list notLoaded",
+          "thread/turns/list: turns/list full",
+          "thread/items/list: items/list one turn",
+          "thread/items/list: items/list desc limit 3",
+          "thread/items/list: items/list desc, next page",
+          "thread/items/list: items/list whole thread"
+        ],
+        "differences": [
+          "$.backwardsCursor: only in real"
+        ]
+      },
+      {
+        "requests": [
+          "model/list: model/list"
+        ],
+        "differences": [
+          "$.data[].upgrade: only in real",
+          "$.data[].upgradeInfo: only in real",
+          "$.data[].availabilityNux: only in real",
+          "$.data[].modelSpecialty: only in real",
+          "$.data[].inputModalities: only in real",
+          "$.data[].supportsPersonality: only in real",
+          "$.data[].multiAgentVersion: only in real",
+          "$.data[].additionalSpeedTiers: only in real",
+          "$.data[].serviceTiers: only in real",
+          "$.data[].defaultServiceTier: only in real",
+          "$.data[].availableAccessPrograms: only in real",
+          "behavior: real {\"count\":8,\"next\":false,\"items\":[null,null,null,null,null,null,null,null]}, fake {\"count\":1,\"next\":false,\"items\":[null]}"
+        ]
+      }
+    ],
+    "validatedMethods": [
+      "initialize",
+      "model/list",
+      "thread/items/list",
+      "thread/queue/add",
+      "thread/queue/list",
+      "thread/read",
+      "thread/turns/list"
+    ],
+    "unvalidatedMethods": [
+      "account/rateLimits/read"
+    ]
+  },
+  "connection": {
+    "passed": true,
+    "date": "2026-10-19T10:30:29.357Z",
+    "chill": {
+      "commit": "efe07a7",
+      "uncommittedChanges": true
+    },
+    "model": "gpt-6.1-sol",
+    "effort": "medium",
+    "usage": {
+      "thisFeedbackTurn": {
+        "totalTokens": 47177,
+        "inputTokens": 46987,
+        "cachedInputTokens": 42368,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 190,
+        "reasoningOutputTokens": 0
+      },
+      "chat": {
+        "totalTokens": 62224,
+        "inputTokens": 62029,
+        "cachedInputTokens": 54656,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 195,
+        "reasoningOutputTokens": 0
+      }
+    },
+    "rehearsal": false,
+    "turn": {
+      "tools": [
+        "pwd",
+        "chill comment --id 1 --text 'probe reply r7sq8v'"
+      ],
+      "hookRuns": 2,
+      "messages": [
+        "I’ll run `pwd`, then post the probe reply to Goal 1.",
+        "probe reply r7sq8v"
+      ]
+    },
+    "checks": [
+      {
+        "name": "Codex offers gpt-6.1-sol with reasoning effort medium",
+        "ok": true
+      },
+      {
+        "name": "account/rateLimits/read answers for the signed-in account",
+        "ok": true
+      },
+      {
+        "name": "chill creates a Goal",
+        "ok": true
+      },
+      {
+        "name": "the project hook is installed and trusted for the probe",
+        "ok": true
+      },
+      {
+        "name": "the chat answers its first message",
+        "ok": true
+      },
+      {
+        "name": "goal assign accepts the chat (thread/read and thread/queue/list from chill's own app-server)",
+        "ok": true
+      },
+      {
+        "name": "goal feedback saves the message and sends it to the idle chat as its next message",
+        "ok": true
+      },
+      {
+        "name": "the queued feedback starts a turn in the chat",
+        "ok": true
+      },
+      {
+        "name": "the turn completes within 300 s",
+        "ok": true
+      },
+      {
+        "name": "the turn's userMessage carries the feedback as data, with its event ID",
+        "ok": true
+      },
+      {
+        "name": "the PostToolUse hook ran in that turn and handed nothing twice",
+        "ok": true
+      },
+      {
+        "name": "the model replied on the Goal through chill",
+        "ok": true
+      },
+      {
+        "name": "the model's comment is in the Goal's Conversation",
+        "ok": true
+      },
+      {
+        "name": "Codex's queue is empty afterwards",
+        "ok": true
+      },
+      {
+        "name": "the reply answers the Goal, and chill reads the turn's output back as its Think",
+        "ok": true
+      },
+      {
+        "name": "the turn ran on the configured model and effort",
+        "ok": true
+      },
+      {
+        "name": "schema: the round trip's model/list, account/rateLimits/read, thread/queue/add, thread/turns/list, thread/queue/list, thread/read requests and responses match test/fixtures/codex-app-server-schema.json",
+        "ok": true
+      },
+      {
+        "name": "the Codex login file is unchanged and the probe's link to it is removed",
+        "ok": true
+      }
+    ]
+  },
+  "scenarios": {
+    "passed": true,
+    "date": "2026-10-19T10:30:09.583Z",
+    "chill": {
+      "commit": "efe07a7",
+      "uncommittedChanges": true
+    },
+    "checks": [
+      {
+        "name": "feedback saved while the agent is idle reaches it, and the Goal shows the agent Running on it [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "feedback saved while the agent responds shows Waiting and reaches it when the response ends [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "Send now delivers feedback that waits for the running response [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "the agent's reply clears the marks at once, while its work still runs [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "the end of the work without a reply leaves the comment marked, awaiting one [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "a comment reaches the agent once, and a later comment brings only itself [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "another conversation cannot answer the feedback [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "the Goal shows Running and Think while the agent works on its feedback, and neither after [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "goal work marks the Goal Running for the response that selected it [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "the Agent menu reads the agent's name, model and status [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "Approve all is offered where the harness supports it, and refused where it does not [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "Pause holds new feedback and Resume releases it where the harness can pause, and is refused where it cannot [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "a stop in the agent's own app shows Interrupted, not Paused, and the next feedback starts it again [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "a command the user runs in the agent's own app, such as /reload-skills, does not make it Running [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "a stop with nothing running and nothing said about feedback the agent took is held once, to tell the user [Codex app-server]",
+        "ok": true
+      }
+    ]
+  }
+}

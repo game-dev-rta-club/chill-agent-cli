@@ -8,6 +8,9 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import { namedTunnelConfig, readMessageSettings, saveMessageSetting, validateRemote } from '../lib/message-settings.mjs';
 import { notificationReminder } from '../lib/notification-reminder.mjs';
+import {fileURLToPath} from 'node:url';
+// These cases cover the host's own notification path, used when bundled extensions are off.
+process.env.CHILL_AGENT_EXTENSIONS='none';
 
 const execute=promisify(execFile);
 const remote={mode:'named',url:'https://plans.example.com',tunnelId:'00000000-0000-0000-0000-000000000001',credentialsFile:'/private/cloudflared/credential.json',accessTeam:'test-team',accessAud:['a'.repeat(64)]};
@@ -18,7 +21,8 @@ test('settings are optional, private, independently writable, and independently 
   assert.deepEqual(await readMessageSettings(root),{remote:{mode:'off'},notifications:{enabled:false}});
   await Promise.all([saveMessageSetting('remote',remote,root),saveMessageSetting('notifications',notifications,root)]);
   assert.deepEqual(await readMessageSettings(root),{remote,notifications});
-  assert.equal((await stat(join(root,'settings/remote.json'))).mode & 0o777,0o600);
+  // Windows has no POSIX permission bits.
+  if(process.platform!=='win32')assert.equal((await stat(join(root,'settings/remote.json'))).mode & 0o777,0o600);
   await saveMessageSetting('notifications',{enabled:false},root);
   assert.deepEqual((await readMessageSettings(root)).remote,remote);
   await saveMessageSetting('remote',{mode:'off'},root);
@@ -42,8 +46,8 @@ test('named tunnel uses exact HTTPS hostname and per-ingress Access verification
 
 test('notification preparation uses only a live configured URL and failures leave saved results intact',async t=>{
   const root=await mkdtemp(join(tmpdir(),'chill-notice-'));t.after(()=>rm(root,{recursive:true,force:true}));
-  const env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'4173',CHILL_AGENT_CODEX_PATH:new URL('./fake-codex.mjs',import.meta.url).pathname};
-  const run=(name,args)=>execute(process.execPath,[new URL(`../bin/${name}.mjs`,import.meta.url).pathname,...args],{env});
+  const env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'4173',CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url))};
+  const run=(name,args)=>execute(process.execPath,[fileURLToPath(new URL(`../bin/${name}.mjs`,import.meta.url)),...args],{env});
   await run('chill-agent',['create','--title','Saved result']);
   await run('chill-agent',['comment','--id','1','--text','Done']);
   const args=['notice','--id','1','--event','1'];

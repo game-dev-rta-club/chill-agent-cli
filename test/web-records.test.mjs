@@ -34,3 +34,18 @@ for(const backend of ['json','sqlite'])test(`${backend} compact Web keeps open L
  const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:backend}});
  assert.equal(result.stdout,'');
 });
+for(const backend of ['json','sqlite'])test(`${backend} Web records carry the Goals that mention each Goal`,async t=>{
+ const root=await mkdtemp(join(tmpdir(),'chill-web-mentions-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const code=`
+ import assert from 'node:assert/strict';import * as s from ${JSON.stringify(store)};
+ import {listWebRecords} from ${JSON.stringify(web)};
+ await s.createGoal({title:'A'});await s.createGoal({title:'B'});
+ const named=await s.appendAgentComment({goalId:'2',type:'comment',text:'Goal #1 で進めます'});
+ await s.appendFeedback({goalId:'1',text:'#2 を見て'});
+ const [a,b]=await listWebRecords();
+ assert.deepEqual(a.mentions.map(m=>[m.goalId,m.eventId]),[['2',named.id]]);
+ assert.deepEqual(b.mentions.map(m=>m.goalId),['1']);
+ `;
+ const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:backend}});
+ assert.equal(result.stdout,'');
+});

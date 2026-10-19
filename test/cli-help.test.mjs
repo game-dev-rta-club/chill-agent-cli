@@ -7,9 +7,10 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import { commands } from '../lib/cli-help.mjs';
 import { prepareRuntime } from '../lib/runtime-package.mjs';
+import {fileURLToPath} from 'node:url';
 
 const execute = promisify(execFile);
-const root = new URL('../', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../',import.meta.url));
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'chill-help-'));
   t.after(() => rm(directory, { recursive:true, force:true }));
@@ -23,15 +24,17 @@ async function fixture(t) {
 test('every command help works without data, valid settings, Codex, or server startup', async t => {
   const f=await fixture(t);
   const entries={monitor:'bin/chill-monitor.mjs',goal:'bin/chill-agent.mjs',settings:'bin/chill-settings.mjs',setup:'bin/chill-setup.mjs',
-    server:'bin/chill-server.mjs',hook:'bin/chill-hook.mjs',connection:'bin/chill-connection.mjs',foreground:'server.mjs',link:'bin/chill-link.mjs'};
+    server:'bin/chill-server.mjs',hook:'bin/chill-hook.mjs',connection:'bin/chill-connection.mjs',session:'bin/chill-session.mjs',foreground:'server.mjs',link:'bin/chill-link.mjs'};
   for(const path of Object.keys(commands)) {
     if(!path)continue;
     const [group,...parts]=path.split(' ');
     const {stdout,stderr}=await f.run(join(root,entries[group]),[...parts,'--help']);
+    // The bundled session command prints its own harness guide instead of the host help format.
+    if(group==='session'){assert.match(stdout,/Supported harness IDs/,path);assert.equal(stderr,'',path);continue;}
     assert.match(stdout,/Usage:/,path); assert.equal(stderr,'',path);
     assert.ok(stdout.includes(commands[path].summary),path);
   }
-  assert.match((await f.run(join(root,entries.goal),['help','brief','update'])).stdout,/Markdown/);
+  assert.match((await f.run(join(root,entries.goal),['help','deliverable','update'])).stdout,/Markdown/);
   assert.match((await f.run(join(root,entries.setup),['-h'])).stdout,/prepare/);
   assert.match((await f.run(join(root,entries.link),['settings','remote','--help'])).stdout,/accessAud/);
   assert.deepEqual(await readdir(f.directory),[], 'help must not migrate/create store, install a hook, or write runtime files');
@@ -56,15 +59,16 @@ test('help-guided operations work and settings flags are order independent',asyn
   const f=await fixture(t);
   f.env.CHILL_AGENT_CODEX_PATH=join(root,'test/fake-codex.mjs');
   f.env.PORT='4173'; delete f.env.CHILL_AGENT_IDLE_TIMEOUT;
+  f.env.CHILL_AGENT_EXTENSIONS='none'; // host notification path, without the bundled provider
   const plan=args=>f.run(join(root,'bin/chill-agent.mjs'),args);
   const created=await plan(['create','--title','Help-guided Plan']);
   assert.match(created.stdout,/"id": "1"/);
-  const body=join(f.data,'workspace/goals/1/brief.md'); await writeFile(body,'A clear goal');
-  await plan(['brief','update','--id','1']);
+  const body=join(f.data,'workspace/goals/1/deliverable.md'); await writeFile(body,'A clear goal');
+  await plan(['deliverable','update','--id','1']);
   await plan(['comment','--id','1','--text','We can proceed.']);
   assert.match((await plan(['show','--id','1'])).stdout,/A clear goal[\s\S]*We can proceed/);
   await writeFile(body,'A clear goal, updated');
-  await plan(['brief','update','--id','1']);
+  await plan(['deliverable','update','--id','1']);
   await plan(['comment','--id','1','--text','Historical']);
   const settings=args=>f.run(join(root,'bin/chill-settings.mjs'),args);
   assert.deepEqual(JSON.parse((await settings(['notice','--event','2','--id','1'])).stdout),{enabled:false});

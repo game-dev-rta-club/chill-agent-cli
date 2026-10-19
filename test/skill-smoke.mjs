@@ -39,6 +39,7 @@ async function main() {
       fake:join(root,'fake-codex.mjs'),thread:randomUUID(),port:await freePort()};
     await mkdir(f.project);
     await cp(join(repository,'test/fake-codex.mjs'),f.fake); await chmod(f.fake,0o700);
+    for(const file of ['codex-contract.mjs','json-schema.mjs','fixtures/codex-app-server-schema.json'])await cp(join(repository,'test',file),join(root,file),{recursive:true});
     await buildPlugins(join(root,'plugins'));
     await writeFile(join(root,'fixture.json'),JSON.stringify(f,null,2));
     const runner=`import {spawn} from 'node:child_process';\nconst f=${JSON.stringify(f)};\nconst [command,...args]=process.argv.slice(2);\nif(!command)throw new Error('Pass a command to run in the trial environment.');\nconst child=spawn(command,args,{cwd:f.project,stdio:'inherit',env:{...process.env,CHILL_AGENT_DATA_DIR:f.data,CHILL_AGENT_CODEX_PATH:f.fake,CODEX_THREAD_ID:f.thread,PORT:String(f.port),CHILL_AGENT_IDLE_TIMEOUT:'10m'}});\nchild.on('error',error=>{console.error(error.message);process.exitCode=1;});\nchild.on('exit',(code,signal)=>{process.exitCode=code??(signal?1:0);});\n`;

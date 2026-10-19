@@ -3,12 +3,12 @@ keyPoints: >-
   Web loads a compact workspace snapshot, opens known Goals from memory and refreshes
   in the background. Tabs count unanswered Letters under their own Root, including
   hidden tabs. Goal links start at the top; Letter links locate the message while
-  background updates keep visible content in place. Earlier Briefs load on demand.
+  background updates keep visible content in place. Earlier Deliverables load on demand.
 ---
 
 # Move between Goals without waiting for a poll
 
-The first Web visit loads the tree, latest Briefs and Conversation through
+The first Web visit loads the tree, latest Deliverables and Conversation through
 `GET /api/goals?view=web`. Moving to a known Goal renders that in-memory snapshot
 immediately, then checks for changes in the background. Polling, focus and route
 changes share an in-flight request rather than downloading the same data twice.
@@ -22,28 +22,34 @@ there are Letters. Goals navigation lives inside More, even without extensions.
 
 The browser tab shows the current Root's title and unanswered Letter count,
 including all descendants: `(2) Root title · chill`. Opening a child or an older
-Brief keeps that Root's count. Other Roots do not contribute. Answers and explicit
+Deliverable keeps that Root's count. Other Roots do not contribute. Answers and explicit
 receipts remove a Letter; ordinary comments do not. When there are none, the
 count prefix disappears. A failed count request keeps the last known value;
 returning to the tab refreshes the workspace immediately.
 
-The snapshot includes earlier Briefs' version numbers and dates, not their full
+While the agent works on the open Goal, the tab icon's sunrise takes color (a
+warm sky, a filled orange sun and a blue sea); the title keeps its space for the
+Letter count. A hidden tab checks the agent
+every 10 seconds instead of every 2, so a background tab still shows when work
+starts and ends.
+
+The snapshot includes earlier Deliverables' version numbers and dates, not their full
 bodies. Opening one loads `GET /api/goals/:id/briefs/:version` and keeps it in memory
-for that visit. HTML Briefs still load in their isolated document frames. The
+for that visit. HTML Deliverables still load in their isolated document frames. The
 unqualified `/api/goals` endpoint retains its full response for existing clients.
 
 Drafts use the existing browser storage and survive route changes. Background
-updates preserve the current reading position and offer a new Brief when one is
+updates preserve the current reading position and offer a new Deliverable when one is
 published. A failed refresh leaves the last loaded content available; it does not
-claim that content is current. A first visit and an uncached earlier Brief still
+claim that content is current. A first visit and an uncached earlier Deliverable still
 need a connection. No workspace data is made available offline by this cache.
 
 Opening or reloading a plain Goal starts at the top. A Letter link waits for its
-Brief layout, then brings the message into view; a tall Letter starts
-at its heading. Moving between Letters in the same Goal reuses the Brief. If the
+Deliverable layout, then brings the message into view; a tall Letter starts
+at its heading. Moving between Letters in the same Goal reuses the Deliverable. If the
 reader scrolls while a link is loading, that interaction takes priority over the
-pending jump. Background Activity, Brief sizing and diagram rendering preserve
-the visible conversation boundary, or the current position when reading the Brief.
+pending jump. Background Activity, Deliverable sizing and diagram rendering preserve
+the visible conversation boundary, or the current position when reading the Deliverable.
 Only the reading pane scrolls; the header stays fixed.
 
 JSON snapshots and static assets support gzip. The main JavaScript is bundled;
@@ -55,3 +61,10 @@ Letter state, so current state is read again on each snapshot.
 Implementation: [browser navigation](../../public/app.js),
 [snapshot projection](../../lib/web-snapshot.mjs), [HTTP routes](../../server.mjs).
 For changes to positioning or focus, follow the [scrolling guidelines](../development/scrolling.md).
+
+## Read the Deliverable while you talk
+
+On a wide screen (at least 1180px), a Goal shows its Conversation as a column on
+the right that scrolls by itself, with the Goal and its Deliverable on the left. You can
+keep reading the Deliverable while you scroll and write in the Conversation; it opens at
+the newest message. Narrower screens and phones keep the single column.

@@ -6,6 +6,19 @@ keyPoints: >-
 
 # Changelog
 
+## 0.5.0
+
+- Minor release in the pre-1.0 line. Codex Desktop and Claude Code now run on one set of agent rules, and Claude Code is a complete connection beside Codex. Existing SQLite workspaces need no migration.
+- **Breaking:** Brief is renamed Deliverable everywhere users and agents see it: Web labels, `goal deliverable` (`goal brief` names its replacement), `--deliverable-offset`, `--section deliverable`, `deliverable.md`/`deliverable.html` sources and `deliverable*` fields in CLI JSON. Earlier `brief.*` sources move to the new names once; stored records keep their internal names. The Deliverable holds only the final output; plans and progress belong in Conversation.
+- **Breaking:** the public link no longer opens for anyone with the URL. A device connects once with an 8-character access code shown only on the computer; the QR opens the link and the code is typed. Connected devices are listed in the panel and disconnect one by one or all at once.
+- Claude Code: Web feedback reaches the same conversation through a watcher hook or a `connection wait` reply waiter. One waiter runs per conversation, a stale one is taken over, and a waiter that stops checking ends itself and wakes its conversation. `connection wake` schedules a check while waiting on CI, shown in Web as Waiting. Pause/Resume, Queue and Approve all work from the Agent menu; Approve all never answers the user's questions. A question Claude asks in its own app appears as a Letter on its Goal until it is answered.
+- Agent state: Running, Queued, Paused, Interrupted, Waiting and Ended follow one set of rules for both harnesses, with background subagents counted as Running. Several agents can work in one project, each with its own Root, and a continued Claude conversation can take over its Goals.
+- Feedback: comments saved while the agent works wait for that work to end (Send now hands one over at the next step). Letters are answered with an ordinary Comment that the agent records. `#N` links to Goal N and each Goal shows where it is mentioned. `/skill` suggestions hand the named skill's files over. Any file can be attached, and attached images can be annotated.
+- Deliverables: HTML Deliverables render in an isolated frame and accept annotations; wide screens show the Deliverable beside the Conversation.
+- Notifications cover every agent reply, with a Letters-only choice per device.
+- Web defaults are English and locale-neutral. The Sand theme is replaced by Lime; a saved Sand choice falls back to the default theme.
+- Release checks run the user-visible scenarios on the installed Codex and against recorded Claude Code samples, besides the fakes.
+
 ## 0.4.0
 
 - Minor release in the pre-1.0 line for the SQLite storage transition. Compatibility and migration history are recorded in the [0.4.0 release notes](https://github.com/game-dev-rta-club/chill-agent-cli/releases/tag/v0.4.0).

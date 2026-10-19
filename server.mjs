@@ -3,11 +3,10 @@ import {readWorkspaceTheme,saveWorkspaceTheme} from './lib/workspace-theme.mjs';
 import {join} from 'node:path';
 import {writeJsonAtomically} from './lib/storage.mjs';
 import {projectProfile,selectProjectPort,projectExtensionEnabled} from './lib/project-workspace.mjs';
-import {readAgentActivity} from './lib/agent-activity.mjs';
 import {createExtensionHost} from './lib/server-extensions.mjs';
 import {registeredExtensions} from './lib/extension-registry.mjs';
 import { showHelp } from './lib/cli-help.mjs';
-import {randomBytes,createHash} from 'node:crypto';
+import {randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {webSnapshot,webBrief} from './lib/web-snapshot.mjs';
 import { createServer } from 'node:http';
@@ -15,19 +14,22 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listStoredGoals, listGoals, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
-import { listDeliveries, refreshWorkOutputs } from './lib/delivery.mjs';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
 import { createTunnelController } from './lib/tunnel-controller.mjs';
 import { readMessageSettings } from './lib/message-settings.mjs';
 import {renderedEvent} from './lib/markdown.mjs';
+import {goalSkills} from './lib/skill-catalog.mjs';
 import {briefDocument,briefSVG} from './lib/brief.mjs';
-import {readAgentStatus,saveAgentSettings,controlAgent} from './lib/agent-status.mjs';
+import {readAgentStatus,saveAgentSettings,controlAgent,readGoalActivity} from './lib/agent-status.mjs';
 import {readAgentPresence} from './lib/agent-presence.mjs';
+import {goalCommentMarks} from './lib/agents/index.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
-import { withClaudeReception } from './lib/claude-status.mjs';
+import {largeSize} from './lib/limits.mjs';
+import {recordHidden} from './lib/hidden-failure.mjs';
+import {createPublicAccess,sessionCookie,sessionFrom,codeAlphabet,deviceName} from './lib/public-access.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
@@ -37,14 +39,50 @@ const remote = configured ? (projectExtensionEnabled('public-link')?(await readM
 // launchd preserves this baseline across crash recovery. A manual start creates a new one.
 const startedAt = Number(process.env.CHILL_AGENT_SERVER_STARTED_AT ?? Date.now());
 if (!Number.isSafeInteger(startedAt) || startedAt <= 0) throw new Error('Invalid server start time.');
-let activeRequests = 0, activeCommands = 0, stopIdleWatch;
+// Windows cannot signal a background server, so its service stops it over HTTP.
+// Commands spawned by the server do not inherit the token.
+const serviceToken = process.env.CHILL_AGENT_SERVICE_TOKEN || null;
+delete process.env.CHILL_AGENT_SERVICE_TOKEN;
+// Only writes can renew the idle deadline, so only writes hold it once it has
+// passed. Reads never renew it: when Web stops, server.close() lets in-flight
+// reads finish, so continuous polling can neither keep Web alive nor be cut off.
+const renewing = request => !['GET','HEAD'].includes(request.method);
+let activeWrites = 0, activeCommands = 0, stopIdleWatch;
 let tunnelOrigin = null, closing = false;
 const instanceToken=randomBytes(32).toString('hex');
 const updates=createRuntimeUpdater({port:()=>server.address().port,duration});
+const publicAccess=createPublicAccess();
 const publicTunnel=createTunnelController({directory:dataDirectory(),port:()=>server.address().port,onOrigin:origin=>{tunnelOrigin=origin;}});
-const extensions=createExtensionHost(registeredExtensions({tunnel:publicTunnel,configured}));
+const extensions=createExtensionHost(registeredExtensions({tunnel:publicTunnel,access:publicAccess,configured}));
 const allowedOrigin = request => request.headers.origin === `http://127.0.0.1:${server.address().port}`
   || (tunnelOrigin !== null && request.headers.origin === tunnelOrigin);
+
+// Through the public link, only a device connected with the panel's access code sees anything.
+function connectPage(response,nonce,{status=401,message=''}={}){
+  // Under no-referrer, browsers send Origin: null when the form posts, and the gate would refuse it.
+  response.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Referrer-Policy':'same-origin'});
+  response.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect · chill</title>
+<style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui,-apple-system,sans-serif;background:#f4f6f2;color:#243b3e}form{width:min(320px,calc(100vw - 32px));display:grid;gap:12px}h1{font-size:20px;margin:0}p{margin:0;color:#56655f;font-size:14px}input{font:600 22px ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;padding:12px;border:1px solid #b9c4bd;border-radius:8px}button{font:600 16px system-ui,sans-serif;padding:12px;border:0;border-radius:8px;background:#2f5d50;color:#fff}.error{color:#a03a2c}</style>
+<form method="post"><h1>Connect to chill</h1><p>Enter the 8-character access code shown in Public link on your computer.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="12" pattern="[${codeAlphabet}${codeAlphabet.toLowerCase()} -]{8,12}" aria-label="Access code" autofocus><button>Connect</button></form></html>`);
+}
+// Not connected, every page is the connect form. The form posts back to its own page,
+// so after connecting the browser returns there with its #/goal/N.
+async function publicGate(request,response,url,nonce){
+  const localHost=`127.0.0.1:${server.address().port}`;
+  if(request.headers.host===localHost&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'])return false;
+  if(await publicAccess.connected(sessionFrom(request)))return false;
+  if(request.method==='POST'&&String(request.headers['content-type']||'').startsWith('application/x-www-form-urlencoded')){
+    if(tunnelOrigin===null||request.headers.origin!==tunnelOrigin){sendJson(response,403,{error:'Connect from the public link.'});return true;}
+    let code=null;try{code=new URLSearchParams((await readUpload(request)).toString()).get('code');}catch{}
+    const session=await publicAccess.connect(code,{device:deviceName(request.headers['user-agent'])});
+    if(!session){connectPage(response,nonce,{message:'That code is wrong, used or expired. Check the access code on your computer.'});return true;}
+    response.writeHead(303,{'Set-Cookie':`${sessionCookie}=${session}; Path=/; Max-Age=34560000; HttpOnly; Secure; SameSite=Lax`,Location:url.pathname});
+    response.end();return true;
+  }
+  if(request.method==='GET'&&(request.headers.accept||'').includes('text/html'))connectPage(response,nonce);
+  else sendJson(response,401,{error:'Connect with the access code shown in Public link on your computer.'});
+  return true;
+}
 
 function shutdown(preserveTunnel=false) {
   if (closing) return;
@@ -88,7 +126,7 @@ async function readJson(request) {
   let body = '';
   for await (const chunk of request) {
     body += chunk;
-    if (body.length > 160000) throw new Error('Request is too large.');
+    if (body.length > largeSize) throw new Error('Request is too large.');
   }
   return JSON.parse(body);
 }
@@ -134,21 +172,22 @@ function callCli(args, input, response, receipt, status = 200) {
   child.stdin.end(input === undefined ? undefined : JSON.stringify(input));
 }
 
-async function readImage(request) {
+async function readUpload(request) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 5 * 1024 * 1024) throw new Error('Image is larger than 5 MB.');
+    if (size > largeSize) throw new Error('File is too large.');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
 }
 
 const server = createServer(async (request, response) => {
-  activeRequests += 1;
+  const write = renewing(request);
+  if (write) activeWrites += 1;
   let finished = false;
-  const release = () => { if (!finished) { finished = true; activeRequests -= 1; } };
+  const release = () => { if (!finished) { finished = true; if (write) activeWrites -= 1; } };
   response.once('finish', release);
   response.once('close', release);
   response.setHeader('Cache-Control', 'no-store');
@@ -168,6 +207,17 @@ const server = createServer(async (request, response) => {
   } catch {
     response.writeHead(400);
     return response.end('Invalid request URL');
+  }
+  try{if(await publicGate(request,response,url,styleNonce))return;}
+  catch(error){recordHidden('server.public-connect',error);return sendJson(response,503,{error:'Could not check the connection. Please try again.'});}
+  if(path==='/api/service/shutdown'){
+    // Only the local service may stop Web: browsers always send Origin or
+    // Sec-Fetch-Site on a POST, and tunnelled requests carry Cloudflare headers.
+    const supplied=Buffer.from(String(request.headers['x-chill-service']||'')),expected=Buffer.from(serviceToken||'');
+    const local=request.socket.remoteAddress==='127.0.0.1'&&request.headers.host===`127.0.0.1:${server.address().port}`&&!request.headers.origin&&!request.headers['sec-fetch-site']&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'];
+    if(!serviceToken||request.method!=='POST'||!local||supplied.length!==expected.length||!timingSafeEqual(supplied,expected))return sendJson(response,404,{});
+    response.setHeader('Connection','close');sendJson(response,202,{stopping:true});
+    console.log('Service stop requested. Stopping server.');shutdown();return;
   }
   if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
   if(path==='/api/runtime-update'){
@@ -208,7 +258,7 @@ const server = createServer(async (request, response) => {
   const extensionPath=/^\/api\/goals\/([1-9][0-9]*)\/extensions(?:\/([a-z][a-z0-9-]*))?$/.exec(path);
   if(extensionPath&&request.method==='GET'&&!extensionPath[2]){
     try{return sendJson(response,200,await extensions.controls(extensionPath[1],{activity:url.searchParams.get('activity')==='1',clientId:/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(url.searchParams.get('clientId')||'')?url.searchParams.get('clientId'):null}));}
-    catch(error){return sendJson(response,503,{error:error.message});}
+    catch(error){recordHidden('server.extension-controls',error);return sendJson(response,503,{error:error.message});}
   }
   if(extensionPath&&request.method==='POST'&&extensionPath[2]){
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
@@ -218,12 +268,17 @@ const server = createServer(async (request, response) => {
   const presencePath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/presence$/.exec(path);
   if(presencePath&&request.method==='GET'){
     try{return sendJson(response,200,await readAgentPresence(presencePath[1]));}
-    catch{return sendJson(response,503,{error:'Could not read Agent status.'});}
+    catch(error){recordHidden('server.agent-presence',error);return sendJson(response,503,{error:'Could not read Agent status.'});}
+  }
+  const skillsPath=/^\/api\/goals\/([1-9][0-9]*)\/skills$/.exec(path);
+  if(skillsPath&&request.method==='GET'){
+    try{return sendJson(response,200,await goalSkills(skillsPath[1]));}
+    catch(error){return sendJson(response,error.message?.includes('not found')?404:500,{error:'Could not read skills.'});}
   }
   const agentPath=/^\/api\/goals\/([1-9][0-9]*)\/agent$/.exec(path);
   if(agentPath&&request.method==='GET') {
     try {return sendJson(response,200,await readAgentStatus(agentPath[1]));}
-    catch {return sendJson(response,503,{error:'Could not read Agent information.'});}
+    catch(error) {recordHidden('server.agent-status',error);return sendJson(response,503,{error:'Could not read Agent information.'});}
   }
   if(agentPath&&request.method==='POST') {
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
@@ -232,8 +287,8 @@ const server = createServer(async (request, response) => {
   }
   const activityPath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/activity$/.exec(path);
   if(activityPath&&request.method==='GET'){
-    try{return sendJson(response,200,await readAgentActivity(activityPath[1]));}
-    catch{return sendJson(response,503,{error:'Could not read activity controls.'});}
+    try{return sendJson(response,200,await readGoalActivity(activityPath[1]));}
+    catch(error){recordHidden('server.agent-activity',error);return sendJson(response,503,{error:'Could not read the agent.'});}
   }
   const controlPath=/^\/api\/goals\/([1-9][0-9]*)\/agent\/control$/.exec(path);
   if(controlPath&&request.method==='POST'){
@@ -263,52 +318,54 @@ const server = createServer(async (request, response) => {
       return sendJson(response,summary?200:404,summary||{error:'Goal not found.'});
     }catch{return sendJson(response,500,{error:'Could not count Letters.'});}
   }
-  const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
+  const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
   if(briefSVGPath&&request.method==='GET'){
     try{
       const brief=await readBrief(briefSVGPath[1],Number(briefSVGPath[2]));
       const svg=brief?.format==='html'?briefSVG(brief.body,Number(briefSVGPath[3])):null;
-      if(!svg)return sendJson(response,404,{error:'Brief image not found.'});
+      if(!svg)return sendJson(response,404,{error:'Deliverable image not found.'});
       response.setHeader('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; sandbox");
       response.writeHead(200,{'Content-Type':'image/svg+xml; charset=utf-8'});
       return response.end(svg);
-    }catch{return sendJson(response,500,{error:'Could not load Brief image.'});}
+    }catch{return sendJson(response,500,{error:'Could not load Deliverable image.'});}
   }
-  const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)$/.exec(path);
+  const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)$/.exec(path);
   if(briefDataPath&&request.method==='GET'){
-    try{const brief=await readBrief(briefDataPath[1],Number(briefDataPath[2]));return sendJson(response,brief?200:404,brief?webBrief(brief):{error:'Brief not found.'});}
-    catch{return sendJson(response,500,{error:'Could not load Brief.'});}
+    try{const brief=await readBrief(briefDataPath[1],Number(briefDataPath[2]));return sendJson(response,brief?200:404,brief?webBrief(brief):{error:'Deliverable not found.'});}
+    catch{return sendJson(response,500,{error:'Could not load Deliverable.'});}
   }
-  const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/document$/.exec(path);
+  const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/document$/.exec(path);
   if(briefDocumentPath&&request.method==='GET') {
     try {
       const brief=await readBrief(briefDocumentPath[1],Number(briefDocumentPath[2]));
-      if(!brief||brief.format!=='html')return sendJson(response,404,{error:'HTML Brief not found.'});
+      if(!brief||brief.format!=='html')return sendJson(response,404,{error:'HTML Deliverable not found.'});
       response.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'; sandbox allow-same-origin");
       response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
       return response.end(briefDocument(brief.body));
-    } catch {return sendJson(response,500,{error:'Could not load HTML Brief.'});}
+    } catch {return sendJson(response,500,{error:'Could not load HTML Deliverable.'});}
   }
   const feedbackPath = /^\/api\/goals\/([1-9][0-9]*)\/feedback$/.exec(path);
-  const deliveryPath = /^\/api\/goals\/([1-9][0-9]*)\/deliveries$/.exec(path);
-  const retryPath = /^\/api\/goals\/([1-9][0-9]*)\/deliveries\/([1-9][0-9]*)\/retry$/.exec(path);
+  const marksPath = /^\/api\/goals\/([1-9][0-9]*)\/comment-marks$/.exec(path);
+  const sendNowPath = /^\/api\/goals\/([1-9][0-9]*)\/comments\/([1-9][0-9]*)\/send-now$/.exec(path);
   if (path === '/api/activity' && request.method === 'POST') {
     if (!allowedOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) return sendJson(response, 403, { error: 'Only same-origin JSON requests are accepted.' });
     try { await readJson(request); await recordServerUse(dataDirectory()); return sendJson(response, 200, { ok: true }); }
     catch (error) { return sendJson(response, 400, { error: error.message }); }
   }
-  if (retryPath && request.method === 'POST') {
+  if (sendNowPath && request.method === 'POST') {
     if (!allowedOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) return sendJson(response, 403, { error: 'Only same-origin JSON requests are accepted.' });
     try {
-      const deliveries = await listDeliveries(retryPath[1]);
-      if (!deliveries.some(item => item.eventId === Number(retryPath[2]))) return sendJson(response, 404, { error: 'Delivery not found.' });
-      return callCli(['retry', '--event', retryPath[2]], undefined, response, 'delivery');
-    } catch { return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
+      const marks = await goalCommentMarks(sendNowPath[1]);
+      if (!marks.some(item => item.eventId === Number(sendNowPath[2]))) return sendJson(response, 404, { error: 'Comment not found.' });
+      return callCli(['send-now', '--event', sendNowPath[2]], undefined, response, 'comment');
+    } catch (error) { recordHidden('server.send-now', error); return sendJson(response, 500, { error: 'Could not send now.' }); }
   }
   if (path === '/api/images' && request.method === 'POST') {
     if (!allowedOrigin(request)) return sendJson(response, 403, { error: 'Only same-origin uploads are accepted.' });
     try {
-      const image = await saveAttachment(await readImage(request), request.headers['content-type']);
+      let name = '';
+      try { name = decodeURIComponent(request.headers['x-file-name'] || ''); } catch { /* Keep the default name. */ }
+      const image = await saveAttachment(await readUpload(request), request.headers['content-type'], name);
       return sendJson(response, 201, image);
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
@@ -329,19 +386,28 @@ const server = createServer(async (request, response) => {
     response.writeHead(405, { Allow: 'GET, HEAD' });
     return response.end('Method not allowed');
   }
-  if (deliveryPath) {
-    try {
-      await refreshWorkOutputs(deliveryPath[1]);
-      return sendJson(response, 200, await withClaudeReception(await listDeliveries(deliveryPath[1])));
-    }
-    catch { return sendJson(response, 500, { error: 'Could not load delivery updates.' }); }
+  if (marksPath) {
+    try { return sendJson(response, 200, await goalCommentMarks(marksPath[1])); }
+    catch (error) { recordHidden('server.comment-marks', error); return sendJson(response, 500, { error: 'Could not load comment marks.' }); }
+  }
+  const infoPath = /^\/api\/attachments\/([0-9a-f-]{36})$/.exec(path);
+  if (infoPath) {
+    const file = await attachmentInfo(infoPath[1]);
+    if (!file) return sendJson(response, 404, { error: 'Attachment not found.' });
+    return sendJson(response, 200, { id: file.id, mimeType: file.mimeType, name: file.name ?? null, image: !file.name });
   }
   const imagePath = /^\/api\/images\/([0-9a-f-]{36})$/.exec(path);
   if (imagePath) {
     const image = await attachmentInfo(imagePath[1]);
-    if (!image) return sendJson(response, 404, { error: 'Image not found.' });
+    if (!image) return sendJson(response, 404, { error: 'Attachment not found.' });
     const data = await readFile(image.path);
-    response.writeHead(200, { 'Content-Type': image.mimeType, 'Content-Length': data.length });
+    // Images and PDFs open in the browser. Other files download, so an
+    // attached HTML or script never runs inside the Web's origin.
+    const headers = { 'Content-Length': data.length, 'X-Content-Type-Options': 'nosniff' };
+    if (!image.name) headers['Content-Type'] = image.mimeType;
+    else if (image.pdf) Object.assign(headers, { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(image.name)}` });
+    else Object.assign(headers, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(image.name)}` });
+    response.writeHead(200, headers);
     return response.end(request.method === 'HEAD' ? undefined : data);
   }
   if (path === '/api/events') {
@@ -400,8 +466,8 @@ server.listen(port, '127.0.0.1', async () => {
   console.log(`chill-agent: http://127.0.0.1:${server.address().port}`);
   console.log(`Idle timeout: ${duration} (user actions and CLI updates renew it; polling does not).`);
   stopIdleWatch = watchServerIdle({ directory: dataDirectory(), idleTimeoutMs, startedAt,
-    isBusy: async () => activeRequests > 0 || activeCommands > 0 || await extensions.busy() || activeRequests > 0 || activeCommands > 0,
-    canStop: () => activeRequests===0 && activeCommands===0 && !extensions.active,
+    isBusy: async () => activeWrites > 0 || activeCommands > 0 || await extensions.busy() || activeWrites > 0 || activeCommands > 0,
+    canStop: () => activeWrites===0 && activeCommands===0 && !extensions.active,
     onIdle: () => { console.log(`Idle timeout reached (${duration}). Stopping server.`); shutdown(); },
   });
 

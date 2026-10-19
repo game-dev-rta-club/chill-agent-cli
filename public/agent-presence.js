@@ -1,5 +1,5 @@
 import {isRunning} from './goal-state.js';
-const labels={working:'Running',idle:'Idle',paused:'Paused',unknown:'Status unavailable',unlinked:'Not connected'};
+const labels={working:'Running',idle:'Idle',paused:'Paused',interrupted:'Interrupted',unknown:'Status unavailable',unlinked:'Not connected'};
 const displayState=status=>isRunning(status)?'working':status;
 export const presenceLabel=status=>labels[displayState(status)]||labels.unknown;
 export function presenceMark(status){
@@ -9,7 +9,8 @@ export function presenceMark(status){
  return `<span class="status ${state}" aria-hidden="true">${shape}</span>`;
 }
 export function createAgentPresence({button,getGoalId}){
- let request=0,controller=null,busy=false,routeGoalId=null;
+ // A hidden tab keeps checking, more slowly, so its tab icon can show progress.
+ let request=0,controller=null,busy=false,routeGoalId=null,checkedAt=0;
  const tooltip=document.getElementById('agent-tooltip');
  function render(data){
   const status=displayState(data.status)||'unknown';button.dataset.state=status;button.removeAttribute('title');
@@ -17,7 +18,7 @@ export function createAgentPresence({button,getGoalId}){
   window.dispatchEvent(new CustomEvent('chill-agent-presence',{detail:{routeGoalId:getGoalId(),...data}}));
  }
  async function refresh(){
-  const id=getGoalId();if(!id||busy||document.visibilityState==='hidden')return;
+  const id=getGoalId();if(!id||busy||document.visibilityState==='hidden'&&Date.now()-checkedAt<10000)return;checkedAt=Date.now();
   const token=++request;controller=new AbortController();busy=true;
   try{const response=await fetch(`/api/goals/${id}/agent/presence`,{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)])});if(!response.ok)throw Error();const data=await response.json();if(token===request&&id===getGoalId())render(data);}
   catch(error){if(error.name!=='AbortError'&&token===request&&id===getGoalId())render({status:'unknown'});}

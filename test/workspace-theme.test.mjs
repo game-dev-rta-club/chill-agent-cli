@@ -12,7 +12,7 @@ test('theme stays with its workspace; invalid input cannot overwrite it',async t
  for(const theme of themes){await saveWorkspaceTheme({theme:theme.id},a);assert.equal((await readWorkspaceTheme(a)).theme,theme.id);}
  assert.equal((await readWorkspaceTheme(b)).theme,'gradient-mint');
  for(const input of [{theme:'<script>'},{theme:'dark-mint',remote:true},null])await assert.rejects(saveWorkspaceTheme(input,a));
- assert.equal((await readWorkspaceTheme(a)).theme,'dark-sand');
+ assert.equal((await readWorkspaceTheme(a)).theme,'dark-lime');
  await writeFile(join(a,'appearance.json'),JSON.stringify({theme:'removed-theme'}));assert.equal((await readWorkspaceTheme(a)).theme,'gradient-mint');
 });
 

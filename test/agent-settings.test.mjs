@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAgentSettingsStore} from '../lib/agent-settings.mjs';
-import {resolveAgentConnection,connectionKey} from '../lib/agent-connection.mjs';
+import {createAgentSettingsStore} from '../lib/agents/settings-store.mjs';
+import {resolveAgentConnection,connectionKey} from '../lib/agents/connection.mjs';
 import {createCodexDesktopConnection} from '../lib/codex-desktop-connection.mjs';
+import {codexModel,codexThread,contractStub} from './codex-contract.mjs';
 
+import {expectHidden} from './hidden-failures.mjs';
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 function fixture(harnessId='test-harness') {
   let current={model:'provider/first',label:'First',reasoning:'deliberate'};
@@ -87,17 +89,18 @@ test('concurrent saves are rejected for one connection but do not lock another h
   assert.equal(other.writes.length,1);
 });
 
-test('Codex adapter normalizes private RPC data, keeps partial failures separate and maps CAS writes',async()=>{
+test('Codex adapter normalizes private RPC data, keeps partial failures separate and maps CAS writes',async t=>{
+ expectHidden(t,'codex-desktop-connection.snapshot-usage');
   const calls=[],updates=[],probes=[];
   const connection=createCodexDesktopConnection('thread',{
-    run:async action=>action({request:async(method,params)=>{
+    run:async action=>action(contractStub(async(method,params)=>{
       calls.push({method,params});
-      if(method==='thread/read')return {thread:{id:'thread',model:'native-a',reasoningEffort:'xhigh',privateAccount:'secret'}};
-      if(method==='model/list')return {data:[{id:'catalog-a',model:'native-a',displayName:'Model A',supportedReasoningEfforts:[{reasoningEffort:'xhigh'}],defaultReasoningEffort:'xhigh'},{id:'hidden',hidden:true}]};
+      if(method==='thread/read')return {thread:codexThread({id:'thread',model:'native-a',reasoningEffort:'xhigh',preview:'secret'})};
+      if(method==='model/list')return {data:[codexModel({id:'catalog-a',model:'native-a',displayName:'Model A',supportedReasoningEfforts:[{reasoningEffort:'xhigh',description:'Deep'}],defaultReasoningEffort:'xhigh'}),codexModel({id:'hidden',hidden:true})]};
       if(method==='account/rateLimits/read')throw Error('Usage offline');
-      if(method==='thread/queue/list')return {data:[{clientUserMessageId:'message',input:'private prompt'}],nextCursor:null};
+      if(method==='thread/queue/list')return {data:[{id:'queued',clientUserMessageId:'message',input:[{type:'text',text:'private prompt'}]}],nextCursor:null};
       throw Error('Unexpected RPC');
-    }}),
+    })),
     canSave:async(...args)=>{probes.push(args);return true;},
     update:async(...args)=>{updates.push(args);return {applied:true};},canControl:async()=>false,
   });
@@ -114,6 +117,6 @@ test('Codex adapter normalizes private RPC data, keeps partial failures separate
 });
 
 test('Codex adapter rejects a snapshot belonging to a different conversation',async()=>{
-  const connection=createCodexDesktopConnection('wanted',{run:async action=>action({request:async method=>method==='thread/read'?{thread:{id:'other'}}:{data:[]}})});
+  const connection=createCodexDesktopConnection('wanted',{run:async action=>action(contractStub(async method=>method==='thread/read'?{thread:codexThread({id:'other'})}:method==='account/rateLimits/read'?{rateLimits:{}}:{data:[]}))});
   await assert.rejects(connection.readSnapshot(),/assignment changed/);
 });

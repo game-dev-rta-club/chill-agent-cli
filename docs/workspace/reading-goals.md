@@ -1,12 +1,12 @@
 ---
 keyPoints: >-
   Review gives one line per Goal with state filters and ancestor context. Show opens
-  one Brief and recent discussion; context mode keeps the agreement and new input while linking to longer bodies.
+  one Deliverable and recent discussion; context mode keeps the agreement and new input while linking to longer bodies.
 ---
 
 # Read a workspace in layers
 
-Start with an index rather than every Brief and conversation in the project.
+Start with an index rather than every Deliverable and conversation in the project.
 Use the stable command prefix from setup in place of `chill`.
 
 ```sh
@@ -38,7 +38,7 @@ chill goal show --id 6 --since 17 --format text --section context
 ```
 
 Context mode keeps the Goal and root agreement, criteria, current state, Letter
-titles and conversation. It links to the published Brief version and full
+titles and conversation. It links to the published Deliverable version and full
 questions instead of printing their bodies. Replies still include their original
 question, and annotations and attachment paths remain available. With `--since`,
 all later input is retained unless a limit is explicitly requested.
@@ -52,20 +52,20 @@ judgment. Follow its printed commands when the next decision needs more detail.
 chill goal show --id 6 --format text
 ```
 
-Text includes its scope, success criteria, root agreement, latest Brief, own
+Text includes its scope, success criteria, root agreement, latest Deliverable, own
 unanswered Letters and the latest five conversation messages. It links to the
 subtree index instead of repeating all branches. Older conversation pages include
 an exact `--before` command. Answers keep their original Letter question even
 when it lies outside the selected page.
 
-Long Briefs are shown in 6000-character chunks. The continuation command pins
-the Brief version so a subsequent edit cannot mix versions in the same reading.
-`--section brief`, `conversation`, or `letters` reads only that section.
+Long Deliverables are shown in 6000-character chunks. The continuation command pins
+the Deliverable version so a subsequent edit cannot mix versions in the same reading.
+`--section deliverable`, `conversation`, or `letters` reads only that section.
 
 An explicit `--since` returns **all newer feedback**, unless `--limit` is also
 specified. This preserves later corrections in delivery messages. `--full` gives
 unabridged text and branch summaries. JSON remains complete by default; explicit
-conversation filters apply to either format. `--version` selects only a Brief
+conversation filters apply to either format. `--version` selects only a Deliverable
 version, never an older Goal state or conversation.
 
 Reading refreshes execution observations but does not start model turns, close

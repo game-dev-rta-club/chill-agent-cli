@@ -1,0 +1,245 @@
+{
+ "claudeCodeVersion": "2.1.295",
+ "source": "schema embedded in the Claude Code binary (the code that builds hook stdin); not recorded stdin",
+ "events": {
+  "SessionStart": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string?",
+    "agent_type": "string?",
+    "effort": "object?",
+    "source": "enum:startup|resume|clear|compact|fork",
+    "model": "string?",
+    "session_title": "string?",
+    "seconds_since_last_response": "number?",
+    "context_tokens": "number?",
+    "prompt_cache_likely_expired": "boolean?",
+    "estimated_cache_write_usd": "number?"
+   },
+   "example": {
+    "hook_event_name": "SessionStart",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "source": "startup",
+    "model": "claude-opus-5-5",
+    "session_title": "(redacted)"
+   }
+  },
+  "UserPromptSubmit": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string?",
+    "agent_type": "string?",
+    "effort": "object?",
+    "prompt": "string",
+    "source": "enum:user|sdk|system|loop_wakeup|schedule_wakeup|poll_event?",
+    "session_title": "string?"
+   },
+   "example": {
+    "hook_event_name": "UserPromptSubmit",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "prompt": "(redacted)",
+    "source": "user",
+    "session_title": "(redacted)"
+   }
+  },
+  "PreToolUse": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string?",
+    "agent_type": "string?",
+    "effort": "object?",
+    "tool_name": "string",
+    "tool_input": "unknown",
+    "tool_use_id": "string",
+    "mcp_server": "unknown?"
+   },
+   "example": {
+    "hook_event_name": "PreToolUse",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "effort": {
+     "level": "high"
+    },
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "echo example"
+    },
+    "tool_use_id": "toolu_fixture1"
+   }
+  },
+  "PermissionRequest": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string?",
+    "agent_type": "string?",
+    "effort": "object?",
+    "tool_name": "string",
+    "tool_input": "unknown",
+    "permission_suggestions": "array?",
+    "mcp_server": "unknown?"
+   },
+   "example": {
+    "hook_event_name": "PermissionRequest",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "effort": {
+     "level": "high"
+    },
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "echo example"
+    },
+    "permission_suggestions": []
+   }
+  },
+  "PostToolUse": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string?",
+    "agent_type": "string?",
+    "effort": "object?",
+    "tool_name": "string",
+    "tool_input": "unknown",
+    "tool_response": "unknown",
+    "tool_use_id": "string",
+    "duration_ms": "number?",
+    "mcp_server": "unknown?"
+   },
+   "example": {
+    "hook_event_name": "PostToolUse",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "effort": {
+     "level": "high"
+    },
+    "tool_name": "Bash",
+    "tool_input": {
+     "command": "echo example"
+    },
+    "tool_response": {
+     "stdout": "example",
+     "stderr": "",
+     "interrupted": false
+    },
+    "tool_use_id": "toolu_fixture1",
+    "duration_ms": 12
+   }
+  },
+  "Stop": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string?",
+    "agent_type": "string?",
+    "effort": "object?",
+    "stop_hook_active": "boolean",
+    "last_assistant_message": "string?",
+    "background_tasks": "array?",
+    "session_crons": "array?"
+   },
+   "example": {
+    "hook_event_name": "Stop",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "effort": {
+     "level": "high"
+    },
+    "stop_hook_active": false,
+    "last_assistant_message": "(redacted)",
+    "background_tasks": [],
+    "session_crons": []
+   }
+  },
+  "StopFailure": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string?",
+    "agent_type": "string?",
+    "effort": "object?",
+    "error": "unknown",
+    "error_details": "string?",
+    "last_assistant_message": "string?"
+   },
+   "example": {
+    "hook_event_name": "StopFailure",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "error": "rate_limit",
+    "error_details": "(redacted)",
+    "last_assistant_message": "(redacted)"
+   }
+  },
+  "SessionEnd": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string?",
+    "agent_type": "string?",
+    "effort": "object?",
+    "reason": "unknown"
+   },
+   "example": {
+    "hook_event_name": "SessionEnd",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "reason": "other"
+   }
+  }
+ }
+}

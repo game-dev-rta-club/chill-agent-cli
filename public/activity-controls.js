@@ -1,4 +1,5 @@
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// The Pause or Resume button of a Goal's agent, after its conversation.
 export function activityControlMarkup(data,{pending=false,message='',uncertain=false}={}){
  if(!data)return '';
  const action=uncertain||data.status==='unknown'?'check':data.capabilities?.stop?'stop':data.capabilities?.resume?'resume':null;
@@ -19,7 +20,7 @@ export function createActivityControls({main,getGoalId,onChange}){
    goalId=id;data=next;if(changed)onChange();
   }catch{
    if(token!==sequence||id!==getGoalId())return;
-   // A stale button must never target a new execution after losing contact.
+   // A stale button must never act on new work after losing contact.
    if(data){data=null;onChange();}
   }finally{if(token===sequence)refreshingGoal=null;}
  }
@@ -31,20 +32,14 @@ export function createActivityControls({main,getGoalId,onChange}){
   pending=true;message=action==='stop'?'Pausing…':'Resuming…';onChange();
   ++sequence;refreshingGoal=null;
   try{
-   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,threadId:snapshot.threadId,turnId:snapshot.turnId,holdId:snapshot.holdId,eventId:snapshot.eventId,requestId:crypto.randomUUID()}),signal:AbortSignal.timeout(30000)});
+   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,token:snapshot.token,turnId:snapshot.turnId}),signal:AbortSignal.timeout(30000)});
    const result=await response.json();if(!response.ok)throw Error(result.error||'Action unconfirmed.');
-   if(id===getGoalId()){data=result;goalId=id;message=result?.status==='unknown'?'Unconfirmed. Refresh to check.':'';uncertain=result?.status==='unknown';}
+   if(id===getGoalId()){message='';uncertain=false;}
   }catch(error){if(id===getGoalId()){message=error.name==='TimeoutError'?'Unconfirmed. Refresh to check.':error.message;uncertain=true;}}
-  finally{pending=false;onChange();}
+  finally{pending=false;onChange();if(!uncertain)void refresh();}
  });
  return {refresh,current,
-  saved(id,delivery){
-   if(id!==getGoalId()||pending||!delivery?.threadId||delivery.status!=='saved'||delivery.mayHaveSent||delivery.heldBy)return;
-   ++sequence;refreshingGoal=null;goalId=id;message='';uncertain=false;
-   data={threadId:delivery.threadId,goalId:id,targetGoalId:id,eventId:delivery.eventId,turnId:null,status:'saved',capabilities:{stop:true,resume:false}};onChange();
-  },
-  forEvent(eventId){const d=current();return d?.eventId===eventId?d:null;},
-  markup(eventId){return activityControlMarkup(this.forEvent(eventId),{pending,message,uncertain});},
+  controls(){return activityControlMarkup(current(),{pending,message,uncertain});},
   routeChanged(){sequence++;refreshingGoal=null;data=null;goalId=null;message='';uncertain=false;void refresh();},
  };
 }

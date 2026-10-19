@@ -1,10 +1,10 @@
 import {createLettersMenu} from './letters-menu.js';
 import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
-import {createAgentPresence} from './agent-presence.js';
+import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
-import { workProgressGroups, workDisclosure } from './work-ui.js';
+import { activityDisplay, commentMarkDisplay, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
 import { briefBody } from './brief-body.js';
@@ -12,10 +12,14 @@ import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-
 import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversation-window.js';
 import { createReadingPane } from './reading-pane.js';
 import {createRuntimeUpdate} from './runtime-update.js';
+import {createTabIcon} from './tab-icon.js';
+import {isRunning} from './goal-state.js';
+import {createSkillMenu} from './skill-menu.js';
 
 history.scrollRestoration='manual';
 const briefsByGoal = new Map();
 const goalMetadata = new Map();
+const hasGoal = id => goalMetadata.has(id);
 const events = [];
 const historyPages=new Map();
 const letterStatuses=new Map();
@@ -31,10 +35,13 @@ const icons = {
   comment: '<path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z"/>',
   letter: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>',
   pending: '<circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/>',
+  send: '<path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="m9 11-4 4 4 4"/>',
   annotate: '<path d="M4 20h16M5 16l11-11 3 3L8 19H5v-3Z"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1"/><path d="m4 17 5-5 3 3 3-4 5 6"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
   expandOlder: '<path d="M12 16V4m-5 5 5-5 5 5M4 20h16"/>',
   expandNewer: '<path d="M12 8v12m-5-5 5 5 5-5M4 4h16"/>',
+  mention: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">${icons[name]}</svg>`;
 const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -51,9 +58,15 @@ const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 
   <path d="M17 26q3 3 6 0" stroke="#373e42" stroke-width="1.7" stroke-linecap="round"/>
   </svg>`;
 const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
+const attachmentFiles = new Map();
+const isImageFile = file => ['image/png', 'image/jpeg', 'image/webp'].includes(file.type);
+const fileMarkup = (src, name, className) => src
+  ? `<a class="attachment-file ${className}" href="${escapeHTML(src)}" target="_blank" rel="noopener" title="${escapeHTML(name)}">${icon('file')}<span>${escapeHTML(name)}</span></a>`
+  : `<span class="attachment-file ${className}" title="${escapeHTML(name)}">${icon('file')}<span>${escapeHTML(name)}</span></span>`;
 const main = document.querySelector('#main');
 const readingPane = createReadingPane(main,{rectOf:viewportRect});
 const keepReadingPosition = readingPane.preserve;
+createSkillMenu({root:main, goalId:()=>activeGoalId, escapeHTML});
 const announcement = document.querySelector('#announcement');
 let toastTimer;
 function showToast(text) {
@@ -69,8 +82,9 @@ const imageReads = new Map();
 const openDetails = new Set();
 const openReplies = new Set();
 const conversationWindow = createConversationWindow();
-const conversationFor = id => events.filter(event => event.goalId === id);
-function letterTitle(id) {return events.find(e=>e.id===id)?.title||`Letter #${id}`;}
+// Deleted agent comments arrive as tombstones and are not shown.
+const conversationFor = id => events.filter(event => event.goalId === id && !event.deletedAt);
+function letterTitle(id) {return events.find(e=>e.id===id)?.title||`Letter ${id}`;}
 let pendingUpdateId = null;
 const hasNewBrief = createBriefArrivalTracker();
 const updateNotice = document.querySelector('#update-notice');
@@ -79,7 +93,16 @@ const viewUpdate = document.querySelector('#view-update');
 let currentRoute = '';
 let activeGoalId = null;
 const agentButton=document.getElementById('agent-button');
-agentButton.innerHTML=agentAvatar(true);
+// The AutoContinue cup, set on a saucer.
+const coffeeOnSaucer='<svg class="monitor-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(1.5 1) scale(.88)"><path class="coffee-fill" d="M3 6h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6z"/><path d="M17 8h2a3 3 0 0 1 0 6h-2"/><path class="coffee-steam" d="M7 4c-2-1 2-2 0-3m6 3c-2-1 2-2 0-3"/></g><path d="M1.5 18.6c2.5 2.2 16.5 2.2 19 0"/></svg>';
+agentButton.innerHTML=agentAvatar(true)+`<span class="agent-auto-mark" aria-hidden="true">${coffeeOnSaucer}</span>`;
+// A small coffee at the Agent's lower left while AutoContinue is on for this Goal.
+window.addEventListener('chill-extension-controls',event=>{
+  const on=event.detail.controls.some(c=>c.id==='continuation'&&c.enabled);
+  agentButton.toggleAttribute('data-autocontinue',on);
+});
+const tabIcon=createTabIcon();
+window.addEventListener('chill-agent-presence',event=>tabIcon.set(event.detail.routeGoalId===activeGoalId&&isRunning(event.detail.status)));
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
 const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel')});
@@ -124,11 +147,13 @@ function noteLabel(note) {
   return note.kind === 'text' ? note.anchor.quote : note.imageName || imageNames.get(note.imageId) || 'Image';
 }
 const selectedNotes = (id = activeGoalId) => notesFor(id).filter(note => note.selected !== false);
-const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Brief v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent'} #${note.source?.eventId} · ` : '';
+const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Deliverable v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent comment'} ${note.source?.eventId} · ` : '';
 function noteImageMarkup(note, preview = false) {
   const images=attachmentIdsFor(note).map(id=>`/api/images/${escapeHTML(id)}`);
   if(note.kind==='image'&&note.source?.kind==='brief')images.unshift(`/api/goals/${activeGoalId}/briefs/${Number(note.source.version)}/svg/${Number(note.source.svgIndex)}`);
   return images.map(src => {
+    const file = attachmentFiles.get(src.split('/').pop());
+    if (file) return fileMarkup(src, file.name, preview ? 'note-file' : 'note-file is-small');
     const img = `<img class="${preview ? 'note-image' : 'note-thumbnail'}" src="${src}" alt="Note attachment">`;
     return preview ? `<a href="${src}" target="_blank" rel="noopener" aria-label="Open note image">${img}</a>` : img;
   }).join('');
@@ -139,7 +164,7 @@ function notesPanelMarkup(id) {
   const count = selectedNotes(id).length;
   return `<div class="notes-panel"><div class="notes-heading"><strong>Annotations <span>${count}/${notes.length}</span></strong>
     <label class="note-check"><input type="checkbox" data-note-all ${count === notes.length ? 'checked' : ''}>All</label></div>
-    <ol>${notes.map(note => `<li class="draft-note ${note.selected === false ? 'is-excluded' : ''}">
+    <ol>${notes.map(note => `<li class="draft-note ${note.selected === false ? 'is-excluded' : ''}" data-draft-note="${escapeHTML(note.id)}">
       <label class="note-check"><input type="checkbox" data-note-toggle="${escapeHTML(note.id)}" ${note.selected === false ? '' : 'checked'} aria-label="Send note: ${escapeHTML(noteLabel(note))}"></label>
       <button type="button" data-action="edit-draft-note" data-note-id="${escapeHTML(note.id)}" title="Open note"><span class="note-target">${escapeHTML(noteSourceLabel(note) + noteLabel(note))}</span><span class="note-summary">${escapeHTML(note.text || (attachmentIdsFor(note).length ? 'Image' : ''))}</span>${noteImageMarkup(note)}${icon('open')}</button>
       <button type="button" class="note-remove" data-action="delete-draft-note" data-note-id="${escapeHTML(note.id)}" aria-label="Delete note: ${escapeHTML(noteLabel(note))}" title="Delete note">${icon('close')}</button></li>`).join('')}</ol></div>`;
@@ -150,8 +175,10 @@ function updateComposerState() {
   const busy = submitting.has(formKey(activeGoalId, 'comment')) || annotationSaves.has(notesKey()) || imageReads.has(formKey(activeGoalId, 'comment'));
   form.querySelector('fieldset').disabled = busy;
   const empty = !form.querySelector('textarea').value.trim() && !imagesFor('comment').length && !selectedNotes().length;
+  // A darker button says the comment has something to send.
   form.querySelectorAll('[data-submit-mode]').forEach(button => {
     button.disabled = busy;
+    button.classList.toggle('ready', !busy && !empty);
   });
   if (!empty) {
     form.querySelector('.empty-reply')?.remove();
@@ -160,7 +187,9 @@ function updateComposerState() {
   const all = form.querySelector('[data-note-all]');
   if (all) all.indeterminate = selectedNotes().length > 0 && selectedNotes().length < notesFor().length;
 }
-function updateNotesPanel() {
+// added: the ID of a note just added, which glows briefly so it is easy to find.
+function updateNotesPanel(added = null) {
+  const form = main.querySelector('.conversation-form'), before = form?.offsetHeight ?? null;
   const focused = document.activeElement;
   const focusNoteId = focused?.dataset.noteToggle;
   const focusAll = focused?.hasAttribute('data-note-all');
@@ -170,6 +199,8 @@ function updateNotesPanel() {
     : [...(slot?.querySelectorAll('[data-note-toggle]') || [])].find(input => input.dataset.noteToggle === focusNoteId);
   nextFocus?.focus({preventScroll: true});
   updateComposerState();
+  if (form) keepMessagesAboveComposer(form, before);
+  if (added) [...(slot?.querySelectorAll('[data-draft-note]') || [])].find(item => item.dataset.draftNote === added)?.classList.add('note-added');
 }
 
 function savedNotesMarkup(event) {
@@ -182,67 +213,83 @@ function composerMarkup(id, comment) {
   return `<form class="conversation-form" data-form="comment" data-goal-id="${id}"><fieldset>
     <legend class="sr-only">Comment on this Goal</legend>
     <div class="comment-field"><label class="sr-only" for="conversation-comment">Reply</label>
-      <textarea id="conversation-comment" data-input="comment" rows="3" maxlength="10000" placeholder="Write a comment">${escapeHTML(comment)}</textarea></div>
+      <textarea id="conversation-comment" data-input="comment" rows="3" placeholder="Write a comment">${escapeHTML(comment)}</textarea></div>
     ${imageControl('comment')}<div data-notes-slot>${notesPanelMarkup(id)}</div>
     <div class="composer-actions"><div class="composer-buttons">${imagePicker('comment')}<button type="submit" class="composer-submit comment" data-submit-mode="comment">${icon('comment')}Comment</button></div></div>
   </fieldset></form>`;
 }
 
-const deliveries = new Map();
+const commentMarks = new Map();
 const activityControls=createActivityControls({main,getGoalId:()=>activeGoalId,onChange:()=>{
  if(activeGoalId)updateTimeline(activeGoalId);
  void refreshGoals().catch(()=>{});
 }});
 const workViews = new Map();
-function workMarkup(work) {
+function workMarkup(key, work, live) {
   if (!work) return '';
-  const view = workDisclosure(workViews.get(work.key), work.live);
-  workViews.set(work.key, view);
-  return `<details class="work-progress" data-work-id="${escapeHTML(work.key)}" ${view.open ? 'open' : ''}>
-    <summary>Think</summary><div class="work-output" aria-label="Think">
-    ${work.messages.map(message => `<p class="work-message" lang="ja">${escapeHTML(message.text)}</p>`).join('')}
-    ${work.error ? '<p class="work-hint">Updates unavailable. Saved output is kept.</p>' : !work.messages.length ? '<p class="work-hint">Waiting for updates.</p>' : ''}
-    ${work.truncated ? '<p class="work-hint">Showing latest updates.</p>' : ''}
+  const view = workDisclosure(workViews.get(key), live);
+  workViews.set(key, view);
+  const settings = work.settings?.model ? `<p class="activity-settings">${escapeHTML(work.settings.model)}${work.settings.reasoning ? ` · ${escapeHTML(work.settings.reasoning)}` : ''}</p>` : '';
+  return `<details class="work-progress" data-work-id="${escapeHTML(key)}" ${view.open ? 'open' : ''}>
+    <summary>Think</summary><div class="work-output" aria-label="Think">${settings}
+    ${work.messages.map(message => `<p class="work-message">${escapeHTML(message.text)}</p>`).join('')}
+    ${!work.messages.length ? '<p class="work-hint">No text yet.</p>' : ''}
     </div></details>`;
 }
-function deliveryMarkup(event, work, continuedTo) {
-  const delivery = deliveries.get(event.changeId);
-  const activity=continuedTo?null:work?.activity||activityControls.forEvent(event.changeId);
-  if (!delivery && !event.threadId && !activity) return '';
-  const state = activity?activity.status:continuedTo ? 'continued' : work?.status || delivery?.status || 'saved';
-  const labels = { saved: 'Saved', sending: 'Sending', queued: 'Queued', deferred: 'Read · Queued', received: 'Received', working: 'Running', paused:'Paused', continued: 'Continued', completed: 'Done', ended:'Ended', failed: 'Needs attention', unknown: 'Delivery unconfirmed', unlinked: 'Saved' };
-  const descriptions = { saved: delivery?.waiting===false?'Claude is not waiting for replies right now. It will read this when that conversation checks its inbox.':'', sending: '', queued: '', deferred: 'Saved for later work in Queue.', received: '', working: '', paused:activity?.holdId?'Add a comment to resume together.':'Queue paused.', continued: 'Included in the follow-up below.', completed: '', failed: delivery?.error || 'Could not send. Your reply is saved.', unknown: 'Your reply is saved. Check before sending again.', unlinked: 'Saved locally. No chat is assigned to this Goal.' };
-  const retry = state === 'saved' || (state === 'failed' && !delivery?.mayHaveSent);
-  const check = state === 'unknown';
-  const history = delivery?.history || [];
-  return `<li class="timeline-event delivery-event" id="delivery-${event.changeId}">
+// The small mark under a comment that still awaits a reply.
+function commentMarkMarkup(event) {
+  const shown = commentMarkDisplay(commentMarks.get(event.changeId));
+  if (!shown) return '';
+  return `<p class="comment-mark" data-mark="${shown.state}">${shown.state === 'waiting' ? `<span class="comment-mark-icon">${icon('pending')}</span>` : '<span class="comment-mark-dot" aria-hidden="true"></span>'}<strong>${escapeHTML(shown.label)}</strong>${shown.description ? `<span>${escapeHTML(shown.description)}</span>` : ''}${shown.sendNow ? `<button type="button" class="text-button" data-action="send-now" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${icon('send')}Send now</button>` : ''}</p>`;
+}
+// The agent as this Goal shows it: after the conversation while it runs, is
+// queued or paused; otherwise where its work ended, before what came later.
+const liveActivity=new Set(['running','queued','paused','waiting']);
+function activityEnd(id) {
+  const activity = activityControls.current(), shown = activityDisplay(activity);
+  if (!shown || activity.goalId !== id || liveActivity.has(shown.state)) return Infinity;
+  return Math.max(Date.parse(activity.work?.startedAt) || 0, ...(activity.work?.messages || []).map(message => Number(message.at) || 0)) || Infinity;
+}
+function activityMarkup(id) {
+  const activity = activityControls.current(), shown = activityDisplay(activity);
+  if (!shown || activity.goalId !== id) return '';
+  if (activity.in) {
+    const title = goalMetadata.get(activity.in)?.title;
+    return `<li class="timeline-event activity-event" id="goal-activity">
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
-    <div class="delivery-entry" data-state="${state}"><div class="delivery-heading"><span class="delivery-dot" aria-hidden="true"></span><strong>${activity&&state==='unknown'?'Checking':labels[state] || 'Saved'}</strong>
-      ${continuedTo ? `<button type="button" class="text-button" data-action="view-work" data-event-id="${continuedTo}" aria-label="View continued work">View ↓</button>` : ''}
-      ${activity?activityControls.markup(activity.eventId):''}
-      ${!activity && (retry || check) ? `<button type="button" class="text-button" data-action="retry-delivery" data-event-id="${event.changeId}" data-goal-id="${event.goalId}">${check ? 'Check' : 'Retry'}</button>` : ''}</div>
-      <p>${escapeHTML(activity&&state==='unknown'?'Unconfirmed. Refresh to check.':descriptions[state] || '')}</p>
-      ${workMarkup(work)}
-      ${history.length ? `<details class="delivery-history" data-delivery-id="${event.changeId}" ${openDeliveries.has(event.changeId) ? 'open' : ''}><summary>Activity</summary>${delivery?.work?.settings?.model ? `<p class="activity-settings">${escapeHTML(delivery.work.settings.model)}${delivery.work.settings.reasoning ? ` · ${escapeHTML(delivery.work.settings.reasoning)}` : ''}</p>` : ''}<ol>${history.map(item => `<li><span>${escapeHTML(labels[item.status] || item.status)}</span><time datetime="${escapeHTML(item.at)}">${new Date(item.at).toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}</time></li>`).join('')}</ol></details>` : ''}
+    <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><a href="#/goal/${escapeHTML(activity.in)}">Running in #${escapeHTML(activity.in)}${title ? ` ${escapeHTML(title)}` : ''} →</a></div></div></li>`;
+  }
+  return `<li class="timeline-event activity-event" id="goal-activity">
+    <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
+    <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><strong>${escapeHTML(shown.label)}</strong>${activityControls.controls()}</div>
+      <p>${escapeHTML(shown.description)}</p>
+      ${workMarkup(`goal:${id}:${activity.work?.startedAt || ''}`, activity.work, shown.live)}
     </div></li>`;
+}
+
+const timeMarkup = at => `<time datetime="${at.toISOString()}">${at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
+function mentionMarkup(mention) {
+  const title = goalMetadata.get(mention.goalId)?.title;
+  return `<li class="timeline-event"><span class="timeline-marker" aria-hidden="true">${icon('mention')}</span>
+    <p class="mention-entry">Mentioned in <a href="#/goal/${escapeHTML(mention.goalId)}/activity/${escapeHTML(mention.eventId)}">#${escapeHTML(mention.goalId)}${title ? ` ${escapeHTML(title)}` : ''}</a></p></li>`;
 }
 
 function replyMarkup(event) {
   const source = event.author === 'agent' ? `data-annotation-reply="${event.id}"` : '';
-  return `<div class="event-text markdown-body" ${source} lang="ja">${briefBody(event.html || '', event.id, openReplies)}</div>`;
+  return `<div class="event-text markdown-body" ${source}>${briefBody(event.html || '', {hasGoal, replyId:event.id, opened:openReplies})}</div>`;
 }
 
 function timelineMarkup(id) {
   const visible = conversationFor(id);
-  const work = workProgressGroups(visible, deliveries, activityControls.current());
-  // Keep each receipt in the timeline, but only its shared turn's last entry
-  // owns the running indicator and Think. Delivery records remain unchanged.
-  const continued = new Map([...work.values()].flatMap(group => group.eventIds
-    .filter(eventId => eventId !== group.owner).map(eventId => [eventId, group.owner])));
   const pinned = conversationPins(id, visible);
-  for (const group of work.values()) if (group.live) pinned.add(group.owner);
-  const activity=activityControls.current();if(activity&&['saved','sending','queued','working','paused','unknown'].includes(activity.status))pinned.add(activity.eventId);
-  const history=historyPages.get(id);
+  const history=historyPages.get(id),end=activityEnd(id);
+  let activity=activityMarkup(id);
+  const before=event=>{if(!activity||event.at.getTime()<=end)return '';const markup=activity;activity='';return markup;};
+  // Mentions older than the loaded history wait until it is loaded.
+  const mentions=(goalMetadata.get(id)?.mentions||[]).map(m=>({...m,at:new Date(m.at)})).filter(m=>hasGoal(m.goalId)&&(!history?.hasMore||visible[0]&&m.at>=visible[0].at)).sort((a,b)=>a.at-b.at);
+  const mentioned=event=>{let markup='';while(mentions.length&&(!event||mentions[0].at<event.at))markup+=mentionMarkup(mentions.shift());return markup;};
+  // Waiting comments reach the agent when its work ends, so they follow the activity.
+  let waitingMarkup='';
   const older=history?.hasMore?`<li class="conversation-gap"><button type="button" data-action="load-older-conversation" ${history.loading?'disabled':''}>${history.loading?'Loading…':'Load earlier conversation'}</button></li>`:'';
   return older+conversationWindow.segments(id, visible, pinned).map(segment => {
     if (segment.kind === 'gap') {
@@ -254,19 +301,22 @@ function timelineMarkup(id) {
     }
     return segment.messages.map(event => {
     const letter=letterState(event,visible);
-    const time=`<time datetime="${event.at.toISOString()}">${event.at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
-    return `<li id="event-${event.id}" class="timeline-event comment-event">
+    const time=timeMarkup(event.at);
+    const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
+    const item = `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
       <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
-      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>`<a class="event-image-link" href="/api/images/${escapeHTML(id)}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="/api/images/${escapeHTML(id)}" alt="Attached image"></a>`).join('')}${letter?`<button type="button" class="action letter-answer-toggle" data-action="answer-letter" data-letter-id="${event.id}">Answer</button>`:''}</article></li>${event.author==='user'?deliveryMarkup(event,work.get(event.changeId),continued.get(event.changeId)):''}`;
+      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<img class="event-image" src="${src}" alt="Attached image">`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
+    if (waiting) { waitingMarkup += item; return ''; }
+    return `${before(event)}${mentioned(event)}${item}`;
     }).join('');
-  }).join('');
+  }).join('')+mentioned(null)+activity+waitingMarkup;
 }
 
 function conversationPins(id, messages = conversationFor(id)) {
-  const pinned = new Set();
-  const activity=activityControls.current();if(activity&&['saved','sending','queued','working','paused','unknown'].includes(activity.status))pinned.add(activity.eventId);
+  // Comments that still await a reply stay in view.
+  const pinned = new Set(messages.filter(event => commentMarks.get(event.changeId)?.mark).map(event => event.changeId));
   for (const note of notesFor(id)) if(note.source?.kind==='comment')pinned.add(note.source.eventId);
   return pinned;
 }
@@ -293,7 +343,7 @@ function updateTimeline(id) {
   timelineRefreshPending = false;
   const timeline = main.querySelector('#timeline-list');
   if (!timeline) return;
-  const controlFocus=document.activeElement?.closest('[data-activity-control]')?.closest('.delivery-event')?.id;
+  const controlFocus=document.activeElement?.closest('[data-activity-control]')?.closest('.activity-event')?.id;
   const focused = document.activeElement?.closest('[data-work-id], [data-reply-detail]');
   const focusKey = focused?.dataset.workId;
   const replyFocusKey = focused?.dataset.replyDetail;
@@ -338,7 +388,7 @@ function refreshGoalFrame() {
   if(slot&&activeGoalId)keepReadingPosition(()=>{slot.innerHTML=goalView().brief(activeGoalId);});
 }
 function renderGoal(id,version) {
-  const brief=briefAt(id,version),isHTML=brief?.format==='html',body=isHTML?'':briefBody(brief?.html||''),view=goalView();
+  const brief=briefAt(id,version),isHTML=brief?.format==='html',body=isHTML?'':briefBody(brief?.html||'',{hasGoal}),view=goalView();
   const imageTemplate=document.createElement('template');imageTemplate.innerHTML=body;
   imageNames.clear();
   imageTemplate.content.querySelectorAll('img').forEach((img,index)=>{
@@ -348,18 +398,19 @@ function renderGoal(id,version) {
   const key=formKey(id,'comment');
   const comment=commentDrafts.get(key)??readDraft('comment',id);commentDrafts.set(key,comment);
   updateTabTitle();
-  main.innerHTML=`<div id="goal-frame">${view.brief(id)}</div><div class="history-grid">
-    <section class="document-section"><div class="section-heading document-heading"><h2>Brief</h2>${brief?view.pager(id,version):''}</div>
-      <article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Brief">
-        <div class="brief-body markdown-body" lang="ja" ${isHTML?'hidden':''}>${body||'<p class="empty-state">No Brief yet. You can start the conversation below.</p>'}</div>
-      </article>${brief&&version<latestVersion(id)?`<div class="history-notice"><span>Earlier Brief</span><a href="${versionRoute(id,latestVersion(id))}">View current →</a></div>`:''}
+  // On a wide screen the Conversation becomes its own scrolling column beside the rest.
+  main.innerHTML=`<div class="goal-layout"><div class="goal-primary"><div id="goal-frame">${view.brief(id)}</div><div class="history-grid">
+    <section class="document-section"><div class="section-heading document-heading"><h2>Deliverable</h2>${brief?view.pager(id,version):''}</div>
+      <article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable">
+        <div class="brief-body markdown-body" ${isHTML?'hidden':''}>${body||'<p class="empty-state">No Deliverable yet. You can start the conversation below.</p>'}</div>
+      </article>${brief&&version<latestVersion(id)?`<div class="history-notice"><span>Earlier Deliverable</span><a href="${versionRoute(id,latestVersion(id))}">View current →</a></div>`:''}
     </section>
     <form class="annotation-form" data-form="annotation" data-goal-id="${id}" data-version="${version}" hidden><fieldset>
       <div class="annotation-heading"><strong data-editor-heading>Annotation</strong><button type="button" class="text-button" data-action="close-annotation" aria-label="Close annotation">✕</button></div><blockquote class="annotation-quote"></blockquote>
-      <div class="comment-field"><label class="sr-only" for="annotation-comment">Annotation</label><textarea id="annotation-comment" data-input="annotation" rows="2" placeholder="Add a note" maxlength="2000"></textarea></div>
+      <div class="comment-field"><label class="sr-only" for="annotation-comment">Annotation</label><textarea id="annotation-comment" data-input="annotation" rows="2" placeholder="Add a note"></textarea></div>
       <div data-note-image-slot>${imageControl('annotation')}</div><div class="comment-submit"><button type="button" class="text-button note-delete" data-action="delete-note" hidden>Delete</button>${imagePicker('annotation')}<button class="action action-primary" type="submit" value="save">Save</button><button class="action action-primary note-comment" type="submit" value="comment" hidden>Comment</button></div>
-    </fieldset></form>
-    <section class="conversation"><div class="section-heading conversation-heading"><h2>Conversation</h2><button type="button" class="text-button" data-action="collapse-conversation" hidden>Collapse earlier</button></div>
+    </fieldset></form></div></div>
+    <section class="conversation" data-scroll-pane><div class="section-heading conversation-heading"><h2>Conversation</h2><button type="button" class="text-button" data-action="collapse-conversation" hidden>Collapse earlier</button></div>
       <ol class="timeline" id="timeline-list" aria-label="Conversation">${timelineMarkup(id)}</ol>${composerMarkup(id,comment)}</section></div>`;
   const briefReady=isHTML?mountHTMLBrief(id,version):Promise.resolve();
   for(const child of main.querySelector('#timeline-list').children)timelineSources.set(child,child.outerHTML);
@@ -385,19 +436,21 @@ function viewportRect(element) {
 }
 const scrollInReadingPane = readingPane.reveal;
 function mountHTMLBrief(id,version) {
-  const frame=document.createElement('iframe');frame.className='html-brief-frame';frame.title='HTML Brief';
+  const frame=document.createElement('iframe');frame.className='html-brief-frame';frame.title='HTML Deliverable';
   frame.setAttribute('sandbox','allow-same-origin');frame.src=`/api/goals/${id}/briefs/${version}/document`;
   let ready;const loaded=new Promise(resolve=>{ready=resolve;});
   frame.addEventListener('load',async()=>{
     if(!frame.isConnected){ready();return;}
     const doc=frame.contentDocument,body=doc?.querySelector('.brief-body');if(!body){ready();return;}
     body.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
-    const size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
+    const size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(doc.body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
     const observer=new ResizeObserver(size);observer.observe(body);
     for(const type of ['wheel','touchmove','keydown'])doc.addEventListener(type,briefScrollIntent,{passive:true});
     doc.addEventListener('selectionchange',updateSelectionAction);
+    // The Deliverable and the page each keep a selection; only the one the user is making counts.
+    doc.addEventListener('pointerdown',()=>window.getSelection()?.removeAllRanges());
     // Do not rely only on selectionchange timing across frame focus changes.
-    // Read the completed selection as well, without moving focus out of the Brief.
+    // Read the completed selection as well, without moving focus out of the Deliverable.
     doc.addEventListener('pointerup',updateSelectionAction);
     doc.addEventListener('keyup',updateSelectionAction);
     doc.addEventListener('toggle',()=>renderAnnotations(),true);
@@ -405,6 +458,9 @@ function mountHTMLBrief(id,version) {
       const mark=event.target.closest('.annotation-mark, .image-note-box');
       if(mark){event.preventDefault();openNoteReference(mark.dataset.noteRef);return;}
       const image=event.target.closest('[data-action="annotate-image"]');if(image){event.preventDefault();openImageSelection(image.dataset.imageId,image.dataset.svgIndex);return;}
+      // Clicking the image or diagram itself opens the same annotation screen, shown large.
+      const picture=event.target.closest('.annotatable-image')?.querySelector(':scope > [data-action="annotate-image"]');
+      if(picture&&!event.target.closest('button')){event.preventDefault();openImageSelection(picture.dataset.imageId,picture.dataset.svgIndex);return;}
       const link=event.target.closest('a[href]');if(link){event.preventDefault();window.open(link.href,'_blank','noopener,noreferrer');}
     });
     doc.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches('.annotation-mark')){event.preventDefault();event.target.click();}});
@@ -419,17 +475,17 @@ function mountHTMLBrief(id,version) {
 }
 
 function imagePreviewMarkup(type) {
-  const saved = type === 'annotation' ? attachmentIdsFor(editingNote).map(id => ({id, url: `/api/images/${id}`})) : [];
-  return [...saved, ...imagesFor(type)].map(image => `<div class="image-card"><img src="${escapeHTML(image.url)}" alt="${escapeHTML(image.file?.name || 'Attached image')}">
-    <button type="button" class="image-remove" data-action="remove-image" data-image-type="${type}" data-image-key="${escapeHTML(image.id)}" aria-label="Remove image">×</button></div>`).join('');
+  const saved = type === 'annotation' ? attachmentIdsFor(editingNote).map(id => ({id, url: `/api/images/${id}`, name: attachmentFiles.get(id)?.name})) : [];
+  return [...saved, ...imagesFor(type)].map(image => `<div class="image-card">${image.name || image.file && !isImageFile(image.file) ? fileMarkup(image.url, image.name || image.file.name, 'image-file') : `<img src="${escapeHTML(image.url)}" alt="${escapeHTML(image.file?.name || 'Attached image')}">`}
+    <button type="button" class="image-remove" data-action="remove-image" data-image-type="${type}" data-image-key="${escapeHTML(image.id)}" aria-label="Remove attachment">×</button></div>`).join('');
 }
 function imageControl(type) {
   const preview = imagePreviewMarkup(type);
-  return `<div class="image-control ${preview ? 'has-image' : ''}" ${preview ? '' : 'hidden'}><div class="image-heading"><strong>Images</strong></div>
+  return `<div class="image-control ${preview ? 'has-image' : ''}" ${preview ? '' : 'hidden'}><div class="image-heading"><strong>Attachments</strong></div>
     <div class="image-preview" data-preview-for="${type}">${preview}</div></div>`;
 }
 function imagePicker(type) {
-  return `<label class="image-pick" data-image-picker="${type}" title="Add image">${icon('image')}<span>Add image</span><input type="file" data-image-type="${type}" accept="image/png,image/jpeg,image/webp" multiple class="sr-only"></label>`;
+  return `<label class="image-pick" data-image-picker="${type}" title="Add an image or file">${icon('image')}<span>Add file</span><input type="file" data-image-type="${type}" multiple class="sr-only"></label>`;
 }
 function refreshImageControl(type) {
   const control = main.querySelector(`[data-form="${type}"] .image-control`);
@@ -451,13 +507,8 @@ async function setPendingImages(type, files) {
   const key = formKey(activeGoalId, type);
   if (imageReads.has(key) || form.querySelector('fieldset').disabled) return;
   form.querySelector('.save-error')?.remove();
-  if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024)) {
-    showSaveError(form, new Error('Use a PNG, JPEG, or WebP image up to 5 MB.'));
-    return;
-  }
-  const savedCount = type === 'annotation' ? attachmentIdsFor(editingNote).length : 0;
-  if (savedCount + imagesFor(type).length + files.length > 30) {
-    showSaveError(form, new Error('Use at most 30 images per message or note.'));
+  if (files.some(file => !file.size || file.size > 256 * 1024 * 1024)) {
+    showSaveError(form, new Error('Choose a file that is not empty.'));
     return;
   }
   const id = activeGoalId;
@@ -469,14 +520,14 @@ async function setPendingImages(type, files) {
     // invalidate the original File before a later fetch tries to read it.
     const snapshots = await Promise.all(files.map(async file => new File([await file.arrayBuffer()], file.name, {type: file.type, lastModified: file.lastModified})));
     if (imageReads.get(key) !== request) return;
-    pendingImages.set(key, [...(pendingImages.get(key) || []), ...snapshots.map(file => ({id: crypto.randomUUID(), file, url: URL.createObjectURL(file)}))]);
+    pendingImages.set(key, [...(pendingImages.get(key) || []), ...snapshots.map(file => ({id: crypto.randomUUID(), file, url: isImageFile(file) ? URL.createObjectURL(file) : ''}))]);
     if (activeGoalId === id && form.isConnected) {
       refreshImageControl(type);
       renderAnnotations();
     }
   } catch {
     if (imageReads.get(key) === request && activeGoalId === id && form.isConnected) {
-      showSaveError(main.querySelector(`[data-form="${type}"]`), new Error('Could not read this image. Please select it again.'));
+      showSaveError(main.querySelector(`[data-form="${type}"]`), new Error('Could not read this file. Please select it again.'));
     }
   } finally {
     if (imageReads.get(key) === request) {
@@ -518,13 +569,30 @@ function removeImage(type, imageId) {
   refreshImageControl(type);
 }
 const uploadedImages = new WeakMap();
+// A saved attachment renders as an image until the browser cannot show it;
+// then its name is looked up once and it renders as a file link from then on.
+main.addEventListener('error', async event => {
+  const img = event.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  const id = /^\/api\/images\/([0-9a-f-]{36})$/.exec(new URL(img.src, location.href).pathname)?.[1];
+  if (!id || attachmentFiles.has(id)) return;
+  const info = await fetch(`/api/attachments/${id}`).then(response => response.ok ? response.json() : null).catch(() => null);
+  if (!info?.name) return;
+  attachmentFiles.set(id, {name: info.name, mimeType: info.mimeType});
+  if (!img.isConnected) return;
+  const attached = img.classList.contains('event-image');
+  const template = document.createElement('template');
+  template.innerHTML = fileMarkup(`/api/images/${id}`, info.name, attached ? 'event-file' : img.classList.contains('note-thumbnail') ? 'note-file is-small' : 'note-file');
+  (img.closest('.annotatable-image') || img).replaceWith(template.content);
+}, true);
 async function uploadImage(file) {
   if (uploadedImages.has(file)) return uploadedImages.get(file);
   let response;
-  try { response = await fetch('/api/images', {method: 'POST', headers: {'Content-Type': file.type}, body: file}); }
-  catch { throw new Error('Image upload could not connect. Your draft is kept. Check the connection and try again.'); }
+  try { response = await fetch('/api/images', {method: 'POST', headers: {'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name)}, body: file}); }
+  catch { throw new Error('Upload could not connect. Your draft is kept. Check the connection and try again.'); }
   const result = await response.json().catch(() => ({}));
-  if (!response.ok || typeof result.id !== 'string') throw new Error(result.error || 'Could not attach image. Please try again.');
+  if (!response.ok || typeof result.id !== 'string') throw new Error(result.error || 'Could not attach the file. Please try again.');
+  if (result.name) attachmentFiles.set(result.id, {name: result.name, mimeType: result.mimeType});
   uploadedImages.set(file, result.id);
   return result.id;
 }
@@ -596,6 +664,7 @@ function updateSelectionAction() {
   }, 60);
 }
 document.addEventListener('selectionchange',updateSelectionAction);
+document.addEventListener('pointerdown',()=>htmlBriefFrame()?.contentWindow?.getSelection()?.removeAllRanges());
 annotationAction.addEventListener('pointerdown', event => event.preventDefault());
 annotationAction.addEventListener('click', event => {
   event.preventDefault();
@@ -673,6 +742,8 @@ function openImageSelection(imageId,svgIndex) {
   imageAreaWhole.disabled = true;
   imageAreaDialog.querySelector('.image-area-hint').textContent = 'Drag to select. Drag again to redraw.';
   imageAreaImage.alt = imageSelection.imageName;
+  // A diagram served as an image may have no size of its own; it fills the dialog.
+  imageAreaStage.classList.toggle('is-vector', Boolean(source));
   imageAreaImage.src = source?`/api/goals/${activeGoalId}/briefs/${activeVersion}/svg/${source.svgIndex}`:`/api/images/${imageId}`;
   updateImageSelection();
   imageAreaDialog.showModal();
@@ -805,10 +876,14 @@ function renderAnnotations(openingEditor=false) {
     const bounds=svgIndex!==null?img.getBoundingClientRect():null;
     // Small decorative SVG icons keep their layout; a diagram-sized SVG gets
     // the same control as an uploaded image.
-    const editable = (imageId||svgIndex!==null&&bounds.width>=64&&bounds.height>=64) && img.closest('.brief-body');
+    const editable = (imageId||svgIndex!==null&&bounds.width>=64&&bounds.height>=64) && (img.closest('.brief-body')||img.classList.contains('event-image'));
     if (!matching.length && !editable) return;
     const wrapper = document.createElement('span');
     wrapper.className = 'annotatable-image';
+    // A width relative to the page (or an SVG without one) would shrink inside
+    // the wrapper; the wrapper takes that width instead.
+    const width = (img.getAttribute('width') || img.style.width || '').trim();
+    if (width.endsWith('%') || svgIndex !== null && !width) { wrapper.classList.add('is-fluid'); wrapper.style.width = width || '100%'; }
     img.replaceWith(wrapper);
     wrapper.append(img);
     for (const entry of matching) {
@@ -837,7 +912,7 @@ function renderAnnotations(openingEditor=false) {
 function openSavedPreview(entry, element) {
   const {note, event} = entry;
   annotationPreview.innerHTML = `<div class="annotation-heading"><strong>Note</strong><button type="button" class="text-button" data-note-action="close" aria-label="Close note">✕</button></div>
-    <blockquote class="annotation-quote">${escapeHTML(noteSourceLabel(note) + noteLabel(note))}</blockquote><p class="event-text" lang="ja">${escapeHTML(note.text)}</p>${noteImageMarkup(note, true)}
+    <blockquote class="annotation-quote">${escapeHTML(noteSourceLabel(note) + noteLabel(note))}</blockquote><p class="event-text">${escapeHTML(note.text)}</p>${noteImageMarkup(note, true)}
     <button type="button" class="text-button" data-note-action="conversation" data-event-id="${event.id}">Conversation ↘</button>`;
   annotationPreview.hidden = false;
   const rect = viewportRect(element);
@@ -874,6 +949,9 @@ function openNoteReference(ref, scroll = false) {
 main.addEventListener('click', event => {
   const mark = event.target.closest('.annotation-mark, .image-note-box');
   if (mark) { event.preventDefault(); openNoteReference(mark.dataset.noteRef); return; }
+  // Clicking an attached image itself opens the same annotation screen, shown large.
+  const picture = !event.target.closest('button') && event.target.closest('.annotatable-image')?.querySelector(':scope > [data-action="annotate-image"]');
+  if (picture) { event.preventDefault(); openImageSelection(picture.dataset.imageId); }
 
 });
 main.addEventListener('keydown', event => {
@@ -921,7 +999,25 @@ async function refreshLetterCount(){
   }catch{/* Keep the last known count until the connection returns. */}
   finally{letterCountRequest=false;}
 }
-function renderIndex(){updateTabTitle();main.innerHTML=goalView().index();}
+// Each Root's own agent, so several agents in one project can be told apart.
+const rootAgents=new Map();
+function rootAgentMarkup(data){
+  if(!data)return '';
+  return `${presenceMark(data.status)}<span>${escapeHTML(data.connected===false||!data.name?'No agent':data.name)} · ${escapeHTML(presenceLabel(data.status))}</span>`;
+}
+function fillRootAgents(){
+  for(const slot of main.querySelectorAll('[data-root-agent]')){
+    const id=slot.dataset.rootAgent,known=rootAgents.get(id);
+    if(known)slot.innerHTML=rootAgentMarkup(known.data);
+    if(known&&Date.now()-known.at<10000)continue;
+    rootAgents.set(id,{data:known?.data,at:Date.now()});
+    fetch(`/api/goals/${id}/agent/presence`,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(data=>{
+      if(!data)return;rootAgents.set(id,{data,at:Date.now()});
+      const target=main.querySelector(`[data-root-agent="${CSS.escape(id)}"]`);if(target)target.innerHTML=rootAgentMarkup(data);
+    }).catch(()=>{});
+  }
+}
+function renderIndex(){updateTabTitle();main.innerHTML=goalView().index();fillRootAgents();}
 let stepFocus=null,routeReady=Promise.resolve();
 function renderRoute() {
   hasNewBrief.dismiss();
@@ -950,13 +1046,14 @@ function renderRoute() {
     }else ready=routeReady=renderGoal(activeGoalId,activeVersion||0);
     main.querySelectorAll('.brief-detail[data-detail-id]').forEach(detail=>{detail.open=openDetails.has(`${activeGoalId}:v${activeVersion}:${detail.dataset.detailId}`);});
   } else if(currentRoute==='#/goals')renderIndex();
-  else {main.innerHTML='<div class="not-found"><h1>Goal or Brief not found</h1><a href="#/goals">Back to Goals</a></div>';}
+  else {main.innerHTML='<div class="not-found"><h1>Goal or Deliverable not found</h1><a href="#/goals">Back to Goals</a></div>';}
   readingPane.setTop(beforeId===activeGoalId&&(match?.[2]||match?.[3])?top:0);
+  if(activeGoalId&&beforeId!==activeGoalId&&!match?.[3])readingPane.showLatest();
   activityControls.routeChanged();
-  void refreshDeliveries().catch(()=>{});
+  void refreshCommentMarks().catch(()=>{});
   if(match?.[3]) {
     const routeFrame=main.firstElementChild,generation=navigationGeneration,interaction=readingPane.interaction;
-    // Wait for the Brief, but don't gate navigation on Activity network traffic.
+    // Wait for the Deliverable, but don't gate navigation on Activity network traffic.
     // Later Activity/diagram changes preserve the visible target themselves.
     Promise.resolve(ready).then(()=>requestAnimationFrame(()=>{
       if(main.firstElementChild===routeFrame&&navigationGeneration===generation&&readingPane.interaction===interaction)scrollInReadingPane(document.getElementById(`event-${match[3]}`));
@@ -987,7 +1084,6 @@ main.addEventListener('click',event=>{
   if(toggle){const id=toggle.dataset.toggle||toggle.dataset.rowToggle;expandedGoals.has(id)?expandedGoals.delete(id):expandedGoals.add(id);refreshGoalFrame();main.querySelector(`[data-toggle="${id}"]`)?.focus({preventScroll:true});}
 });
 
-const openDeliveries = new Set();
 main.addEventListener('toggle', event => {
   const detail = event.target;
   if (detail.open) void renderDiagrams(detail,keepReadingPosition);
@@ -1002,16 +1098,27 @@ main.addEventListener('toggle', event => {
     if (view) view.open = detail.open;
     return;
   }
-  if (detail.matches?.('.delivery-history')) {
-    const id = Number(detail.dataset.deliveryId);
-    if (detail.open) openDeliveries.add(id); else openDeliveries.delete(id);
-    return;
-  }
   if (!activeGoalId || !detail.matches?.('.brief-detail[data-detail-id]')) return;
   const key = `${activeGoalId}:v${activeVersion}:${detail.dataset.detailId}`;
   if (detail.open) openDetails.add(key);
   else openDetails.delete(key);
 }, true);
+
+// On wide screens the composer sticks to the bottom of the Conversation column.
+// When typing grows it, move the column by the same amount so the messages
+// above stay visible instead of disappearing under the composer.
+// Adding an annotation grows it the same way.
+let composerHeight = null;
+main.addEventListener('beforeinput', event => {
+  if (event.target.dataset?.input === 'comment') composerHeight = event.target.closest('form')?.offsetHeight ?? null;
+}, true);
+function keepMessagesAboveComposer(form, before) {
+  const column = form?.closest('[data-scroll-pane]');
+  if (!form || !column || before === null || getComputedStyle(form).position !== 'sticky') return;
+  const delta = form.offsetHeight - before;
+  // Shrinking needs nothing: the browser already clamps the shorter column.
+  if (delta > 0) column.scrollTop += delta;
+}
 
 main.addEventListener('input', event => {
   const input = event.target;
@@ -1021,6 +1128,9 @@ main.addEventListener('input', event => {
     commentDrafts.set(formKey(activeGoalId, 'comment'), input.value);
     writeDraft('comment', activeGoalId, input.value);
     updateComposerState();
+    const before = composerHeight;
+    composerHeight = null;
+    keepMessagesAboveComposer(input.closest('form'), before);
   }
 });
 
@@ -1048,7 +1158,7 @@ main.addEventListener('change', event => {
 
 main.addEventListener('paste', event => {
   if (!event.target.matches('textarea')) return;
-  const images = [...(event.clipboardData?.files || [])].filter(file => file.type.startsWith('image/'));
+  const images = [...(event.clipboardData?.files || [])];
   if (images.length) {
     event.preventDefault();
     setPendingImages(event.target.dataset.input === 'annotation' ? 'annotation' : 'comment', images);
@@ -1096,11 +1206,6 @@ main.addEventListener('click', async event => {
     }
     return;
   }
-  const letterId=Number(button.dataset.letterId);
-  if(button.dataset.action==='answer-letter') {
-    const saved=notesFor().find(note=>note.kind==='letter'&&note.source.eventId===letterId);
-    openNoteEditor(saved||{id:crypto.randomUUID(),kind:'letter',source:{kind:'comment',eventId:letterId},text:''});return;
-  }
   if (button.dataset.action === 'locate-note') {
     event.preventDefault();
     const entry=visibleNotes.get(button.dataset.noteRef);
@@ -1141,7 +1246,8 @@ async function saveFeedback(id, input) {
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Could not save feedback.');
-  if(activeGoalId===id){activityControls.saved(id,result.delivery);void activityControls.refresh();}
+  // The Web answers once the comment is saved; its mark is read right after.
+  if(activeGoalId===id){void refreshCommentMarks().catch(()=>{});void activityControls.refresh();}
   return { ...result.feedback, at: new Date(result.feedback.updatedAt) };
 }
 
@@ -1216,7 +1322,7 @@ main.addEventListener('submit', async event => {
       saveNotes(notes, id);
       if (activeGoalId === id && form.isConnected) {
         if (editingNote === editor) closeAnnotation();
-        renderAnnotations(); updateNotesPanel();
+        renderAnnotations(); updateNotesPanel(sendNow ? null : note.id);
         if(sendNow) {
           updateTimeline(id);refreshGoalFrame();renderAnnotations();
           scrollInReadingPane(document.getElementById(`event-${entry.id}`),'nearest');
@@ -1279,22 +1385,14 @@ main.addEventListener('submit', async event => {
 });
 
 main.addEventListener('click', async event => {
-  const continuation = event.target.closest('[data-action="view-work"]');
-  if (continuation) {
-    revealConversationEvent(Number(continuation.dataset.eventId));
-    const target = document.getElementById(`delivery-${continuation.dataset.eventId}`);
-    target?.querySelector('.work-progress > summary')?.focus({preventScroll: true});
-    scrollInReadingPane(target);
-    return;
-  }
-  const button = event.target.closest('[data-action="retry-delivery"]');
+  const button = event.target.closest('[data-action="send-now"]');
   if (!button) return;
   button.disabled = true;
   try {
-    const response = await fetch(`/api/goals/${button.dataset.goalId}/deliveries/${button.dataset.eventId}/retry`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const response = await fetch(`/api/goals/${button.dataset.goalId}/comments/${button.dataset.eventId}/send-now`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Could not check delivery.');
-    await refreshDeliveries();
+    if (!response.ok) throw new Error(result.error || 'Could not send now.');
+    await refreshCommentMarks();
   } catch (error) { announcement.textContent = error.message; }
   finally { button.disabled = false; }
 });
@@ -1319,15 +1417,15 @@ async function navigate({refresh=true}={}){
   const generation=++navigationGeneration,target=location.hash;
   const match=/^#\/goal\/([1-9][0-9]*)(?:\/v([1-9][0-9]*))?/.exec(target);
   try{
-    // The latest Briefs and tree are already in memory. Never put a network
+    // The latest Deliverables and tree are already in memory. Never put a network
     // round trip in front of a normal move through the workspace.
     if(match&&!goalMetadata.has(match[1]))await loadStoredGoals();
     if(match?.[2]){
       const brief=briefAt(match[1],Number(match[2]));
       if(brief&&brief.html===undefined){
-        announcement.textContent='Loading earlier Brief…';
+        announcement.textContent='Loading earlier Deliverable…';
         const response=await fetch(`/api/goals/${match[1]}/briefs/${match[2]}`,{signal:AbortSignal.timeout(12000)});
-        if(!response.ok)throw Error('Could not load this Brief. Your draft is kept.');
+        if(!response.ok)throw Error('Could not load this Deliverable. Your draft is kept.');
         const loaded=await response.json();
         Object.assign(briefAt(match[1],Number(match[2]))||brief,loaded);
       }
@@ -1374,7 +1472,7 @@ function loadStoredGoals() {
       for(const status of letterStates||[]){letterStatuses.set(status.id,status);const cached=events.find(e=>e.id===status.id);if(cached)cached.letterStatus=status;}
       const previous=briefsByGoal.get(id)||[];
       goalMetadata.set(id,{id,...metadata});
-      // Published versions are immutable. Keep older Briefs once opened.
+      // Published versions are immutable. Keep older Deliverables once opened.
       briefsByGoal.set(id,briefs.map(brief=>brief.html===undefined?{...previous.find(b=>b.version===brief.version),...brief}:brief));
       conversation.forEach(addEvent);
     }
@@ -1388,7 +1486,7 @@ async function updateCurrentBrief(version) {
   const restore=readingPane.capture();
   const brief=briefAt(id,version),isHTML=brief?.format==='html',height=section.offsetHeight;
   document.body.append(annotationAction);hideAnnotationAction();hideAnnotationPreview();pendingAnchor=null;
-  // Only replace the Brief; keep the composer, active annotation editor and drafts.
+  // Only replace the Deliverable; keep the composer, active annotation editor and drafts.
   section.style.minHeight=`${height}px`;
   activeVersion=version;
   // A diagram selection belongs to the version actually shown in its editor.
@@ -1396,7 +1494,7 @@ async function updateCurrentBrief(version) {
   if(/\/v[1-9][0-9]*$/.test(currentRoute)){
     currentRoute=versionRoute(id,version);history.replaceState(null,'',currentRoute);
   }
-  section.innerHTML=`<div class="section-heading document-heading"><h2>Brief</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Brief"><div class="brief-body markdown-body" lang="ja" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'')}</div></article>`;
+  section.innerHTML=`<div class="section-heading document-heading"><h2>Deliverable</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable"><div class="brief-body markdown-body" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal})}</div></article>`;
   imageNames.clear();
   section.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
   main.querySelector('.annotation-form').dataset.version=String(version);
@@ -1415,20 +1513,20 @@ async function refreshGoals(){
     if(activeGoalId===id&&activeVersion===previousLatest&&latestVersion(id)>previousLatest)await (routeReady=updateCurrentBrief(latestVersion(id)));
     refreshGoalFrame();updateTimeline(activeGoalId);renderAnnotations();updateNoticeForRoute();
     const heading=main.querySelector('.document-heading');
-    if(heading&&!main.querySelector('.version-pager:focus-within'))heading.innerHTML=`<h2>Brief</h2>${briefAt(activeGoalId,activeVersion)?goalView().pager(activeGoalId,activeVersion):''}`;
+    if(heading&&!main.querySelector('.version-pager:focus-within'))heading.innerHTML=`<h2>Deliverable</h2>${briefAt(activeGoalId,activeVersion)?goalView().pager(activeGoalId,activeVersion):''}`;
   }else if(currentRoute==='#/goals')renderIndex();
 }
 
-async function refreshDeliveries() {
+async function refreshCommentMarks() {
   const id = activeGoalId;
   if (!id) return;
-  const response = await fetch(`/api/goals/${id}/deliveries`, {cache:'no-store'});
+  const response = await fetch(`/api/goals/${id}/comment-marks`, {cache:'no-store'});
   if (!response.ok) return;
   const updates = await response.json();
   let changed = false;
   for (const update of updates) {
-    if (JSON.stringify(deliveries.get(update.eventId)) !== JSON.stringify(update)) {
-      deliveries.set(update.eventId, update); changed = true;
+    if (JSON.stringify(commentMarks.get(update.eventId)) !== JSON.stringify(update)) {
+      commentMarks.set(update.eventId, update); changed = true;
     }
   }
   if (changed && activeGoalId === id) {
@@ -1462,11 +1560,11 @@ loadStoredGoals().then(()=>navigate({refresh:false}),error=>{
    }
    if(expired){storeSignature='';if(activeGoalId)refreshGoalFrame();else if(currentRoute==='#/goals')renderIndex();}
    if(document.visibilityState!=='visible'||refreshing)return;refreshing=true;
-   try{await refreshGoals();await refreshDeliveries();if(timelineRefreshPending&&activeGoalId&&!interactingWithAnnotation()){updateTimeline(activeGoalId);renderAnnotations();}}
+   try{await refreshGoals();await refreshCommentMarks();if(timelineRefreshPending&&activeGoalId&&!interactingWithAnnotation()){updateTimeline(activeGoalId);renderAnnotations();}}
    catch(error){announcement.textContent=error.message;}finally{refreshing=false;}
  }
  setInterval(refresh,5000);
- // Hidden tabs need the Root's count, without fetching Briefs or execution logs.
+ // Hidden tabs need the Root's count, without fetching Deliverables or execution logs.
  setInterval(()=>{if(document.visibilityState!=='visible')void refreshLetterCount();},15000);
  // Controls must not wait behind loading the full conversation's execution logs.
  setInterval(()=>{if(document.visibilityState==='visible')void activityControls.refresh();},2000);

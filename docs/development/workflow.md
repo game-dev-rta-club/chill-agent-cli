@@ -46,13 +46,18 @@ source, regression coverage and its explanation together when they form a usable
 change. Never include generated bundles, personal runtime data or secrets. A
 checkpoint is not a release. Shared history is not force-pushed as routine cleanup.
 
+While dogfooding in a project's own Web, [try local changes](try-local.md) there
+without a PR per change. Open the PR when another project or machine needs the
+change, batching what was already tried.
+
 ## Finish through the integration gate
 
 1. Open a focused PR targeting `develop`. Keep incomplete work Draft and describe
    the final behavior, tests, dependency revision and rollout implications.
 2. Verify a fresh checkout with its recorded dependencies. Run relevant tests
    while developing and `npm run check` before integration. Document native probes
-   separately; do not run them against an active user's workspace.
+   separately; do not run them against an active user's workspace. The Codex probe is described in
+   [Codex verification](codex-verification.md).
 3. Review the actual final diff. Integrate the latest `develop` into the topic,
    resolve conflicts and retest affected behavior plus required checks. Do not
    repeatedly rebase shared topic history.
@@ -72,6 +77,47 @@ When `develop` breaks, prioritize restoring it over adding work. Make a small
 fix with verification when the cause is clear; otherwise revert the offending
 change through a checked PR. Avoid reset/force-push recovery. Record the failure,
 recovery and affected dependants so another run does not repeat the same attempt.
+
+## Keep tests off the real machine and honest about hidden failures
+
+`npm run check` loads `test/isolate-env.mjs` before every test file. It gives the
+process a throwaway home: `HOME`, `USERPROFILE`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`
+and `XDG_DATA_HOME` point into a temporary directory removed on exit, and
+`CHILL_AGENT_CODEX_PATH` names a Codex that does not exist. A test that forgets
+to set up a fake therefore finds nothing instead of the developer's Codex, Claude
+or data. Tests that run `test/fake-codex.mjs` set their own path.
+
+Production hides some harness failures on purpose and shows "unknown" or
+"checking". Each such catch calls `hidden('site.name', fallback)` or
+`recordHidden('site.name', error)` from `lib/hidden-failure.mjs`. When
+`CHILL_AGENT_HIDDEN_FAILURES` names a file, the call appends one JSON line
+`{where, message}`; the test preload sets it, and child processes inherit it.
+After every test, any line the test did not declare fails it with the site and
+message. A test that injects a failure on purpose declares it:
+
+```js
+test('a chat Codex cannot read keeps the comment saved', async t => {
+  expectHidden(t, 'codex-work.observe'); // or a RegExp, or several sites
+```
+
+A declaration that never happens also fails, so stale ones do not linger. Record
+a new catch only when it means chill could not see or do something it expected
+to. A missing file, a partial JSON line, a stopped sleep or a tried-next
+candidate is an ordinary state and stays silent.
+
+## Give every user-visible flow a scenario for each agent
+
+Per-harness tests cover protocol detail. What a user sees and does (feedback
+reaching an idle or busy agent, Waiting and Send now, a reply closing the
+feedback, the Running mark, the Agent menu) is written once in
+`test/harness-scenarios.test.mjs` and runs against the fake Codex and a Claude
+Code conversation, through the drivers in `test/harness-drivers.mjs`. A change to
+shared code that breaks one agent therefore fails that agent's run of the scenario.
+
+A new flow is not done until it has a scenario there. A harness that lacks the
+feature declares it in its driver's `capabilities`, and the scenario asserts the
+interface says so instead of skipping. A scenario that fails for one harness and
+cannot be fixed in the same change goes in that driver's `todo` with the reason.
 
 ## Keep long runs bounded and recoverable
 

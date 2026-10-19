@@ -16,9 +16,9 @@ The implementation separates three responsibilities:
 
 | Layer | Responsibility |
 | --- | --- |
-| [Connection selection](../../lib/agent-connection.mjs) | Resolve the Root's existing chat binding. A legacy `threadId` means Codex Desktop. |
+| [Connection selection](../../lib/agents/connection.mjs) | Resolve the Root's existing chat binding. A legacy `threadId` means Codex Desktop. |
 | [Native adapter](../../lib/codex-desktop-connection.mjs) | Read native data, return supported model IDs and labels, probe available operations, and perform a conditional settings change. |
-| [Settings store](../../lib/agent-settings.mjs) | Cache snapshots per harness and conversation, reject competing saves, validate choices and expected values, then verify the result. |
+| [Settings store](../../lib/agents/settings-store.mjs) | Cache snapshots per harness and conversation, reject competing saves, validate choices and expected values, then verify the result. |
 
 The [Agent status service](../../lib/agent-status.mjs) joins these settings with
 Goal activity and queue labels for the existing Web response. Delivery, live

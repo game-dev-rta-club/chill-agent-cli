@@ -30,7 +30,7 @@ outcomes before deciding to send anything else.
 
 ## What the observation establishes
 
-`observe(rootId, pending?)` requires an assigned root. It reads current Goal/Brief
+`observe(rootId, pending?)` requires an assigned root. It reads current Goal/Deliverable
 content, unanswered Letters, user feedback, chat execution, the complete native
 queue, pause evidence and recent work heartbeat. It checks the latest turn again
 after reading the queue so a changing turn cannot appear idle.
@@ -41,7 +41,7 @@ positive evidence of a completed or failed latest turn. An empty queue or missin
 turn by itself is insufficient. Done Goals and unanswered Letters are context
 for policy, not host-level reasons to suppress a request.
 
-The `revision` covers the root subtree's Goal content, latest Brief bodies and
+The `revision` covers the root subtree's Goal content, latest Deliverable bodies and
 latest user-feedback change. Agent comments, execution bookkeeping and a policy's
 internal results do not reset it. `context.goals` adds compact subtree counts for
 current hosts; older protocol-v1 hosts may lack that optional field. Consumers
@@ -68,7 +68,7 @@ the policy journal with `storage(namespace)` and serialize policy decisions with
 `listGoals` and `readGoalContext` provide workspace facts; `touch()` records
 genuine use when needed, not routine polling.
 
-For an on-demand public log, `readRunOutput({threadId, id, at, turnId?, matchText?})`
+For an on-demand public log of a Codex chat, `readRunOutput({threadId, id, at, turnId?, matchText?})`
 uses the same turn reader without observing scheduling eligibility or enqueueing.
 Pass only a request from the extension's own saved journal after checking the
 current Root owner. Keep its Goal association at send time; do not derive an old
@@ -76,4 +76,4 @@ run's target from today's work selection. Public messages and turn settings are
 returned, never private reasoning or tool input/output.
 
 Implementation: [request reservation](../../lib/extension-api.mjs),
-[observation and eligibility](../../lib/continuation-observation.mjs).
+[observation](../../lib/agents/codex-continuation-observation.mjs), [eligibility](../../lib/continuation-eligibility.mjs).

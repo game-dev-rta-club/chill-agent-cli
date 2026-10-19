@@ -1,6 +1,6 @@
 ---
 keyPoints: >-
-  Native probes pass startup, new-Root binding, inbox/receipts and automatic
+  Native probes pass startup, new-Root binding, the inbox and automatic
   feedback within a verified prompt. Idle conversations wake through a background
   reply waiter rather than hooks with deadlines or Channels, which need a launch
   flag Claude Desktop cannot pass. Optional Stop continuation is qualified
@@ -28,10 +28,10 @@ Our adapter should separate these abilities:
 
 | Need | Proposed behavior |
 | --- | --- |
-| Start using chill | Bind a Root to the verified main conversation, not to its directory or a subagent. |
+| Start using chill | Bind a Root to the conversation Claude Code names in its shell, not to its directory. |
 | Receive feedback during work | Return pending input from all Goals assigned to that connection, preserving manual holds. |
-| Continue when a response ends | A composed connection extension reserves one request and returns it through a verified main Stop; the packaged print-mode qualification passes. |
-| Receive input after becoming idle | The agent keeps the [reply waiter](claude-wait.md) running as a background task; its exit wakes the conversation. |
+| Continue when a response ends | A composed connection extension reserves one request and returns it through a main Stop; the packaged print-mode qualification passes. |
+| Receive input after becoming idle | The [watcher hook](claude-wait.md) waits in the background and wakes the conversation. |
 | Read or change settings | Expose observed model data separately from the ability to change it. Never turn a launch flag into a claim of live control. |
 | Pause and resume | Holding future input is separate from cancelling a running response. Advertise cancellation only after it is verified. |
 
@@ -53,34 +53,32 @@ running conversation, start a second process with its session ID, or silently
 replace it to make a connection appear successful. A closed conversation
 retains pending input in chill.
 
-## Share receipts, not transport assumptions
+## Share the hand-off, not transport assumptions
 
-The proposed flow is:
+The flow is:
 
 ```text
 saved Web input / eligible Auto mode request
                   |
-       reserve one request for the bound connection
+   Root cursor (hand-off): what has not been handed yet
                   |
-   tool hook OR waiter wake + explicit inbox
+   tool hook, Stop, or waiter wake + inbox
                   |
-      offered -> agent receipt -> completed / failed
+      handed -> the agent's Comment on the Goal answers it
 ```
 
-The [development main-hook actions](claude-actions.md) implement new-Root ownership,
-explicit inbox reads, receipts and automatic busy delivery within a verified
-native prompt. They store an offer as `unknown` until the Agent claims it.
-Ordinary tool hooks offer only newly saved input; explicit inbox recovers an
-unconfirmed offer. Stop clears busy-prompt verification and leaves a checkpoint for
-connection extensions. The waiter never offers input itself, so both routes use the
-same uncertain-offer records. Optional
+The [development actions](claude-actions.md) implement new-Root ownership, the
+inbox and delivery through the main hooks. Every route hands comments by the
+same Root cursor ([hand-off](../../lib/hand-off.mjs)), which moves only after the
+text is handed, so no route hands a comment twice. The inbox lists every Goal
+that still waits for a reply, handed or not, so a comment whose hand-off was
+lost is found again there; it lists what was handed earlier apart from the new
+feedback, because in Claude Desktop both the watcher hook and the waiter task can
+wake the conversation for the same comment. Optional
 [connection hooks](../extensions/connection-hooks.md) support continuation policy
 without adding it to the standalone CLI. The product extension has passed a
-packaged native Stop roundtrip.
-Attach the same event/request ID on either route. A write with no receipt stays
-unconfirmed: it cannot be labelled processed or retried through the other route.
-The existing [receipt and hold rules](feedback-and-controls.md) remain the source
-of truth. A reconnect does not erase those records.
+packaged native Stop roundtrip. The [feedback rules](feedback-and-controls.md)
+are the source of truth, and a reconnect keeps the cursor.
 
 Use a local connection handshake to associate the hooks and the reply waiter with
 the same main session. Directory equality is not identity. Keep an opaque native
@@ -103,7 +101,7 @@ unavailable until their evidence is sufficient.
 | Existing conversation | Read and return an event in the same main conversation, with its earlier context intact. |
 | Busy and idle delivery | Two Goals' replies arrive without selecting either Goal; idle delivery needs no user prompt. |
 | Concurrent routes | A tool hook, a waiter wake and a reconnect produce one claimed event, never two executions. |
-| Uncertain send | A missing receipt remains unconfirmed and is reconciled without blind resend. |
+| Lost hand-off | A comment whose hand-off was lost still waits for a reply and is listed by the inbox; nothing is handed twice. |
 | Off, Pause and exit | No new Auto request after Off/Pause; held input survives; exit never launches a replacement. |
 | Session changes | Resume, clear, fork and subagent hooks cannot accidentally steal another binding. |
 | Unsupported features | Policy denial, unavailable model controls and stale observations display their actual limits. |
@@ -112,8 +110,8 @@ unavailable until their evidence is sufficient.
 
 The [entry handshake](claude-entry.md) now implements a separate Claude namespace
 and a generation checked by the CLI. Its native environment-handoff probe passed
-with Claude Code 2.1.289. The separate main-hook action protocol can create a
-new Root and confirm an explicit inbox/receipt call. With explicitly selected
+with Claude Code 2.1.289. The connection actions can create a new Root and run
+an explicit inbox call. With explicitly selected
 native authentication, both the inbox and automatic busy-delivery model probes
 passed in disposable print-mode conversations on 2026-10-06. Read those guides
 for implementation, credential isolation, limitations and probes.
@@ -142,7 +140,7 @@ that those fields are absent from an interactive run.
 
 Consequently, a startup record must tolerate unavailable model/run observations;
 it cannot mark an execution running or authenticate a Root binding merely from
-the directory. Binding now also requires the main-hook action confirmation; the init-only and local tests
+the directory. Binding uses connection create-goal from that conversation; the init-only and local tests
 do not establish native model conversation continuity.
 Do not synthesize a Codex turn ID from a Claude session ID.
 

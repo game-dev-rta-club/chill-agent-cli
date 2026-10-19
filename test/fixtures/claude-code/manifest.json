@@ -1,0 +1,40 @@
+{
+ "recordedBy": "scripts/record-claude-samples.mjs",
+ "transcripts": [
+  {
+   "name": "feedback-turn",
+   "file": "transcripts/feedback-turn.jsonl",
+   "claudeCodeVersion": "2.1.295",
+   "entries": 42,
+   "about": "a prompt, a Web feedback offer injected by a tool hook, the work after it, and the Stop that ends the response"
+  },
+  {
+   "name": "interrupted-turn",
+   "file": "transcripts/interrupted-turn.jsonl",
+   "claudeCodeVersion": "2.1.295",
+   "entries": 4,
+   "about": "a prompt, some work, and the user interrupting the response"
+  },
+  {
+   "name": "tool-interrupted-turn",
+   "file": "transcripts/tool-interrupted-turn.jsonl",
+   "claudeCodeVersion": "2.1.295",
+   "entries": 6,
+   "about": "a response interrupted while a tool was running"
+  },
+  {
+   "name": "background-agent",
+   "file": "transcripts/background-agent.jsonl",
+   "claudeCodeVersion": "2.1.295",
+   "entries": 13,
+   "about": "a background subagent launched, the response ending, and its task notification arriving later",
+   "subagentFile": "transcripts/background-agent.subagent.jsonl",
+   "subagentId": "agent4"
+  }
+ ],
+ "hooks": {
+  "file": "hooks.json",
+  "claudeCodeVersion": "2.1.295",
+  "source": "schema embedded in the Claude Code binary (the code that builds hook stdin); not recorded stdin"
+ }
+}
