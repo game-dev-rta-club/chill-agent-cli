@@ -119,7 +119,8 @@
 .work-output .work-message { white-space: pre-wrap; font-size: 13px; line-height: 1.75; color: var(--ink); margin: 0; }
 .work-output .work-message + .work-message { border-top: 1px solid var(--theme-line,#e3e8e3); margin-top: 10px; padding-top: 10px; }
 .work-output .work-hint { color: var(--theme-muted,#6d7971); font-size: 11px; margin-top: 8px; }
-.event-image-link { display: block; width: fit-content; margin-top: 10px; }
+.timeline-entry > .event-image, .timeline-entry > .annotatable-image { margin-top: 10px; }
+.timeline-entry > .annotatable-image { display: block; width: fit-content; }
 .event-image { display: block; max-width: 100%; max-height: 280px; border-radius: 7px; border: 1px solid var(--line); }
 .conversation-form fieldset, .annotation-form fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 .conversation-form fieldset:disabled, .annotation-form fieldset:disabled { opacity: .65; }
@@ -170,7 +171,7 @@
 .image-area-stage.is-vector img { width: 100%; max-height: none; }
 .annotatable-image.is-fluid { display: block; }
 .annotatable-image.is-fluid > svg, .annotatable-image.is-fluid > img { display: block; width: 100%; height: auto; }
-.brief-body .annotatable-image:has(.image-annotate) { cursor: zoom-in; }
+.brief-body .annotatable-image:has(.image-annotate), .timeline-entry > .annotatable-image:has(.image-annotate) { cursor: zoom-in; }
 .image-area-dialog { width: min(1100px, calc(100vw - 20px)); max-height: calc(100dvh - 20px); padding: 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--surface); }
 .image-area-dialog::backdrop { background: #1b252ccc; }
 .image-area-hint { margin: 6px 0 12px; font-size: 12px; color: var(--muted); }
