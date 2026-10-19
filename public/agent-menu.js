@@ -37,7 +37,7 @@ export function activityMarkup(controls){
 // Every agent shares the same extension sections, such as AutoContinue.
 // Recent Goals of this agent, newest first, each once.
 const currentGoal=id=>new RegExp(`^#/goal/${id}(?:/|$)`).test(globalThis.location?.hash||'');
-const recentMarkup=recent=>recent?.length?`<h4 class="agent-recent-heading">Recent</h4><ol class="agent-recent">${recent.map(g=>`<li><a href="#/goal/${esc(g.goalId)}" class="${currentGoal(g.goalId)?'is-current':''}"><span>#${esc(g.goalId)}</span>${esc(g.title||'Goal')}</a></li>`).join('')}</ol>`:'';
+const recentMarkup=recent=>recent?.length?`<h4 class="agent-recent-heading">Recent</h4><ol class="agent-recent">${recent.map(g=>`<li><a href="#/goal/${esc(g.goalId)}" class="${currentGoal(g.goalId)?'is-current':''}"><span class="agent-recent-id">#${esc(g.goalId)}</span><span class="agent-recent-title">${esc(g.title||'Goal')}</span></a></li>`).join('')}</ol>`:'';
 const currentMarkup=(data,controls='')=>`<section class="agent-section"><h3>Activity</h3><div class="agent-current-row"><div class="agent-current" data-markup="${esc(workMarkup(data.work,data))}">${workMarkup(data.work,data)}</div>${controls}</div>${recentMarkup(data.recent)}</section>`;
 const extensionsMarkup=data=>data.extensions===null?'<section class="agent-section"><p class="agent-muted">Extensions unavailable.</p></section>':activityMarkup(data.extensions);
 // The menu reads one data shape for every agent: display strings in data.agent
