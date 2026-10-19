@@ -226,6 +226,20 @@ test('the watcher hook hands saved feedback over and wakes the model with it',as
  assert.equal(await hasSavedClaudeFeedback(f.connection),false,'the next watcher does not wake for it again');
 });
 
+test('a waiter that stops checking ends as stalled, and the next waiter takes over its record',async t=>{
+ const f=await fixture(t);
+ // A poll that outlasts the stall limit stands in for I/O that never settles.
+ const stuck=f.wait({pollMs:60000,stallMs:100});await f.waiting();const stuckId=(await readJson(f.recordPath)).waiter.id;
+ const result=await stuck.done;assert.deepEqual(result,{status:'stalled'});
+ assert.match(waitResultText(result),/stopped responding[\s\S]*connection inbox[\s\S]*connection wait/);
+ const next=f.wait({livenessMs:100});
+ await f.until(async()=>(await readJson(f.recordPath)).waiter?.id!==stuckId);
+ await appendFeedback({goalId:f.root.id,text:'after the stall'});
+ assert.deepEqual(await next.done,{status:'feedback'},'the conversation is woken again');
+ await stuck.stop();
+ assert.match(watcherWakeText({status:'stalled'}),/connection inbox/);
+});
+
 test('a hook watcher takes over from a connection wait task; a second hook watcher exits',async t=>{
  const f=await fixture(t),task=f.wait();await f.waiting();
  const w=watch(f,{refreshMs:20});
