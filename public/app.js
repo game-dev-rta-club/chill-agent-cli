@@ -271,7 +271,7 @@ const timeMarkup = at => `<time datetime="${at.toISOString()}">${at.toLocaleStri
 function mentionMarkup(mention) {
   const title = goalMetadata.get(mention.goalId)?.title;
   return `<li class="timeline-event"><span class="timeline-marker" aria-hidden="true">${icon('mention')}</span>
-    <p class="mention-entry">Mentioned in <a href="#/goal/${escapeHTML(mention.goalId)}/activity/${escapeHTML(mention.eventId)}">#${escapeHTML(mention.goalId)}${title ? ` ${escapeHTML(title)}` : ''}</a>${timeMarkup(mention.at)}</p></li>`;
+    <p class="mention-entry">Mentioned in <a href="#/goal/${escapeHTML(mention.goalId)}/activity/${escapeHTML(mention.eventId)}">#${escapeHTML(mention.goalId)}${title ? ` ${escapeHTML(title)}` : ''}</a></p></li>`;
 }
 
 function replyMarkup(event) {
