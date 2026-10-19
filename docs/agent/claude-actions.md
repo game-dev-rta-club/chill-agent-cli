@@ -86,6 +86,14 @@ the tool hooks start its work, a Stop that lets it end finishes it, StopFailure
 or an Esc interrupt in the transcript interrupts it, and SessionEnd ends the
 conversation. Work that writes nothing for 30 minutes is shown as unknown.
 
+Every conversation in the project runs these hooks, including those that never
+use chill. One that has never owned a Root Goal is marked quiet
+([claude-quiet](../../lib/claude-quiet.mjs)), and the `chill` launcher ends its
+later hooks before Node starts, as if chill were not installed. SessionStart
+always runs and decides again. The marker is cleared when the conversation
+creates or adopts a Goal, under the same lock, so a conversation can start using
+chill at any point and an owner is never left quiet.
+
 Background tasks keep the conversation Running after its response ends. The
 Stop hook records the tasks Claude Code lists as still running, except shells.
 A subagent's own hooks keep that list current between Stops. SubagentStart adds

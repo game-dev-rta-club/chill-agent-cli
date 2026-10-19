@@ -173,6 +173,18 @@ test('a Web pause holds feedback, refuses tool calls and survives compact; Resum
  assert.doesNotMatch(context(await f.action('inbox')),/selected Resume/,'the resume notice is delivered once');
 });
 
+test('a prompt the user types in the conversation resumes a Web pause; Claude Code\'s own wakes do not',async t=>{
+ const {setClaudePause,readClaudePause}=await import('../lib/claude-pause.mjs');
+ const f=await fixture(t),prompt=patch=>handleClaudeToolHook(f.event('UserPromptSubmit',patch)),paused=async()=>(await readClaudePause(f.connection)).paused;
+ await setClaudePause(f.connection,true);
+ await prompt({prompt:'<task-notification>\n<task-id>a1</task-id>\n</task-notification>',source:'system'});
+ assert.equal(await paused(),true,'a task notice is no resume');
+ await prompt({prompt:'chill-agent: the check you scheduled is due',source:'schedule_wakeup'});
+ assert.equal(await paused(),true,'a scheduled wake is no resume');
+ await prompt({prompt:'Go on with the fix',source:'user'});
+ assert.equal(await paused(),false,'the user wrote here, so the work continues without the Web');
+});
+
 test('Approve all answers permission prompts for its conversation only while on, and survives compact',async t=>{
  const {setClaudeApproveAll,readClaudeApproveAll,claudePermissionDecision}=await import('../lib/claude-permissions.mjs');
  const f=await fixture(t),prompt=()=>claudePermissionDecision(f.event('PermissionRequest',{tool_name:'mcp__computer-use__request_access'}));
