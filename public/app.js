@@ -147,7 +147,7 @@ function noteLabel(note) {
   return note.kind === 'text' ? note.anchor.quote : note.imageName || imageNames.get(note.imageId) || 'Image';
 }
 const selectedNotes = (id = activeGoalId) => notesFor(id).filter(note => note.selected !== false);
-const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Deliverable v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent'} #${note.source?.eventId} · ` : '';
+const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Deliverable v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent comment'} ${note.source?.eventId} · ` : '';
 function noteImageMarkup(note, preview = false) {
   const images=attachmentIdsFor(note).map(id=>`/api/images/${escapeHTML(id)}`);
   if(note.kind==='image'&&note.source?.kind==='brief')images.unshift(`/api/goals/${activeGoalId}/briefs/${Number(note.source.version)}/svg/${Number(note.source.svgIndex)}`);
@@ -443,6 +443,8 @@ function mountHTMLBrief(id,version) {
     const observer=new ResizeObserver(size);observer.observe(body);
     for(const type of ['wheel','touchmove','keydown'])doc.addEventListener(type,briefScrollIntent,{passive:true});
     doc.addEventListener('selectionchange',updateSelectionAction);
+    // The Deliverable and the page each keep a selection; only the one the user is making counts.
+    doc.addEventListener('pointerdown',()=>window.getSelection()?.removeAllRanges());
     // Do not rely only on selectionchange timing across frame focus changes.
     // Read the completed selection as well, without moving focus out of the Deliverable.
     doc.addEventListener('pointerup',updateSelectionAction);
@@ -658,6 +660,7 @@ function updateSelectionAction() {
   }, 60);
 }
 document.addEventListener('selectionchange',updateSelectionAction);
+document.addEventListener('pointerdown',()=>htmlBriefFrame()?.contentWindow?.getSelection()?.removeAllRanges());
 annotationAction.addEventListener('pointerdown', event => event.preventDefault());
 annotationAction.addEventListener('click', event => {
   event.preventDefault();
