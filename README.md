@@ -1,14 +1,16 @@
 ---
 keyPoints: >-
-  Standalone Goal storage, Web and macOS Codex Desktop integration for developers.
-  Execution policies are optional consumers of the public extension API.
+  Standalone Goal storage, Web, and Codex Desktop and Claude Code connections for
+  developers. Execution policies are optional consumers of the public extension API.
 ---
 
 <p align="center"><a href="https://github.com/game-dev-rta-club/chill-agent-cli/actions"><img alt="CI" src="https://github.com/game-dev-rta-club/chill-agent-cli/actions/workflows/ci.yml/badge.svg" /></a> <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green" /> <img alt="Node.js 24" src="https://img.shields.io/badge/node-24-339933" /></p>
 
 # chill-agent-cli
 
-Local workspace infrastructure for developers building agent workflows. Use its CLI, Web interface, and harness connection independently of the chill-agent skills and continuation policy.
+Local workspace infrastructure for developers building agent workflows. Use its CLI, Web interface, and agent connections independently of the chill-agent skills and continuation policy.
+
+The same workspace connects to **Codex Desktop** and **Claude Code**. Both follow one set of agent rules, so Web shows Running, Waiting, Paused and Ended the same way for either, and feedback from Web reaches the conversation that owns the Goal.
 
 For the ready-to-use experience, start with [chill-agent](https://github.com/game-dev-rta-club/chill-agent).
 
@@ -17,7 +19,7 @@ For the ready-to-use experience, start with [chill-agent](https://github.com/gam
 | This package owns | The integrating application owns |
 | --- | --- |
 | Goal hierarchy, Deliverable versions, Conversation, and Letters | How the agent plans and carries out work |
-| Local Web interface and feedback delivery | Skills and user onboarding |
+| Local Web interface, feedback delivery, notifications and the public link | Skills and user onboarding |
 | Harness observations, queue coordination, and pause state | When to request more work |
 | Runtime preparation and extension hosting | Continuation policy and its configuration |
 
@@ -32,7 +34,7 @@ The standalone distribution does not bundle an automatic continuation policy or 
 
 ## Standalone quickstart
 
-Requires **Node.js 24.15 or newer** and Git. The current Desktop harness connection supports **Codex Desktop on macOS**. Portable JavaScript contracts are also tested on Windows; this does not imply Windows Desktop integration.
+Requires **Node.js 24.15 or newer** and Git. Agent connections support **Codex Desktop on macOS** and **Claude Code** (the Desktop app or the CLI). Automatic Web startup is qualified on macOS. Portable JavaScript contracts are also tested on Windows; this does not imply Windows Codex Desktop integration.
 
 ```sh
 git clone https://github.com/game-dev-rta-club/chill-agent-cli.git
@@ -63,7 +65,7 @@ node bin/chill-entry.mjs setup --help
 node bin/chill-entry.mjs server --help
 ```
 
-To prepare a stable runtime and the macOS Desktop hook for a project:
+To prepare a stable runtime and the agent hooks (Codex Desktop or Claude Code) for a project:
 
 ```sh
 node bin/chill-entry.mjs setup prepare --project /path/to/your/project
@@ -72,6 +74,10 @@ node bin/chill-entry.mjs setup prepare --project /path/to/your/project
 Continue with the stable command prefix returned by setup. See
 [data and runtime updates](docs/runtime/data-and-updates.md) for how preparation
 and a server restart adopt a new version without moving the workspace.
+
+To open the workspace from a phone or another computer, turn on **More → Public
+link** in Web. A device connects once with the access code shown on the computer;
+see [the public link guide](docs/using/public-link.md).
 
 ## Integrating an execution policy
 
