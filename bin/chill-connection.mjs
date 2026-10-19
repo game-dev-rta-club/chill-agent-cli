@@ -11,6 +11,8 @@ import {claudePauseGuard} from '../lib/claude-pause.mjs';
 import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {reportClaudeHook} from '../lib/claude-agent-work.mjs';
+import {settleClaudeQuestion} from '../lib/claude-question.mjs';
+import {hidden} from '../lib/hidden-failure.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {runClaudeAction,joinClaudeConversation,handleClaudeToolHook,claudeSessionStartContext} from '../lib/claude-actions.mjs';
 
@@ -74,6 +76,7 @@ async function main() {
   }
   // Every main hook reports what the conversation is doing before it is handled.
   await reportClaudeHook(input);
+  await settleClaudeQuestion(input).catch(hidden('connection.question'));
   if(input?.hook_event_name==='PermissionRequest') {
     const output=await claudePermissionDecision(input);
     if(output)console.log(JSON.stringify(output));
