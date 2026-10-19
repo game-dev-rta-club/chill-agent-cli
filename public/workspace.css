@@ -313,12 +313,20 @@ a.status.interrupted:hover {text-decoration:underline;}
 .extension-panel .extension-message:empty { display:none; }
 .extension-panel .extension-info { border-top:1px solid var(--theme-line,#e4e8e0); padding-top:12px; font-size:12px; margin-top:14px; }
 .extension-panel .extension-info code { overflow-wrap:anywhere; }
-.extension-panel .extension-qr { display:block; width:208px; height:208px; max-width:100%; margin:12px auto; }
+.extension-panel .extension-qr-frame { width:208px; height:208px; max-width:100%; margin:12px auto 8px; border-radius:6px; }
+.extension-panel [data-link][data-covered] .extension-qr-frame, .extension-panel [data-link][data-covered] .extension-url { background:var(--theme-line,#d9ded8); }
+.extension-panel [data-link][data-covered] .extension-qr { visibility:hidden; }
+.extension-panel [data-link][data-covered] .extension-url { color:transparent; border-radius:4px; pointer-events:none; user-select:none; }
+.extension-panel .extension-qr { display:block; width:100%; height:100%; }
+.extension-panel .extension-url-row { display:flex; align-items:center; gap:6px; margin:0 0 10px; }
+.extension-panel .extension-url-row .extension-url { flex:1; min-width:0; margin:0; }
+.extension-panel .extension-copy { flex:0 0 auto; display:grid; place-items:center; width:30px; height:30px; padding:0; border:1px solid var(--theme-line,#d9ded8); border-radius:7px; background:var(--theme-soft,#f5f7f1); color:inherit; }
 .extension-panel .extension-code { display:flex; align-items:baseline; justify-content:center; gap:10px; margin:0 0 8px; font-size:12px; color:var(--theme-muted,#64756b); }
 .extension-panel .extension-code strong { font:600 20px ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.12em; color:var(--ink); }
 .extension-panel .extension-code button { border:0; background:none; padding:2px 0; font:inherit; font-size:12px; color:var(--theme-muted,#64756b); text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
 .extension-panel .extension-devices { margin-top:12px; font-size:13px; }
-.extension-panel .extension-devices > p { margin:0 0 6px; font-weight:600; }
+.extension-panel .extension-devices > summary { margin:0 0 6px; font-size:13px; font-weight:600; color:inherit; }
+.extension-panel .extension-devices[open] > summary { margin-bottom:8px; }
 .extension-panel .extension-devices ul { list-style:none; margin:0 0 8px; padding:0; display:grid; gap:6px; }
 .extension-panel .extension-devices li { display:flex; align-items:center; gap:8px; min-width:0; }
 .extension-panel .extension-devices li span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
