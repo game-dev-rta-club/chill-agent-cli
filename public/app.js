@@ -305,7 +305,7 @@ function timelineMarkup(id) {
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
       <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
       ${event.text?replyMarkup(event):''}
-      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<a class="event-image-link" href="${src}" target="_blank" rel="noopener" aria-label="Open attached image"><img class="event-image" src="${src}" alt="Attached image"></a>`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
+      ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<img class="event-image" src="${src}" alt="Attached image">`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
     }).join('');
   }).join('')+mentioned(null)+activity;
 }
@@ -576,10 +576,10 @@ main.addEventListener('error', async event => {
   if (!info?.name) return;
   attachmentFiles.set(id, {name: info.name, mimeType: info.mimeType});
   if (!img.isConnected) return;
-  const link = img.closest('.event-image-link');
+  const attached = img.classList.contains('event-image');
   const template = document.createElement('template');
-  template.innerHTML = fileMarkup(`/api/images/${id}`, info.name, link ? 'event-file' : img.classList.contains('note-thumbnail') ? 'note-file is-small' : 'note-file');
-  (link || img).replaceWith(template.content);
+  template.innerHTML = fileMarkup(`/api/images/${id}`, info.name, attached ? 'event-file' : img.classList.contains('note-thumbnail') ? 'note-file is-small' : 'note-file');
+  (img.closest('.annotatable-image') || img).replaceWith(template.content);
 }, true);
 async function uploadImage(file) {
   if (uploadedImages.has(file)) return uploadedImages.get(file);
@@ -872,7 +872,7 @@ function renderAnnotations(openingEditor=false) {
     const bounds=svgIndex!==null?img.getBoundingClientRect():null;
     // Small decorative SVG icons keep their layout; a diagram-sized SVG gets
     // the same control as an uploaded image.
-    const editable = (imageId||svgIndex!==null&&bounds.width>=64&&bounds.height>=64) && img.closest('.brief-body');
+    const editable = (imageId||svgIndex!==null&&bounds.width>=64&&bounds.height>=64) && (img.closest('.brief-body')||img.classList.contains('event-image'));
     if (!matching.length && !editable) return;
     const wrapper = document.createElement('span');
     wrapper.className = 'annotatable-image';
@@ -945,6 +945,9 @@ function openNoteReference(ref, scroll = false) {
 main.addEventListener('click', event => {
   const mark = event.target.closest('.annotation-mark, .image-note-box');
   if (mark) { event.preventDefault(); openNoteReference(mark.dataset.noteRef); return; }
+  // Clicking an attached image itself opens the same annotation screen, shown large.
+  const picture = !event.target.closest('button') && event.target.closest('.annotatable-image')?.querySelector(':scope > [data-action="annotate-image"]');
+  if (picture) { event.preventDefault(); openImageSelection(picture.dataset.imageId); }
 
 });
 main.addEventListener('keydown', event => {

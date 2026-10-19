@@ -7,10 +7,14 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {once} from 'node:events';
 import {promisify} from 'node:util';
+import {crc32,deflateSync} from 'node:zlib';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=await mkdtemp(join(tmpdir(),'chill-letter-web-'));
 const env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'0'};
 const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
+const png=(w,h)=>{const chunk=(type,data)=>{const b=Buffer.alloc(12+data.length);b.writeUInt32BE(data.length);b.write(type,4);data.copy(b,8);b.writeUInt32BE(crc32(b.subarray(4,8+data.length)),8+data.length);return b;};
+ const head=Buffer.alloc(13);head.writeUInt32BE(w);head.writeUInt32BE(h,4);head.set([8,0,0,0,0],8);
+ return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',head),chunk('IDAT',deflateSync(Buffer.alloc((w+1)*h,0x80))),chunk('IEND',Buffer.alloc(0))]);};
 const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
 await run('create','--title','Small Goal');
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
@@ -123,6 +127,16 @@ try {
  await main().locator('input[type="file"]').setInputFiles({name:'reply.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6N1cAAAAASUVORK5CYII=','base64')});
  await send(main());const pictured=(await data()).conversation.at(-1);
  assert.equal(pictured.attachmentIds?.length,1);await answered(pendingLetter,pictured);
+ // Clicking an attached image opens the image annotation screen instead of the image file.
+ await main().locator('input[type="file"]').setInputFiles({name:'wide.png',mimeType:'image/png',buffer:png(160,90)});
+ await main().locator('textarea').fill('注釈したい画像');await send(main());const attached=(await data()).conversation.at(-1);
+ const picture=page.locator(`#event-${attached.id} .annotatable-image`);await picture.scrollIntoViewIfNeeded();
+ await picture.locator('img').click({position:{x:20,y:60}});
+ const area=page.locator('.image-area-dialog');await area.waitFor({state:'visible'});assert.equal(page.url().startsWith(url),true);
+ await area.getByRole('button',{name:'Whole image',exact:true}).click();await area.getByRole('button',{name:'Next',exact:true}).click();
+ await editor().locator('textarea').fill('この画像について');await editor().getByRole('button',{name:'Save',exact:true}).click();
+ await send(main());const imageNote=(await data()).conversation.at(-1).annotations[0];
+ assert.deepEqual([imageNote.kind,imageNote.imageId,imageNote.text],['image',attached.attachmentIds[0],'この画像について']);
  // Agent receipt updates an existing card in place; drafts and annotation IDs stay stable.
  const receiptLetter=await run('letter','--id','1','--title','Receipt test','--text','Receipt keeps this explanation.');
  for(let i=0;i<5;i++)await run('comment','--id','1','--text',`Later update ${i}`);
