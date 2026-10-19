@@ -476,5 +476,75 @@
         "ok": true
       }
     ]
+  },
+  "scenarios": {
+    "passed": true,
+    "date": "2026-10-19T02:39:22.703Z",
+    "chill": {
+      "commit": "9defb84",
+      "uncommittedChanges": true
+    },
+    "checks": [
+      {
+        "name": "feedback saved while the agent is idle reaches it, and the Goal shows the agent Running on it [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "feedback saved while the agent responds shows Waiting and reaches it when the response ends [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "Send now delivers feedback that waits for the running response [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "the agent's reply clears the marks at once, while its work still runs [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "the end of the work without a reply leaves the comment marked, awaiting one [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "a comment reaches the agent once, and a later comment brings only itself [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "another conversation cannot answer the feedback [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "the Goal shows Running and Think while the agent works on its feedback, and neither after [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "goal work marks the Goal Running for the response that selected it [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "the Agent menu reads the agent's name, model and status [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "Approve all is offered where the harness supports it, and refused where it does not [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "Pause holds new feedback and Resume releases it where the harness can pause, and is refused where it cannot [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "a stop in the agent's own app shows Interrupted, not Paused, and the next feedback starts it again [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "a command the user runs in the agent's own app, such as /reload-skills, does not make it Running [Codex app-server]",
+        "ok": true
+      },
+      {
+        "name": "a stop with nothing running and nothing said about feedback the agent took is held once, to tell the user [Codex app-server]",
+        "ok": true
+      }
+    ]
   }
 }

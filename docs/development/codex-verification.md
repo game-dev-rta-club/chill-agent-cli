@@ -1,9 +1,11 @@
 ---
 keyPoints: >-
-  Before each release and after a Codex update, run node scripts/probe-codex.mjs
-  (every Codex behavior chill relies on, fake model, no cost) and
-  node scripts/probe-codex.mjs connection --run (one real round trip), then the
-  five-minute Desktop checklist for what only Desktop can show. The probe records
+  Before a release that bumps the version and after a Codex update, run
+  node scripts/probe-codex.mjs (every Codex behavior chill relies on, fake model,
+  no cost), node scripts/probe-codex.mjs scenarios (every user-visible flow on the
+  real app-server, no cost) and node scripts/probe-codex.mjs connection --run (one
+  real round trip), then the five-minute Desktop checklist for what only Desktop
+  can show. The probe records
   its result in docs/development/codex-verification/<version>.json and lists where
   test/fake-codex.mjs differs from the real app-server.
 ---
@@ -13,13 +15,14 @@ keyPoints: >-
 `npm run check` never starts Codex. Its tests use `test/fake-codex.mjs` and inline
 stubs, which are held to Codex's protocol schema but still written by hand. Whether
 the real Codex behaves the way those fakes assume is what this page's probe
-answers. It has two automatic parts and a short manual checklist, and you run all
-three before publishing a version.
+answers. It has three automatic parts and a short manual checklist, and you run all
+four before publishing a version.
 
 ## When to run it
 
-- **Before each release.** Run both automatic parts and the manual checklist, then put the Codex
-  version and the result of each in the release PR. [Releasing](../../RELEASING.md) links here.
+- **Before a release that bumps the version.** Run the automatic parts and the manual checklist, then put the Codex
+  version and the result of each in the release PR. [Releasing](../../RELEASING.md) links here. Internal builds of
+  `develop` do not need it.
 - **After Codex Desktop updates.** Run `node scripts/update-codex-schema.mjs` first, review the schema diff,
   then the probe. The probe fails its first check when the committed schema is not from the installed Codex.
 - **After changing the Codex adapter or the fake.** That means `lib/codex-client.mjs`, `lib/agents/codex-*.mjs`,
@@ -31,12 +34,13 @@ CI cannot run it, because CI has no Codex. The probe is macOS only and is not pa
 
 ```sh
 node scripts/probe-codex.mjs                    # protocol: fake model, no account, about 40 seconds
+node scripts/probe-codex.mjs scenarios          # scenarios: every user-visible flow, fake model, about three minutes
 node scripts/probe-codex.mjs connection --run   # connection: one real model round trip, about 40 seconds
 ```
 
-Both parts use the Codex that `resolveCodex()` finds, which is the Desktop bundle and not whatever `codex` is on `PATH`.
+All parts use the Codex that `resolveCodex()` finds, which is the Desktop bundle and not whatever `codex` is on `PATH`.
 Each runs in a disposable `CODEX_HOME`, project and chill data directory, and prints one `pass` or `FAIL` line per
-check. The exit code is 1 when any check fails. Neither part touches `~/.codex`, your Codex sessions, Desktop or the Web
+check. The exit code is 1 when any check fails. No part touches `~/.codex`, your Codex sessions, Desktop or the Web
 on port 51790.
 
 ### Protocol part
@@ -85,6 +89,19 @@ config/value/write  keyPath hooks.state."<hook key>".trusted_hash  value <curren
 ```
 
 A chat reads its hooks when it starts, so a chat that was already open when the hook was trusted keeps running without it.
+
+### Scenarios part
+
+It runs `test/harness-scenarios.test.mjs`, the user-visible flows that `npm run check` runs on the fake Codex and on
+Claude Code, on the installed Codex instead. A long-lived app-server stands in for Desktop, chill's real hooks are
+installed and trusted in the disposable home, and a scripted model drives each turn: it answers, calls a tool (which runs
+chill's PostToolUse hook) or ends the turn (which runs chill's Stop hook). A small server at `CODEX_HOME/ipc/ipc.sock`
+stands in for Desktop's IPC and passes its requests to the app-server, so Pause, Resume and a stopped chat's next
+message run too. Each scenario is one `pass` or `FAIL` line.
+
+It covers what the manual checklist's steps 5 to 10 look for on chill's side: feedback reaching an idle chat, Think,
+Waiting and Send now, Pause, feedback while paused, Resume and Interrupted. The checklist still covers Desktop's own
+windows and the shape of its IPC, which the stand-in only assumes.
 
 ### Connection part
 
@@ -150,6 +167,8 @@ These were observed on `0.163.0-alpha.10.2` and are asserted on every run.
 | `thread/read` with `includeTurns` lists turns oldest first, while `thread/turns/list` lists newest first | `reconcile` and `workReader` |
 | A hook runs only in chats started after it was trusted | the manual checklist starts a new chat |
 | A Stop hook's `{decision:"block",reason}` continues the turn with the reason as model input; the run reports `blocked`, and the continued turn's next Stop has `stop_hook_active: true` | the quiet-stop hold |
+| A chat whose last turn was stopped does not run its queue; only a started turn goes on (scenarios part) | a stopped chat's next feedback and Resume start a turn through Desktop's IPC |
+| Desktop's app-server picks up an input queued from another process a few seconds later (scenarios part) | none; a comment to an idle chat shows Sent before the turn starts |
 
 ## Check what only Desktop can show
 

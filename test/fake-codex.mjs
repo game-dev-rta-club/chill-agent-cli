@@ -3,7 +3,8 @@
 // A violation is answered with a JSON-RPC error that names it and is recorded for test/isolate-env.mjs to fail the run.
 // It answers as the real one does to chill, which always runs in a second process beside Codex Desktop
 // (verified by scripts/probe-codex.mjs): the chat reads notLoaded, a live turn reads interrupted with
-// completedAt null, a chat is invisible before its first turn, and an idle chat starts a turn from its queue.
+// completedAt null, a chat is invisible before its first turn, and an idle chat starts a turn from its queue unless
+// its last turn was stopped.
 import {createInterface} from 'node:readline';
 import {appendFile, mkdir} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';

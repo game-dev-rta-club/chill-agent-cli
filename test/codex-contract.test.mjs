@@ -153,4 +153,9 @@ test('the fake answers chill as real Codex answers a second process beside Deskt
   await writeFile(join(directory, 'fake-history.json'), JSON.stringify(history));
   const after = (await talk(directory, [['thread/queue/list', {threadId: 't'}], ['thread/turns/list', {threadId: 't', limit: 1}]])).replies;
   assert.deepEqual([after[0].result.data, after[1].result.data[0].items[0].clientId], [[], 'two'], 'the queue drains into the next turn when the chat is idle');
+  const stopped = JSON.parse(await readFile(join(directory, 'fake-history.json'), 'utf8'));
+  Object.assign(stopped.turns[0], {status: 'interrupted', completedAt: 3});
+  await writeFile(join(directory, 'fake-history.json'), JSON.stringify(stopped));
+  const held = (await talk(directory, [['thread/queue/add', input('three')], ['thread/queue/list', {threadId: 't'}]])).replies;
+  assert.deepEqual(held[1].result.data.map(e => e.clientUserMessageId), ['three'], 'a stopped chat keeps its queue until Desktop starts a turn');
 });

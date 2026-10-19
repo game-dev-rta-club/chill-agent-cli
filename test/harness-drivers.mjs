@@ -1,5 +1,6 @@
 // One driver per agent harness, so a user-visible flow is written once (test/harness-scenarios.test.mjs)
-// and runs against the fake Codex and against a Claude Code conversation.
+// and runs against the fake Codex and against a Claude Code conversation. With CHILL_SCENARIO_CODEX set, it runs
+// against the installed Codex app-server instead (scripts/probe-codex.mjs scenarios).
 //
 // A driver plays the agent and reads what the user sees. start(t) returns a session:
 //   goalId                          the Root Goal the agent is assigned to
@@ -42,7 +43,8 @@ import {claimClaudeFeedbackForWatcher} from '../lib/claude-actions.mjs';
 import {executionState,isRunning} from '../public/goal-state.js';
 import {activityDisplay,commentMarkDisplay} from '../public/work-ui.js';
 import {claudeEntry,claudeLine,hookFor} from './claude-fixtures.mjs';
-import {desktopChat} from './fake-codex-desktop.mjs';
+import {desktopChat,serveDesktopIPC} from './fake-codex-desktop.mjs';
+import {allowHidden} from './hidden-failures.mjs';
 
 // Codex's reads of a chat are cached for a few seconds. Moving this process's clock past them stands for time passing,
 // so a read after the response ended is not answered from the read made while it ran.
@@ -130,7 +132,8 @@ async function codexSession(t) {
   passTime();
   const env={...process.env,CODEX_THREAD_ID:thread};
   // Desktop runs the chat; chill sees it from a second process, as the real one (test/fake-codex-desktop.mjs).
-  const chat=await desktopChat(data,thread,()=>invalidateAgentObservation(thread));
+  const chat=await desktopChat(data,thread,()=>invalidateAgentObservation(thread),{codexHome:process.env.CODEX_HOME});
+  t.after(chat.close);
   const hook=async(name,turnId,extra={})=>{const output=await runWith(codexHook,[],{env,input:{hook_event_name:name,session_id:thread,turn_id:turnId,...extra}});return output.trim()?JSON.parse(output):null;};
   // A tool call in the running turn: Codex runs PostToolUse, which is how chill learns the turn works.
   const tool=async()=>{const output=await hook('PostToolUse',(await chat.running()).id);if(output)handoff.push(...feedbackIds(output.hookSpecificOutput.additionalContext));};
@@ -174,6 +177,102 @@ async function codexSession(t) {
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
   return session;
+}
+
+// ---- Codex app-server -------------------------------------------------------------
+// The real Codex app-server stands in for Desktop and runs chill's real hooks; only the model is scripted, so nothing
+// is billed. Opt-in through CHILL_SCENARIO_CODEX (the Codex path), as scripts/probe-codex.mjs scenarios sets it.
+
+const textOf=value=>typeof value==='string'?value:Array.isArray(value)?value.map(textOf).join('\n'):value&&typeof value==='object'?Object.values(value).map(textOf).join('\n'):'';
+
+async function codexAppSession(t,codexPath) {
+  const kit=await import('../scripts/probe-codex-kit.mjs');
+  allowHidden(t,'codex-desktop-connection.snapshot-usage');// usage needs a Codex login, which this run never uses
+  const requests=[];
+  const model=await kit.fakeModel(request=>new Promise(resolve=>requests.push({request,resolve})));
+  const home=await mkdtemp(join(tmpdir(),'chill-scenario-codex-home-')),project=await mkdtemp(join(tmpdir(),'chill-scenario-codex-project-'));
+  await writeFile(join(home,'config.toml'),model.config);
+  await workspace(t,'chill-scenario-codex-app-',{CHILL_AGENT_CODEX_PATH:codexPath,CODEX_HOME:home,HOME:home,FAKE_KEY:'x'});
+  await mkdir(process.env.CHILL_AGENT_DATA_DIR,{recursive:true});
+  const A=new kit.AppServer(codexPath,home,'desktop',{FAKE_KEY:'x'});
+  let closeIPC=async()=>{};
+  t.after(async()=>{await closeIPC();await A.stop();await model.close();for(const dir of [home,project])await rm(dir,{recursive:true,force:true,maxRetries:5});});
+  const call=async(method,params)=>{const reply=await A.call(method,params);if(!reply.result)throw Error(`${method}: ${reply.error?.message??'timeout'}`);return reply.result;};
+  await A.init();
+  // chill's hooks, trusted as a user trusts them in Desktop.
+  await (await import('../bin/chill-hook.mjs')).installHook(project);
+  await call('config/value/write',{keyPath:`projects."${project}".trust_level`,value:'trusted',mergeStrategy:'upsert'});
+  for(const hook of (await call('hooks/list',{cwds:[project]})).data[0].hooks)
+    await call('config/value/write',{keyPath:`hooks.state."${hook.key}".trusted_hash`,value:hook.currentHash,mergeStrategy:'upsert'});
+  const until=async(done,what,timeout=20000)=>{const end=Date.now()+timeout;while(Date.now()<end){const value=done();if(value)return value;await kit.sleep(20);}throw Error(`Codex did not ${what}`);};
+  const turns=method=>A.notes.filter(note=>note.method===method).map(note=>note.params.turn.id);
+  const ended=()=>turns('turn/completed').length;
+  const liveTurn=()=>turns('turn/started').findLast(id=>!turns('turn/completed').includes(id))??null;
+  // Desktop's IPC, which starts and stops the chat's turns for Pause, Resume and a stopped chat's next message.
+  closeIPC=await serveDesktopIPC(home,{
+    'thread-follower-start-turn':({turnStart:{request}})=>A.call('turn/start',{threadId:request.threadId,input:request.input}),
+    async 'thread-follower-interrupt-turn'({conversationId,expectedTurnId}) {
+      if(liveTurn()!==expectedTurnId)return {ok:true,interruptedTurnId:null};
+      const before=ended();await call('turn/interrupt',{threadId:conversationId,turnId:expectedTurnId});
+      await until(()=>ended()>before,'end the interrupted turn');
+      return {ok:true,interruptedTurnId:expectedTurnId};
+    },
+    'thread-follower-update-thread-settings':({condition})=>({applied:false,condition}),
+  });
+  let current=null,seen=0,handoff=[];
+  // What reached the model since it was last called: the user's message, a hook's context or a Stop reason.
+  const take=async timeout=>{
+    const {request,resolve}=await until(()=>requests.shift(),'call the model',timeout);
+    current={resolve,ended:ended()};
+    const text=textOf(request.input.slice(seen));seen=request.input.length;
+    handoff.push(...feedbackIds(text));
+    return text;
+  };
+  // A held model call whose turn has ended since (Pause, a stop) is gone.
+  const live=()=>{if(current&&ended()>current.ended){current.resolve([]);current=null;}return current;};
+  // Answer the held model call; Codex calls the model again, or ends the turn.
+  const answer=async items=>{
+    const before=ended();current.resolve(items);current=null;
+    return await until(()=>requests.length?'called':ended()>before?'ended':null,'go on after the model answered')==='called'?take():null;
+  };
+  // A tool call: Codex runs chill's PostToolUse hook, and its context reaches the model with the tool's output.
+  const tool=()=>answer([kit.shellCall('true')]);
+  // A turn chill started: from its message to an idle chat, or through Desktop. Codex takes a few seconds to see a queued one.
+  const turnStarts=timeout=>take(timeout).then(()=>true,()=>false);
+  const message=text=>({input:[{type:'text',text,text_elements:[]}],clientUserMessageId:randomUUID()});
+  const thread=(await call('thread/start',{cwd:project})).thread.id;
+  await call('thread/queue/add',{threadId:thread,...message('Start')});await take();await answer([kit.textItem('Ready.')]);
+  const env={...process.env,CODEX_THREAD_ID:thread};
+  const root=await createGoal({title:'A useful outcome'});
+  await assignGoal(root.id,thread);
+  return {
+    ...userSide(root.id,()=>invalidateAgentObservation(thread)),
+    async agentStartsResponse() {await call('thread/queue/add',{threadId:thread,...message('Work')});await take();await tool();},
+    async agentEndsResponse() {
+      if(!live()&&!(requests.length&&await turnStarts()))return null;
+      const reason=await answer([kit.textItem('Done.')]);
+      if(reason!==null)return reason;
+      passTime();
+      return null;
+    },
+    async userRunsLocalCommand() {},
+    async agentIsInterrupted() {
+      const before=ended();
+      await call('turn/interrupt',{threadId:thread,turnId:liveTurn()});
+      await until(()=>ended()>before,'end the interrupted turn');
+      live();handoff=[];passTime();
+    },
+    async agentTakesFeedback() {
+      if(!live()&&!await turnStarts(15000))return [];
+      await tool();
+      const ids=handoff;handoff=[];
+      return ids;
+    },
+    strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
+    agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    agentSelectsWork:()=>selectAgentWork(root.id,{env}),
+  };
 }
 
 // ---- Claude Code ----------------------------------------------------------------
@@ -248,11 +347,14 @@ async function claudeSession(t) {
 
 const win32Codex=process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable';
 
-export const drivers=[
-  {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'handed',
-    // Approve all and settings are Claude features; pausing a Codex chat needs the running Desktop app.
-    // Codex's Stop hook input names no background work, so chill cannot see it.
-    capabilities:{approveAll:false,pause:false,backgroundWork:false}},
+// Approve all and settings are Claude features. Pause goes through Desktop's IPC, which each Codex driver stands in for.
+// Codex's Stop hook input names no background work, so chill cannot see it.
+const codexCapabilities={approveAll:false,pause:true,backgroundWork:false};
+const appCodex=process.env.CHILL_SCENARIO_CODEX;
+export const drivers=appCodex?[
+  {name:'Codex app-server',start:t=>codexAppSession(t,appCodex),agentName:'Codex',pending:'handed',capabilities:codexCapabilities},
+]:[
+  {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'handed',capabilities:codexCapabilities},
   {name:'Claude Code',start:claudeSession,agentName:'Claude Code',pending:'saved',
     capabilities:{approveAll:true,pause:true,backgroundWork:true}},
 ];
