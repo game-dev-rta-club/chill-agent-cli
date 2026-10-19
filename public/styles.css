@@ -90,6 +90,8 @@
 .activity-entry[data-state="running"] .activity-dot::before, .activity-entry[data-state="queued"] .activity-dot::before { display: none; }
 .activity-entry[data-state="running"] .activity-heading strong { color: var(--theme-muted,#267653); }
 .activity-entry[data-state="queued"] .activity-dot { border-color: var(--theme-line,#d6ddd8); border-top-color: var(--theme-accent,#77887d); animation: activity-spin 2.4s linear infinite; }
+.activity-entry[data-state="waiting"] .activity-dot { border-color: var(--theme-accent,#267653); }
+.activity-entry[data-state="waiting"] .activity-dot::before { display: none; }
 .activity-entry[data-state="paused"] .activity-dot { border: 0; border-radius: 0; }
 .activity-entry[data-state="paused"] .activity-dot::before { width: 8px; height: 11px; border-left: 3px solid var(--theme-line,#826636); border-right: 3px solid var(--theme-line,#826636); border-radius: 0; background: none; }
 .activity-entry[data-state="paused"] .activity-heading strong { color: var(--theme-muted,#826636); }

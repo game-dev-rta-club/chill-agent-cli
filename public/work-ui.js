@@ -24,7 +24,16 @@ const activityDescriptions = {
   interrupted: 'Stopped in the agent’s own app. It runs again with its next work.',
   unknown: 'Could not read the agent.',
 };
-export function activityDisplay(activity) {
+// A check the agent scheduled turns Ended into Waiting; one long past its time
+// means nothing is left to wake the agent.
+const overdueMs = 5 * 60 * 1000;
+function waitingDisplay({at, reason}, now) {
+  const due = Date.parse(at), time = new Date(due).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
+  if (now - due > overdueMs) return {state: 'unknown', label: 'Check overdue', description: `${reason ? `${reason}. ` : ''}The check was due at ${time}.`, live: false};
+  return {state: 'waiting', label: 'Waiting', description: `${reason ? `${reason}. ` : ''}Checks again at ${time}.`, live: false};
+}
+export function activityDisplay(activity, now = Date.now()) {
+  if (activity?.status === 'idle' && activity.wake) return waitingDisplay(activity.wake, now);
   if (!activity || activity.status === 'idle' && !activity.work?.messages?.length) return null;
   return {state: activity.status, label: activityLabels[activity.status] || activityLabels.unknown, description: activityDescriptions[activity.status] || '',
     live: activity.status === 'running' && activity.work?.live !== false};

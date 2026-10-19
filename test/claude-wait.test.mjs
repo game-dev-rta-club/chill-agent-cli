@@ -194,6 +194,22 @@ test('Claude feedback lists open Letters with their close command, as Codex deli
  assert.match(text,/Open Letters/);assert.match(text,new RegExp(`goal close-letter --id ${f.root.id} --event ${letter.id}`));
 });
 
+test('a Goal whose ended response scheduled a check shows Waiting, and Check overdue long past it',async t=>{
+ const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
+ const {claudeAgent}=await import('../lib/agents/claude.mjs');
+ const {activityDisplay}=await import('../public/work-ui.js');
+ const {recordClaudeWork}=await import('../lib/claude-agent-work.mjs');
+ const f=await fixture(t);await recordClaudeWork(f.connection.sessionId,[{type:'started'},{type:'commented',goalId:f.root.id},{type:'finished'}],{directory:f.data});
+ const agent=claudeAgent((await listGoals()).find(g=>g.id===f.root.id));
+ assert.equal((await agent.activity(f.root.id)).wake,undefined);
+ const {wake}=await scheduleClaudeWake({minutes:10,reason:'CI of PR #91',env:f.env()});
+ const activity=await agent.activity(f.root.id);
+ assert.deepEqual(activity.wake,{at:wake.at,reason:'CI of PR #91'});
+ const shown=activityDisplay(activity,Date.parse(wake.at)-60000);
+ assert.equal(shown.state,'waiting');assert.equal(shown.label,'Waiting');assert.match(shown.description,/^CI of PR #91\. Checks again at \d{1,2}:\d{2} [AP]M\.$/);
+ assert.equal(activityDisplay(activity,Date.parse(wake.at)+10*60000).label,'Check overdue');
+});
+
 test('a scheduled check wakes the conversation through its waiter when it is due, once',async t=>{
  const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
  const f=await fixture(t);let clock=Date.now();const now=()=>clock;
