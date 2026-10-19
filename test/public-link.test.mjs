@@ -10,16 +10,18 @@ test('only local users publish; Off retains custom configuration and no fallback
  await e.request({method:'POST',path:'toggle',body:{enabled:false},local:true});assert.equal(remote.url,'https://phone.test');assert.equal(saved.enabled,false);
  remote={mode:'off'};await assert.rejects(e.request({method:'POST',path:'toggle',body:{enabled:true},local:true}),/Confirm/);assert.equal(remote.mode,'off');
 });
-test('the QR opens the link, the code is shown only to the computer, and only the computer signs phones out',async()=>{
- const live={enabled:true,url:'https://phone-test.trycloudflare.com',status:'running'};let signedOut=0;
- const access={code:async()=>'ABCD2345',phones:async()=>2,signOutAll:async()=>{signedOut++;}};
+test('the QR opens the link, the code and devices are shown only to the computer, and only the computer disconnects devices',async()=>{
+ const live={enabled:true,url:'https://phone-test.trycloudflare.com',status:'running'};
+ const devices=[{id:'a1',device:'iPhone · Safari',connectedAt:'2026-10-19T05:57:00.000Z'}],removed=[];
+ const access={code:async()=>'ABCD2345',devices:async()=>devices,disconnect:async id=>{removed.push(id);},disconnectAll:async()=>{removed.push('all');}};
  const e=createExtension({tunnel:{read:()=>live},access,store:{read:async()=>({enabled:true,confirmedPublic:true})},settings:async()=>({remote:{mode:'quick'}})});
  const local=(await e.request({method:'GET',path:'state',body:{},query:{goalId:'3'},local:true})).body;
- assert.equal(local.code,'ABCD2345');assert.equal(local.phones,2);
+ assert.equal(local.code,'ABCD2345');assert.deepEqual(local.devices,devices);
  assert.equal(local.link,'https://phone-test.trycloudflare.com/#/goal/3');
  assert.equal(local.qr,await linkQr(local.link),'the QR carries the link, not the code');
  const phone=(await e.request({method:'GET',path:'state',body:{},query:{goalId:'3'},local:false})).body;
- assert.equal(phone.code,null);
- await assert.rejects(e.request({method:'POST',path:'sign-out',body:{},local:false}),/computer/);
- await e.request({method:'POST',path:'sign-out',body:{},local:true});assert.equal(signedOut,1);
+ assert.equal(phone.code,null);assert.equal(phone.devices,null);
+ await assert.rejects(e.request({method:'POST',path:'disconnect',body:{id:'a1'},local:false}),/computer/);
+ await e.request({method:'POST',path:'disconnect',body:{id:'a1'},local:true});await e.request({method:'POST',path:'disconnect-all',body:{},local:true});
+ assert.deepEqual(removed,['a1','all']);
 });
