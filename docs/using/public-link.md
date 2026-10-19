@@ -1,16 +1,19 @@
 ---
 keyPoints: >-
-  More → Public link opens access controls and a phone QR. A phone signs in once with the
-  panel's 8-character code; fixed URLs and Access are prepared in the user's own Cloudflare CLI.
+  More → Public link opens access controls and a phone QR. The QR opens the link; the phone
+  signs in once with the panel's 8-character code, hidden until Show. Fixed URLs and Access
+  are prepared in the user's own Cloudflare CLI.
 ---
 
 # Open the workspace on your phone
 
 On your computer, choose **More → Public link** and turn it On. Confirm the
-scope, then scan the QR with your phone's camera. The QR signs the phone in.
-**Copy link** copies the address without the code; a phone that opens it asks
-for the 8-character sign-in code shown under the QR. The **More** link inside
-that panel explains access and custom URLs.
+scope, then scan the QR with your phone's camera, or send the address with
+**Copy link**. The phone asks for the 8-character sign-in code. The panel hides
+the code so a glance at your screen does not give it away; press **Show** to
+read it, and type it on the phone. After signing in, the phone opens the Goal
+the link pointed to. The **More** link inside that panel explains access and
+custom URLs.
 
 ## Who can open it
 
