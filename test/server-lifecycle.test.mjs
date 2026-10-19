@@ -172,6 +172,7 @@ test('a request through the tunnel sees nothing until the phone signs in with th
   const page = await fetch(f.url+'/', {headers:{...phone,Accept:'text/html'}});
   assert.equal(page.status,401);
   assert.match(await page.text(),/Sign in to chill/);
+  assert.equal(page.headers.get('referrer-policy'),'same-origin','the form posts with its Origin, not null');
   assert.equal((await fetch(f.url+'/api/goals',{headers:phone})).status,401);
   assert.equal((await fetch(f.url+'/api/goals')).status,200,'the local Web needs no sign-in');
   const panel = async () => (await (await fetch(f.url+'/api/extensions/public-link/state?goalId=1')).json());
