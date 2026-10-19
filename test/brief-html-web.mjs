@@ -12,8 +12,9 @@ const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.me
 const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
 await run('create','--title','Goal・Plan・Letterとバージョンの役割を整理する');
 await writeFile(join(root,'workspace/goals/1/deliverable.md'),'# Markdown remains\n\nOriginal explanation');await run('deliverable','update','--id','1');
-const source=await readFile(new URL('../docs/examples/goal-7-brief.html',import.meta.url),'utf8');
+const source=await readFile(new URL('./fixtures/goal-7-deliverable.html',import.meta.url),'utf8');
 const path=await run('deliverable','path','--id','1','--format','html');await writeFile(path.path,source);await run('deliverable','update','--id','1','--format','html');
+await run('comment','--id','1','--text','Agent explanation of the page layout');
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
 const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});
 let browser;
@@ -30,7 +31,7 @@ try {
  await page.screenshot({path:'/tmp/chill-html-brief-desktop.png'});
  // Annotate inside the iframe, using the existing parent editor and sender.
  const quote='Deliverableに作業ログを積まず';
- await frame.getByText(/Deliverableに作業ログを積まず/).scrollIntoViewIfNeeded();
+ await frame.getByText(/Deliverableに作業ログを積まず/).evaluate(el=>el.scrollIntoView({block:'center'}));
  // Simulate delayed iframe selection notifications. Completing a selection must still
  // expose the action, before the user focuses anything in the parent document.
  await page.locator('.html-brief-frame').evaluate((el,quote)=>{
@@ -54,6 +55,8 @@ try {
  await frame.locator('.annotation-action').waitFor({state:'visible',timeout:2000});
  // Selection stays usable across scrolling, rather than disappearing until blur.
  await page.locator('main').evaluate(el=>el.scrollTop+=20);
+ // Scrolling hides the action until it is placed again; a locator click would scroll and hide it again.
+ await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
  await frame.locator('.annotation-action').waitFor({state:'visible',timeout:2000});
  const actionBox=await frame.locator('.annotation-action').boundingBox();
  await page.mouse.click(actionBox.x+actionBox.width/2,actionBox.y+actionBox.height/2);await page.locator('.annotation-form textarea').fill('HTMLでも注釈');await page.locator('.annotation-form').getByRole('button',{name:'Save',exact:true}).click();
@@ -61,6 +64,20 @@ try {
  const sent=page.waitForResponse(r=>r.url().endsWith('/feedback')&&r.request().method()==='POST');await page.locator('.conversation-form').getByRole('button',{name:'Comment',exact:true}).click();const response=await sent;assert.equal(response.status(),201);
  const event=(await response.json()).feedback;assert.equal(event.annotations[0].anchor.start,canonical.indexOf(quote));
  await page.reload();await frame.locator('.annotation-mark').waitFor();await frame.locator('.annotation-mark').click();await page.locator('.annotation-preview').waitFor();assert.match(await page.locator('.annotation-preview').innerText(),/HTMLでも注釈/);
+ // A selection left in the Deliverable gives way to one the user makes in a comment.
+ await frame.getByText(/返答を待つ枝があっても/).evaluate(el=>el.scrollIntoView({block:'center'}));
+ await page.locator('.html-brief-frame').evaluate((el,quote)=>{
+  const d=el.contentDocument,n=[...d.querySelectorAll('.takeaway')].find(p=>p.textContent.includes(quote)).firstChild,r=d.createRange();
+  r.setStart(n,0);r.setEnd(n,quote.length);const selection=el.contentWindow.getSelection();selection.removeAllRanges();selection.addRange(r);
+  n.parentElement.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+ },'返答を待つ枝があっても');
+ await frame.locator('.annotation-action').waitFor({state:'visible',timeout:2000});
+ const reply=page.locator('[data-annotation-reply] p').first();await reply.scrollIntoViewIfNeeded();const replyBox=await reply.boundingBox();
+ await page.mouse.move(replyBox.x+2,replyBox.y+replyBox.height/2);await page.mouse.down();await page.mouse.move(replyBox.x+120,replyBox.y+replyBox.height/2,{steps:5});await page.mouse.up();
+ assert.equal(await page.locator('.html-brief-frame').evaluate(el=>el.contentWindow.getSelection().toString()),'');
+ await page.getByRole('button',{name:'Annotate selected text',exact:true}).click();
+ assert.match(await page.locator('.annotation-form').innerText(),/Agent comment \d+ · Agent explanation/);
+ await page.getByRole('button',{name:'Close annotation',exact:true}).click();
  await page.setViewportSize({width:390,height:844});await page.locator('.html-brief-frame').evaluate(el=>{if(el.contentDocument.body.scrollWidth>el.clientWidth+1)throw new Error('HTML overflow');});await page.locator('.html-brief-frame').evaluate(el=>{const main=el.closest('main');main.scrollTop=el.offsetTop-10;});await page.screenshot({path:'/tmp/chill-html-brief-mobile.png',fullPage:true});
  await frame.getByText('PlanとHistoryの居場所',{exact:true}).click();assert.equal(await frame.locator('details[open]').count(),1);
  await page.goto(url+'/#/goal/1/v1');await page.getByRole('heading',{name:'Markdown remains'}).waitFor();assert.equal(await page.locator('.html-brief-frame').count(),0);assert.match(await page.locator('.brief-body').innerText(),/Markdown remains/);
