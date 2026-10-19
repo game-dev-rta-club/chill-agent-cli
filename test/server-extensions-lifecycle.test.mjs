@@ -10,6 +10,7 @@ import test from 'node:test';
 import { lastServerUse, serverOptions } from '../lib/server-lifecycle.mjs';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
 import {fileURLToPath} from 'node:url';
+import {usedChat} from './fake-codex-desktop.mjs';
 
 const execute = promisify(execFile);
 const serverFile = fileURLToPath(new URL('../server.mjs',import.meta.url));
@@ -261,6 +262,8 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   // Idle and queue delay leave room for a busy machine: setup steps must finish
   // before the server's own idle stop, and the queue must outlast that stop.
   const f = await fixture(t, '2s', {CHILL_TEST_QUEUE_DELAY:'3000'});
+  // The user's own turn in Desktop, before its first tool: the comment waits in the Codex queue behind it.
+  await usedChat(f.root,{turns:[{id:'00000000-0000-0000-0000-000000000077',status:'inProgress',completedAt:null}]});
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>Pending delivery</p>');
   await f.run(['create','--title','Pending delivery','--thread-id',threadId]);
@@ -283,7 +286,8 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   } while (Date.now() < until);
   assert.equal(queue.length,1,'the idle chat was sent the comment');
   assert.equal(f.child.exitCode,null,'a message waiting in the Codex app also prevents idle shutdown');
-  await writeFile(join(f.root,'fake-queue.json'),'[]');
+  // The chat takes it and finishes its work.
+  await writeFile(join(f.root,'fake-queue.json'),'[]');await usedChat(f.root);
   assert.equal((await f.exited)[0],0);
 });
 

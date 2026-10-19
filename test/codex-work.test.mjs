@@ -14,6 +14,7 @@ import {codexFeedbackText,codexSnapshot,codexStop,codexToolHook,handIdleCodex,pa
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
 import {hookOutput} from '../bin/chill-hook.mjs';
 import {expectHidden} from './hidden-failures.mjs';
+import {desktopChat} from './fake-codex-desktop.mjs';
 
 const fake=fileURLToPath(new URL('./fake-codex.mjs',import.meta.url));
 const test=(name,run)=>nodeTest(name,{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},run);
@@ -22,66 +23,72 @@ async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-codex-work-')),previous={};
   for(const [key,value] of Object.entries({CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:fake})){previous[key]=process.env[key];process.env[key]=value;}
   t.after(async()=>{for(const [key,value] of Object.entries(previous))value===undefined?delete process.env[key]:process.env[key]=value;await rm(dir,{recursive:true,force:true});});
-  const thread=randomUUID(),turns=[];
-  const history=async status=>{await writeFile(join(dir,'fake-history.json'),JSON.stringify({status,turns:turns.slice().reverse()}));invalidateAgentObservation(thread);};
-  const root=await createGoal({title:'Outcome'});await assignGoal(root.id,thread);await history({type:'idle'});
-  const queue=async()=>JSON.parse(await readFile(join(dir,'fake-queue.json'),'utf8').catch(()=>'[]'));
-  return {dir,thread,root,queue,
-    async startTurn(){const id=randomUUID();turns.push({id,status:'inProgress',completedAt:null,items:[]});await history({type:'active',activeFlags:[]});return id;},
-    async endTurn(status='completed'){Object.assign(turns.at(-1),{status,completedAt:Math.floor(Date.now()/1000)});await history({type:'idle'});},
+  const thread=randomUUID(),chat=await desktopChat(dir,thread,()=>invalidateAgentObservation(thread));
+  const root=await createGoal({title:'Outcome'});await assignGoal(root.id,thread);
+  return {dir,thread,root,...chat,
+    // Chill knows a turn works from its tool hooks: Codex shows a second process no live turn as running.
+    async tool(){const turn=(await chat.running()).id;await hookOutput({hook_event_name:'PostToolUse',session_id:thread,turn_id:turn},thread);return turn;},
+    async work(){await chat.startTurn();return this.tool();},
     save:async text=>{const event=await appendFeedback({goalId:root.id,text});await deliverFeedback(event.changeId);return event.changeId;}};
 }
 
 test('an idle chat is sent waiting comments as one message, quoting the user as data with the commands to answer',async t=>{
   const f=await fixture(t),child=await createGoal({title:'Child',parentId:f.root.id});
   const first=await f.save('Please start');
-  const [entry]=await f.queue();
-  assert.deepEqual(ids(entry.input[0].text),[first]);
-  const text=entry.input[0].text;
+  const [text]=await f.sent();
+  assert.deepEqual(ids(text),[first]);
+  assert.deepEqual(await f.queue(),[],'Codex runs it as a turn at once');
   assert.match(text,/"text":"Please start"/);assert.match(text,new RegExp(`show --id ${f.root.id} --since ${first-1} --format text`));
   assert.match(text,/comment --id <goalId> --text/);assert.doesNotMatch(text,/activity --event|--state/);
-  // A chat that already has a message waiting to start is idle; the next comment is its own message.
+  await f.endTurn();
   const letter=await appendAgentComment({goalId:child.id,type:'letter',title:'Which one?',text:'A or B?'});
   await appendAgentComment({goalId:child.id,type:'letter',title:'Still open?',text:'And this?'});
   const second=await appendFeedback({goalId:child.id,text:'And the child',annotations:[{kind:'letter',source:{kind:'comment',eventId:letter.changeId},text:'A'}]});await deliverFeedback(second.changeId);
-  assert.equal(JSON.parse((await f.queue())[1].input[0].text.split('\n')[2])[0].notes[0].source.eventId,letter.changeId,'notes keep their source');
-  assert.match((await f.queue())[1].input[0].text,/Open Letters[\s\S]*Letter \d+ "Still open\?"/);
-  assert.deepEqual((await f.queue()).map(e=>ids(e.input[0].text)),[[first],[second.changeId]]);
+  const sent=await f.sent();
+  assert.equal(JSON.parse(sent[1].split('\n')[2])[0].notes[0].source.eventId,letter.changeId,'notes keep their source');
+  assert.match(sent[1],/Open Letters[\s\S]*Letter \d+ "Still open\?"/);
+  assert.deepEqual(sent.map(ids),[[first],[second.changeId]]);
+  await f.endTurn();
   assert.equal((await handIdleCodex(f.thread)).length,0,'nothing is sent twice');
 });
 
 test('a dozen waiting comments go to an idle chat in one message, none dropped',async t=>{
-  const f=await fixture(t),saved=[];await f.startTurn();
+  const f=await fixture(t),saved=[];await f.work();
   for(let n=1;n<=12;n++)saved.push(await f.save(`Comment ${n}`));
   await f.endTurn();
   assert.deepEqual((await handIdleCodex(f.thread)).map(e=>e.id),saved);
-  assert.deepEqual((await f.queue()).map(e=>ids(e.input[0].text)),[saved]);
+  assert.deepEqual((await f.sent()).map(ids),[saved]);
 });
 
 test('a chat Codex cannot read keeps the comment saved, and a later hand-off sends it',async t=>{
-  const f=await fixture(t);
+  const f=await fixture(t),history=await readFile(join(f.dir,'fake-history.json'),'utf8');
   await writeFile(join(f.dir,'fake-history.json'),JSON.stringify({fail:true}));invalidateAgentObservation(f.thread);
   expectHidden(t,'codex-work.observe');
   const event=await appendFeedback({goalId:f.root.id,text:'Later'});
   assert.equal((await deliverFeedback(event.changeId)).mark,'saved');
   assert.deepEqual(await f.queue(),[]);
-  await writeFile(join(f.dir,'fake-history.json'),JSON.stringify({status:{type:'idle'},turns:[]}));
+  await writeFile(join(f.dir,'fake-history.json'),history);
   assert.deepEqual((await handIdleCodex(f.thread)).map(e=>e.id),[event.changeId]);
 });
 
-test('a lost answer to an accepted message is checked against the Codex Queue, never sent twice',async t=>{
-  const f=await fixture(t);process.env.CHILL_TEST_DROP_AFTER_ADD='1';
+test('a lost answer to an accepted message is checked against the turns and the Codex Queue, never sent twice',async t=>{
+  const f=await fixture(t);
   t.after(()=>{delete process.env.CHILL_TEST_DROP_AFTER_ADD;});
-  const event=await appendFeedback({goalId:f.root.id,text:'Once'});
-  await deliverFeedback(event.changeId);
-  delete process.env.CHILL_TEST_DROP_AFTER_ADD;
+  const lose=async text=>{process.env.CHILL_TEST_DROP_AFTER_ADD='1';const event=await appendFeedback({goalId:f.root.id,text});await deliverFeedback(event.changeId);delete process.env.CHILL_TEST_DROP_AFTER_ADD;return event.changeId;};
+  const ran=await lose('Runs at once');
+  assert.deepEqual((await f.sent()).map(ids),[[ran]]);assert.deepEqual(await f.queue(),[]);
+  await f.endTurn();
+  assert.deepEqual(await handIdleCodex(f.thread),[],'handed already, though it runs as a turn');
+  // A turn the user started in Desktop, before its first tool: chill cannot tell it works, and Codex queues the message.
+  await f.startTurn();
+  const waits=await lose('Waits in the queue');
   assert.equal((await f.queue()).length,1);
-  assert.deepEqual(await handIdleCodex(f.thread),[],'handed already');
-  assert.equal((await f.queue()).length,1);
+  assert.deepEqual(await handIdleCodex(f.thread),[],'handed already, though it waits in the queue');
+  assert.deepEqual((await f.sent()).map(ids),[[ran],[waits]]);
 });
 
 test('while the chat works, comments wait for its Stop; Send now hands them at the next tool hook, once',async t=>{
-  const f=await fixture(t),turn=await f.startTurn();
+  const f=await fixture(t),turn=await f.work();
   const event=await f.save('After this');
   assert.deepEqual(await f.queue(),[],'never left in the Codex Queue');
   assert.equal(await codexToolHook({threadId:f.thread,turnId:turn}),null,'the running turn is not interrupted');
@@ -96,7 +103,7 @@ test('while the chat works, comments wait for its Stop; Send now hands them at t
 
 test('one turn handed comments on two Goals runs both, and a reply drops that Goal out',async t=>{
   const f=await fixture(t),a=await createGoal({title:'A',parentId:f.root.id}),b=await createGoal({title:'B',parentId:f.root.id});
-  const turn=await f.startTurn();
+  const turn=await f.work();
   await appendFeedback({goalId:a.id,text:'For A'});await appendFeedback({goalId:b.id,text:'For B'});
   await codexStop({threadId:f.thread,turnId:turn});
   const running=async()=>[...(await agentExecutions(await listGoals())).entries()].filter(([,e])=>e.status==='working').map(([id])=>id).sort();
@@ -114,7 +121,7 @@ test('a hook text that is too long names the comments instead of quoting them',a
 });
 
 test('hooks of a subagent or another chat hand nothing and leave the comments waiting',async t=>{
-  const f=await fixture(t),turn=await f.startTurn(),event=await f.save('Mine');await sendFeedbackNow(event);
+  const f=await fixture(t),turn=await f.work(),event=await f.save('Mine');await sendFeedbackNow(event);
   assert.equal(await hookOutput({hook_event_name:'PostToolUse',session_id:f.thread,turn_id:turn,agent_id:'child'},f.thread),null);
   assert.equal(await hookOutput({hook_event_name:'PostToolUse',session_id:f.thread,turn_id:turn},randomUUID()),null);
   assert.equal(await hookOutput({hook_event_name:'PostToolUse',session_id:randomUUID(),turn_id:turn},undefined),null,'another chat owns nothing here');
@@ -134,25 +141,25 @@ test('the Stop is held once while a handed Goal awaits a reply, and a reply on i
 });
 
 test('Pause stops the turn and holds comments; Resume sends them, or asks the chat to go on',async t=>{
-  const f=await fixture(t),turn=await f.startTurn(),calls=[];
+  const f=await fixture(t),turn=await f.work(),calls=[];
   const interrupt=async(threadId,turnId)=>{calls.push(turnId);await f.endTurn('interrupted');return {ok:true,interruptedTurnId:turnId};};
   await pauseCodex(f.thread,turn,{interrupt});
   assert.deepEqual(calls,[turn]);assert.equal((await codexSnapshot(f.thread,{fresh:true})).status,'paused');
   const event=await f.save('While paused');
-  assert.deepEqual(await f.queue(),[],'held until Resume');
+  assert.deepEqual(await f.sent(),[],'held until Resume');
   assert.equal(await codexStop({threadId:f.thread,turnId:turn}),null,'a paused chat is handed nothing and not held');
   await resumeCodex(f.thread);
-  assert.deepEqual((await f.queue()).flatMap(e=>ids(e.input[0].text)),[event]);
-  await writeFile(join(f.dir,'fake-queue.json'),'[]');
-  await f.startTurn();await pauseCodex(f.thread,(await codexSnapshot(f.thread,{fresh:true})).work.id,{interrupt});
+  assert.deepEqual((await f.sent()).map(ids),[[event]]);
+  await f.endTurn();
+  await f.work();await pauseCodex(f.thread,(await codexSnapshot(f.thread,{fresh:true})).work.id,{interrupt});
   await resumeCodex(f.thread);
-  assert.match((await f.queue())[0].input[0].text,/continue the stopped work/);
+  assert.match((await f.running()).items[0].content[0].text,/continue the stopped work/);
   await assert.rejects(resumeCodex(f.thread),/Nothing to resume/);
 });
 
 test('a reassigned Root keeps its cursor: the new chat receives only what was never handed',async t=>{
   const f=await fixture(t),handed=await f.save('Handed before');
-  await f.startTurn();const waiting=await f.save('Waits for the turn');await f.endTurn();
+  await f.tool();const waiting=await f.save('Waits for the turn');await f.endTurn();
   const next=randomUUID();await assignGoal(f.root.id,next);
   invalidateAgentObservation(next);
   assert.deepEqual((await handIdleCodex(next)).map(e=>e.id),[waiting]);

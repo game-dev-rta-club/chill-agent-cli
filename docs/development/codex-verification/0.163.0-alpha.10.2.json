@@ -2,9 +2,9 @@
   "codex": "codex-cli 0.163.0-alpha.10.2",
   "protocol": {
     "passed": true,
-    "date": "2026-10-18T15:32:09.099Z",
+    "date": "2026-10-19T02:12:39.560Z",
     "chill": {
-      "commit": "64f5c4d",
+      "commit": "9e9e3e4",
       "uncommittedChanges": true
     },
     "checks": [
@@ -288,23 +288,6 @@
     "differences": [
       {
         "requests": [
-          "thread/turns/list: turns/list, chat with no messages",
-          "thread/read: thread/read, chat with no messages"
-        ],
-        "differences": [
-          "real error \"thread not loaded: <id>\", fake answers"
-        ]
-      },
-      {
-        "requests": [
-          "thread/queue/list: queue/list, empty queue"
-        ],
-        "differences": [
-          "real error \"failed to read thread: invalid thread-store request: no rollout found for thread id <id>\", fake answers"
-        ]
-      },
-      {
-        "requests": [
           "thread/read: thread/read",
           "thread/read: thread/read includeTurns"
         ],
@@ -364,30 +347,6 @@
           "$.data[].defaultServiceTier: only in real",
           "$.data[].availableAccessPrograms: only in real",
           "behavior: real {\"count\":8,\"next\":false,\"items\":[null,null,null,null,null,null,null,null]}, fake {\"count\":1,\"next\":false,\"items\":[null]}"
-        ]
-      },
-      {
-        "requests": [
-          "thread/queue/add on an idle chat"
-        ],
-        "differences": [
-          "real: Codex starts a turn from the queue by itself and announces thread/queue/changed, thread/status/changed and turn/started; fake: the entry stays queued forever and no notification is ever sent"
-        ]
-      },
-      {
-        "requests": [
-          "thread/turns/list on a chat running in another app-server process"
-        ],
-        "differences": [
-          "real: the live turn reads status interrupted with completedAt null; fake: shows whatever the fixture says"
-        ]
-      },
-      {
-        "requests": [
-          "any request from a second app-server process"
-        ],
-        "differences": [
-          "real: the chat has status notLoaded there, and a chat is invisible before its first message; fake: one shared file, never differs, has no thread/start"
         ]
       }
     ],

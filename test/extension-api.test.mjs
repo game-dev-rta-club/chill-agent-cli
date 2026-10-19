@@ -35,19 +35,19 @@ test('extension changes return detailed activity when requested and keep header 
 
 test('extensions observe and enqueue through the Root agent, and only for a polled Root',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
  const {mkdtemp,rm,writeFile}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path'),{fileURLToPath}=await import('node:url');
- const {createGoal}=await import('../lib/goal-store.mjs'),{observe,enqueue}=await import('../lib/extension-api.mjs');
+ const {createGoal}=await import('../lib/goal-store.mjs'),{observe,enqueue}=await import('../lib/extension-api.mjs'),{sentTo}=await import('./fake-codex-desktop.mjs');
  const dir=await mkdtemp(join(tmpdir(),'chill-extension-api-')),old={dir:process.env.CHILL_AGENT_DATA_DIR,codex:process.env.CHILL_AGENT_CODEX_PATH};
  process.env.CHILL_AGENT_DATA_DIR=dir;process.env.CHILL_AGENT_CODEX_PATH=fileURLToPath(new URL('./fake-codex.mjs',import.meta.url));
  try{
   const root=await createGoal({title:'polled',threadId:id}),child=await createGoal({title:'child',parentId:root.id}),bare=await createGoal({title:'unassigned'});
   await assert.rejects(observe(child.id,null),/Root Goal is required/);
   await assert.rejects(observe(bare.id,null),/assigned Root Goal is required/);
-  await writeFile(join(dir,'fake-history.json'),JSON.stringify({status:{type:'idle'},turns:[{id:'00000000-0000-0000-0000-000000000002',status:'completed',startedAt:1,completedAt:2}]}));
+  await writeFile(join(dir,'fake-history.json'),JSON.stringify({turns:[{id:'00000000-0000-0000-0000-000000000002',status:'completed',startedAt:1,completedAt:2}]}));
   const facts=await observe(root.id,null);
   assert.equal(facts.threadId,id);assert.equal(facts.rootId,root.id);
   const requestId='00000000-0000-0000-0000-000000000009';
   assert.ok((await enqueue(facts,'continue',requestId)).queuedSubmission.id);
-  assert.equal((await observe(root.id,null)).queue.length,1,'the request reached the chat queue');
+  assert.deepEqual(await sentTo(dir,id),['continue'],'the idle chat runs the request');
  }finally{
   for(const [key,value] of [['CHILL_AGENT_DATA_DIR',old.dir],['CHILL_AGENT_CODEX_PATH',old.codex]])if(value===undefined)delete process.env[key];else process.env[key]=value;
   await rm(dir,{recursive:true,force:true});

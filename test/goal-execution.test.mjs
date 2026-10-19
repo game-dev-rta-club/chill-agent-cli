@@ -161,13 +161,18 @@ test('a hook tracks chat liveness before work selection; Goal and header use the
 test('Done stays stored while queued and running feedback takes display priority',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async t=>{
  const f=await fixture(t);await f.run('assign','--id','1','--thread-id',thread);
  await f.patch('2',{state:'done'});await f.patch('3',{state:'done'});await f.patch('1',{state:'done'});
- await f.history({status:{type:'idle'},turns:[{id:turn,status:'completed',completedAt:1}]});
+ // A turn the user started in Desktop, before its first tool: the comment waits in the chat queue behind it.
+ const typed='00000000-0000-0000-0000-000000000012';
+ await f.history({turns:[{id:typed,status:'inProgress',completedAt:null},{id:turn,status:'completed',completedAt:1}]});
  await f.feedback();
  let page=await f.run('show','--id','2');
  assert.equal(page.goal.state,'working');assert.equal(page.goal.execution.status,'queued');assert.equal(page.goal.storedState,'done');assert.equal(page.goal.progress,100);assert.equal(page.root.state,'working');
  const next='00000000-0000-0000-0000-000000000011';
+ // Codex runs it once the typed turn ends. chill sees that turn work only from its first tool's hook.
  await writeFile(join(f.root,'fake-queue.json'),'[]');
- await f.history({status:{type:'active',activeFlags:[]},turns:[{id:next,status:'inProgress',completedAt:null}]});
+ await f.history({turns:[{id:next,status:'inProgress',completedAt:null},{id:typed,status:'completed',completedAt:2}]});
+ const before=(await f.run('show','--id','2')).goal;assert.equal(before.execution,undefined,'a live turn reads interrupted to chill, so its work is unknown');
+ await execute(process.execPath,['--input-type=module','-e',`import {hookOutput} from ${JSON.stringify(new URL('../bin/chill-hook.mjs',import.meta.url).href)};await hookOutput(${JSON.stringify({hook_event_name:'PostToolUse',session_id:thread,turn_id:next})},'${thread}');`],{env:f.env});
  page=await f.run('show','--id','2');assert.equal(page.goal.state,'working');assert.equal(page.goal.execution.status,'working');
  assert.equal((await f.json('workspace/goals/2/goal.json')).state,'done');
  await assert.rejects(f.json(f.selectionPath),{code:'ENOENT'},'display does not select work');
