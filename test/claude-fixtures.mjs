@@ -40,6 +40,7 @@ const selectors = {
   toolResult: find('Bash tool result', e => e.type === 'user' && e.toolUseResult && content(e).some(p => p.type === 'tool_result') && 'stdout' in Object(e.toolUseResult)),
   stop: find('Stop summary', e => e.type === 'system' && e.subtype === 'stop_hook_summary' && !e.hookErrors?.length),
   interrupt: find('interrupt', e => e.type === 'user' && content(e).some(p => p.text === '[Request interrupted by user]')),
+  notice: find('task notification', e => e.type === 'queue-operation' && e.operation === 'enqueue' && String(e.content).includes('<task-notification>')),
 };
 
 const found = {};
@@ -68,6 +69,8 @@ export const claudeEntry = {
   toolResult: (uuid, toolUseId, text, patch) => make('toolResult', {uuid, message: {content: [{...part(templates.toolResult, 'tool_result'), tool_use_id: toolUseId, content: text}]}, toolUseResult: {stdout: text}}, patch),
   stop: patch => make('stop', patch),
   interrupt: (uuid, patch) => make('interrupt', {uuid}, patch),
+  // The notice Claude Code queues when a background task ends, stopped ones included.
+  notice: (taskId, patch) => make('notice', {content: templates.notice.content.replace(/<task-id>[^<]*<\/task-id>/, `<task-id>${taskId}</task-id>`)}, patch),
 };
 export const claudeLine = entry => JSON.stringify(entry) + '\n';
 export const claudeLines = entries => entries.flat().map(claudeLine).join('');

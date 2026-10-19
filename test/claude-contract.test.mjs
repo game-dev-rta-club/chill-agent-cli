@@ -23,11 +23,13 @@ const hookReads = {
   SessionStart: {session_id: 'string', transcript_path: 'string', source: 'enum', agent_id: 'string?'},
   UserPromptSubmit: {session_id: 'string', transcript_path: 'string', agent_id: 'string?'},
   SessionEnd: {session_id: 'string', transcript_path: 'string', agent_id: 'string?'},
-  PreToolUse: {session_id: 'string', tool_name: 'string', tool_input: 'unknown'},
-  PermissionRequest: {session_id: 'string', tool_name: 'string'},
-  PostToolUse: {session_id: 'string', tool_name: 'string', tool_response: 'unknown', agent_id: 'string?'},
+  PreToolUse: {session_id: 'string', tool_name: 'string', tool_input: 'unknown', agent_id: 'string?', agent_type: 'string?'},
+  PermissionRequest: {session_id: 'string', tool_name: 'string', agent_id: 'string?', agent_type: 'string?'},
+  PostToolUse: {session_id: 'string', tool_name: 'string', tool_response: 'unknown', agent_id: 'string?', agent_type: 'string?'},
   Stop: {session_id: 'string', transcript_path: 'string', stop_hook_active: 'boolean', prompt_id: 'string?', agent_id: 'string?', background_tasks: 'array?'},
   StopFailure: {session_id: 'string', agent_id: 'string?'},
+  SubagentStart: {session_id: 'string', agent_id: 'string', agent_type: 'string'},
+  SubagentStop: {session_id: 'string', agent_id: 'string'},
 };
 const hookFiles = ['lib/claude-entry.mjs', 'lib/claude-actions.mjs', 'lib/claude-pause.mjs', 'lib/claude-permissions.mjs', 'lib/claude-rm-guard.mjs', 'lib/claude-agent-work.mjs', 'bin/chill-connection.mjs'];
 
@@ -82,6 +84,7 @@ const hasPart = type => entry => content(entry).some(part => part.type === type)
 const raw = entry => JSON.stringify(entry);
 const entryReads = [
   ['assistant text', e => e.type === 'assistant' && hasPart('text')(e), {uuid: 'string', timestamp: 'string', effort: 'string', isSidechain: 'boolean', 'message.model': 'string', 'message.content[text].text': 'string'}],
+  ['task notification', e => e.type === 'queue-operation' && e.operation === 'enqueue' && String(e.content).includes('<task-notification>'), {timestamp: 'string', content: /<task-id>[^<]+<\/task-id>/}],
   ['interrupt', e => e.type === 'user' && content(e).some(p => p.text?.startsWith('[Request interrupted')), {timestamp: 'string', isSidechain: 'boolean', 'message.content[text].text': /^\[Request interrupted by user( for tool use)?\]$/}],
 ];
 function lookup(value, path) {

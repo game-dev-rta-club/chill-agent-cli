@@ -86,6 +86,15 @@ the tool hooks start its work, a Stop that lets it end finishes it, StopFailure
 or an Esc interrupt in the transcript interrupts it, and SessionEnd ends the
 conversation. Work that writes nothing for 30 minutes is shown as unknown.
 
+Background tasks keep the conversation Running after its response ends. The
+Stop hook records the tasks Claude Code lists as still running, except shells.
+A subagent's own hooks keep that list current between Stops. SubagentStart adds
+the subagent, each tool it uses marks it active, and SubagentStop removes it. A
+task that ends without a hook, such as a stopped subagent or a monitor, is
+removed when its task notification appears in the transcript. The Goal shows
+**Background** with each task, and a list with no activity for 30 minutes as
+unknown.
+
 Subagent hooks never hand feedback: a subagent that received it would end with
 it, and the main conversation would never see it. Replies after a response ends
 reach the conversation through the [watcher hook](claude-wait.md).

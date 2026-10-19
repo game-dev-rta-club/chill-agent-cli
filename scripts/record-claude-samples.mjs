@@ -251,11 +251,12 @@ for (const name of Object.keys(scenarios)) {
 
 // Claude Code builds hook stdin from one zod schema per event. Reading it out of the
 // installed binary gives the field names, types and optionality for that exact version.
-const hookEvents = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop', 'StopFailure', 'SessionEnd'];
+const hookEvents = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop', 'StopFailure', 'SessionEnd', 'SubagentStart', 'SubagentStop'];
 const hookValues = {
   session_id: '00000000-0000-4000-8000-0000000000aa', transcript_path: '/example/claude/session.jsonl', cwd: '/example/project', prompt_id: '00000000-0000-4000-8000-0000000000bb',
   permission_mode: 'default', effort: {level: 'high'}, source: null, prompt: placeholder, session_title: placeholder, model: 'claude-opus-5-5',
   tool_name: 'Bash', tool_input: {command: 'echo example'}, tool_response: {stdout: 'example', stderr: '', interrupted: false}, tool_use_id: 'toolu_fixture1', duration_ms: 12,
+  agent_id: 'agent_fixture1', agent_type: 'general-purpose', agent_transcript_path: '/example/claude/session/subagents/agent-agent_fixture1.jsonl',
   permission_suggestions: [], stop_hook_active: false, last_assistant_message: placeholder, background_tasks: [], session_crons: [], reason: 'other', error: 'rate_limit', error_details: placeholder,
 };
 const toolEvents = ['PreToolUse', 'PermissionRequest', 'PostToolUse', 'Stop'];
@@ -322,7 +323,7 @@ const examples = {};
 for (const [event, fields] of Object.entries(events)) {
   examples[event] = {hook_event_name: event};
   for (const [name, field] of Object.entries(fields)) {
-    if (name === 'effort' && !toolEvents.includes(event) || subagentFields.has(name) || field.endsWith('?') && !(name in hookValues)) continue;
+    if (name === 'effort' && !toolEvents.includes(event) || subagentFields.has(name) && field.endsWith('?') || field.endsWith('?') && !(name in hookValues)) continue;
     const value = name === 'source' ? field.split('?')[0].split(':')[1].split('|')[0] : hookValues[name];
     if (value === undefined || value === null) throw Error(`No example value for ${event}.${name}`);
     examples[event][name] = value;
