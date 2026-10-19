@@ -32,8 +32,16 @@ function waitingDisplay({at, reason}, now) {
   if (now - due > overdueMs) return {state: 'unknown', label: 'Check overdue', description: `${reason ? `${reason}. ` : ''}The check was due at ${time}.`, live: false};
   return {state: 'waiting', label: 'Waiting', description: `${reason ? `${reason}. ` : ''}Checks again at ${time}.`, live: false};
 }
+// A response that ended while its background tasks run on: each task as the
+// agent's app names it, and when a subagent last wrote.
+const ago = ms => ms < 60000 ? 'just now' : `${Math.round(ms / 60000)} min ago`;
+function backgroundDisplay(tasks, now) {
+  const items = tasks.map(task => `${task.type}${task.name ? ` (${task.name})` : ''}${task.description ? `: ${task.description}` : ''}${task.activeAt ? `, active ${ago(now - Date.parse(task.activeAt))}` : ''}`);
+  return {state: 'background', label: 'Background', description: `The response ended. Still running: ${items.join('; ')}.`, live: false};
+}
 export function activityDisplay(activity, now = Date.now()) {
   if (activity?.status === 'idle' && activity.wake) return waitingDisplay(activity.wake, now);
+  if (activity?.status === 'running' && activity.background?.length) return backgroundDisplay(activity.background, now);
   if (!activity || activity.status === 'idle' && !activity.work?.messages?.length) return null;
   return {state: activity.status, label: activityLabels[activity.status] || activityLabels.unknown, description: activityDescriptions[activity.status] || '',
     live: activity.status === 'running' && activity.work?.live !== false};

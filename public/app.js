@@ -244,7 +244,7 @@ function commentMarkMarkup(event) {
 }
 // The agent as this Goal shows it: after the conversation while it runs, is
 // queued or paused; otherwise where its work ended, before what came later.
-const liveActivity=new Set(['running','queued','paused','waiting']);
+const liveActivity=new Set(['running','queued','paused','waiting','background']);
 function activityEnd(id) {
   const activity = activityControls.current(), shown = activityDisplay(activity);
   if (!shown || activity.goalId !== id || liveActivity.has(shown.state)) return Infinity;
