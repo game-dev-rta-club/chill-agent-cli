@@ -12,6 +12,7 @@ import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
 import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {reportClaudeHook} from '../lib/claude-agent-work.mjs';
 import {settleClaudeQuestion} from '../lib/claude-question.mjs';
+import {quietClaudeHook} from '../lib/claude-quiet.mjs';
 import {hidden} from '../lib/hidden-failure.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {runClaudeAction,joinClaudeConversation,handleClaudeToolHook,claudeSessionStartContext} from '../lib/claude-actions.mjs';
@@ -74,6 +75,8 @@ async function main() {
     if(text){process.stderr.write(`${text}\n`);process.exitCode=2;}
     return;
   }
+  // A conversation that never owned a Goal has nothing for its hooks to do.
+  if(await quietClaudeHook(input))return;
   // Every main hook reports what the conversation is doing before it is handled.
   await reportClaudeHook(input);
   await settleClaudeQuestion(input).catch(hidden('connection.question'));

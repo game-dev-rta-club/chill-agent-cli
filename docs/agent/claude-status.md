@@ -75,5 +75,8 @@ response; AutoContinue does not continue; new Web feedback is held and listed in
 Queue, and the reply waiter does not wake for it. A running command finishes
 first. The pause survives compact and resume. Resume clears it and wakes the
 conversation once with a notice to continue, together with the held feedback.
+A prompt the user types in the conversation itself also clears it, so a paused
+conversation never needs the Web to be running to continue. Claude Code's own
+wakes, schedules and task notices do not.
 
 Queue lists feedback saved for the conversation that it has not received yet.

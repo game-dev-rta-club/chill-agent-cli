@@ -21,7 +21,7 @@ const source = async file => readFile(join(root, file), 'utf8');
 
 const hookReads = {
   SessionStart: {session_id: 'string', transcript_path: 'string', source: 'enum', agent_id: 'string?'},
-  UserPromptSubmit: {session_id: 'string', transcript_path: 'string', agent_id: 'string?'},
+  UserPromptSubmit: {session_id: 'string', transcript_path: 'string', agent_id: 'string?', prompt: 'string', source: 'enum'},
   SessionEnd: {session_id: 'string', transcript_path: 'string', agent_id: 'string?'},
   PreToolUse: {session_id: 'string', tool_name: 'string', tool_input: 'unknown', agent_id: 'string?', agent_type: 'string?'},
   PermissionRequest: {session_id: 'string', tool_name: 'string', agent_id: 'string?', agent_type: 'string?'},
