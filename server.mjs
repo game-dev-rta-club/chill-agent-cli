@@ -221,12 +221,11 @@ const server = createServer(async (request, response) => {
   }
   if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
   if(path==='/api/runtime-update'){
-    const origin=`http://127.0.0.1:${server.address().port}`;
-    const local=request.socket.remoteAddress==='127.0.0.1'&&request.headers.host===`127.0.0.1:${server.address().port}`&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'];
-    if(!local)return sendJson(response,403,{error:'Updates are available from the local Web only.'});
+    // A device connected through the public link may update too: the
+    // computer's version file alone names the package to switch to.
     if(request.method==='GET')return sendJson(response,200,{...await updates.status(),instance:startedAt});
     if(request.method!=='POST')return sendJson(response,405,{error:'Method not allowed.'});
-    if(request.headers.origin!==origin||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
     try{const result=await updates.start(await readJson(request));await recordServerUse(dataDirectory());return sendJson(response,202,result);}
     catch(error){return sendJson(response,409,{error:error.message});}
   }

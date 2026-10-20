@@ -34,7 +34,8 @@ need it. A failed link does not mean your local workspace has stopped; ask the
 agent to check the tool and connection instead of repeatedly toggling On.
 
 Temporary links need `cloudflared` installed. Connected devices can view and
-reply to every Goal in this workspace. Off closes the tunnel
+reply to every Goal in this workspace, and confirm a prepared update. Turning the
+link On or Off and disconnecting devices stay on the computer. Off closes the tunnel
 while the local Web stays available. It preserves the saved custom connection
 and notification registrations. A connection failure leaves local Web usable
 and does not silently switch a custom connection to a temporary one.
