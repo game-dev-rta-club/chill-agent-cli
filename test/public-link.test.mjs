@@ -13,10 +13,10 @@ test('only local users publish; Off retains custom configuration and no fallback
 test('the QR opens the link, the code and devices are shown only to the computer, and only the computer disconnects devices',async()=>{
  const live={enabled:true,url:'https://phone-test.trycloudflare.com',status:'running'};
  const devices=[{id:'a1',device:'iPhone · Safari',connectedAt:'2026-10-19T05:57:00.000Z'}],removed=[];
- const access={code:async()=>'ABCD2345',devices:async()=>devices,disconnect:async id=>{removed.push(id);},disconnectAll:async()=>{removed.push('all');}};
+ const access={code:async()=>'123456',devices:async()=>devices,disconnect:async id=>{removed.push(id);},disconnectAll:async()=>{removed.push('all');}};
  const e=createExtension({tunnel:{read:()=>live},access,store:{read:async()=>({enabled:true,confirmedPublic:true})},settings:async()=>({remote:{mode:'quick'}})});
  const local=(await e.request({method:'GET',path:'state',body:{},query:{goalId:'3'},local:true})).body;
- assert.equal(local.code,'ABCD2345');assert.deepEqual(local.devices,devices);
+ assert.equal(local.code,'123456');assert.deepEqual(local.devices,devices);
  assert.equal(local.link,'https://phone-test.trycloudflare.com/#/goal/3');
  assert.equal(local.qr,await linkQr(local.link),'the QR carries the link, not the code');
  const phone=(await e.request({method:'GET',path:'state',body:{},query:{goalId:'3'},local:false})).body;

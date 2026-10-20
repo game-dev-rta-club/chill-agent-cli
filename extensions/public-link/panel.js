@@ -5,7 +5,7 @@ export async function mount({element,goalId,api,changed,signal,confirm}){
  // The code stays hidden until asked for, and the QR and URL are covered while it shows, so one
  // glance or photo of the screen never holds both.
  const reveal=code.querySelector('[data-reveal]');
- function showCode(){const value=state?.code||'';code.querySelector('strong').textContent=value?(revealed?`${value.slice(0,4)} ${value.slice(4)}`:'•••• ••••'):'';reveal.textContent=revealed?'Hide':'Show';reveal.setAttribute('aria-pressed',String(revealed));box.toggleAttribute('data-covered',revealed&&Boolean(value));}
+ function showCode(){const value=state?.code||'';code.querySelector('strong').textContent=value?(revealed?`${value.slice(0,3)} ${value.slice(3)}`:'••• •••'):'';reveal.textContent=revealed?'Hide':'Show';reveal.setAttribute('aria-pressed',String(revealed));box.toggleAttribute('data-covered',revealed&&Boolean(value));}
  reveal.onclick=()=>{revealed=!revealed;showCode();};
  function render(s){state=s;element.querySelector('[data-summary]').textContent=s.custom?'Open all Goals through your Cloudflare Access link, after connecting with an access code.':'Create a link that devices connect to with an access code, to view and reply to all Goals.';toggle.checked=s.enabled;toggle.disabled=!s.local||saving;kind.textContent=s.status==='starting'?'Creating your link and QR…':s.status==='failed'?'Could not create the link.':'';
   box.hidden=!s.url;code.hidden=!s.code;showCode();
