@@ -177,16 +177,16 @@ test('a request through the tunnel sees nothing until the device connects with t
   assert.equal((await fetch(f.url+'/api/goals')).status,200,'the local Web needs no sign-in');
   const panel = async () => (await (await fetch(f.url+'/api/extensions/public-link/state?goalId=1')).json());
   const {code,qr} = await panel();
-  assert.match(code,/^[2-9A-HJ-NP-Z]{8}$/);
+  assert.match(code,/^[0-9]{6}$/);
   assert.ok(qr);
   assert.equal((await fetch(f.url+'/api/extensions/public-link/state?goalId=1',{headers:phone})).status,401);
   const form = (code,origin) => fetch(f.url+'/',{method:'POST',headers:{...phone,Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:`code=${code}`,redirect:'manual'});
   assert.equal((await form(code,'https://elsewhere.test')).status,403,'only the public link posts the form');
-  const wrong = await form('22222222',origin);
+  const wrong = await form(code==='000000'?'111111':'000000',origin);
   assert.equal(wrong.status,401);
   assert.match(await wrong.text(),/wrong, used or expired/);
   // The form posts back to its page, which the browser reopens with its #/goal/N.
-  const signIn = await form(code.toLowerCase(),origin);
+  const signIn = await form(`${code.slice(0,3)} ${code.slice(3)}`,origin);
   assert.equal(signIn.status,303);
   assert.equal(signIn.headers.get('location'),'/');
   const cookie = signIn.headers.get('set-cookie');
