@@ -152,6 +152,7 @@ test('continuation gives a filtered index command and names open Letters without
  assert.match(text,/chill goal review --id 1/);
  assert.match(text,/Workflow:/);assert.match(text,/--section context/);
  assert.match(text,/Before stopping, review the next action; use a Letter only when a user reply, choice or permission is needed/);
+ assert.match(text,/Do not end on a question or a suggestion the user must click/);
  assert.match(text,/Open Letters for the user’s attention/);
  assert.doesNotMatch(text,/Waiting for your user’s answer/);
  assert.doesNotMatch(text,/1\/2|2\/2|配送照合|<!--|長い過去の報告|回答待ち：1件/);
