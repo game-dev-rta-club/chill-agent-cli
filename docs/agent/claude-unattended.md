@@ -43,6 +43,19 @@ rule syntax. A rule allowing every `node`
 or Bash invocation delegates much more than chill operations. The installer
 leaves these choices with the user.
 
+## Questions come to the Web
+
+A conversation that owns a Goal never waits in Claude's own app for you. Its
+hooks refuse each step that would, and tell the agent what to do instead:
+
+| Step Claude would take | What the agent does instead |
+| --- | --- |
+| Ask a question (AskUserQuestion) | Sends it as a Letter and continues work that does not depend on the answer |
+| Suggest a separate task (the Desktop task chip) | Does the work itself, or creates a Split Goal |
+| Ask you to approve a plan (ExitPlanMode) | Sends the plan as a Letter; after you reply on the Web, it leaves plan mode without another prompt |
+
+Native permission prompts are not among these; review them as described above.
+
 ## Try the work you will actually leave running
 
 Check that the Agent menu shows **Receives Web replies**. Then send one small
