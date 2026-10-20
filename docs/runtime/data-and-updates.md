@@ -68,12 +68,13 @@ Implementation: [data directory](../../lib/data-directory.mjs),
 ## Update from Web
 
 The built-in provider follows the [version file](version-file.md) recorded at
-setup. On a managed macOS server, the local Web shows an update icon when that
-file selects a different package than the running snapshot. Confirming it acquires the candidate,
+setup. On a managed macOS server, Web shows an update icon when that file
+selects a different package than the running snapshot, on the computer and on
+devices connected through the public link. Confirming it acquires the candidate,
 prepares a snapshot and restarts Web at the same URL. Closing the confirmation
 leaves the current version running. Detection alone never downloads or activates
-code. Public links do not expose the update action: they do not authenticate an
-administrator. Foreground and Windows servers retain the explicit CLI update path.
+code, and a request cannot choose the package: only the computer's version file
+names it. Foreground and Windows servers retain the explicit CLI update path.
 
 The updater uses a separate launchd worker so replacing Web cannot kill its own
 update. It rechecks the selection before switching, coalesces simultaneous clicks,

@@ -193,6 +193,11 @@ test('a request through the tunnel sees nothing until the device connects with t
   assert.match(cookie,/^chill_session=[A-Za-z0-9_-]{43}; Path=\/; Max-Age=\d+; HttpOnly; Secure; SameSite=Lax$/);
   const session = {...phone,Cookie:cookie.split(';')[0]};
   assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,200);
+  assert.equal((await fetch(f.url+'/api/runtime-update',{headers:phone})).status,401,'an unconnected device cannot check for updates');
+  assert.equal((await fetch(f.url+'/api/runtime-update',{headers:session})).status,200,'a connected device sees the update button');
+  const update=origin=>fetch(f.url+'/api/runtime-update',{method:'POST',headers:{...session,Origin:origin,'Content-Type':'application/json'},body:'{}'});
+  assert.equal((await update('https://elsewhere.test')).status,403);
+  assert.equal((await update(origin)).status,409,'the public link may confirm; there is no candidate here');
   assert.equal((await form(code,origin)).status,401,'a code works once');
   assert.notEqual((await panel()).code,code);
   const [device] = (await panel()).devices;
