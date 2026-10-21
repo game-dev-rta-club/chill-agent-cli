@@ -81,7 +81,7 @@ if (process.env.CHILL_TEST_TUNNEL_CRASH) {
   return {...f, pidFile, tunnelPath:join(f.root,'runtime',`web-${new URL(f.url).port}`,'tunnel.json')};
 }
 
-test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:10000}, async t => {
   const f = await tunnelFixture(t);
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const {url: origin, pid} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
@@ -109,7 +109,7 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   await assert.rejects(readFile(f.tunnelPath),{code:'ENOENT'});
 });
 
-test('manual shutdown also stops the connector; a connector failure keeps local Web available', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:8000}, async t => {
+test('manual shutdown also stops the connector; a connector failure keeps local Web available', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:8000}, async t => {
   const f = await tunnelFixture(t,'1h');
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const pid = Number(await readFile(f.pidFile,'utf8'));
@@ -164,7 +164,7 @@ test('restart drains an active connection and rejects a pipelined request withou
   assert.doesNotMatch(f.output(), /TypeError/);
 });
 
-test('a request through the tunnel sees nothing until the device connects with the panel code', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+test('a request through the tunnel sees nothing until the device connects with the panel code', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:10000}, async t => {
   const f = await tunnelFixture(t,'1h');
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const {url: origin} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
@@ -205,7 +205,7 @@ test('a request through the tunnel sees nothing until the device connects with t
   assert.equal((await fetch(f.url+'/api/extensions/public-link/disconnect',{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:JSON.stringify({id:device.id})})).status,200);
   assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,401,'disconnecting removes the device');
 });
-test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:10000}, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'chill-named-connector-'));
   const binary = join(dir, 'cloudflared');
   const credentialsFile = join(dir, 'credentials.json');

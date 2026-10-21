@@ -33,7 +33,8 @@ it. If you chose local-only use, ask your agent to prepare Public link when you
 need it. A failed link does not mean your local workspace has stopped; ask the
 agent to check the tool and connection instead of repeatedly toggling On.
 
-Temporary links need `cloudflared` installed. Connected devices can view and
+Temporary links need `cloudflared` installed: `brew install cloudflared` on
+macOS, `winget install --id Cloudflare.cloudflared` on Windows. Connected devices can view and
 reply to every Goal in this workspace, and confirm a prepared update. Turning the
 link On or Off and disconnecting devices stay on the computer. Off closes the tunnel
 while the local Web stays available. It preserves the saved custom connection
