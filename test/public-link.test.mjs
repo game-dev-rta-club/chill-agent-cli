@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createExtension,linkQr} from '../lib/public-link-extension.mjs';
+import {createExtension,linkQr,publicLinkOn} from '../lib/public-link-extension.mjs';
 test('only local users publish; Off retains custom configuration and no fallback to Quick occurs',async()=>{
  let remote={mode:'named',url:'https://phone.test'},saved=null,live={enabled:false,url:null,status:'off'},calls=[],resets=0;
  const store={read:async()=>saved,write:async(_,v)=>saved=v,lock:async(_,run)=>run()};
@@ -27,4 +27,10 @@ test('the QR opens the link, the code and devices are shown only to the computer
  await assert.rejects(e.request({method:'POST',path:'disconnect',body:{id:'a1'},local:false}),/computer/);
  await e.request({method:'POST',path:'disconnect',body:{id:'a1'},local:true});await e.request({method:'POST',path:'disconnect-all',body:{},local:true});
  assert.deepEqual(removed,['a1','all']);
+});
+test('a configured start follows the panel’s saved On/Off',async()=>{
+ let saved=null;const store={read:async()=>saved};
+ assert.equal(await publicLinkOn(store),true,'a saved connection without a panel choice starts On');
+ saved={enabled:false,confirmedPublic:true};assert.equal(await publicLinkOn(store),false);
+ saved={enabled:true,confirmedPublic:true};assert.equal(await publicLinkOn(store),true);
 });

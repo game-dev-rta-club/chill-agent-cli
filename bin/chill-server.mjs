@@ -10,6 +10,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { dataDirectory } from '../lib/goal-store.mjs';
 import { serverOptions } from '../lib/server-lifecycle.mjs';
 import { cloudflaredPath, tunnelStatePath } from '../lib/tunnel.mjs';
+import { publicLinkOn } from '../lib/public-link-extension.mjs';
 import {stopManagedTunnel} from '../lib/managed-tunnel.mjs';
 import { readMessageSettings } from '../lib/message-settings.mjs';
 import { stableNodePath } from '../lib/node-path.mjs';
@@ -39,14 +40,15 @@ async function main(attempt=0) {
   if (!['darwin','win32'].includes(process.platform)) throw new Error('Background startup supports macOS launchd and Windows Task Scheduler. Use npm start -- --idle-timeout 3d on this platform.');
   if(['start','restart'].includes(command)&&!process.env.PORT&&projectProfile())await selectProjectPort();
   const { port, duration, tunnel: quick, configured } = serverOptions(args);
-  const remote = configured ? (projectExtensionEnabled('public-link')?(await readMessageSettings()).remote:{mode:'off'}) : { mode: quick ? 'quick' : 'off' };
-  const tunnel = remote.mode !== 'off';
-  if (port === 0) throw new Error('Background startup requires a fixed PORT (default 4173).');
-  // The public link connector is a launchd job; Windows has none to manage.
-  const tunnels = process.platform === 'darwin';
-  if (tunnel && !tunnels) throw new Error('The public link is available on macOS only.');
-  const stopTunnel = () => tunnels ? stopManagedTunnel(directory, port) : undefined;
   const directory = dataDirectory();
+  const remote = configured ? (projectExtensionEnabled('public-link')?(await readMessageSettings()).remote:{mode:'off'}) : { mode: quick ? 'quick' : 'off' };
+  // A configured start resumes the panel's last On/Off choice, so a link turned Off is not awaited.
+  const tunnel = remote.mode !== 'off' && (!configured || await publicLinkOn());
+  if (port === 0) throw new Error('Background startup requires a fixed PORT (default 4173).');
+  // On macOS the connector is a launchd job that outlives Web restarts; on
+  // Windows the server runs it as a child, so it closes with the server.
+  const tunnels = process.platform === 'darwin';
+  const stopTunnel = () => tunnels ? stopManagedTunnel(directory, port) : undefined;
   const runtime = join(directory, 'runtime', `web-${port}`);
   const log = join(runtime, 'server.log');
   const url = `http://127.0.0.1:${port}`;
@@ -76,21 +78,26 @@ async function main(attempt=0) {
   if(command==='restart' && pid)await service.prepareRestart(pid);
   if (pid && command!=='restart') throw new Error(`Server is already running at ${url}. Use npm run server:stop before changing its settings.`);
   if (attempt === 0 && await followVersionFile(directory)) return;
-  const connector = tunnel ? await cloudflaredPath() : null;
-  if(!tunnel)await stopTunnel();
+  // Web gets the connector found here even while the link is Off, since the panel can turn it On
+  // later and a Task Scheduler Web may not share this PATH. A saved link without its connector
+  // still starts local Web; the panel shows why the link failed.
+  const found = await cloudflaredPath().catch(error => error);
+  const connector = tunnel && typeof found === 'string' ? found : null;
+  if (tunnel && !connector) { if (!configured) throw found; console.error(`Public link: ${found.message}`); }
+  if(!connector)await stopTunnel();
   await service.clear();
   await mkdir(runtime, { recursive: true });
   const entry = fileURLToPath(new URL('../server.mjs', import.meta.url));
   const environment = { CHILL_AGENT_DATA_DIR: directory, PORT: String(port), ...(tunnels ? { CHILL_AGENT_MANAGED_TUNNEL:'1' } : {}), CHILL_AGENT_SERVER_STARTED_AT: String(Date.now()) };
   if (process.env.CHILL_AGENT_CODEX_PATH) environment.CHILL_AGENT_CODEX_PATH = process.env.CHILL_AGENT_CODEX_PATH;
   if (process.env.CHILL_AGENT_EXTENSIONS) environment.CHILL_AGENT_EXTENSIONS = process.env.CHILL_AGENT_EXTENSIONS;
-  if (connector) environment.CHILL_AGENT_CLOUDFLARED_PATH = connector;
+  if (typeof found === 'string') environment.CHILL_AGENT_CLOUDFLARED_PATH = found;
   await service.start({ node: stableNodePath(), entry, args: ['--idle-timeout', duration, ...(configured ? ['--configured'] : quick ? ['--tunnel'] : [])], env: environment, cwd: dirname(entry) });
-  for (let attempt = 0; attempt < (tunnel ? 500 : 50); attempt += 1) {
+  for (let attempt = 0; attempt < (connector ? 500 : 50); attempt += 1) {
     const output = await readFile(log, 'utf8');
     const runningPid = await service.pid();
-    const remote = tunnel && runningPid && await publicUrl(runningPid);
-    if (output.includes(`chill-agent: ${url}\n`) && runningPid && (!tunnel || remote)) {
+    const remote = connector && runningPid && await publicUrl(runningPid);
+    if (output.includes(`chill-agent: ${url}\n`) && runningPid && (!connector || remote)) {
       await service.started();
       console.log(`Started: ${url}\n${remote ? `Tunnel: ${remote}\n` : ''}Idle timeout: ${duration}\nLog: ${log}`);
       return;
