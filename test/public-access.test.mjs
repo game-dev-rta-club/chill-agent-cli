@@ -37,6 +37,16 @@ test('wrong tries and time end a code; a device disconnects alone or with all th
  assert.deepEqual(await access.devices(),[]);
 });
 
+test('a reset ends the code and keeps connected devices',async()=>{
+ const access=createPublicAccess({store:memory()});
+ const session=await access.connect(await access.code(),{device:'iPhone · Safari'});
+ const code=await access.code();
+ await access.resetCode();
+ assert.equal(await access.connect(code),null,'the old code no longer connects');
+ assert.notEqual(await access.code(),code);
+ assert.equal(await access.connected(session),true);
+});
+
 test('a device is named by its system and browser',()=>{
  assert.equal(deviceName('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'),'iPhone · Safari');
  assert.equal(deviceName('Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Mobile Safari/537.36'),'Android · Chrome');

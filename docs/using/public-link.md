@@ -21,7 +21,7 @@ panel explains access and custom URLs.
 A device opens the workspace only after it connects with the access code. The
 code has six digits, like the one-time codes of two-step sign-in, and exists
 only while the panel on the computer shows it. It works once, changes after 10
-minutes, and stops working after five wrong tries; opening the panel then shows a new one. No account is
+minutes, stops working after five wrong tries and ends when you turn the link On or Off; opening the panel then shows a new one. No account is
 created: the device keeps a cookie, and the panel lists it under **Connected
 devices** with its system, browser and time of connection. **Disconnect** on a
 row removes that device; **Disconnect all** removes every device. A removed
