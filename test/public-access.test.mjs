@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createPublicAccess,sessionFrom,codeAlphabet,deviceName} from '../lib/public-access.mjs';
+import {createPublicAccess,sessionFrom,deviceName} from '../lib/public-access.mjs';
 
 const memory=()=>{let value=null;return {read:async()=>value,write:async(_,next)=>{value=structuredClone(next);},lock:async(_,run)=>run()};};
 
 test('a code connects one device once; the panel shows the same code until it is used',async()=>{
  const access=createPublicAccess({store:memory()});
  const code=await access.code();
- assert.match(code,new RegExp(`^[${codeAlphabet}]{8}$`));
+ assert.match(code,/^[0-9]{6}$/);
  assert.equal(await access.code(),code);
- const session=await access.connect(`${code.slice(0,4).toLowerCase()} ${code.slice(4)}`,{device:'iPhone · Safari'});
+ const session=await access.connect(`${code.slice(0,3)} ${code.slice(3)}`,{device:'iPhone · Safari'});
  assert.ok(session);
  assert.equal(await access.connected(session),true);
  assert.equal(await access.connect(code),null,'a used code does not work again');

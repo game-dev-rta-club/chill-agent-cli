@@ -1,7 +1,7 @@
 ---
 keyPoints: >-
   More → Public link opens access controls and a QR. The QR opens the link; the device
-  connects once with the panel's 8-character access code, hidden until Show. Connected
+  connects once with the panel's 6-digit access code, hidden until Show. Connected
   devices are listed and disconnect one by one. Fixed URLs and Access are prepared in the
   user's own Cloudflare CLI.
 ---
@@ -10,7 +10,7 @@ keyPoints: >-
 
 On your computer, choose **More → Public link** and turn it On. Confirm the
 scope, then scan the QR with your phone's camera, or send the address with
-**Copy link** to another computer. The device asks for the 8-character access
+**Copy link** to another computer. The device asks for the 6-digit access
 code. The panel hides the code so a glance at your screen does not give it
 away; press **Show** to read it, and type it on the device. After connecting,
 the device opens the Goal the link pointed to. The **More** link inside that
@@ -19,9 +19,9 @@ panel explains access and custom URLs.
 ## Who can open it
 
 A device opens the workspace only after it connects with the access code. The
-code has eight letters and digits, leaving out ones that are easy to misread
-(0, 1, I, O). A code works once, changes after 10 minutes, and stops working
-after five wrong tries; opening the panel then shows a new one. No account is
+code has six digits, like the one-time codes of two-step sign-in, and exists
+only while the panel on the computer shows it. It works once, changes after 10
+minutes, and stops working after five wrong tries; opening the panel then shows a new one. No account is
 created: the device keeps a cookie, and the panel lists it under **Connected
 devices** with its system, browser and time of connection. **Disconnect** on a
 row removes that device; **Disconnect all** removes every device. A removed
@@ -34,7 +34,8 @@ need it. A failed link does not mean your local workspace has stopped; ask the
 agent to check the tool and connection instead of repeatedly toggling On.
 
 Temporary links need `cloudflared` installed. Connected devices can view and
-reply to every Goal in this workspace. Off closes the tunnel
+reply to every Goal in this workspace, and confirm a prepared update. Turning the
+link On or Off and disconnecting devices stay on the computer. Off closes the tunnel
 while the local Web stays available. It preserves the saved custom connection
 and notification registrations. A connection failure leaves local Web usable
 and does not silently switch a custom connection to a temporary one.

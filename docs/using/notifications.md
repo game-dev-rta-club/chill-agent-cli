@@ -9,9 +9,8 @@ keyPoints: >-
 
 Open a Goal and choose **More → Notifications**. The panel has two switches:
 
-- **Letters**: questions that need your answer. When Claude stops to ask you a
-  question in its own app, the Goal it works on shows the question as a Letter;
-  answer it in Claude, and the Letter closes.
+- **Letters**: questions that need your answer. A Claude conversation that owns
+  a Goal asks every question as a Letter, never in its own app.
 - **Replies**: other replies from the agent, such as results and Claude
   conversation replies.
 

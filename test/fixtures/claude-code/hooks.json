@@ -240,6 +240,60 @@
     "permission_mode": "default",
     "reason": "other"
    }
+  },
+  "SubagentStart": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string",
+    "agent_type": "string",
+    "effort": "object?"
+   },
+   "example": {
+    "hook_event_name": "SubagentStart",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "agent_id": "agent_fixture1",
+    "agent_type": "general-purpose"
+   }
+  },
+  "SubagentStop": {
+   "fields": {
+    "session_id": "string",
+    "transcript_path": "string",
+    "cwd": "string",
+    "prompt_id": "string?",
+    "permission_mode": "string?",
+    "agent_id": "string",
+    "agent_type": "string",
+    "effort": "object?",
+    "stop_hook_active": "boolean",
+    "agent_transcript_path": "string",
+    "last_assistant_message": "string?",
+    "background_tasks": "array?",
+    "session_crons": "array?"
+   },
+   "example": {
+    "hook_event_name": "SubagentStop",
+    "session_id": "00000000-0000-4000-8000-0000000000aa",
+    "transcript_path": "/example/claude/session.jsonl",
+    "cwd": "/example/project",
+    "prompt_id": "00000000-0000-4000-8000-0000000000bb",
+    "permission_mode": "default",
+    "agent_id": "agent_fixture1",
+    "agent_type": "general-purpose",
+    "stop_hook_active": false,
+    "agent_transcript_path": "/example/claude/session/subagents/agent-agent_fixture1.jsonl",
+    "last_assistant_message": "(redacted)",
+    "background_tasks": [],
+    "session_crons": []
+   }
   }
  }
 }

@@ -29,7 +29,7 @@ import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
 import {largeSize} from './lib/limits.mjs';
 import {recordHidden} from './lib/hidden-failure.mjs';
-import {createPublicAccess,sessionCookie,sessionFrom,codeAlphabet,deviceName} from './lib/public-access.mjs';
+import {createPublicAccess,sessionCookie,sessionFrom,deviceName} from './lib/public-access.mjs';
 
 if (showHelp('foreground', process.argv.slice(2))) process.exit(0);
 
@@ -63,7 +63,7 @@ function connectPage(response,nonce,{status=401,message=''}={}){
   response.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Referrer-Policy':'same-origin'});
   response.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect · chill</title>
 <style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui,-apple-system,sans-serif;background:#f4f6f2;color:#243b3e}form{width:min(320px,calc(100vw - 32px));display:grid;gap:12px}h1{font-size:20px;margin:0}p{margin:0;color:#56655f;font-size:14px}input{font:600 22px ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;padding:12px;border:1px solid #b9c4bd;border-radius:8px}button{font:600 16px system-ui,sans-serif;padding:12px;border:0;border-radius:8px;background:#2f5d50;color:#fff}.error{color:#a03a2c}</style>
-<form method="post"><h1>Connect to chill</h1><p>Enter the 8-character access code shown in Public link on your computer.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="12" pattern="[${codeAlphabet}${codeAlphabet.toLowerCase()} -]{8,12}" aria-label="Access code" autofocus><button>Connect</button></form></html>`);
+<form method="post"><h1>Connect to chill</h1><p>Enter the 6-digit access code shown in Public link on your computer.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required inputmode="numeric" autocomplete="one-time-code" spellcheck="false" maxlength="8" pattern="[0-9 -]{6,8}" aria-label="Access code" autofocus><button>Connect</button></form></html>`);
 }
 // Not connected, every page is the connect form. The form posts back to its own page,
 // so after connecting the browser returns there with its #/goal/N.
@@ -221,12 +221,11 @@ const server = createServer(async (request, response) => {
   }
   if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
   if(path==='/api/runtime-update'){
-    const origin=`http://127.0.0.1:${server.address().port}`;
-    const local=request.socket.remoteAddress==='127.0.0.1'&&request.headers.host===`127.0.0.1:${server.address().port}`&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'];
-    if(!local)return sendJson(response,403,{error:'Updates are available from the local Web only.'});
+    // A device connected through the public link may update too: the
+    // computer's version file alone names the package to switch to.
     if(request.method==='GET')return sendJson(response,200,{...await updates.status(),instance:startedAt});
     if(request.method!=='POST')return sendJson(response,405,{error:'Method not allowed.'});
-    if(request.headers.origin!==origin||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
     try{const result=await updates.start(await readJson(request));await recordServerUse(dataDirectory());return sendJson(response,202,result);}
     catch(error){return sendJson(response,409,{error:error.message});}
   }

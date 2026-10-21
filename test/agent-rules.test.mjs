@@ -12,8 +12,8 @@ test('an agent runs only between the start and the end of its work, or while bac
     ['nothing reported, such as a local command like /reload-skills',[],'idle'],
     ['a prompt started its work',[{type:'started'}],'running'],
     ['its work finished',[{type:'started'},{type:'finished'}],'idle'],
-    ['a background agent still runs after its work',[{type:'started'},{type:'background',count:1},{type:'finished'}],'running'],
-    ['the background agent reported back and ended',[{type:'started'},{type:'background',count:1},{type:'finished'},{type:'background',count:0}],'idle'],
+    ['a background agent still runs after its work',[{type:'started'},{type:'background',tasks:[{id:'a1',type:'subagent',name:'general-purpose',description:'Review'}]},{type:'finished'}],'running'],
+    ['the background agent reported back and ended',[{type:'started'},{type:'background',tasks:[{id:'a1',type:'subagent',name:'general-purpose',description:'Review'}]},{type:'finished'},{type:'background',tasks:[]}],'idle'],
     ['Esc stopped it',[{type:'started'},{type:'interrupted'}],'interrupted'],
     ['it works again after an interrupt',[{type:'started'},{type:'interrupted'},{type:'started'}],'running'],
     ['the conversation ended',[{type:'started'},{type:'ended'}],'unlinked'],
@@ -57,7 +57,7 @@ test('comments wait only while the agent\'s own work runs',()=>{
     ['idle',idleWork,{},{hand:[5],hold:null}],
     ['working',replay({type:'started'}),{},{hand:[],hold:'waiting'}],
     ['working, Send now',replay({type:'started'}),{sendNow:5},{hand:[5],hold:null}],
-    ['only a background agent runs',replay({type:'started'},{type:'background',count:1},{type:'finished'}),{},{hand:[5],hold:null}],
+    ['only a background agent runs',replay({type:'started'},{type:'background',tasks:[{id:'a1',type:'subagent',name:'general-purpose',description:'Review'}]},{type:'finished'}),{},{hand:[5],hold:null}],
     ['interrupted',replay({type:'started'},{type:'interrupted'}),{},{hand:[5],hold:null}],
     ['paused',idleWork,{paused:true},{hand:[],hold:'paused'}],
     ['paused, Send now',replay({type:'started'}),{paused:true,sendNow:5},{hand:[],hold:'paused'}],
@@ -127,16 +127,16 @@ test('the Goals of the running work are Running, together with their parents',()
   assert.deepEqual(running({work:replied,awaits:()=>false}),['1','3'],'after replying everywhere, the Goal it last spoke in stays Running while it works');
   assert.deepEqual(running({selected:'4'}),['1','2','3','4']);
   assert.deepEqual(running({work:nextWork(work,{type:'finished'})}),[],'nothing runs once the work ends');
-  const background=replay({type:'started'},{type:'handed',goals:['2']},{type:'background',count:1},{type:'finished'});
+  const background=replay({type:'started'},{type:'handed',goals:['2']},{type:'background',tasks:[{id:'a1',type:'subagent',name:'general-purpose',description:'Review'}]},{type:'finished'});
   assert.deepEqual(running({work:background}),['1','2'],'a background agent keeps its Goal Running');
 });
 
 test('a stop is held once while a handed Goal awaits a reply and nothing keeps running',()=>{
   const cases=[
-    ['a handed Goal awaits a reply',{handedAwaiting:['1'],background:0,held:false},['1']],
-    ['everything was answered',{handedAwaiting:[],background:0,held:false},[]],
-    ['a background task will wake it',{handedAwaiting:['1'],background:1,held:false},[]],
-    ['the stop right after a hold',{handedAwaiting:['1'],background:0,held:true},[]],
+    ['a handed Goal awaits a reply',{handedAwaiting:['1'],background:[],held:false},['1']],
+    ['everything was answered',{handedAwaiting:[],background:[],held:false},[]],
+    ['a background task will wake it',{handedAwaiting:['1'],background:[{id:'a1',type:'subagent',name:'general-purpose',description:'Review'}],held:false},[]],
+    ['the stop right after a hold',{handedAwaiting:['1'],background:[],held:true},[]],
   ];
   for(const [name,facts,expected] of cases)assert.deepEqual(quietGoals(facts),expected,name);
 });

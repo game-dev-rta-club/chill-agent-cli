@@ -6,6 +6,16 @@ keyPoints: >-
 
 # Changelog
 
+## 0.5.1
+
+- Patch release, chosen by the maintainer for these compatible changes to Claude Code and the public link. Existing workspaces, connected devices and commands need no migration.
+- Claude Code: a response that ends with background tasks still running shows them under Background. chill installs the SubagentStart and SubagentStop hooks to keep that list current; a list with no activity for 30 minutes shows as unknown.
+- Claude Code: a conversation that has never owned a Root Goal ends its hooks before Node starts, so conversations that never use chill no longer pay about 0.15 s per hook. Creating or adopting a Goal wakes them at once.
+- Claude Code: a prompt typed in the conversation clears a Web pause.
+- Claude Code: in a conversation that owns Goals, AskUserQuestion, the Desktop task suggestion and ExitPlanMode are refused with a reason that sends the question or plan to a Letter. A plan goes through once the user has replied on the Web. This replaces 0.5.0's bridge that copied an in-app question into a Letter.
+- Public link: a connected device can confirm an update; the computer's version file still names the package. Turning the link On or Off and disconnecting devices stay local.
+- Public link: the access code is six digits, shown as `123 456`, and the connect form opens the numeric keyboard. It is still single-use, expires after 10 minutes and ends after five wrong tries.
+
 ## 0.5.0
 
 - Minor release in the pre-1.0 line. Codex Desktop and Claude Code now run on one set of agent rules, and Claude Code is a complete connection beside Codex. Existing SQLite workspaces need no migration.

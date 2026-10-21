@@ -263,6 +263,8 @@ test('a Claude reply that leaves a subagent working answers the Goal, which stay
   // Claude Code lists the background agent when the response stops.
   await handleClaudeToolHook(s.event('Stop',{background_tasks:[{id:'a1b2c3',type:'subagent',status:'running',agent_type:'general-purpose'},{id:'b1',type:'shell',status:'running',command:'npm run dev'}]}));
   assert.equal((await presence()).status,'working');assert.equal((await presence()).goalId,goal.id);
+  const {readGoalActivity}=await import('../lib/agent-status.mjs');
+  assert.deepEqual((await readGoalActivity(goal.id)).background?.map(task=>[task.type,task.name]),[['subagent','general-purpose']],'the Goal shows which task still runs');
   assert.equal((await goalCommentMarks(goal.id)).find(d=>d.eventId===event.changeId).mark,null,'the reply answered it');
   // It reports back: a new response that stops with nothing left in the background.
   await reportClaudeHook(s.event('UserPromptSubmit'));

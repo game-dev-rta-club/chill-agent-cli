@@ -19,7 +19,8 @@ check guards against. Codex Desktop has its own list in
 
    Expected: the project's `.claude/settings.local.json` has chill's hook on
    `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`,
-   `PostToolUse`, `Stop`, `StopFailure` and `SessionEnd`.
+   `PostToolUse`, `Stop`, `StopFailure`, `SessionEnd`, `SubagentStart` and
+   `SubagentStop`.
 3. Open a Claude Desktop conversation in that project that owns a Root Goal, and
    open the Goal in the Web next to it.
 
