@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { dataDirectory } from '../lib/goal-store.mjs';
 import { serverOptions } from '../lib/server-lifecycle.mjs';
-import { cloudflaredPath, publicLinkOn, tunnelStatePath } from '../lib/tunnel.mjs';
+import { cloudflaredPath, tunnelStatePath } from '../lib/tunnel.mjs';
+import { publicLinkOn } from '../lib/public-link-extension.mjs';
 import {stopManagedTunnel} from '../lib/managed-tunnel.mjs';
 import { readMessageSettings } from '../lib/message-settings.mjs';
 import { stableNodePath } from '../lib/node-path.mjs';
@@ -42,7 +43,7 @@ async function main(attempt=0) {
   const directory = dataDirectory();
   const remote = configured ? (projectExtensionEnabled('public-link')?(await readMessageSettings()).remote:{mode:'off'}) : { mode: quick ? 'quick' : 'off' };
   // A configured start resumes the panel's last On/Off choice, so a link turned Off is not awaited.
-  const tunnel = remote.mode !== 'off' && (!configured || await publicLinkOn(directory));
+  const tunnel = remote.mode !== 'off' && (!configured || await publicLinkOn());
   if (port === 0) throw new Error('Background startup requires a fixed PORT (default 4173).');
   // On macOS the connector is a launchd job that outlives Web restarts; on
   // Windows the server runs it as a child, so it closes with the server.

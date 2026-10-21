@@ -33,8 +33,9 @@ started it: closing Claude Desktop or another harness does not stop it. Unexpect
 exits are not restarted; the next `server start` or `session start` starts Web
 again. `server stop` asks Web to shut down over a local route that requires a
 per-start token and rejects browser requests, then ends the process if it does
-not exit. Web runs the public link's cloudflared connector as its own child
-process, so the connector closes with Web.
+not exit. On Windows, Web runs the public link's cloudflared connector as its
+own child process, so the connector closes with Web; on macOS it is a launchd
+job that outlives Web restarts.
 
 The server listens on loopback. `--local` keeps access local; `--configured` uses
 saved remote-access preferences. Settings default to off. Read `settings remote
@@ -54,7 +55,10 @@ connector requires a new URL. Foreground development still owns its connector.
 A Quick Tunnel URL is not durable across connector restart, logout or reboot.
 
 On Windows, `server restart --configured` restarts the connector with Web, so a
-Quick Tunnel URL changes on every update; a named tunnel keeps its URL.
+Quick Tunnel URL changes on every update; a named tunnel keeps its URL. A
+connected device's cookie belongs to the old address, so after each update
+every device connects again with a new access code and reopens the new QR or
+link.
 
 `--configured` resumes the Public link panel's last On/Off choice and waits for
 the URL only when the link is On. If cloudflared is missing, it starts local Web,
