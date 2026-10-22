@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {captureClaudeEntry,claudeEntryPaths,identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {joinClaudeConversation,runClaudeAction,hasSavedClaudeFeedback} from '../lib/claude-actions.mjs';
-import {appendFeedback,createGoal,listGoals,listStoredGoals,readGoal} from '../lib/goal-store.mjs';
+import {appendFeedback,createGoal,listGoals,listStoredGoals,readGoal,updateGoal} from '../lib/goal-store.mjs';
 import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 import {projectRoot,sameProject} from '../lib/project-root.mjs';
 import {projectDirectory} from '../lib/project-workspace.mjs';
@@ -103,4 +103,27 @@ test('taking over works while the earlier owner still watches, and is refused fo
   const plain=await createGoal({title:'Local only'});
   await assert.rejects(act('adopt',{goalId:plain.id},after),/Only a Goal owned by a Claude conversation/);
   await assert.rejects(act('adopt',{goalId:'x'},after),/Invalid Goal ID/);
+});
+
+test('a Split Goal leaves its Root with its history and another conversation takes it over',async t=>{
+  const f=await fixture(t);
+  const connect=async sessionId=>{const env={CLAUDE_CODE_SESSION_ID:sessionId};await f.join(env);return env;};
+  const owner=await connect('owner'),other=await connect('other');
+  await act('create-goal',{title:'Everything',scope:'',criteria:''},owner);
+  const [root]=await listGoals();
+  const web=await createGoal({title:'Web',parentId:root.id}),request=await createGoal({title:'Request',parentId:web.id});
+  const handed=await appendFeedback({goalId:request.id,text:'Already handed'});
+  assert.match(await act('inbox',{},owner),new RegExp(`"eventId":${handed.changeId}`));
+  const ask=await createGoal({title:'Ask',parentId:web.id}),waiting=await appendFeedback({goalId:ask.id,text:'Not handed yet'});
+  await assert.rejects(updateGoal(web.id,{parentId:(await createGoal({title:'Elsewhere'})).id}),/Cannot move Goals between native conversations/);
+  await updateGoal(web.id,{parentId:null});
+  const detached=await readGoal(web.id);
+  assert.equal(detached.parentId,null);assert.equal(detached.connection.sessionId,'owner','it stays with the same conversation');
+  assert.match(await act('adopt',{goalId:request.id},other),new RegExp(`now owns Goal #${web.id}`));
+  assert.equal((await readGoal(root.id)).connection.sessionId,'owner');
+  assert.equal((await readGoal(request.id)).parentId,web.id,'its Split Goals and their history go with it');
+  const inbox=await act('inbox',{},other);
+  assert.match(inbox,new RegExp(`"eventId":${waiting.changeId}`));
+  assert.match(inbox,new RegExp(`still awaiting your reply:[\\s\\S]*"eventId":${handed.changeId}`),'a comment already handed is listed as earlier, not handed again');
+  assert.match(await act('inbox',{},owner),/Nothing awaits a reply/);
 });
