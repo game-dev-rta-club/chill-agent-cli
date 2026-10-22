@@ -984,8 +984,18 @@ function updateBrandTarget(){
   brand.href=target.href;brand.setAttribute('aria-label',target.label);brand.title=target.label;
 }
 let tabTitleGeneration=0,letterCountRequest=false;
+// Showing a Goal in the front tab reads its replies on every device.
+function markActiveRead(){
+  const goal=goalMetadata.get(activeGoalId);
+  if(!goal||document.visibilityState!=='visible')return;
+  const latest=events.reduce((n,e)=>e.goalId===goal.id&&e.id>n?e.id:n,0);
+  if(goal.readThrough===undefined||latest<=goal.readThrough)return;
+  goal.readThrough=latest;
+  fetch(`/api/goals/${goal.id}/read`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({through:latest})}).catch(()=>{});
+}
 function updateTabTitle(){
   tabTitleGeneration++;
+  markActiveRead();
   lettersMenu.update([...goalMetadata.values()],events,activeGoalId);
   document.title=letterTabTitle(rootLetterSummary([...goalMetadata.values()],events,activeGoalId));
 }
@@ -1569,6 +1579,6 @@ loadStoredGoals().then(()=>navigate({refresh:false}),error=>{
  // Controls must not wait behind loading the full conversation's execution logs.
  setInterval(()=>{if(document.visibilityState==='visible')void activityControls.refresh();},2000);
  document.addEventListener('visibilitychange',()=>{
-   if(document.visibilityState==='visible'){void refresh();void activityControls.refresh();}
+   if(document.visibilityState==='visible'){updateTabTitle();void refresh();void activityControls.refresh();}
  });
 });
