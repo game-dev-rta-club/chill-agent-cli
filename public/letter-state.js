@@ -10,9 +10,10 @@ export function letterState(letter, conversation = []) {
   return {status: letter.receivedAt ? 'received' : letter.letterStatus?.status || (answer ? 'answered' : 'open'), lastAnswerId: Math.max(answer?.id || 0, letter.letterStatus?.lastAnswerId || 0) || null};
 }
 
-// An agent reply is unread while it is newer than its Goal's readThrough mark.
-const unread=(event,goal)=>event.author==='agent'&&['comment','letter'].includes(event.type)&&!event.deletedAt&&event.id>(goal?.readThrough??Infinity);
-// The Root's count: unread replies plus unanswered Letters, each counted once.
+// A reply is unread while it was notified and is newer than its Goal's read mark.
+export const unreadReply=(event,goal)=>event.type==='comment'&&event.author==='agent'&&!event.deletedAt
+  &&event.id>(goal?.readThrough??Infinity)&&Boolean(goal?.notified?.includes(event.id));
+// The Root's count: unanswered Letters plus unread notified replies.
 export function rootLetterSummary(goals,conversation,currentId){
   const byId=new Map(goals.map(goal=>[goal.id,goal]));
   let root=byId.get(currentId);
@@ -23,6 +24,6 @@ export function rootLetterSummary(goals,conversation,currentId){
   const ids=new Set(),visit=id=>{if(ids.has(id))return;ids.add(id);for(const child of children.get(id)||[])visit(child);};
   visit(root.id);
   const relevant=conversation.filter(event=>ids.has(event.goalId));
-  return {rootId:root.id,title:root.title,count:relevant.filter(event=>unread(event,byId.get(event.goalId))||letterState(event,relevant)?.status==='open').length};
+  return {rootId:root.id,title:root.title,count:relevant.filter(event=>unreadReply(event,byId.get(event.goalId))||letterState(event,relevant)?.status==='open').length};
 }
 export function letterTabTitle(summary){return summary?`${summary.count?`(${summary.count}) `:''}${summary.title} · chill`:'Goals · chill';}

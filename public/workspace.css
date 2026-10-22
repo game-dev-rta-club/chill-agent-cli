@@ -417,3 +417,5 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 }
 .root-agent { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--theme-muted,#5d6b67); }
 .root-agent:empty { display:none; }
+.replies-heading { margin-top:12px; }
+.replies-read { border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit; padding:4px 10px; font-size:13px; cursor:pointer; }

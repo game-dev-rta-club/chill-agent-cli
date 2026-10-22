@@ -1,7 +1,7 @@
 ---
 keyPoints: >-
   Web loads a compact workspace snapshot, opens known Goals from memory and refreshes
-  in the background. Tabs count unread agent replies and unanswered Letters under
+  in the background. Tabs count unanswered Letters and unread notified replies under
   their own Root, including hidden tabs. Showing a Goal reads it on every device. Goal links start at the top; Letter links locate the message while
   background updates keep visible content in place. Earlier Deliverables load on demand.
 ---
@@ -16,15 +16,18 @@ Hidden tabs pause the full workspace refresh. They continue a small count
 request every 15 seconds, subject to the browser's background timer throttling.
 
 The header keeps Agent and Letters beside each other. Letters opens the unanswered
-list for the current Root and its descendants; on the Goals index it includes all
-Roots. The envelope shows a muted zero when empty and a highlighted count when
-there are Letters. Goals navigation lives inside More, even without extensions.
+Letters for the current Root and its descendants, and below them, as Replies, the
+unread replies that were notified; on the Goals index it includes all Roots. Each
+entry opens its message. **Mark all read** reads the listed Replies; Letters stay
+until answered. The envelope shows a muted zero when empty and a highlighted count
+of both when anything waits. Goals navigation lives inside More, even without extensions.
 
 The browser tab shows the current Root's title and how many messages need you,
-including all descendants: `(2) Root title · chill`. The count adds the agent's
-unread comments and Letters to the unanswered Letters, counting each message once.
-With three unread replies, one of them an unanswered Letter, the tab shows `(3)`;
-once all are read it shows `(1)` until that Letter is answered. Opening a child
+including all descendants: `(2) Root title · chill`. The count adds unread replies
+to the unanswered Letters, but only replies a device was notified of: with
+**Replies** Off in [Notifications](../using/notifications.md), only Letters count.
+With two unread notified replies and one unanswered Letter, the tab shows `(3)`;
+once the replies are read it shows `(1)` until that Letter is answered. Opening a child
 or an older Deliverable keeps that Root's count. Other Roots do not contribute.
 
 A Goal is read when its Conversation is shown in a visible tab; replies that
