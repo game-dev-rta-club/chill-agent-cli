@@ -60,7 +60,8 @@
     "README.md",
     "npm-shrinkwrap.json",
     "extensions",
-    "extensions.json"
+    "extensions.json",
+    "claude-mods"
   ],
   "bundleDependencies": [
     "marked",

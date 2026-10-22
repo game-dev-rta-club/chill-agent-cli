@@ -2,10 +2,20 @@ import { expect, mock, test } from 'claude-code/testing'
 
 const MINUTE = 60_000
 
-// Stands for the engine beneath Cache Keep: counts pings and compactions and
-// answers the context size the test sets.
+// Stands for the engine beneath Cache Keep: counts pings, compactions and the
+// scheduled tasks that keep the session open, and answers the context size the
+// test sets.
 function engine(on: any, tokens: { now: number }) {
-  const seen = { pings: 0, compacts: 0 }
+  const seen = { pings: 0, compacts: 0, holds: new Set<string>(), created: 0 }
+  on('tool.call', { tool: 'CronCreate' }, () => {
+    const id = `c${++seen.created}`
+    seen.holds.add(id)
+    return { result: { id, humanSchedule: 'once', recurring: false } }
+  })
+  on('tool.call', { tool: 'CronDelete' }, (_: any, e: any) => {
+    seen.holds.delete(e.id)
+    return { result: { id: e.id } }
+  })
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 1_000_000, tokens: tokens.now }, rateLimits: [] } }))
   on('model.fork', () => {
     seen.pings++
@@ -38,8 +48,10 @@ test('pings an idle conversation every 55 minutes, then compacts a large one', a
   await clock.advance(4 * 55 * MINUTE)
   expect(seen.pings).toBe(5)
   expect(seen.compacts).toBe(0)
+  expect(seen.holds.size).toBe(1)
   await clock.advance(55 * MINUTE)
   expect(seen.compacts).toBe(1)
+  expect(seen.holds.size).toBe(0)
   await clock.advance(10 * 55 * MINUTE)
   expect(seen.pings).toBe(5)
 })
@@ -52,6 +64,7 @@ test('sends one last ping instead of compacting a small conversation', async ($,
   await clock.advance(6 * 55 * MINUTE)
   expect(seen.pings).toBe(6)
   expect(seen.compacts).toBe(0)
+  expect(seen.holds.size).toBe(0)
   await clock.advance(10 * 55 * MINUTE)
   expect(seen.pings).toBe(6)
 })
@@ -78,4 +91,19 @@ test('does nothing when Cache Keep is off', { options: { enabled: false } }, asy
   await clock.advance(10 * 55 * MINUTE)
   expect(seen.pings).toBe(0)
   expect(seen.compacts).toBe(0)
+  expect(seen.created).toBe(0)
+})
+
+test('keeps one scheduled task across turns while waiting', async ($, on) => {
+  const clock = mock.clock(on)
+  const seen = engine(on, { now: 400_000 })
+  await turn($)
+  expect(seen.holds.size).toBe(1)
+  await clock.advance(10 * MINUTE)
+  await turn($)
+  expect(seen.created).toBe(1)
+  await clock.advance(2 * 60 * MINUTE)
+  await turn($)
+  expect(seen.created).toBe(2)
+  expect(seen.holds.size).toBe(1)
 })
