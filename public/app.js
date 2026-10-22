@@ -1320,6 +1320,9 @@ main.addEventListener('submit', async event => {
     const note = {...editingNote, text};
     const editor = editingNote;
     const sendNow=note.kind==='letter'&&event.submitter?.value==='comment';
+    // Command+Enter submits without a button; a second press then sends the comment.
+    const fromShortcut=!event.submitter;
+    let focusComment=false;
     annotationSaves.add(notesKey(id));
     updateNoteEditorState(); updateComposerState();
     form.querySelector('.save-error')?.remove();
@@ -1343,13 +1346,18 @@ main.addEventListener('submit', async event => {
           updateTimeline(id);refreshGoalFrame();renderAnnotations();
           scrollInReadingPane(document.getElementById(`event-${entry.id}`),'nearest');
           announcement.textContent='Comment saved.';
-        } else showToast('Added to your comment.');
+        } else {
+          showToast('Added to your comment.');
+          focusComment=fromShortcut&&editingNote===null;
+        }
       }
     } catch (error) {
       if (editingNote === editor) showSaveError(form, error);
     } finally {
       annotationSaves.delete(notesKey(id));
       if (activeGoalId === id && form.isConnected) { updateNoteEditorState(); updateComposerState(); }
+      // The comment fieldset is enabled again only now.
+      if (focusComment && activeGoalId === id && !editingNote) main.querySelector(`form[data-form="comment"][data-goal-id="${id}"] textarea`)?.focus({preventScroll:true});
     }
     return;
   }
