@@ -1,8 +1,8 @@
 ---
 keyPoints: >-
   Web loads a compact workspace snapshot, opens known Goals from memory and refreshes
-  in the background. Tabs count unanswered Letters under their own Root, including
-  hidden tabs. Goal links start at the top; Letter links locate the message while
+  in the background. Tabs count unread agent replies and unanswered Letters under
+  their own Root, including hidden tabs. Showing a Goal reads it on every device. Goal links start at the top; Letter links locate the message while
   background updates keep visible content in place. Earlier Deliverables load on demand.
 ---
 
@@ -12,7 +12,7 @@ The first Web visit loads the tree, latest Deliverables and Conversation through
 `GET /api/goals?view=web`. Moving to a known Goal renders that in-memory snapshot
 immediately, then checks for changes in the background. Polling, focus and route
 changes share an in-flight request rather than downloading the same data twice.
-Hidden tabs pause the full workspace refresh. They continue a small Letter-count
+Hidden tabs pause the full workspace refresh. They continue a small count
 request every 15 seconds, subject to the browser's background timer throttling.
 
 The header keeps Agent and Letters beside each other. Letters opens the unanswered
@@ -20,12 +20,20 @@ list for the current Root and its descendants; on the Goals index it includes al
 Roots. The envelope shows a muted zero when empty and a highlighted count when
 there are Letters. Goals navigation lives inside More, even without extensions.
 
-The browser tab shows the current Root's title and unanswered Letter count,
-including all descendants: `(2) Root title · chill`. Opening a child or an older
-Deliverable keeps that Root's count. Other Roots do not contribute. Answers and explicit
-receipts remove a Letter; ordinary comments do not. When there are none, the
-count prefix disappears. A failed count request keeps the last known value;
-returning to the tab refreshes the workspace immediately.
+The browser tab shows the current Root's title and how many messages need you,
+including all descendants: `(2) Root title · chill`. The count adds the agent's
+unread comments and Letters to the unanswered Letters, counting each message once.
+With three unread replies, one of them an unanswered Letter, the tab shows `(3)`;
+once all are read it shows `(1)` until that Letter is answered. Opening a child
+or an older Deliverable keeps that Root's count. Other Roots do not contribute.
+
+A Goal is read when its Conversation is shown in a visible tab; replies that
+arrive while it is shown are read too. A Goal open in a hidden tab stays unread.
+The read mark is saved in the workspace, so reading on the phone also lowers the
+count on the computer. Replies saved before this mark first existed count as
+read. Answers and explicit receipts remove a Letter; ordinary comments do not.
+When nothing needs you, the count prefix disappears. A failed count request keeps
+the last known value; returning to the tab refreshes the workspace immediately.
 
 While the agent works on the open Goal, the tab icon's sunrise takes color (a
 warm sky, a filled orange sun and a blue sea); the title keeps its space for the
