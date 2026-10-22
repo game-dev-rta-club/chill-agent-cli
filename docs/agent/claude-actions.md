@@ -61,7 +61,8 @@ chill connection adopt --goal 1
 
 The Root and its Split Goals move to the new connection, the earlier one is kept
 in `previousConnections`, and feedback saved for the earlier owner is delivered
-to the new one. A comment in Web records the move. The earlier owner's watcher
+to the new one. Web gets no note of the move: an agent comment would count as a
+reply and drop the comments still awaiting one. The earlier owner's watcher
 ends when it next finds that conversation owns nothing. Goals that no Claude
 conversation owns cannot be taken over.
 
