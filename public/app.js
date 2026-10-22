@@ -105,7 +105,7 @@ const tabIcon=createTabIcon();
 window.addEventListener('chill-agent-presence',event=>tabIcon.set(event.detail.routeGoalId===activeGoalId&&isRunning(event.detail.status)));
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
-const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel')});
+const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel'),readReplies});
 const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,announce:showToast});
 createRuntimeUpdate({button:document.getElementById('runtime-update-button'),announce:showToast});
 let activeVersion = null;
@@ -984,14 +984,20 @@ function updateBrandTarget(){
   brand.href=target.href;brand.setAttribute('aria-label',target.label);brand.title=target.label;
 }
 let tabTitleGeneration=0,letterCountRequest=false;
+function markRead(goal,through){
+  if(goal.readThrough===undefined||through<=goal.readThrough)return;
+  goal.readThrough=through;
+  fetch(`/api/goals/${goal.id}/read`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({through})}).catch(()=>{});
+}
 // Showing a Goal in the front tab reads its replies on every device.
 function markActiveRead(){
   const goal=goalMetadata.get(activeGoalId);
-  if(!goal||document.visibilityState!=='visible')return;
-  const latest=events.reduce((n,e)=>e.goalId===goal.id&&e.id>n?e.id:n,0);
-  if(goal.readThrough===undefined||latest<=goal.readThrough)return;
-  goal.readThrough=latest;
-  fetch(`/api/goals/${goal.id}/read`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({through:latest})}).catch(()=>{});
+  if(goal&&document.visibilityState==='visible')markRead(goal,events.reduce((n,e)=>e.goalId===goal.id&&e.id>n?e.id:n,0));
+}
+function readReplies(replies){
+  const latest=new Map();for(const reply of replies)latest.set(reply.goalId,Math.max(latest.get(reply.goalId)||0,reply.id));
+  for(const [id,through] of latest){const goal=goalMetadata.get(id);if(goal)markRead(goal,through);}
+  updateTabTitle();
 }
 function updateTabTitle(){
   tabTitleGeneration++;

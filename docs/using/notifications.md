@@ -31,7 +31,9 @@ blocked, change the browser's site settings before trying again.
 ## Control interruptions
 
 Keep only **Letters** on to hear only when a reply, choice or permission is
-needed. Opening a notification shows that reply in its Conversation. A device set
+needed. A notified reply also counts in the tab title and appears under
+Replies in the header Letters menu until you open its Goal or choose **Mark all
+read**; see [Web navigation](../workspace/web-navigation.md). Opening a notification shows that reply in its Conversation. A device set
 up before these switches keeps its earlier choice: every reply turns both on, and
 Letters only turns on Letters.
 
