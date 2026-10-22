@@ -32,7 +32,7 @@ async function fixture(t){
 test('Stop reserves once; the next Stop ends the request and consumes the revision',async t=>{
  const f=await fixture(t);await f.configure();
  const response=await f.stop();
- assert.equal(response.decision,'block');assert.match(response.reason,/Auto mode is On/);assert.match(response.reason,/native main response has ended/);assert.doesNotMatch(response.reason,/no pending delivery, queued message/);
+ assert.equal(response.decision,'block');assert.match(response.reason,/Auto mode is On/);assert.match(response.reason,/connection wake --in/);
  let state=await f.read();assert.equal(state.attempts.length,1);const attempt=state.attempts[0];assert.equal(attempt.message,response.reason);assert.equal(attempt.phase,'uncertain');
  await f.newPrompt();await f.result(attempt.id);assert.equal((await f.read()).attempts[0].completedAt,undefined,'a receipt is not native completion');
  assert.equal(await f.stop({prompt_id:randomUUID()}),null);
