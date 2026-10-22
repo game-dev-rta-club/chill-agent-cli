@@ -33,16 +33,19 @@ nothing more until the next turn
   taken as 80k tokens (system prompt and tools, plus a summary).
 - `$.session.compact()` is not available in headless sessions such as Claude
   Desktop's (Claude Code 2.1.304), so Cache Keep runs the `/compact` command.
-- The timers live in the Claude Code process. Claude Desktop stops an idle
-  conversation's process unless a background task runs, so in Desktop Cache
-  Keep works in conversations that keep one running, such as chill's reply
-  waiter (see [Receive Web replies while Claude is idle](claude-wait.md)).
+- The timers live in the Claude Code process. When memory runs short, Claude
+  Desktop stops conversations idle for a minute or more, oldest first, but not
+  one with a running background task or a scheduled task (CronCreate). So
+  while it waits, Cache Keep keeps one one-shot task (CronCreate) set past its
+  last ping, renewed when a turn ends with it less than the whole wait away,
+  and deletes it after the last step. The task's prompt only asks for "ok", in
+  case it ever fires.
 
 Checked in Claude Desktop with Claude Code 2.1.304: each ping read the
 conversation from the cache (55k tokens read, 0 to 3 written), and `/compact`
 through `$.command.run` compacted it from 55k to 10k tokens. A conversation with
-no background task was stopped about a minute after its turn, before its second
-ping.
+no background task and no scheduled task was stopped under memory pressure
+about two minutes after its turn, before its second ping.
 
 ## Settings
 
