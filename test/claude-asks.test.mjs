@@ -31,6 +31,10 @@ test('a question or a task suggestion is refused and sent to the Web instead',as
   const f=await fixture(t);
   const question=denied(await f.pre('AskUserQuestion',{questions:[{question:'Which?',header:'Pick',options:[{label:'A'},{label:'B'}]}]}));
   assert.match(question,/nothing was asked[\s\S]*goal letter --id 1 /,'the question goes to the Goal it works on as a Letter');
+  const box=denied(await f.pre('mcp__ccd_turn__wrap_up',{recap:'Done.',ask:'Commit it?',actions:[{label:'Commit',message:'Commit it'}]}));
+  assert.match(box,/nothing was asked[\s\S]*goal letter --id 1 /,'a closing question in the next-step box goes to a Letter too');
+  assert.ok(denied(await f.pre('mcp__ccd_turn__wrap_up',{recap:'Done.',actions:[{label:'Next',message:'Go on'}]})),'choice buttons alone are a question');
+  assert.equal(await f.pre('mcp__ccd_turn__wrap_up',{recap:'Done.'}),null,'a recap alone goes through');
   const chip=denied(await f.pre('mcp__ccd_session__spawn_task',{title:'Fix the flaky test',prompt:'…',tldr:'…'}));
   assert.match(chip,/nothing was suggested[\s\S]*goal create --parent 1 /);
   assert.equal(await f.pre('Bash',{command:'ls'}),null,'other tools run');
