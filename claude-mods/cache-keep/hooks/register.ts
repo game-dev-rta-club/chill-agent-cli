@@ -130,8 +130,9 @@ export const register: Register = (on, options) => {
     return result
   })
   on('session.end', async ($, e, next) => {
+    // Scheduled tasks end with the session; no tool runs at this point.
     stop()
-    await releaseSession($)
+    hold = undefined
     return next(e)
   })
 }
