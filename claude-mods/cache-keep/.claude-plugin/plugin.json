@@ -1,0 +1,32 @@
+{
+  "name": "cache-keep",
+  "version": "0.1.0",
+  "description": "Cache Keep: keeps an idle conversation's one-hour prompt cache alive, then compacts it if it stays idle.",
+  "author": { "name": "Game Dev RTA Club" },
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Cache Keep",
+      "description": "Keep an idle conversation's prompt cache alive and compact it after the last ping.",
+      "default": true
+    },
+    "pingMinutes": {
+      "type": "number",
+      "title": "Cache Keep: minutes between pings",
+      "description": "How long the conversation stays idle before each ping. Keep it under 60, the cache's lifetime.",
+      "default": 55
+    },
+    "pings": {
+      "type": "number",
+      "title": "Cache Keep: pings before compacting",
+      "description": "How many pings an idle conversation gets before Cache Keep decides whether to compact it.",
+      "default": 5
+    },
+    "compactBelowPercent": {
+      "type": "number",
+      "title": "Cache Keep: compact below percent",
+      "description": "Compact only when the size right after the last compaction is below this percent of the current size. Otherwise send one more ping and stop.",
+      "default": 60
+    }
+  }
+}
