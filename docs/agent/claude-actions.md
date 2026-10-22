@@ -65,6 +65,13 @@ to the new one. A comment in Web records the move. The earlier owner's watcher
 ends when it next finds that conversation owns nothing. Goals that no Claude
 conversation owns cannot be taken over.
 
+To hand part of a Root to another conversation, first make that Split Goal a Root
+of its own (`chill goal update --id 58 --input-file patch.json` with
+`{"parentId":null}`). It stays with the same conversation, keeps its Split Goals,
+Conversation and Deliverables, and starts from the Root's hand-off cursor, so a
+comment already handed is not handed again. The other conversation then runs
+`chill connection adopt --goal 58`.
+
 Each Root keeps one hand-off cursor: the last user comment handed to the
 conversation that owns it. Comments after the cursor wait; handing them moves
 the cursor forward, so nothing is handed twice. `inbox` hands what waits and
