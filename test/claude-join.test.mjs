@@ -79,10 +79,12 @@ test('a continued conversation takes over a Root and receives earlier saved feed
   const [root]=await listGoals();
   const child=await createGoal({title:'Split',parentId:root.id});
   const saved=await appendFeedback({goalId:child.id,text:'Sent while the earlier conversation owned it'});
+  const waiting=await appendFeedback({goalId:root.id,text:'Still waiting for a reply'});
   assert.match(await act('adopt',{goalId:child.id},after),/now owns Goal #1/);
   const moved=await readGoal(root.id);
   assert.equal(moved.connection.sessionId,'continued');assert.equal(moved.previousConnections[0].sessionId,'earlier');
-  assert.match((await listStoredGoals()).find(g=>g.id===root.id).conversation.at(-1).text,/taken over by another Claude conversation/);
+  // Taking over writes nothing in Web, so the Root still awaits its reply.
+  assert.deepEqual((await listStoredGoals()).find(g=>g.id===root.id).conversation.map(e=>e.id),[waiting.id]);
   // The feedback saved for the earlier owner now reaches the new one, and not the earlier one.
   assert.equal(await hasSavedClaudeFeedback(moved.connection),true);
   assert.match(await act('inbox',{},after),new RegExp(`"eventId":${saved.changeId}`));
