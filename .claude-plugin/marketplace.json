@@ -1,0 +1,12 @@
+{
+  "name": "chill-agent",
+  "owner": { "name": "Game Dev RTA Club" },
+  "metadata": { "description": "Claude Code plugins that ship with chill-agent-cli." },
+  "plugins": [
+    {
+      "name": "cache-keep",
+      "source": "./claude-mods/cache-keep",
+      "description": "Keeps an idle conversation's one-hour prompt cache alive, then compacts it if it stays idle."
+    }
+  ]
+}
