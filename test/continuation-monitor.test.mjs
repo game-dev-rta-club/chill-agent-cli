@@ -151,8 +151,8 @@ test('continuation gives a filtered index command and names open Letters without
  assert.match(text,/Goal #27: “対象を選んでください”/);
  assert.match(text,/chill goal review --id 1/);
  assert.match(text,/Workflow:/);assert.match(text,/--section context/);
- assert.match(text,/Before stopping, review the next action; use a Letter only when a user reply, choice or permission is needed/);
- assert.match(text,/Open Letters for the user’s attention/);
+ assert.match(text,/write a Letter/);
+ assert.match(text,/Letters awaiting the user/);
  assert.doesNotMatch(text,/Waiting for your user’s answer/);
  assert.doesNotMatch(text,/1\/2|2\/2|配送照合|<!--|長い過去の報告|回答待ち：1件/);
  assert.equal(text.split(id).length-1,1,'identifier only appears in the result command');
@@ -170,7 +170,7 @@ test('the combined handoff points to the guide recorded by setup',async t=>{
  const guide=await readFile(path,'utf8');
  assert.ok(guide.length>0);
  assert.match(text,/Auto mode is On/);
- assert.match(text,/In this same pass, check any reason to stop/);
+ assert.match(text,/in this same pass, check any reason to stop/);
 });
 
 test('nudge describes unfinished Goals, pending Letters, and a settled tree without confusing them',()=>{
