@@ -100,6 +100,17 @@ test('the current Goal: set by a hand-off from one Goal, by connection reply, an
  assert.equal((await f.record()).currentGoal,b.id);
 });
 
+test('a compacted or resumed conversation keeps its current Goal and posts on from where it read',async t=>{
+ const f=await fixture(t);await appendFeedback({goalId:f.root.id,text:'Go'});await f.action('inbox',{});
+ await f.work('Before compacting.');
+ await captureClaudeEntry(f.event('SessionStart',{source:'compact'}),{cwd:join(f.transcript,'..','project'),env:{CLAUDE_ENV_FILE:join(f.transcript,'..','env')}});
+ assert.equal((await f.record()).currentGoal,f.root.id);
+ assert.equal(await f.say('After compacting.'),null);
+ assert.deepEqual((await f.posted()).map(([,text])=>text),['Before compacting.','After compacting.']);
+ await captureClaudeEntry(f.event('SessionStart',{source:'clear'}),{cwd:join(f.transcript,'..','project'),env:{CLAUDE_ENV_FILE:join(f.transcript,'..','env')}});
+ assert.equal((await f.record()).currentGoal,undefined,'a cleared context starts without one');
+});
+
 test('#78: an interim reply, then the result written in a later response that no feedback started, reaches the Goal',async t=>{
  const f=await fixture(t);await appendFeedback({goalId:f.root.id,text:'Why does CI fail?'});await f.action('inbox',{});
  await f.action('reply',{goalId:f.root.id,text:'Researching; I will answer here.'});
