@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {createWebNotifications,validateSubscription} from '../lib/web-notifications.mjs';
 const device='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
 const subscription={endpoint:'https://fcm.googleapis.com/fcm/send/test',keys:{auth:Buffer.alloc(16).toString('base64url'),p256dh:Buffer.concat([Buffer.from([4]),Buffer.alloc(64)]).toString('base64url')}};
-function fixture(seed=null){let saved=seed,queue=Promise.resolve(),time=100000,mode='ok',origin=null;const sends=[],events=[{id:1,goalId:'2',author:'agent',type:'letter',title:'Choose',text:'A decision'}];
+function fixture(seed=null){let saved=seed,queue=Promise.resolve(),time=100000,mode='ok',origin=null,busy=false,settle=0,readMark=0;const sends=[],events=[{id:1,goalId:'2',author:'agent',type:'letter',title:'Choose',text:'A decision'}];
  const store={read:async()=>structuredClone(saved),write:async(_,s)=>saved=structuredClone(s),lock:(_,run)=>{const result=queue.then(run);queue=result.catch(()=>{});return result;}};
- const api=createWebNotifications({store,context:async id=>({root:{id:'1',threadId:'chat'},goal:{id,title:'An outcome'}}),events:async()=>events,eventsSince:async since=>({cursor:Math.max(0,...events.map(e=>e.id)),events:events.filter(e=>e.id>since)}),publicOrigin:async()=>origin,owns:async root=>root.threadId==='chat',agentKey:root=>root.threadId||null,use:async()=>{},now:()=>time,generateKeys:()=>({publicKey:'public',privateKey:'private'}),send:async(s,p)=>{sends.push({endpoint:s.endpoint,...JSON.parse(p)});if(mode==='expired')throw {statusCode:410};}});
+ const api=createWebNotifications({activity:async()=>({running:busy,settleMs:settle}),readThrough:async()=>readMark,store,context:async id=>({root:{id:'1',threadId:'chat'},goal:{id,title:'An outcome'}}),events:async()=>events,eventsSince:async since=>({cursor:Math.max(0,...events.map(e=>e.id)),events:events.filter(e=>e.id>since)}),publicOrigin:async()=>origin,owns:async root=>root.threadId==='chat',agentKey:root=>root.threadId||null,use:async()=>{},now:()=>time,generateKeys:()=>({publicKey:'public',privateKey:'private'}),send:async(s,p)=>{sends.push({endpoint:s.endpoint,...JSON.parse(p)});if(mode==='expired')throw {statusCode:410};}});
  const on=(id=device)=>api.configure({goalId:'2',rootId:'1',deviceId:id,enabled:true,subscription:{...subscription,endpoint:subscription.endpoint+id},origin:'https://phone.test'});
  const off=(id=device)=>api.configure({goalId:'2',rootId:'1',deviceId:id,enabled:false});
- return {api,on,off,sends,events,state:()=>saved,time:v=>time=v,mode:v=>mode=v,origin:v=>origin=v};
+ return {api,on,off,sends,events,state:()=>saved,time:v=>time=v,mode:v=>mode=v,origin:v=>origin=v,busy:v=>busy=v,settle:v=>settle=v,read:v=>readMark=v};
 }
 test('invalid endpoints and key lengths cannot be used to send arbitrary network requests',()=>{
  for(const endpoint of ['http://fcm.googleapis.com/x','https://127.0.0.1/x','https://fcm.googleapis.com.evil.test/x','https://google.com.evil.test/x','https://evil.test/x'])assert.throws(()=>validateSubscription({...subscription,endpoint}));
@@ -95,6 +95,37 @@ test('Web sends new Agent replies by itself, once, for Codex and Claude alike',a
  await f.api.drain();assert.equal(f.sends.length,3);
  // Off stops replies for this device.
  await f.off();f.events.push({id:7,goalId:'2',author:'agent',type:'comment',text:'After Off',updatedAt:at});await f.api.drain();assert.equal(f.sends.length,3);
+});
+test('replies saved while the agent works wait for the work to end; only the unread ones are announced, once, with how many more',async()=>{
+ const f=fixture();const start=Date.parse('2026-10-14T00:00:00Z'),at=new Date(start).toISOString();f.time(start);
+ await f.api.initialize();await f.on();f.time(start+6000);await f.api.drain();assert.equal(f.sends.length,1,'only the confirmation');
+ f.busy(true);
+ f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'On it',updatedAt:at},{id:3,goalId:'2',author:'agent',type:'letter',title:'Pick one',text:'A or B',updatedAt:at},
+  {id:4,goalId:'2',author:'agent',type:'comment',text:'Halfway',updatedAt:at},{id:5,goalId:'2',author:'agent',type:'comment',text:'Done: the result',updatedAt:at});
+ await f.api.drain();
+ assert.deepEqual(f.sends.slice(1).map(s=>s.title),['Pick one'],'a Letter is not held');
+ assert.deepEqual(Object.keys(f.state().held).map(Number),[2,4,5]);
+ assert.deepEqual([...await f.api.notifiedReplies()],[],'held replies do not count as unread yet');
+ f.read(2);f.busy(false);await f.api.drain();
+ assert.deepEqual(f.sends.slice(2).map(s=>[s.title,s.body]),[['An outcome','Done: the result\n(+1 more reply)']],'one notification: the newest unread, with the count of the others');
+ assert.deepEqual([...await f.api.notifiedReplies()].sort(),[4,5],'the unread ones count, the read one does not');
+ assert.deepEqual(f.state().held,{});await f.api.drain();assert.equal(f.sends.length,3,'released once');
+ // Read before the work ends: nothing is announced.
+ f.busy(true);f.events.push({id:6,goalId:'2',author:'agent',type:'comment',text:'Will do',updatedAt:at});await f.api.drain();
+ f.read(6);f.busy(false);await f.api.drain();assert.equal(f.sends.length,3);
+ // The agent's own request waits too.
+ f.busy(true);f.events.push({id:7,goalId:'2',author:'agent',type:'comment',text:'Asked to notify',updatedAt:at});
+ const asked=await f.api.prepare('2',7);assert.equal(asked.held,true);assert.equal(f.sends.length,3);
+ f.busy(false);await f.api.drain();assert.deepEqual(f.sends.slice(3).map(s=>s.body),['Asked to notify']);
+});
+test('an agent continued by polling must stay stopped for a while before held replies go out',async()=>{
+ const f=fixture();const start=Date.parse('2026-10-14T00:00:00Z'),at=new Date(start).toISOString();f.time(start);
+ await f.api.initialize();await f.on();f.time(start+6000);await f.api.drain();
+ f.busy(true);f.settle(45000);f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'Result',updatedAt:at});await f.api.drain();
+ f.busy(false);await f.api.drain();assert.equal(f.sends.length,1,'a short stop between turns');
+ f.time(start+30000);f.busy(true);await f.api.drain();f.busy(false);await f.api.drain();
+ f.time(start+60000);await f.api.drain();assert.equal(f.sends.length,1,'the stop restarted after the agent ran again');
+ f.time(start+76000);await f.api.drain();assert.deepEqual(f.sends.slice(1).map(s=>s.body),['Result']);
 });
 test('a new public URL retires old registrations and pending jobs, retaining all devices on the current URL',async()=>{
  const third='00000000-0000-0000-0000-000000000003';

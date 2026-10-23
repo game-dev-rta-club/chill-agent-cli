@@ -2,7 +2,8 @@
 keyPoints: >-
   Each browser has two switches per Root: Letters and Replies. The first switch On
   sends one setup confirmation; both Off stops that device and leaves other devices
-  unchanged. Changing the public URL retires old registrations.
+  unchanged. Replies wait until the agent's work ends and only unread ones are
+  announced. Changing the public URL retires old registrations.
 ---
 
 # Hear when your attention matters
@@ -19,8 +20,8 @@ arrives a few seconds later. Tap it to return to the Goal. This browser then
 receives what you switched on for that project (the Root Goal and its children).
 Turning both switches Off stops notifications on this device.
 
-Each device has its own switches. Turn them Off on your phone to stop phone alerts;
-your computer's choice stays unchanged. A new browser or project starts with both
+Each device has its own switches: a phone, or a browser on another computer. Turn
+them Off on one device to stop its alerts; the other devices' choices stay unchanged. A new browser or project starts with both
 Off, and the switches stay visible so you can see what each would send.
 
 For your phone, open **More → Public link** on your computer and scan its QR. On iPhone,
@@ -36,6 +37,12 @@ Replies in the header Letters menu until you open its Goal or choose **Mark all
 read**; see [Web navigation](../workspace/web-navigation.md). Opening a notification shows that reply in its Conversation. A device set
 up before these switches keeps its earlier choice: every reply turns both on, and
 Letters only turns on Letters.
+
+While the agent is still working, its replies wait. When the work ends, the
+replies you have not read yet become one notification: the newest, with how many
+more there are. A reply you already read while the work went on, such as "On it",
+sends nothing. For an agent that chill continues itself, the work must stay ended
+for 45 seconds, since it pauses briefly between turns. Letters never wait.
 
 Web notices new replies by itself, for Codex and Claude alike, so no Agent command
 is needed. An Agent's `settings notice` request for the same reply sends nothing
@@ -58,18 +65,18 @@ outside the repository, with private file permissions.
 
 ## Public access is separate
 
-The [Public link panel](public-link.md) opens or closes phone access. Notifications Off
+The [Public link panel](public-link.md) opens or closes access from other devices. Notifications Off
 does not close it. While the public link is Off, alerts may arrive but their
-Goal links cannot open remotely. A different temporary URL needs a fresh phone
-registration. Once a new public URL is confirmed, registrations for the previous
+Goal links cannot open remotely. A different temporary URL needs each device to
+register again. Once a new public URL is confirmed, registrations for the previous
 URL stop receiving notifications. This avoids sending to both an old and a new
-subscription on the same phone. Other devices registered at the current URL
+subscription on the same device. Other devices registered at the current URL
 remain independent; the app does not guess which physical device a browser is.
 A fixed URL avoids that change.
 
 Registering the same push subscription again keeps a single recipient, even if
 site storage was reset. Preparing the same reply more than once also sends it
-only once per subscription. A single phone using separate browser profiles can
+only once per subscription. A single device using separate browser profiles can
 still have separate registrations; turn Off in any profile you do not want.
 
 Existing host-tool notification profiles remain available through the CLI and
