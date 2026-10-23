@@ -4,26 +4,26 @@
 // conversation is compacted if that makes it much smaller, then left alone.
 import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
-// Size of a conversation right after compaction when none was seen yet:
-// the system prompt and tools (about 50k) plus a summary (about 30k).
-const DEFAULT_COMPACTED_TOKENS = 80_000
-// A drop below this share of the previous size is read as a compaction.
-const COMPACTION_DROP = 0.7
-// Desktop stops an idle session's process when memory runs short, and this
-// timer with it, unless the session has a scheduled task. Cache Keep keeps a
-// one-shot task set past its last ping and deletes it before it would fire.
-const HOLD_SLACK_MS = 60 * 60_000
-const HOLD_PROMPT = 'Cache Keep set this task only to keep the idle session open and meant to delete it. Nothing to do: reply with the single word ok.'
+// The cache lapses an hour after the request that last read it. Nothing is
+// sent once this much has passed, so a late timer (a Mac waking from sleep)
+// never pays to write the whole conversation again.
+const CACHE_LIMIT_MS = 59 * 60_000
+const RETRY_MS = 60_000
+const RETRIES = 3
 
 type Settings = { enabled: boolean; pingMs: number; pings: number; compactBelow: number }
 
 let settings: Settings = { enabled: true, pingMs: 55 * 60_000, pings: 5, compactBelow: 0.6 }
 let timer: { cancel: () => void } | undefined
 let pingsSent = 0
+let retriesLeft = RETRIES
 let compacting = false
-let lastTokens: number | undefined
+// When the main thread or a ping last sent the conversation to the model.
+let lastSentAt: number | undefined
+// The conversation's size right after its last compaction in this process,
+// read off the first response that followed it.
 let compactedTokens: number | undefined
-let hold: { id: string; fireAt: number } | undefined
+let compactedSizeUnknown = false
 
 export function readSettings(options: PluginOptions): Settings {
   const number = (value: unknown, fallback: number, min: number, max: number) =>
@@ -38,8 +38,8 @@ export function readSettings(options: PluginOptions): Settings {
 
 // Compact only when the result would be clearly smaller than now.
 export function shouldCompact(current: number | undefined, compacted: number | undefined, below: number): boolean {
-  if (!current) return false
-  return (compacted ?? DEFAULT_COMPACTED_TOKENS) / current < below
+  if (!current || compacted === undefined) return false
+  return compacted / current < below
 }
 
 function stop() {
@@ -47,38 +47,28 @@ function stop() {
   timer = undefined
 }
 
-// A cron expression that matches the given time once, in local time.
-export function cronAt(ms: number): string {
-  const d = new Date(ms)
-  return `${d.getMinutes()} ${d.getHours()} ${d.getDate()} ${d.getMonth() + 1} *`
+function wait($: EngineInterface, ms: number) {
+  timer = $.clock.after(ms, () => void onIdle($))
 }
 
-// Keeps a task scheduled past the last ping, renewed when it comes too close.
-async function holdSession($: EngineInterface) {
-  const needed = (await $.clock.now()) + settings.pingMs * (settings.pings + 1) + 10 * 60_000
-  if (hold && hold.fireAt >= needed) return
-  await releaseSession($)
-  const fireAt = needed + HOLD_SLACK_MS
-  const reply = await $.tool.call({ tool: 'CronCreate', cron: cronAt(fireAt), prompt: HOLD_PROMPT, recurring: false })
-  if (reply.result && !reply.isError) hold = { id: reply.result.id, fireAt }
-  else $.ui.log(`Cache Keep: could not schedule the task that keeps the session open (${reply.deny ?? reply.text})`)
+// One line per ping and compaction, in the Claude folder beside the skills one.
+async function note($: EngineInterface, text: string) {
+  try {
+    const path = `${$.plugin.root}/../../chill-agent-cache-keep/${await $.session.id()}.log`
+    const earlier = (await $.fs.exists(path)) ? await $.fs.read(path) : ''
+    await $.fs.write(path, `${earlier}${new Date(await $.clock.now()).toISOString()} ${text}\n`)
+  } catch (error) {
+    $.ui.log(`Cache Keep: ${text} (not logged: ${error instanceof Error ? error.message : error})`)
+  }
 }
 
-async function releaseSession($: EngineInterface) {
-  const id = hold?.id
-  hold = undefined
-  if (id) await $.tool.call({ tool: 'CronDelete', id })
-}
-
-async function contextTokens($: EngineInterface): Promise<number | undefined> {
-  return (await $.session.usage()).context.tokens
-}
-
-async function ping($: EngineInterface): Promise<boolean> {
-  const reply = await $.model.fork({ prompt: 'Cache Keep ping: reply with the single word ok.' })
-  if (reply.isAnswered) return true
-  $.ui.log(`Cache Keep: ping not answered (${reply.reason}); pings stop until the next turn`)
-  return false
+// What compaction would leave: the last one's result, or before one, all of
+// the window but the messages, which compaction replaces with a summary.
+async function compactedEstimate($: EngineInterface): Promise<number | undefined> {
+  if (compactedTokens !== undefined) return compactedTokens
+  const rows = (await $.session.usage({ breakdown: 'summary' })).context.breakdown?.categories.filter((row) => row.kind === 'used')
+  if (!rows?.some((row) => row.name === 'Messages')) return undefined
+  return rows.filter((row) => row.name !== 'Messages').reduce((sum, row) => sum + row.tokens, 0)
 }
 
 async function compact($: EngineInterface) {
@@ -93,27 +83,50 @@ async function compact($: EngineInterface) {
 async function onIdle($: EngineInterface) {
   timer = undefined
   if (!settings.enabled) return
-  if (pingsSent < settings.pings) {
-    pingsSent++
-    if (await ping($)) timer = $.clock.after(settings.pingMs, () => void onIdle($))
-    else await releaseSession($)
+  const now = await $.clock.now()
+  if (lastSentAt !== undefined && now - lastSentAt >= CACHE_LIMIT_MS) {
+    await note($, `stopped: ${Math.round((now - lastSentAt) / 60_000)} minutes since the last request, the cache has likely lapsed`)
     return
   }
-  const current = await contextTokens($)
-  if (shouldCompact(current, compactedTokens, settings.compactBelow)) await compact($)
-  else await ping($)
-  await releaseSession($)
+  const last = pingsSent >= settings.pings
+  if (last) {
+    const current = (await $.session.usage()).context.tokens
+    const compacted = await compactedEstimate($)
+    if (shouldCompact(current, compacted, settings.compactBelow)) {
+      await note($, `compacting: ${current} tokens now, about ${compacted} after`)
+      await compact($)
+      return
+    }
+  }
+  const reply = await $.model.fork({ prompt: 'Cache Keep ping: reply with the single word ok.' })
+  if (reply.isAnswered) {
+    lastSentAt = now
+    pingsSent++
+    retriesLeft = RETRIES
+    await note($, `ping ${pingsSent}: ${reply.usage.cache_read_input_tokens} tokens read from the cache, ${reply.usage.cache_creation_input_tokens} written`)
+    if (!last) wait($, settings.pingMs)
+  } else if (retriesLeft > 0) {
+    retriesLeft--
+    await note($, `ping not answered (${reply.reason}); trying again in a minute`)
+    wait($, RETRY_MS)
+  } else {
+    await note($, `ping not answered (${reply.reason}); pings stop until the next turn`)
+  }
 }
 
 async function afterTurn($: EngineInterface) {
-  const tokens = await contextTokens($)
-  if (tokens && lastTokens && tokens < lastTokens * COMPACTION_DROP) compactedTokens = tokens
-  lastTokens = tokens
+  const now = await $.clock.now()
+  if (compactedSizeUnknown) {
+    compactedTokens = (await $.session.usage()).context.tokens
+    compactedSizeUnknown = compactedTokens === undefined
+    if (compactedTokens !== undefined) await note($, `size after the last compaction: ${compactedTokens} tokens`)
+  }
   pingsSent = 0
+  retriesLeft = RETRIES
   stop()
   if (!settings.enabled) return
-  timer = $.clock.after(settings.pingMs, () => void onIdle($))
-  await holdSession($)
+  lastSentAt ??= now
+  wait($, Math.max(0, lastSentAt + settings.pingMs - now))
 }
 
 const mainThread = (e: object) => !('agentId' in e && e.agentId)
@@ -121,18 +134,34 @@ const mainThread = (e: object) => !('agentId' in e && e.agentId)
 export const register: Register = (on, options) => {
   settings = readSettings(options)
   on('turn.start', async ($, e, next) => {
-    if (mainThread(e) && !compacting) stop()
+    if (mainThread(e) && !compacting) {
+      stop()
+      lastSentAt = undefined
+    }
     return next(e)
+  })
+  on('turn.step', async function* ($, e, next) {
+    if (mainThread(e)) lastSentAt = await $.clock.now()
+    return yield* next(e)
   })
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (mainThread(e) && !compacting) await afterTurn($)
     return result
   })
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    if (mainThread(e) && e.trigger !== 'precompute' && !result.skip) {
+      // Its tokensAfter counts the kept messages alone, not the system prompt
+      // and tools, so the size is read off the first response after it.
+      compactedTokens = undefined
+      compactedSizeUnknown = true
+      await note($, `compacted (${e.trigger}) at ${result.tokensBefore ?? 'unknown'} tokens`)
+    }
+    return result
+  })
   on('session.end', async ($, e, next) => {
-    // Scheduled tasks end with the session; no tool runs at this point.
     stop()
-    hold = undefined
     return next(e)
   })
 }
