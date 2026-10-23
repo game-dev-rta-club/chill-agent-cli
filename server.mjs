@@ -219,7 +219,9 @@ const server = createServer(async (request, response) => {
     const local=request.socket.remoteAddress==='127.0.0.1'&&request.headers.host===`127.0.0.1:${server.address().port}`&&!request.headers.origin&&!request.headers['sec-fetch-site']&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'];
     if(!serviceToken||request.method!=='POST'||!local||supplied.length!==expected.length||!timingSafeEqual(supplied,expected))return sendJson(response,404,{});
     response.setHeader('Connection','close');sendJson(response,202,{stopping:true});
-    console.log('Service stop requested. Stopping server.');shutdown();return;
+    // A restart keeps the public link connector for the next Web, like SIGUSR2 on macOS.
+    const preserve=request.headers['x-chill-preserve-tunnel']==='1';
+    console.log(`Service ${preserve?'restart':'stop'} requested. Stopping server.`);shutdown(preserve);return;
   }
   if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
   if(path==='/api/runtime-update'){
