@@ -10,7 +10,7 @@ export default {
    selectWork:{command:'goal work --id <GOAL>',confirmation:'Marks the Goal this response works on for the Web until the response ends. A reply does not select work or complete the Goal.'},
    adopt:{command:'connection adopt --goal <ID>',confirmation:'Only when the user asks this conversation to continue a Goal owned by an earlier conversation (for example after Claude continued the chat in a new session).'},
    inbox:{command:'connection inbox',confirmation:'Hands any feedback that waits and lists the handed comments whose Goals still wait for a reply. Hooks hand new feedback on their own; read it when you need to recover input.'},
-   reply:{command:'connection reply --goal <GOAL> --text <TEXT>',confirmation:'Your final reply of the turn is posted for you to the one Goal handed feedback in this turn that awaits a reply, so write it for the user on the Web and do not repeat it here. Use this to answer several Goals or to reply mid-turn; it posts at once, and one reply answers all of a Goal\'s comments.'},
+   reply:{command:'connection reply --goal <GOAL> --text <TEXT>',confirmation:'Replies on that Goal at once, and one reply answers all of its comments. Your messages in this conversation are posted to its current Goal: the Goal last handed feedback, replied on or woken for.'},
    wait:{command:'connection wait',confirmation:'Start it as a Claude background task only when a connection result asks for it: in Claude Desktop it keeps the conversation from being paused so the watcher hook can wake it.'}
   },
   activation:{
