@@ -1190,6 +1190,30 @@ main.addEventListener('paste', event => {
   }
 });
 
+// Files dropped on the comment or annotation form are attached like Add file.
+// A drop anywhere else does nothing: the browser must not leave the page to
+// open the file.
+const draggingFiles = event => [...(event.dataTransfer?.types || [])].includes('Files');
+const dropForm = target => target instanceof Element ? target.closest('form[data-form="comment"], form[data-form="annotation"]:not([hidden])') : null;
+const clearDropTarget = () => document.querySelectorAll('.is-drop-target').forEach(form => form.classList.remove('is-drop-target'));
+document.addEventListener('dragover', event => {
+  if (!draggingFiles(event)) return;
+  event.preventDefault();
+  const form = dropForm(event.target), open = form && !form.querySelector('fieldset').disabled;
+  event.dataTransfer.dropEffect = open ? 'copy' : 'none';
+  document.querySelectorAll('.is-drop-target').forEach(other => { if (other !== form) other.classList.remove('is-drop-target'); });
+  form?.classList.toggle('is-drop-target', Boolean(open));
+});
+document.addEventListener('dragleave', event => { if (!event.relatedTarget) clearDropTarget(); });
+document.addEventListener('dragend', clearDropTarget);
+document.addEventListener('drop', event => {
+  if (!draggingFiles(event)) return;
+  event.preventDefault();
+  clearDropTarget();
+  const form = dropForm(event.target), files = [...(event.dataTransfer.files || [])];
+  if (form && files.length) setPendingImages(form.dataset.form, files);
+});
+
 main.addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
   if (!button || !activeGoalId) return;
