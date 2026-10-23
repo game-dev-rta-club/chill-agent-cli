@@ -4,10 +4,11 @@ keyPoints: >-
   Stop) waits in the background while a Claude conversation owns Goals. When Web
   feedback is saved it claims it and exits 2, so Claude Code wakes the model with
   the feedback; a due connection wake check wakes it the same way. The agent
-  never starts, reads or restarts it, except in Claude Desktop: Desktop pauses
-  idle conversations under memory pressure but not one running a background
-  task, so there the agent runs connection wait as a task and the hook stands
-  by. connection wait also remains for older setups.
+  never starts, reads or restarts it. Claude Desktop pauses idle conversations
+  under memory pressure but not one running a background task, so there the
+  agent also runs connection wait as a task that only holds the conversation;
+  the hook still hands the feedback. connection wait also remains the waiter
+  for older setups.
 ---
 
 # Receive Web replies while Claude is idle
@@ -65,14 +66,16 @@ conversation is opened again. Desktop never pauses a conversation with a
 background task running (Bash run_in_background, Monitor, subagents), and it
 does not count hooks as such tasks.
 
-So when `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop`, the waiter runs as a
-task: chill asks the agent to start `connection wait` in the background
-(SessionStart after a resume, the next action of `connection` commands, and
-once per Stop), and stops asking while one runs. The task takes over from the
-watcher hook, which then ends quietly or stands by; outside Desktop the hook
-takes over from a task, as below. The task exits when feedback is saved or a
-check is due; that wakes the conversation, and the agent claims feedback with
-`connection inbox` and starts the task again.
+So when `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop`, chill asks the agent to
+start `connection wait` in the background (SessionStart after a resume, the
+next action of `connection` commands, and once per Stop), and stops asking
+while one runs. With the watcher hook installed, the task only holds the
+conversation: it records itself as the conversation's `hold`, refreshes it, and
+neither claims feedback nor ends for it. The watcher hook watches as anywhere
+else and wakes the model with the feedback itself, so the agent reads no inbox
+and restarts nothing. The hold follows the session across compact and clear;
+one per session, as with the watcher. It ends when the conversation owns no
+Goal or is stopped, and chill then asks for it again.
 
 The cost is memory: a conversation with a running task is never paused, so
 while many conversations wait for Web replies, Desktop has fewer to pause.
