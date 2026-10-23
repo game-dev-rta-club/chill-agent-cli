@@ -44,7 +44,10 @@ h1,h2,h3,p { margin:0; }
 .goal-brief { margin-bottom:calc(24px + var(--fluid)*4); min-width:0; }
 .goal-heading { display:flex; align-items:center; flex-wrap:wrap; gap:12px 20px; padding:calc(16px + var(--fluid)*4) calc(13px + var(--fluid)*9) calc(18px + var(--fluid)*2); }
 .goal-heading h1 { flex:1 1 360px; min-width:0; font-size:clamp(23px,2.6vw,30px); line-height:1.6; letter-spacing:-.035em; overflow-wrap:anywhere; }
-.goal-topline { margin-left:auto; }
+/* The status sits under the progress bar in a reserved row, so it appearing or
+   changing never moves or rewraps the title. */
+.goal-topline { margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:4px; width:calc(94px + var(--fluid)*20); }
+.goal-topline-status { display:flex; justify-content:flex-end; min-height:calc(16px + var(--fluid)*2); white-space:nowrap; }
 .badges { display:flex; align-items:center; gap:calc(7px + var(--fluid)*3); }
 .status { display:inline-flex; align-items:center; gap:6px; font-size:calc(11px + var(--fluid)); color:var(--theme-muted,#57706a); flex:none; white-space:nowrap; }
 .status.working .dot { width:12px; height:12px; border-radius:50%; border:1.7px solid var(--theme-line,#c4d8d0); border-top-color:var(--theme-accent,#4e8072); animation:goal-working 1.3s linear infinite; }
