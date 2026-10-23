@@ -46,9 +46,8 @@ function headerMarkup(data){
  const a=data.agent||{},caps=data.capabilities||{};
  const model=caps.settings?`<div class="agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</div>`:a.model?.model?`<p class="agent-muted">${esc(a.model.model)}${a.model.reasoning?` · ${esc(a.model.reasoning)}`:''}</p>`:'';
  const status=a.status?`<p title="${esc(a.status.detail||'')}">${esc(a.status.label)}${a.status.at?` · ${timeMarkup(a.status.at)}`:''}</p>`:'';
- const approve=caps.approveAll?`<label class="agent-extension"><span>Approve all</span><input type="checkbox" role="switch" data-agent-approve-all aria-label="Approve all permission prompts" ${data.approveAll?'checked':''}></label><p class="extension-message" data-approve-message role="status"></p>`:'';
  const usage=data.usage===undefined?'':`<section class="agent-section"><h3 title="${esc(data.usageScope||'')}">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>`;
- return `<section class="agent-section"><h3>${esc(a.name||'Agent')}</h3>${model}${status}${approve}</section>${usage}`;
+ return `<section class="agent-section"><h3>${esc(a.name||'Agent')}</h3>${model}${status}</section>${usage}`;
 }
 const controlsMarkup=data=>`<div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div>`;
 function queueMarkup(queue){
@@ -100,6 +99,12 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   }catch(error){runLogs.delete(key);if(target.isConnected&&goalId===getGoalId())target.innerHTML='<p class="agent-muted">Log unavailable.</p><button type="button" class="text-button" data-run-refresh>Retry</button>';}
  }
  content.addEventListener('toggle',event=>{if(event.target.matches('[data-extension-run]'))void loadRun(event.target);},true);
+ // A control that is consequential to turn on (Approve all) asks first.
+ async function toggleExtension(controlId,enabled,selector){
+  const control=current?.extensions?.find(c=>c.id===controlId);
+  if(enabled&&control?.confirmOn&&!await confirmAction(control.confirmOn))return;
+  void saveExtension(controlId,enabled,selector);
+ }
  async function saveExtension(controlId,enabled,selector){
   if(saving)return;
   const id=getGoalId(),data=current,control=data.extensions.find(c=>c.id===controlId);if(!control)return;
@@ -134,7 +139,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   const refresh=event.target.closest('[data-run-refresh]');if(refresh){void loadRun(refresh.closest('[data-extension-run]'),{fresh:true});return;}
   const setup=event.target.closest('[data-extension-setup]');if(setup){void requestSetup(setup.dataset.extensionSetup);return;}
   const button=event.target.closest('[data-agent-extension]');if(!button)return;
-  void saveExtension(button.dataset.agentExtension,button.getAttribute('aria-pressed')!=='true',`[data-agent-extension="${button.dataset.agentExtension}"]`);
+  void toggleExtension(button.dataset.agentExtension,button.getAttribute('aria-pressed')!=='true',`[data-agent-extension="${button.dataset.agentExtension}"]`);
  });
  async function controlCurrent(action){
   if(saving||!current)return;
@@ -152,20 +157,6 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
    }
   }finally{saving=false;refreshButton.disabled=false;}
  }
- // When the agent supports it: answer its permission prompts automatically.
- content.addEventListener('change',async event=>{
-  const input=event.target.closest('[data-agent-approve-all]');if(!input||saving)return;
-  // Turning it on is consequential, so the explanation lives in a confirmation.
-  if(input.checked&&!await confirmAction({title:'Approve all',message:"The agent's permission prompts in this conversation will be answered with Allow, so unattended work keeps going without asking you. Prompts the agent never lets an automatic answer approve, such as removing critical paths, still ask.",confirmLabel:'Turn on'})){input.checked=false;return;}
-  const id=getGoalId(),snapshot=current,token=++request;controller?.abort();saving=true;input.disabled=true;
-  const message=content.querySelector('[data-approve-message]');if(message)message.textContent='';
-  try{
-   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'permissions',token:snapshot?.token,approveAll:input.checked}),signal:AbortSignal.timeout(30000)});
-   const result=await response.json();if(!response.ok)throw Error(result.error||'Could not save.');
-   if(opened&&id===getGoalId()&&token===request)render({...result,extensions:snapshot.extensions});
-  }catch(error){if(opened&&id===getGoalId()&&token===request){input.checked=!input.checked;input.disabled=false;const m=content.querySelector('[data-approve-message]');if(m)m.textContent=error.name==='TimeoutError'?'Save unconfirmed. Refresh to check.':error.message;}}
-  finally{saving=false;}
- });
  content.addEventListener('change',async event=>{
   if(event.target.matches('[data-extension]')){
    void saveExtension(event.target.dataset.extension,event.target.checked,`[data-extension="${event.target.dataset.extension}"]`);return;

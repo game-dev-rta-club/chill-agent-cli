@@ -126,7 +126,10 @@ Each adapter lives in `lib/agents/` (`codex*.mjs`, `claude*.mjs`). Both hand
 feedback by the Root's cursor ([hand-off](../../lib/hand-off.mjs)). Codex sends an
 idle chat one Queue message and is polled for AutoContinue. Claude receives
 feedback through its hooks and watcher, and continues at its own Stop. A Comment
-on the Goal answers it; no harness records receipts. Behavior that a harness cannot
+on the Goal answers it; no harness records receipts. Each harness's Stop passes
+its final reply and the Goals its work record says were handed during this work
+to the shared `postFinalReply`, which posts it to the one of them awaiting a
+reply; only how the text and the work are read differs. Behavior that a harness cannot
 offer is a capability set to false, not a branch in core code.
 [`test/harness-boundary.test.mjs`](../../test/harness-boundary.test.mjs) fails
 if core code names a harness outside a shrinking list of files still being moved.

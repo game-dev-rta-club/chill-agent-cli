@@ -64,7 +64,7 @@ export async function hookOutput(input, assignedThreadId = process.env.CODEX_THR
   if (input.agent_id || assignedThreadId && assignedThreadId !== input.session_id) return null;
   const threadId = validThreadId(input.session_id);
   if (input.hook_event_name === 'Stop') {
-    const stop = await codexStop({ threadId, turnId: input.turn_id ?? null });
+    const stop = await codexStop({ threadId, turnId: input.turn_id ?? null, text: input.last_assistant_message });
     if (stop?.feedback) return { decision: 'block', reason: stop.feedback };
     if (!stop?.quiet) return null;
     const command = codexCommand();

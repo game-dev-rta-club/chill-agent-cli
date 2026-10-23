@@ -5,6 +5,7 @@
   },
   "modules": [
     "./lib/continuation-extension.mjs",
+    "./lib/approve-all-extension.mjs",
     "./lib/notifications.mjs",
     "./lib/web-notifications.mjs",
     "./lib/public-link-extension.mjs"

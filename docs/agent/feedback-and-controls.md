@@ -1,7 +1,9 @@
 ---
 keyPoints: >-
   Feedback is saved first and handed to the Root's agent by one cursor per Root.
-  A Comment on the Goal answers it; there are no receipts. While the agent's own
+  A Comment on the Goal answers it; there are no receipts. The final reply of the
+  agent's work is posted to the one Goal handed comments in that work and still
+  awaiting a reply. While the agent's own
   work runs, feedback waits for its end unless the user sends it now. Pause holds
   everything until Resume; a stop in the agent's own app shows as Interrupted.
 ---
@@ -16,7 +18,7 @@ Saved until an agent takes the Root over.
 ## From saved feedback to the agent
 
 ```text
-Web feedback → saved Conversation → handed to the Root's agent → the agent's Comment on the Goal
+Web feedback → saved Conversation → handed to the Root's agent → the agent's final reply (or Comment) on the Goal
 ```
 
 Each Root keeps one cursor: the last comment handed to its agent
@@ -28,8 +30,9 @@ receives only what the earlier one was never handed.
 How the comments are carried depends on the harness. An idle Codex chat is sent
 every waiting comment as one message; a Codex chat that cannot be reached keeps
 them Saved and is sent them once chill can reach it. Claude Code receives them
-through its hooks: a tool hook while it works, the watcher hook while it is idle. Either way, the text lists the comments as
-data, with the command to read each Goal and the command to reply.
+through its hooks: a tool hook while it works, the watcher hook while it is idle. Either way, the same text lists the
+comments as data, with the command to read each Goal, says the final reply is posted as the answer, and gives the
+command to reply (`feedbackText` in [delivery](../../lib/delivery.mjs)).
 
 ## Waiting: feedback saved while the agent works
 
@@ -45,15 +48,38 @@ The comments before it go too, so the cursor keeps the order.
 ## Replying
 
 A Goal waits for a reply while the user commented after the agent's last Comment
-or Letter on it. The agent answers by commenting on the Goal; one Comment answers
-all of the user's comments before it. No comment ID and no receipt is needed, and
-a progress Comment answers the Goal as well. A Comment from another agent
-conversation is refused.
+or Letter on it. One Comment answers all of the user's comments before it. No
+comment ID and no receipt is needed, and a progress Comment answers the Goal as
+well. A Comment from another agent conversation is refused.
+
+When the agent's work ends, its final reply (the last assistant message the Stop
+hook receives, from Claude Code and Codex alike) is posted to the Goal as the
+answer if exactly one Goal it was handed comments on during this work still
+awaits a reply (`postFinalReply` in [hand-off](../../lib/hand-off.mjs)). This work
+is the harness's own work record: in Claude Code the conversation's work since its
+last stop that ended (a stop that is held or handed comments goes on with the same
+work; a wake that hands comments starts it; Esc or a failed stop ends it), in Codex
+the turn (`turn_id`, with what a sent message handed adopted by the turn it
+starts). So the agent writes that
+reply for the user on the Web, in their language, and does not post it again as a
+Comment. Any non-empty text is posted; none is posted without text, from a
+subagent, or when no Goal or several Goals handed during the work await a reply.
+A Goal left awaiting by earlier work (stopped, failed or ended without a reply)
+never takes a later work's final reply; the stop hold asks for its reply instead.
+The post carries a
+request ID made from the harness, conversation, turn and text, so a repeated Stop
+posts it once. It answers only the comments handed so far (`answers`): one saved
+during the work is handed after it and still awaits its own reply. To answer
+several Goals, or to reply before the work ends, the agent comments on each Goal
+(`connection reply` in Claude Code, `chill comment` in Codex).
 
 ## When the agent stops
 
-The user reads only the Web. An agent that ends its work while a Goal it was
-handed comments on still waits for a reply, with nothing of it running to wake it
+The user reads only the Web. The final reply is posted first (see Replying), so a
+single Goal handed comments during the work is answered and the stop goes on as
+usual. An agent that ends its work while Goals it was handed comments on still
+wait for a reply (several Goals, one when the work ended without text, or one left
+by earlier work), with nothing of it running to wake it
 later, makes the Web look stopped. chill holds that stop once and asks the agent
 to tell the user where things stand: reply if it is handled, or post a progress
 Comment that says what it waits for and when it will check. The stop right after a
