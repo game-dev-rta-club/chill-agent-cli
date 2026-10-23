@@ -28,8 +28,10 @@ try{
  await run(process.execPath,[launcher,'server','start','--local','--idle-timeout','10m'],{env});
  const before=await (await fetch(url+'/api/goals')).json();
  const state=await (await fetch(url+'/api/runtime-update')).json();assert.equal(state.available,true);
- for(const headers of [{origin:'https://foreign.example'},{origin:url,'cf-ray':'public'},{origin:url,host:'foreign.example'}]){
-  const denied=await new Promise((resolve,reject)=>{const req=request(url+'/api/runtime-update',{method:'POST',headers:{'Content-Type':'application/json',...headers}},res=>{res.resume();resolve(res.statusCode);});req.on('error',reject);req.end(JSON.stringify({candidate:state.candidate,id:randomUUID()}));});assert.ok([401,403].includes(denied),`${denied} ${JSON.stringify(headers)}`);
+ // A foreign Origin reaches the update route (403). A Cloudflare request or foreign Host is a
+ // public request, and the public link's sign-in answers it first (401).
+ for(const [headers,expected] of [[{origin:'https://foreign.example'},403],[{origin:url,'cf-ray':'public'},401],[{origin:url,host:'foreign.example'},401]]){
+  const denied=await new Promise((resolve,reject)=>{const req=request(url+'/api/runtime-update',{method:'POST',headers:{'Content-Type':'application/json',...headers}},res=>{res.resume();resolve(res.statusCode);});req.on('error',reject);req.end(JSON.stringify({candidate:state.candidate,id:randomUUID()}));});assert.equal(denied,expected,JSON.stringify(headers));
  }
  if(process.argv.includes('--serve')){keep=true;console.log(JSON.stringify({base,data,port,url,launcher,oldInstance:state.instance}));}
  else{
