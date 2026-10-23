@@ -312,7 +312,7 @@ test('with the watcher hook installed, nothing tells the agent to start a waiter
  assert.doesNotMatch(context(await f.action('inbox')),/connection wait/);
 });
 
-test('in Claude Desktop the agent runs the waiter as a task, which the watcher hook gives way to',async t=>{
+test('in Claude Desktop a task holds the conversation and the watcher hook hands the feedback',async t=>{
  const f=await fixture(t);
  await mkdir(join(f.cwd,'.claude'),{recursive:true});
  await writeFile(join(f.cwd,'.claude/settings.local.json'),JSON.stringify({hooks:{Stop:[{hooks:[{type:'command',command:"'/x/chill' connection claude-watch",asyncRewake:true,timeout:604800}]}]}}));
@@ -323,15 +323,20 @@ test('in Claude Desktop the agent runs the waiter as a task, which the watcher h
  assert.match(context(await f.action('inbox')),/run_in_background[\s\S]*connection wait/);
  const stop=await f.stop();assert.equal(stop.decision,'block');assert.match(stop.reason,/run_in_background[\s\S]*connection wait/);
  assert.equal(await handleClaudeToolHook(f.event('Stop',{stop_hook_active:true}),{cwd:f.cwd}),null,'asked once per stop');
- // The task takes over; the hook ends quietly, and a later hook stands by.
- const task=f.wait({refreshMs:20});
- assert.deepEqual(await hook.done,{status:'replaced'});assert.equal(watcherWakeText({status:'replaced'}),'');
- await f.until(async()=>(await readJson(f.recordPath)).waiter?.kind===undefined);
- assert.deepEqual(await watch(f,{livenessMs:200}).done,{status:'already-running'});
+ // The task holds the conversation beside the hook, which keeps watching.
+ const task=f.wait({refreshMs:20,env:{...f.env(),CLAUDE_CODE_ENTRYPOINT:'claude-desktop'}});
+ await f.until(async()=>!!(await readJson(f.recordPath)).hold);
+ assert.equal((await readJson(f.recordPath)).waiter.kind,'hook');
+ const second=await f.wait({livenessMs:200,env:{...f.env(),CLAUDE_CODE_ENTRYPOINT:'claude-desktop'}}).done;
+ assert.deepEqual(second,{status:'already-running',hold:true});assert.match(waitResultText(second),/already keeps this conversation/);
  assert.doesNotMatch(context(await f.action('inbox')),/connection wait/);
  assert.equal(await f.stop(),null);
  assert.equal(await claudeSessionStartContext(await f.start('compact')),null,'a running task survives compact');
- // Feedback ends the task, which tells the agent to read it and start the waiter again.
+ // Feedback wakes the model through the hook, with its text; the task keeps holding.
  await appendFeedback({goalId:f.root.id,text:'from the Web'});
- const result=await task.done;assert.equal(result.status,'feedback');assert.match(waitResultText(result),/connection inbox[\s\S]*connection wait/);
+ const woke=await hook.done;assert.equal(woke.status,'feedback');assert.match(watcherWakeText(woke),/from the Web/);
+ assert.equal(await hasSavedClaudeFeedback(f.connection),false,'the hook claimed it');
+ await new Promise(r=>setTimeout(r,50));assert.ok((await readJson(f.recordPath)).hold,'the task does not end for feedback');
+ const ended=await task.stop();assert.deepEqual(ended,{status:'stopped',hold:true});assert.match(waitResultText(ended),/Start it again as a background task[\s\S]*connection wait/);
+ assert.equal((await readJson(f.recordPath)).hold,undefined,'a stopped task releases its hold');
 });
