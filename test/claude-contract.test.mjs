@@ -26,7 +26,7 @@ const hookReads = {
   PreToolUse: {session_id: 'string', tool_name: 'string', tool_input: 'unknown', agent_id: 'string?', agent_type: 'string?'},
   PermissionRequest: {session_id: 'string', tool_name: 'string', agent_id: 'string?', agent_type: 'string?'},
   PostToolUse: {session_id: 'string', tool_name: 'string', tool_response: 'unknown', agent_id: 'string?', agent_type: 'string?'},
-  Stop: {session_id: 'string', transcript_path: 'string', stop_hook_active: 'boolean', prompt_id: 'string?', agent_id: 'string?', background_tasks: 'array?'},
+  Stop: {session_id: 'string', transcript_path: 'string', stop_hook_active: 'boolean', prompt_id: 'string?', agent_id: 'string?', background_tasks: 'array?', last_assistant_message: 'string?'},
   StopFailure: {session_id: 'string', agent_id: 'string?'},
   SubagentStart: {session_id: 'string', agent_id: 'string', agent_type: 'string'},
   SubagentStop: {session_id: 'string', agent_id: 'string'},

@@ -60,8 +60,41 @@ scenario('the agent\'s reply clears the marks at once, while its work still runs
 scenario('the end of the work without a reply leaves the comment marked, awaiting one',async s=>{
   const event=await s.saveFeedback('Just do it');
   await s.agentTakesFeedback(event);
-  await s.agentEndsResponse();
+  await s.agentEndsResponse({text:null});
   assert.equal(await s.shown(event),'handed','only a reply answers the user');
+  assert.deepEqual(await s.comments(),[]);
+});
+
+// The final reply of the work is the answer when one Goal awaits it (hand-off postFinalReply).
+scenario('the final reply of the work answers the Goal awaiting it, once',async s=>{
+  const event=await s.saveFeedback('Fix the typo');
+  await s.agentTakesFeedback(event);
+  assert.equal(await s.agentEndsResponse({text:'Fixed the typo in the README.'}),null,'answered, so the stop is not held');
+  assert.equal(await s.shown(event),null);
+  assert.deepEqual(await s.comments(),['Fixed the typo in the README.']);
+  await s.agentStartsResponse();
+  assert.equal(await s.agentEndsResponse({text:'Nothing else to do.'}),null);
+  assert.deepEqual(await s.comments(),['Fixed the typo in the README.'],'with nothing awaiting a reply, the final reply stays in the conversation');
+});
+
+// Only feedback handed during the work takes its final reply (hand-off postFinalReply).
+scenario('feedback handed at the end of the work is answered by the final reply that follows it',async s=>{
+  await s.agentStartsResponse();
+  const event=await s.saveFeedback('One more thing');
+  assert.match(await s.agentEndsResponse({text:'Working.'}),/One more thing/,'handed at the stop; the work goes on');
+  assert.deepEqual(await s.comments(),[]);
+  assert.equal(await s.agentEndsResponse({text:'Did the one more thing.'}),null);
+  assert.equal(await s.shown(event),null);
+  assert.deepEqual(await s.comments(),['Did the one more thing.']);
+});
+
+scenario('feedback left awaiting by stopped work gets no later final reply; the stop asks for a reply',async s=>{
+  const event=await s.saveFeedback('Fix the typo');
+  await s.agentTakesFeedback(event);
+  await s.agentIsInterrupted();
+  await s.agentStartsResponse();
+  assert.match(await s.agentEndsResponse({text:'CI is green; nothing left.'}),new RegExp(`Goal #${s.goalId}\\b`));
+  assert.equal(await s.agentEndsResponse({text:'CI is green; nothing left.'}),null);
   assert.deepEqual(await s.comments(),[]);
 });
 
@@ -118,7 +151,15 @@ scenario('Approve all is offered where the harness supports it, and refused wher
   if(driver.capabilities.approveAll) {
     assert.equal((await s.approveAll(true)).approveAll,true);
     assert.equal((await s.approveAll(false)).approveAll,false);
-  } else await assert.rejects(s.approveAll(true),/not available/);
+    // The same switch sits beside Auto-continue in the More and Agent menus, and asks before turning on.
+    const off=await s.approveAllControl();
+    assert.equal(off.enabled,false);assert.equal(off.placement,'header');assert.ok(off.activity);assert.match(off.confirmOn.message,/Allow/);
+    assert.equal((await s.approveAllControl(true)).enabled,true);assert.equal((await s.agentStatus()).approveAll,true);
+    assert.equal((await s.approveAllControl(false)).enabled,false);
+  } else {
+    await assert.rejects(s.approveAll(true),/not available/);
+    assert.equal(await s.approveAllControl(),null,'no switch where the harness cannot answer prompts');
+  }
 });
 
 // Pause is the user's (R17); a stop in the agent's own app is Interrupted (R17b). Both show the same on the agent and the comments.
@@ -134,7 +175,8 @@ scenario('Pause holds new feedback and Resume releases it where the harness can 
     assert.deepEqual(await s.agentTakesFeedback(held),[],'nothing is handed while paused');
     await s.pauseActivity('resume');
     assert.notEqual(await s.shown(held),'paused');
-    await s.agentEndsResponse();
+    // Without a final reply, the response goes on to take what was held.
+    await s.agentEndsResponse({text:null});
     assert.deepEqual(await s.agentTakesFeedback(held),[held]);
   } else await assert.rejects(s.pauseActivity('stop'),/Status changed/);
 });
@@ -164,23 +206,23 @@ scenario('a command the user runs in the agent\'s own app, such as /reload-skill
 scenario('a stop with nothing running and nothing said about feedback the agent took is held once, to tell the user',async (s,driver) => {
   const event=await s.saveFeedback('Fix the build');
   await s.agentTakesFeedback(event);
-  const hold=await s.agentEndsResponse();
+  const hold=await s.agentEndsResponse({text:null});
   assert.match(hold??'',/tell the user where things stand/,'the user has heard nothing since the feedback');
   assert.match(hold,new RegExp(`Goal #${s.goalId}\\b`));
-  assert.equal(await s.agentEndsResponse(),null,'the stop right after a hold ends');
+  assert.equal(await s.agentEndsResponse({text:null}),null,'the stop right after a hold ends');
   await s.agentStartsResponse();
-  assert.match(await s.agentEndsResponse()??'',/where things stand/,'a later stop with still nothing said is held again');
-  assert.equal(await s.agentEndsResponse(),null);
+  assert.match(await s.agentEndsResponse({text:null})??'',/where things stand/,'a later stop with still nothing said is held again');
+  assert.equal(await s.agentEndsResponse({text:null}),null);
   await s.agentStartsResponse();
   await s.agentComments('Waiting for CI; I will check again in 10 minutes.');
-  assert.equal(await s.agentEndsResponse(),null,'a progress comment answers the Goal');
+  assert.equal(await s.agentEndsResponse({text:null}),null,'a progress comment answers the Goal');
   const more=await s.saveFeedback('Also update the docs');
   await s.agentTakesFeedback(more);
-  const background=await s.agentEndsResponse({background:true});
+  const background=await s.agentEndsResponse({background:true,text:null});
   if(driver.capabilities.backgroundWork)assert.equal(background,null,'background work wakes the agent later');
-  else {assert.match(background??'',/where things stand/,'the harness reports no background work');await s.agentEndsResponse();}
+  else {assert.match(background??'',/where things stand/,'the harness reports no background work');await s.agentEndsResponse({text:null});}
   await s.agentStartsResponse();
   await s.agentReplies(more,'Fixed');
-  assert.equal(await s.agentEndsResponse(),null,'the reply answers the Goal');
+  assert.equal(await s.agentEndsResponse({text:null}),null,'the reply answers the Goal');
   assert.equal(await s.shown(event),null);assert.equal(await s.shown(more),null);
 });
