@@ -106,12 +106,9 @@ test('a comment shows a mark only until its Goal has a reply, and the agent show
   assert.equal(background.live,false);
 });
 
-test('an AutoContinue run is found by its exact result command',async()=>{
- const command='chill monitor result --id 1 --attempt 00000000-0000-0000-0000-000000000123 --outcome worked';
- const queued={threadId:thread,matchText:command,history:[]};
- assert.equal((await workReader(clientFor([],{...meta,items:[userMessage(command)]}))(queued)).turnId,turn);
- for(const text of [command.replace('--id 1','--id 2'),command+'other',command.replace('000123','000124')]) {
-  const reader=workReader(clientFor([],{...meta,items:[userMessage(text)]}));
-  assert.equal(await reader(queued),null);
- }
+test('an AutoContinue run is found by the ID its request was queued with',async()=>{
+ const id='00000000-0000-0000-0000-000000000123',queued={threadId:thread,messageId:id,history:[]};
+ const sent=clientId=>({...userMessage('=== chill-agent · Keep going ==='),clientId});
+ assert.equal((await workReader(clientFor([],{...meta,items:[sent(id)]}))(queued)).turnId,turn);
+ for(const item of [sent(id.replace('000123','000124')),userMessage(id)])assert.equal(await workReader(clientFor([],{...meta,items:[item]}))(queued),null);
 });

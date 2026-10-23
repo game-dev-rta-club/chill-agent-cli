@@ -38,10 +38,10 @@ test('child control maps to its Root; existing state/counters survive toggle and
  await assert.rejects(ext.set('2',{rootId:'3',enabled:true}),/Goal moved/);
 });
 test('activity is a bounded read-only journal, independent of enablement and stale execution phase',()=>{
- const state={enabled:false,status:'running',attempts:[{id:'new',at:'2026-01-02',phase:'running',message:'exact\nmessage',summary:'Check Goals',result:{outcome:'no-work',at:'2026-01-03'}}],history:Array.from({length:23},(_,i)=>({id:`old-${i}`,at:'2026-01-01',phase:'completed',completedAt:'2026-01-01'}))};
+ const state={enabled:false,status:'running',attempts:[{id:'new',at:'2026-01-02',phase:'completed',completedAt:'2026-01-03',message:'exact\nmessage',summary:'Check Goals',result:{outcome:'no-work',at:'2026-01-03',observed:true}}],history:Array.from({length:23},(_,i)=>({id:`old-${i}`,at:'2026-01-01',phase:'completed',completedAt:'2026-01-01'}))};
  const before=structuredClone(state),a=continuationActivity(state);
  assert.equal(a.status,'Off');assert.equal(a.total,24);assert.equal(a.activeCount,0);assert.equal(a.runs.length,20);
- assert.equal(a.runs[0].id,'new');assert.equal(a.runs[0].logPath,'/activity/new');assert.equal(a.runs[0].result.label,'No work reported');assert.equal(a.runs[0].status,'Result received');
+ assert.equal(a.runs[0].id,'new');assert.equal(a.runs[0].logPath,'/activity/new');assert.equal(a.runs[0].result.label,'No work');assert.equal(a.runs[0].status,'Run ended');
  assert.equal(a.runs[1].goalId,null);assert.deepEqual(state,before);
  assert.equal(continuationActivity({...state,enabled:true,checkedAt:'2020-01-01'}).status,'Checking');
 });
@@ -91,9 +91,9 @@ test('a Claude Root uses the same AutoContinue control, switched through its own
  await ext.set('4',{rootId:'3',enabled:true});assert.deepEqual(calls,[['3',true]]);
  assert.equal((await ext.read('4',{activity:true})).activity.status,'Watching','Claude status does not go stale between Stops');
  state={...state,paused:true};assert.equal((await ext.read('4',{activity:true})).activity.status,'Paused');
- state={...state,paused:false,status:'awaiting-receipt',attempts:[{id:'11111111-1111-4111-8111-111111111111',at:'2026-10-13T00:00:00Z',phase:'uncertain',message:'Continue the Goal',summary:'Automatic check'},{id:'22222222-2222-4222-8222-222222222222',at:'2026-10-13T00:01:00Z',phase:'assignment-changed',completedAt:'2026-10-13T00:02:00Z'}]};
+ state={...state,paused:false,status:'awaiting-run',attempts:[{id:'11111111-1111-4111-8111-111111111111',at:'2026-10-13T00:00:00Z',phase:'uncertain',message:'Continue the Goal',summary:'Automatic check'},{id:'22222222-2222-4222-8222-222222222222',at:'2026-10-13T00:01:00Z',phase:'assignment-changed',completedAt:'2026-10-13T00:02:00Z'}]};
  const activity=(await ext.read('4',{activity:true})).activity;
- assert.equal(activity.status,'Awaiting confirmation');assert.deepEqual(activity.runs.map(r=>r.status),['Agent changed','Delivery unconfirmed']);
+ assert.equal(activity.status,'Awaiting the run');assert.deepEqual(activity.runs.map(r=>r.status),['Agent changed','Delivery unconfirmed']);
  const log=await ext.request({method:'GET',path:'activity/11111111-1111-4111-8111-111111111111',query:{goalId:'4'}});
  assert.equal(log.status,200);assert.equal(log.body.message,'Continue the Goal');assert.equal(log.body.work.messages[0].text,'Continued','the run output comes from its transcript, like a Codex run');
  assert.deepEqual(reads,[['/tmp/claude.jsonl','2026-10-13T00:00:00Z']],'the text written since the run was requested');

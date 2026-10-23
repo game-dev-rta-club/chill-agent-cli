@@ -21,8 +21,8 @@ right now comes from its transcript (below).
 | Conversation context changed | The Goal belongs to an earlier context; a new context does not inherit it |
 | Connection not observed | The record is missing or unreadable |
 
-A saved reply in the Conversation also says when no waiter will wake Claude.
-Opening the menu does not start a waiter or change a delivery record. A missing
+A saved reply in the Conversation also says when no watcher will wake Claude.
+Opening the menu does not start a watcher or change a delivery record. A missing
 SessionEnd is not proof that the conversation is still open.
 
 ## Recover in the original conversation
@@ -72,7 +72,7 @@ so Pause works through the conversation's own hooks
 ([claude-pause](../../lib/claude-pause.mjs)): its next tool call, in the main
 conversation or a subagent, is refused with a reason to stop and end the
 response; AutoContinue does not continue; new Web feedback is held and listed in
-Queue, and the reply waiter does not wake for it. A running command finishes
+Queue, and the watcher does not wake for it. A running command finishes
 first. The pause survives compact and resume. Resume clears it and wakes the
 conversation once with a notice to continue, together with the held feedback.
 A prompt the user types in the conversation itself also clears it, so a paused

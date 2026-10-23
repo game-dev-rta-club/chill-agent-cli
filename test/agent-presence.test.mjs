@@ -22,9 +22,9 @@ test('presence covers runs without feedback, interrupted turns, idle, and unavai
  assert.equal(agentPresence({threadState:'idle'}),'idle');
 });
 test('extension messages render as escaped text; missing old snapshots are not reconstructed',()=>{
- const html=activityMarkup([{id:'test',label:'Policy',activity:{label:'AutoContinue',status:'Off',entries:[{id:'1',summary:'<img src=x>',message:'<script>alert(1)</script>\nnext line',result:{label:'No work reported'}},{id:'2',summary:'Old check',message:null,status:'Run ended'}],total:2}}]);
+ const html=activityMarkup([{id:'test',label:'Policy',activity:{label:'AutoContinue',status:'Off',entries:[{id:'1',summary:'<img src=x>',message:'<script>alert(1)</script>\nnext line',result:{label:'No work'}},{id:'2',summary:'Old check',message:null,status:'Run ended'}],total:2}}]);
  assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>|<img/);assert.match(html,/next line/);
- assert.match(html,/Message not saved/);assert.match(html,/No work reported/);assert.match(html,/History/);
+ assert.match(html,/Message not saved/);assert.match(html,/No work/);assert.match(html,/History/);
 });
 
 test('presence collects turn and thread state with one native connection',async()=>{

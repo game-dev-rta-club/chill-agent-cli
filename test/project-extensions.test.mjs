@@ -30,7 +30,7 @@ test('Auto mode messages call the project store chill, which finds its own port'
  const base=await mkdtemp(join(tmpdir(),'chill-project-message-')),oldDir=process.env.CHILL_AGENT_DATA_DIR;
  t.after(async()=>{if(oldDir===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=oldDir;await rm(base,{recursive:true,force:true});});
  const project=join(base,'project');await mkdir(project);process.env.CHILL_AGENT_DATA_DIR=await prepareProject(project,{base});
- const text=continuationMessage({rootId:'1'},1,'attempt');
+ const text=continuationMessage({rootId:'1',wake:true});
  assert.match(text,new RegExp("CHILL_AGENT_DATA_DIR='"+process.env.CHILL_AGENT_DATA_DIR.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+"'"));
  assert.doesNotMatch(text,/PORT=/);
 });

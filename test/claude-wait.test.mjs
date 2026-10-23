@@ -321,7 +321,7 @@ test('in Claude Desktop a task holds the conversation and the watcher hook hands
  assert.match(context(await claudeSessionStartContext(await f.start('resume'))),/owns chill-agent Goals[\s\S]*connection wait/);
  const hook=watch(f,{refreshMs:20});await f.waiting();
  assert.match(context(await f.action('inbox')),/run_in_background[\s\S]*connection wait/);
- const stop=await f.stop();assert.equal(stop.decision,'block');assert.match(stop.reason,/run_in_background[\s\S]*connection wait/);
+ const stop=await f.stop();assert.equal(stop.decision,'block');assert.match(stop.reason,/keeps it from pausing[\s\S]*run_in_background[\s\S]*connection wait/);
  assert.equal(await handleClaudeToolHook(f.event('Stop',{stop_hook_active:true}),{cwd:f.cwd}),null,'asked once per stop');
  // The task holds the conversation beside the hook, which keeps watching.
  const task=f.wait({refreshMs:20,env:{...f.env(),CLAUDE_CODE_ENTRYPOINT:'claude-desktop'}});

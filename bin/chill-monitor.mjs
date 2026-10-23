@@ -9,27 +9,15 @@ import {fileURLToPath} from 'node:url';
 import {touch as hostTouch,workspacePort,resolveWorkspacePort,readGoalContext} from '../lib/extension-api.mjs';
 const [command,...args]=process.argv.slice(2);
 let continuation;
-const usage='Optional continuation checks with durable attempt limits.\nUsage: chill monitor <start|stop|enable|disable|status|tick|watch|result> --id <ROOT>\nOpt-in continuation: at most 1 combined continuation and stopping-review nudge per user/Goal/Deliverable revision. The hosted extension checks every 30s, without fixed idle/cooldown delays. start runs monitoring inside the Web server; stop disables only this Root monitor. Web remains available. watch is retired; use start. CLI-only servers may disable extensions with CHILL_AGENT_EXTENSIONS=none. Unknown/paused/queued states never send. enable preserves attempts. disable stops future sends, not a message already queued.\nResult: chill monitor result --id <ROOT> --attempt <UUID> --outcome <worked|no-work>. Saves internal results only; requires the assigned Codex thread or experimental native main-hook confirmation.\nExperimental Claude: enable/disable and result use main-hook actions. pause/resume hold only future continuations, not native execution. A verified main Stop drives checking; start/tick/watch are unsupported. Native tool permissions remain unchanged.';
+const usage='Optional continuation checks with durable attempt limits.\nUsage: chill monitor <start|stop|enable|disable|status|tick|watch> --id <ROOT>\nOpt-in continuation: at most 1 combined continuation and stopping-review nudge per user/Goal/Deliverable revision. The hosted extension checks every 30s, without fixed idle/cooldown delays. start runs monitoring inside the Web server; stop disables only this Root monitor. Web remains available. watch is retired; use start. CLI-only servers may disable extensions with CHILL_AGENT_EXTENSIONS=none. Unknown/paused/queued states never send. enable preserves attempts. disable stops future sends, not a message already queued.\nchill records the result of each check itself; there is nothing to report.\nExperimental Claude: enable/disable use main-hook actions. pause/resume hold only future continuations, not native execution. A verified main Stop drives checking; start/tick/watch are unsupported. Native tool permissions remain unchanged.';
 try{
  if(!command||command==='--help'||args.includes('--help'))console.log(usage);
  else if(!/^[1-9][0-9]*$/.test(args[1]||''))throw Error(usage);
  else if(command==='status'&&args.length===2&&args[0]==='--id')console.log(JSON.stringify(await readMonitor(args[1]),null,2));
  else if((continuation=agentContinuation((await readGoalContext(args[1]).catch(()=>null))?.root||{}))?.confirmed){
   // This agent records monitor commands for its own conversation.
-  let input;
-  if(command==='result'){
-   if(args.length!==6||args[0]!=='--id'||args[2]!=='--attempt'||args[4]!=='--outcome')throw Error(usage);
-   input={rootId:args[1],attemptId:args[3],outcome:args[5]};
-  }else {
-   if(args.length!==2||args[0]!=='--id')throw Error(usage);
-   input={rootId:args[1]};
-  }
-  console.log((await continuation.confirmed(command,input)).text);
- }
- else if(command==='result'){
-  if(args.length!==6||args[0]!=='--id'||args[2]!=='--attempt'||args[4]!=='--outcome')throw Error(usage);
-  if(!continuation?.report)throw Error('Result must come from the assigned chat.');
-  console.log(JSON.stringify(await continuation.report(args[3],args[5]),null,2));
+  if(args.length!==2||args[0]!=='--id')throw Error(usage);
+  console.log((await continuation.confirmed(command,{rootId:args[1]})).text);
  }
  else{
   if(args.length!==2||args[0]!=='--id'||! /^[1-9][0-9]*$/.test(args[1])||!['start','stop','enable','disable','status','tick','watch'].includes(command))throw Error(usage);
