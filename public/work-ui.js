@@ -27,9 +27,10 @@ const activityDescriptions = {
 // A check the agent scheduled turns Ended into Waiting; one long past its time
 // means nothing is left to wake the agent.
 const overdueMs = 5 * 60 * 1000;
+export const isWaitingOnCheck = (wake, now = Date.now()) => Boolean(wake) && now - Date.parse(wake.at) <= overdueMs;
 function waitingDisplay({at, reason}, now) {
   const due = Date.parse(at), time = new Date(due).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
-  if (now - due > overdueMs) return {state: 'unknown', label: 'Check overdue', description: `${reason ? `${reason}. ` : ''}The check was due at ${time}.`, live: false};
+  if (!isWaitingOnCheck({at}, now)) return {state: 'unknown', label: 'Check overdue', description: `${reason ? `${reason}. ` : ''}The check was due at ${time}.`, live: false};
   return {state: 'waiting', label: 'Waiting', description: `${reason ? `${reason}. ` : ''}Checks again at ${time}.`, live: false};
 }
 // A response that ended while its background tasks run on: each task as the
