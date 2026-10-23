@@ -27,7 +27,10 @@ test('SQLite CLI pages match complete-history output while selecting only reques
  const all=await readConnectedGoals();
  for(const id of ['1','2','3'])for(const options of [{},{limit:5},{limit:5,before:30},{version:1,limit:3},{since:15},{since:20,before:30,limit:2},{since:10000}]){
   const expected=goalPage(all,id,options),actual=await readGoalPage(id,options);
-  const {attachments,...page}=actual;assert.deepEqual(attachments,[]);assert.deepEqual(page,expected);
+  // readGoalPage adds each record's number in its Goal; the projection is otherwise the same.
+  const strip=list=>list.map(({number,...e})=>{assert.ok(Number.isSafeInteger(number)&&number>0);return e;});
+  const {attachments,...page}=actual;assert.deepEqual(attachments,[]);
+  assert.deepEqual({...page,conversation:strip(page.conversation),answerTargets:strip(page.answerTargets),letters:strip(page.letters)},expected);
  }
  const projection=await sqliteGoalPageRecords('2',{limit:3,version:1});
  assert.equal(projection.selection.events.length,3);

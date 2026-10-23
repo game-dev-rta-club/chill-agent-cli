@@ -57,10 +57,10 @@ test('show CLI defaults to five messages only in ordinary text browsing; since a
  const run=async(...args)=>(await exec(process.execPath,[cli,...args],{env})).stdout;
  await run('create','--title','Root');
  for(let i=0;i<8;i++)await run('comment','--id','1','--text',`Item ${i}`);
- assert.equal((await run('show','--id','1','--format','text')).match(/^comment \d+ · agent/gm).length,5);
- assert.equal((await run('show','--id','1','--format','text','--since','0')).match(/^comment \d+ · agent/gm).length,8);
- assert.equal((await run('show','--id','1','--format','text','--full')).match(/^comment \d+ · agent/gm).length,8);
+ assert.equal((await run('show','--id','1','--format','text')).match(/^comment \d+ \(\d+\) · agent/gm).length,5);
+ assert.equal((await run('show','--id','1','--format','text','--since','0')).match(/^comment \d+ \(\d+\) · agent/gm).length,8);
+ assert.equal((await run('show','--id','1','--format','text','--full')).match(/^comment \d+ \(\d+\) · agent/gm).length,8);
  assert.equal(JSON.parse(await run('show','--id','1')).conversation.length,8);
  const older=await run('show','--id','1','--format','text','--section','conversation','--before','4','--limit','5');
- assert.equal(older.match(/^comment \d+ · agent/gm).length,3);assert.doesNotMatch(older,/Deliverable/);
+ assert.equal(older.match(/^comment \d+ \(\d+\) · agent/gm).length,3);assert.doesNotMatch(older,/Deliverable/);
 });
