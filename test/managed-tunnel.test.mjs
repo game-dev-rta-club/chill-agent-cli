@@ -56,3 +56,13 @@ test('on Windows the connector is its own task: it survives Web release, reattac
   await assert.rejects(readFile(tunnelStatePath(directory,port)),{code:'ENOENT'});
  }finally{await first?.release();await second?.();await stopManagedTunnel(directory,port);await rm(directory,{recursive:true,force:true,maxRetries:20,retryDelay:100});}
 });
+test('on Windows a connector that exits before its URL fails at once, not after the 45-second wait',{skip:process.platform!=='win32',timeout:60000},async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'chill-managed-test-'));const port=51495;
+ const fake=join(directory,'fake-cloudflared.mjs');await writeFile(fake,`process.exit(2);`);
+ let stop,error;const started=Date.now();
+ try{
+  stop=await startManagedTunnel({directory,port,remote:{mode:'quick'},onOrigin:()=>{},onFailure:e=>error=e,command:async()=>[process.execPath,fake]});
+  for(let i=0;i<600&&!error;i++)await delay(50);
+  assert.match(error?.message||'',/Cloudflare tunnel stopped/);assert.ok(Date.now()-started<30000);
+ }finally{await stop?.();await stopManagedTunnel(directory,port);await rm(directory,{recursive:true,force:true,maxRetries:20,retryDelay:100});}
+});
