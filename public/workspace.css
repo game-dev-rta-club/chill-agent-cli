@@ -405,6 +405,7 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 .runtime-update-button>svg { width:18px; height:18px; }
 .runtime-update-button:hover { background:var(--theme-accent,#006f66); filter:brightness(1.08); }
 .runtime-update-button:disabled { opacity:.6; filter:none; }
+.runtime-update-button[aria-busy="true"]:disabled { opacity:1; }
 .runtime-update-button[aria-busy="true"] svg { animation:runtime-update-spin 1.5s linear infinite; }
 @keyframes runtime-update-spin { to { transform:rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .runtime-update-button[aria-busy="true"] svg { animation:none; } }

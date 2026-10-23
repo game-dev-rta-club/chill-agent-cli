@@ -71,7 +71,9 @@ The built-in provider follows the [version file](version-file.md) recorded at
 setup. On a background server (launchd on macOS, Task Scheduler on Windows), Web shows an update icon when that file
 selects a different package than the running snapshot, on the computer and on
 devices connected through the public link. Confirming it acquires the candidate,
-prepares a snapshot and restarts Web at the same URL. Closing the confirmation
+prepares a snapshot and restarts Web at the same URL. Meanwhile the button reads
+**Updating…** and then **Restarting…** on every open page, and the page that
+confirmed reloads into the new version. Closing the confirmation
 leaves the current version running. Detection alone never downloads or activates
 code, and a request cannot choose the package: only the computer's version file
 names it. Foreground servers retain the explicit CLI update path.
