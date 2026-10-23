@@ -11,12 +11,14 @@ test('Claude and Codex show the same feedback text, with the recorded guide and 
  await writeFile(join(dir,'data','runtime','version-source.json'),JSON.stringify({version:1,versionFile:join(dir,'cli.json'),agentGuide:guide}));
  const previous=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');t.after(()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;});
  const {claudeFeedbackText}=await import('../lib/claude-actions.mjs'),{codexFeedbackText,codexCommand}=await import('../lib/agents/codex-work.mjs'),{command}=await import('../lib/chill-command.mjs');
- const event={id:3,goalId:'1',text:'Plain'},claude=await claudeFeedbackText([event]),codex=await codexFeedbackText([event]);
+ const event={id:3,goalId:'1',text:'Plain'},claude=await claudeFeedbackText([event],'1'),codex=await codexFeedbackText([event],{current:'1'});
+ // With no current Goal, as after feedback from several Goals, each Goal needs its own reply.
+ for(const text of [await claudeFeedbackText([event,{...event,id:4,goalId:'2'}],null),await codexFeedbackText([event,{...event,id:4,goalId:'2'}])])
+  assert.match(text,/The user reads only the Web and waits for a reply on each Goal\. Reply on each Goal: /);
  for(const text of [claude,codex]){
   assert.match(text,new RegExp(`Workflow: ${JSON.stringify(guide).replace(/[\\\\^$.*+?()[\]{}|]/g,'\\$&')}`));
-  assert.match(text,/your final reply of this turn is posted to it as the answer: write it for the user on the Web, in their language, and do not post it again as a Comment/);
-  assert.match(text,/To answer several Goals, or to reply before the turn ends, reply on each Goal/);
-  assert.doesNotMatch(text,/Skills named/);
+  assert.match(text,/The user reads only the Web\. Your messages in this conversation are posted to Goal #1\. To reply on a specific Goal: /);
+  assert.doesNotMatch(text,/final reply|Skills named/);
  }
  // Only the commands differ.
  assert.equal(claude.replaceAll(`${command()} connection reply --goal <goalId>`,'REPLY').replaceAll(`${command()} goal`,'CLI'),codex.replaceAll(`${codexCommand()} comment --id <goalId>`,'REPLY').replaceAll(codexCommand(),'CLI'));

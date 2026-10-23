@@ -5,7 +5,7 @@ export default {
   operations:{
    inspect:{command:'goal show --id <GOAL> --section context --format text',confirmation:'Read the current Goal and its bound conversation before continuing.'},
    createRoot:{command:'goal create --help',confirmation:'Supply --thread-id with the actual calling Codex conversation UUID. Read the saved Root and verify its threadId matches. Do not create an unbound Root or infer identity from the folder.'},
-   reply:{command:'goal comment --id <GOAL> --text <TEXT>',confirmation:'Your final reply of the turn is posted for you to the one Goal handed feedback in this turn that awaits a reply, so write it for the user on the Web and do not repeat it here. Use this to answer several Goals or to reply mid-turn; it posts at once, and one reply answers all of a Goal\'s comments.'},
+   reply:{command:'goal comment --id <GOAL> --text <TEXT>',confirmation:'Replies on that Goal at once, and one reply answers all of its comments. Your messages in this chat are posted to its current Goal: the Goal last handed feedback or replied on.'},
    selectWork:{command:'goal work --id <GOAL>',confirmation:'A reply does not select work or complete the Goal.'}
   },
   activation:{
