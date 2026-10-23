@@ -1,6 +1,6 @@
 ---
 keyPoints: >-
-  Before leaving Claude, confirm a reply waiter is running and try one Web reply
+  Before leaving Claude, confirm a watcher is running and try one Web reply
   in the same conversation, then review native permissions for the actual work.
   chill Auto mode delegates decisions; it does not approve tools. The Web does not
   start a closed Claude process.
@@ -9,9 +9,10 @@ keyPoints: >-
 # Leave a Claude conversation working
 
 Use this after [project setup](claude-setup.md), in the same conversation that
-owns the Goal. Web replies reach it through the [reply waiter](claude-wait.md),
-which runs as long as that Claude process does. Keep Claude and the computer
-running while you are away.
+owns the Goal. Web replies reach it through the [watcher hook](claude-wait.md),
+which runs as long as that Claude process does; in Claude Desktop a
+`connection wait` task also keeps Desktop from pausing the conversation. Keep
+Claude and the computer running while you are away.
 
 ## Understand what remains running
 
@@ -19,7 +20,8 @@ The Web saves messages; the Claude process receives and answers them. The
 integration does not start a closed Claude automatically. Use one live process
 for one conversation: opening another copy with `--resume` is not an attachment
 to the existing process. To reopen after exit, resume the same project and
-session; its SessionStart context asks the agent to start the waiter again.
+session. The watcher hook starts again with it; in Claude Desktop its
+SessionStart context asks the agent to start the `connection wait` task again.
 
 ## Decide what to delegate
 
@@ -75,7 +77,7 @@ place: the affected action may wait while independent work continues.
 | What you see | Next action |
 | --- | --- |
 | A native approval prompt | Review it in the original Claude conversation; changing chill Auto mode will not answer it |
-| No reply waiter is running | Ask that same conversation to check `connection inbox`; its result names the waiter to start |
+| No watcher is running | Ask that same conversation to check `connection inbox`; its result names any task to start |
 | Claude closed | Resume the same native session |
 | A delivery is uncertain | Read `connection inbox` in the same conversation; do not create a replacement Root or resend the message |
 | A manual hold | Preserve it until the user resumes that work |

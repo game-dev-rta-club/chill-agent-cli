@@ -53,7 +53,7 @@ The agent still identifies its actual calling host and native project directory.
 The runtime does not infer identity from a model name, current Goal or directory.
 
 Codex has a native Queue that chill sends an idle chat its feedback through;
-Claude receives feedback only through its hooks and reply waiter. Those are
+Claude receives feedback only through its hooks, including the watcher hook. Those are
 meaningful differences, so the interface exposes them rather than pretending
 both hosts share the same side effects. Incoming feedback carries the host's own
 reply command; references follow it without repeating the host branches.

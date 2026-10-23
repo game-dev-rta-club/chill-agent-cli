@@ -1,15 +1,16 @@
 ---
 keyPoints: >-
   Native probes pass startup, new-Root binding, the inbox and automatic
-  feedback within a verified prompt. Idle conversations wake through a background
-  reply waiter rather than hooks with deadlines or Channels, which need a launch
-  flag Claude Desktop cannot pass. Optional Stop continuation is qualified
+  feedback within a verified prompt. Idle conversations wake through the watcher
+  hook, re-armed at every Stop, rather than Channels, which need a launch flag
+  Claude Desktop cannot pass; in Desktop a background task only keeps the
+  conversation from being paused. Optional Stop continuation is qualified
   separately; live controls remain open.
 ---
 
 # Connect the current Claude conversation
 
-**Partly implemented: native busy delivery, idle wake through the reply waiter and optional Stop continuation work; live controls remain open.**
+**Partly implemented: native busy delivery, idle wake through the watcher hook and optional Stop continuation work; live controls remain open.**
 Use a native Claude Code adapter for the [shared connection boundary](harness-connections.md).
 The intended experience starts inside the user's Claude conversation and returns
 Web feedback there. Keep ACP as an option for a separately chosen managed-session
@@ -37,18 +38,21 @@ Our adapter should separate these abilities:
 
 `Stop` alone does not cover Web input arriving after the hook has returned.
 
-## Wake an idle conversation with a background task
+## Wake an idle conversation
 
-Two native alternatives were tried first. A hook with `asyncRewake` can wake an
-idle session, but it needs a deadline and must be re-armed after each response,
-so an ordinary chat turn left no watcher behind. [Channels](https://code.claude.com/docs/en/channels)
+A hook with `asyncRewake` can wake an idle session, but it needs a deadline and
+must be re-armed after each response. The [watcher hook](claude-wait.md) is
+installed on SessionStart and Stop, so every response re-arms it, and it ends
+itself before its timeout. [Channels](https://code.claude.com/docs/en/channels)
 push events into a running session, but they are a research preview enabled by a
 launch flag, which Claude Desktop sessions cannot pass, and they were unavailable
 in the tested terminal.
 
-The [reply waiter](claude-wait.md) uses only a background task: it survives
-unrelated turns, has no deadline, and keeps Claude Desktop from evicting an idle
-session. It still cannot start a closed conversation. Do not restart a user's
+Claude Desktop pauses an idle conversation under memory pressure unless a
+background task runs, so there the agent also runs `connection wait` as a task
+that only holds the conversation; the hook still wakes it with the feedback.
+Without the watcher hook, that task is the reply waiter. Neither can start a
+closed conversation. Do not restart a user's
 running conversation, start a second process with its session ID, or silently
 replace it to make a connection appear successful. A closed conversation
 retains pending input in chill.
@@ -62,7 +66,7 @@ saved Web input / eligible Auto mode request
                   |
    Root cursor (hand-off): what has not been handed yet
                   |
-   tool hook, Stop, or waiter wake + inbox
+   tool hook, Stop, or watcher wake
                   |
       handed -> the agent's Comment on the Goal answers it
 ```
@@ -79,7 +83,7 @@ without adding it to the standalone CLI. The product extension has passed a
 packaged native Stop roundtrip. The [feedback rules](feedback-and-controls.md)
 are the source of truth, and a reconnect keeps the cursor.
 
-Use a local connection handshake to associate the hooks and the reply waiter with
+Use a local connection handshake to associate the hooks and the watcher with
 the same main session. Directory equality is not identity. Keep an opaque native
 session ID, optional prompt identity and a connection generation; reject stale
 owners. A clear/fork or different session must not inherit a Root binding merely
@@ -99,7 +103,7 @@ unavailable until their evidence is sufficient.
 | --- | --- |
 | Existing conversation | Read and return an event in the same main conversation, with its earlier context intact. |
 | Busy and idle delivery | Two Goals' replies arrive without selecting either Goal; idle delivery needs no user prompt. |
-| Concurrent routes | A tool hook, a waiter wake and a reconnect produce one claimed event, never two executions. |
+| Concurrent routes | A tool hook, a watcher wake and a reconnect produce one claimed event, never two executions. |
 | Lost hand-off | A comment whose hand-off was lost still waits for a reply and is listed by the inbox; nothing is handed twice. |
 | Off, Pause and exit | No new Auto request after Off/Pause; held input survives; exit never launches a replacement. |
 | Session changes | Resume, clear, fork and subagent hooks cannot accidentally steal another binding. |
@@ -147,7 +151,8 @@ The authenticated print-mode probes establish new-Root creation, feedback receip
 and initial-context retention within one native prompt. A Claude Desktop session
 started the reply waiter from chill's next action alone, kept it through an
 unrelated chat turn, was not evicted during ten idle minutes of memory pressure,
-then woke for a Web reply, answered on the Web and restarted the waiter. A
+then woke for a Web reply, answered on the Web and restarted the waiter; that
+check predates the watcher hook and the Desktop task that only holds. A
 separate [project setup and resume check](claude-setup.md) passes with earlier
 context retained in the same native session. Native clear/fork/interruption and
 the remaining checks above are still open. The optional product

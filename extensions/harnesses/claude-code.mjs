@@ -11,7 +11,7 @@ export default {
    adopt:{command:'connection adopt --goal <ID>',confirmation:'Only when the user asks this conversation to continue a Goal owned by an earlier conversation (for example after Claude continued the chat in a new session).'},
    inbox:{command:'connection inbox',confirmation:'Hands any feedback that waits and lists the handed comments whose Goals still wait for a reply. Hooks hand new feedback on their own; read it when you need to recover input.'},
    reply:{command:'connection reply --goal <GOAL> --text <TEXT>',confirmation:'Posts the answer on the Goal at once. A Goal waits for a reply while the user commented after the agent; one reply answers all of it.'},
-   wait:{command:'connection wait',confirmation:'Only for setups without the watcher hook: start it as a Claude background task when a connection result asks for it.'}
+   wait:{command:'connection wait',confirmation:'Start it as a Claude background task only when a connection result asks for it: in Claude Desktop it keeps the conversation from being paused so the watcher hook can wake it; without the hook it is the reply waiter.'}
   },
   activation:{
    beforeCreate:'Run connection show before createRoot. If it reports no connection, run connection join. Missing identity cannot be replaced with an ordinary goal create, fabricated environment variables or a Codex route.',

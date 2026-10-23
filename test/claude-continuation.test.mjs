@@ -25,8 +25,7 @@ async function fixture(t){
  await start();await action('create-goal',{title:'Native Auto mode',scope:'One verified continuation',criteria:'No duplicate or lost input'});const root=(await listGoals())[0];
  const configure=(enabled=true)=>action('extension',{extension:'continuation',operation:'configure',input:{rootId:root.id,enabled}});
  const pause=paused=>action('extension',{extension:'continuation',operation:'pause',input:{rootId:root.id,paused}});
- const result=(attemptId,outcome='no-work',patch={})=>action('extension',{extension:'continuation',operation:'result',input:{rootId:root.id,attemptId,outcome}},patch);
- return {dir,cwd,root,event,action,start,configure,pause,result,read:()=>readMonitor(root.id),stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
+ return {dir,cwd,root,event,action,start,configure,pause,read:()=>readMonitor(root.id),stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
 }
 
 test('Stop reserves once; the next Stop ends the request and consumes the revision',async t=>{
@@ -34,7 +33,7 @@ test('Stop reserves once; the next Stop ends the request and consumes the revisi
  const response=await f.stop();
  assert.equal(response.decision,'block');assert.match(response.reason,/Auto mode is On/);assert.match(response.reason,/connection wake --in/);
  let state=await f.read();assert.equal(state.attempts.length,1);const attempt=state.attempts[0];assert.equal(attempt.message,response.reason);assert.equal(attempt.phase,'uncertain');
- await f.newPrompt();await f.result(attempt.id);assert.equal((await f.read()).attempts[0].completedAt,undefined,'a receipt is not native completion');
+ await f.newPrompt();assert.equal((await f.read()).attempts[0].completedAt,undefined,'a new prompt is not native completion');
  assert.equal(await f.stop({prompt_id:randomUUID()}),null);
  assert.equal(await f.stop(),null);state=await f.read();assert.equal(state.status,'exhausted');assert.equal(state.attempts[0].phase,'completed');
  await f.configure(false);await f.configure(true);assert.equal(await f.stop(),null,'toggling does not reset the allowance');
@@ -184,8 +183,5 @@ test('chill records the result at the next Stop: worked when the agent left some
  await busy.newPrompt();await appendAgentComment({goalId:busy.root.id,type:'comment',text:'Finished the remaining step; tests pass.'});
  assert.equal(await busy.stop(),null);
  const attempt=(await busy.read()).attempts[0];assert.equal(attempt.result.outcome,'worked');assert.equal(attempt.phase,'completed');
- const reported=await fixture(t);await reported.configure();await reported.stop();
- const id=(await reported.read()).attempts[0].id;await reported.newPrompt();await reported.result(id,'worked');
- assert.equal(await reported.stop(),null);
- const kept=(await reported.read()).attempts[0].result;assert.equal(kept.outcome,'worked');assert.equal(kept.observed,undefined,'a reported result is kept');
+ await assert.rejects(busy.action('extension',{extension:'continuation',operation:'result',input:{rootId:busy.root.id,attemptId:attempt.id,outcome:'no-work'}}),/Unsupported/,'there is nothing to report');
 });

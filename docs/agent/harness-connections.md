@@ -2,8 +2,9 @@
 keyPoints: >-
   Model settings and run observations have a native-adapter boundary and caches
   isolated per harness/session. Native Claude probes pass Root creation, receipts
-  and automatic busy feedback; a background reply waiter wakes idle Claude
-  conversations, including in Claude Desktop. Optional native Stop continuation
+  and automatic busy feedback; the watcher hook wakes idle Claude
+  conversations, and in Claude Desktop a background task keeps them from being
+  paused. Optional native Stop continuation
   passes its packaged probe. Live Claude controls remain open.
 ---
 
@@ -97,9 +98,10 @@ Experimental [connection actions](claude-actions.md) add new-Root ownership,
 explicit inbox reads and replies on the Goal. The conversation also receives new input on
 ordinary main-session tool hooks. Context
 IDs separate clear/fork from resume/compact. Local protocol tests and authenticated
-print-mode probes pass. The [reply waiter](claude-wait.md) wakes an idle
-conversation through a background task; chill's results tell the agent when to
-start it, so connection-specific guidance stays in the adapter. Packaged
+print-mode probes pass. The [watcher hook](claude-wait.md) wakes an idle
+conversation. In Claude Desktop chill's results tell the agent when to start the
+background task that keeps it from being paused, so connection-specific
+guidance stays in the adapter. Packaged
 user-facing installation and live controls remain unqualified or unavailable.
 Experimental project hooks can be installed through [explicit setup](claude-setup.md). Optional
 [connection hooks](../extensions/connection-hooks.md) now support the product Auto
@@ -136,7 +138,7 @@ work, manual Pause, Auto mode continuation and unavailable controls. No successf
 check may depend on silently moving work into a fresh agent.
 
 The [Claude conversation proposal](claude-conversation.md) maps this boundary to
-native hooks and the reply waiter. It separates feedback during work from idle
+native hooks and the watcher. It separates feedback during work from idle
 wake, and describes the evidence required before either is advertised as supported.
 
 The [library comparison](harness-options.md) remains useful for transport

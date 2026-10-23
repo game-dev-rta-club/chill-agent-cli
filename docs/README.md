@@ -36,7 +36,7 @@ The integrating application decides what work to pursue and when to continue it.
 | Qualify Claude's local hook-to-CLI identity handoff | [Claude entry handshake](agent/claude-entry.md) |
 | Prepare project-local hooks for the same Claude conversation | [Experimental Claude setup](agent/claude-setup.md) |
 | Create a new Claude Root and read its feedback | [Experimental Claude actions](agent/claude-actions.md) |
-| Receive a reply after Claude finishes responding | [Reply waiter](agent/claude-wait.md) |
+| Receive a reply after Claude finishes responding | [Watcher hook](agent/claude-wait.md) |
 | Check whether Claude is waiting for Web replies | [Recorded Claude connection status](agent/claude-status.md) |
 | Interpret Running, Done or an unknown state | [Execution state](agent/execution-state.md) |
 | Host a policy or add its Web control | [Extension API](extensions.md) |

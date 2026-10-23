@@ -69,9 +69,9 @@ response after compacting it read 57k.
 
 The timers live in the Claude Code process. When memory runs short, Claude
 Desktop stops conversations idle for a minute or more, but not one with a
-background task running. In Desktop, chill runs its reply waiter as a background
-task ([waiting for Web replies](claude-wait.md)), so a chill conversation that
-waits for Web input keeps its process and Cache Keep's timer. A conversation
+background task running. In Desktop, chill runs a background task that holds the
+conversation ([waiting for Web replies](claude-wait.md)), so a chill conversation
+that waits for Web input keeps its process and Cache Keep's timer. A conversation
 that is stopped loses the timer; its next turn starts it again.
 
 ## Log

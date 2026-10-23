@@ -51,9 +51,9 @@ activity: {
     at: '2026-10-05T00:09:00Z',
     summary: 'Check for anything missed in the completed Goals.',
     message: 'The exact request text',
-    status: 'Result received',
+    status: 'Run ended',
     detail: 'Optional short context',
-    result: { label: 'No work reported', at: '2026-10-05T00:10:00Z' }
+    result: { label: 'No work', at: '2026-10-05T00:10:00Z' }
   }]
 }
 ```
@@ -69,7 +69,7 @@ requests. Zero active requests displays Empty even when history exists. Omitting
 The host renders text, preserves multiline messages, and puts history below the
 On/Off toggle. Store the actual sent text; return `message: null` if an old record
 does not contain it. Never regenerate an old message from a newer template.
-Keep current enablement separate from past requests and their reported results.
+Keep current enablement separate from past requests and their results.
 
 For execution logs, use `activity.runs` instead of `entries`. The host places
 these under **Agent → Activity → Recent runs**, separate from the extension's

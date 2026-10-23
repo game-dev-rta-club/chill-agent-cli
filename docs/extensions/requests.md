@@ -57,18 +57,18 @@ receipt when available; different root/text is rejected. A reserved ID without
 a receipt is uncertain and is not resent.
 
 `observe(rootId, {id, at})` can inspect a pending request's execution evidence.
-Current turn-history matching needs either a `[chill-agent:<request-id>]` marker
-in the message or the continuation policy's exact result-command line. An
-arbitrary message is not automatically traceable after leaving the queue; a
-different policy must account for this before relying on `pendingWork`.
+Turn history finds it by the request ID: the queued input comes back as the
+turn's user message with that ID as its `clientId`. `pendingWork.endedAt` is the
+evidence that the run ended; a policy records its own result from it (the
+continuation policy compares a `progress` mark saved at send time).
 
-Keep execution evidence distinct from the agent's reported policy result. Store
+Keep execution evidence distinct from the policy's own result. Store
 the policy journal with `storage(namespace)` and serialize policy decisions with
 `policyLock(threadId, run)`. These are separate from the host's enqueue lock.
 `listGoals` and `readGoalContext` provide workspace facts; `touch()` records
 genuine use when needed, not routine polling.
 
-For an on-demand public log of a Codex chat, `readRunOutput({threadId, id, at, turnId?, matchText?})`
+For an on-demand public log of a Codex chat, `readRunOutput({threadId, id, at, turnId?})`
 uses the same turn reader without observing scheduling eligibility or enqueueing.
 Pass only a request from the extension's own saved journal after checking the
 current Root owner. Keep its Goal association at send time; do not derive an old

@@ -107,9 +107,11 @@ are distinct choices. Setup does not grant tools or change native permission mod
 
 ## Receive replies and remove the hooks
 
-Setup installs only the conversation hooks. Replies after Claude goes idle use
-the [reply waiter](claude-wait.md), which the agent starts as a background task
-when a chill result asks for it; there is nothing to configure here.
+Setup installs only the conversation hooks. Replies after Claude goes idle wake
+it through the [watcher hook](claude-wait.md) among them; there is nothing to
+configure here. In Claude Desktop the agent also starts `connection wait` as a
+background task when a chill result asks for it, only so that Desktop does not
+pause the conversation.
 
 ```sh
 chill setup status --harness claude-code --project /absolute/project
@@ -152,5 +154,5 @@ copied into the report. Normal settings and production Goals are untouched.
 
 The interactive flow was last exercised on **2026-10-06 with Claude Code
 2.1.289**, when feedback arrived through a finite idle hook that has since been
-replaced by the reply waiter. Rerun it before relying on first-use onboarding
-with the waiter.
+replaced by the watcher hook. Rerun it before relying on first-use onboarding
+with the watcher.

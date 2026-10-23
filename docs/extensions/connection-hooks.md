@@ -49,8 +49,8 @@ reservation decides whether a repeated Stop continues again.
 
 Persist a reservation **before** returning a reason. A lost hook output is an
 uncertain request, not permission to resend. Each provider owns its allowance,
-Off/Pause handling, result receipts and reconciliation. A result alone is not
-proof of response completion; a later main Stop supplies that fact.
+Off/Pause handling, results and reconciliation. A later main Stop is the proof
+that the response ended; the continuation policy records its result then.
 An unresolved request must not be bypassed through another Root in the same chat.
 
 Saved Web input that the [watcher hook](../agent/claude-wait.md) has detected
