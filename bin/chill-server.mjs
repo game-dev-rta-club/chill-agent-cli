@@ -45,10 +45,9 @@ async function main(attempt=0) {
   // A configured start resumes the panel's last On/Off choice, so a link turned Off is not awaited.
   const tunnel = remote.mode !== 'off' && (!configured || await publicLinkOn());
   if (port === 0) throw new Error('Background startup requires a fixed PORT (default 4173).');
-  // On macOS the connector is a launchd job that outlives Web restarts; on
-  // Windows the server runs it as a child, so it closes with the server.
-  const tunnels = process.platform === 'darwin';
-  const stopTunnel = () => tunnels ? stopManagedTunnel(directory, port) : undefined;
+  // The connector is a launchd job on macOS and a Task Scheduler task on
+  // Windows, so it outlives Web restarts.
+  const stopTunnel = () => stopManagedTunnel(directory, port);
   const runtime = join(directory, 'runtime', `web-${port}`);
   const log = join(runtime, 'server.log');
   const url = `http://127.0.0.1:${port}`;
@@ -88,7 +87,7 @@ async function main(attempt=0) {
   await service.clear();
   await mkdir(runtime, { recursive: true });
   const entry = fileURLToPath(new URL('../server.mjs', import.meta.url));
-  const environment = { CHILL_AGENT_DATA_DIR: directory, PORT: String(port), ...(tunnels ? { CHILL_AGENT_MANAGED_TUNNEL:'1' } : {}), CHILL_AGENT_SERVER_STARTED_AT: String(Date.now()) };
+  const environment = { CHILL_AGENT_DATA_DIR: directory, PORT: String(port), CHILL_AGENT_MANAGED_TUNNEL: '1', CHILL_AGENT_SERVER_STARTED_AT: String(Date.now()) };
   if (process.env.CHILL_AGENT_CODEX_PATH) environment.CHILL_AGENT_CODEX_PATH = process.env.CHILL_AGENT_CODEX_PATH;
   if (process.env.CHILL_AGENT_EXTENSIONS) environment.CHILL_AGENT_EXTENSIONS = process.env.CHILL_AGENT_EXTENSIONS;
   if (typeof found === 'string') environment.CHILL_AGENT_CLOUDFLARED_PATH = found;

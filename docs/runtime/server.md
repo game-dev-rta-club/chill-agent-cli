@@ -33,9 +33,9 @@ started it: closing Claude Desktop or another harness does not stop it. Unexpect
 exits are not restarted; the next `server start` or `session start` starts Web
 again. `server stop` asks Web to shut down over a local route that requires a
 per-start token and rejects browser requests, then ends the process if it does
-not exit. On Windows, Web runs the public link's cloudflared connector as its
-own child process, so the connector closes with Web; on macOS it is a launchd
-job that outlives Web restarts.
+not exit. The public link's cloudflared connector runs as its own task under
+`\chill-agent\` (removed from Task Scheduler once it runs), outside Web's
+process tree, so it outlives Web restarts as the launchd job does on macOS.
 
 The server listens on loopback. `--local` keeps access local; `--configured` uses
 saved remote-access preferences. Settings default to off. Read `settings remote
@@ -44,8 +44,10 @@ the integrating application's setup guide.
 
 ## Keep the public URL during updates
 
-On macOS, the background Web service and cloudflared connector have separate
-launchd services. `server restart --configured` releases the connector, replaces
+The background Web service and cloudflared connector run separately: as launchd
+services on macOS, and as Task Scheduler tasks on Windows, where the restart asks
+Web over its local service route to release the connector instead of stopping
+it. `server restart --configured` releases the connector, replaces
 Web with the prepared runtime, and reattaches to the same connector. During this
 short interval the URL may be temporarily unavailable but stays the same.
 Public Off, `server stop`, `--local`, and idle shutdown stop the connector too.
@@ -53,11 +55,8 @@ An unexpected Web crash can restart and reattach; a connector exit reports failu
 without silently creating a new URL. The first migration from the older server-owned
 connector requires a new URL. Foreground development still owns its connector.
 A Quick Tunnel URL is not durable across connector restart, logout or reboot.
-
-On Windows, `server restart --configured` restarts the connector with Web, so a
-Quick Tunnel URL changes on every update; a named tunnel keeps its URL. A
-connected device's cookie belongs to the old address, so after each update
-every device connects again with a new access code and reopens the new QR or
+When it changes, a connected device's cookie still belongs to the old address,
+so every device connects again with a new access code and reopens the new QR or
 link.
 
 `--configured` resumes the Public link panel's last On/Off choice and waits for
