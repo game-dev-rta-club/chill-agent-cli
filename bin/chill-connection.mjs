@@ -14,7 +14,7 @@ import {reportClaudeHook} from '../lib/claude-agent-work.mjs';
 import {claudeAskGuard,claudePlanApproval} from '../lib/claude-asks.mjs';
 import {quietClaudeHook} from '../lib/claude-quiet.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
-import {runClaudeAction,joinClaudeConversation,handleClaudeToolHook,claudeSessionStartContext} from '../lib/claude-actions.mjs';
+import {runClaudeAction,joinClaudeConversation,handleClaudeToolHook,claudeSessionStartContext,postClaudeHookMessages} from '../lib/claude-actions.mjs';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -78,6 +78,8 @@ async function main() {
   if(await quietClaudeHook(input))return;
   // Every main hook reports what the conversation is doing before it is handled.
   await reportClaudeHook(input);
+  // What the agent wrote before a tool call is posted at its hooks (agent-messages).
+  if(['PreToolUse','PermissionRequest'].includes(input?.hook_event_name))await postClaudeHookMessages(input);
   if(input?.hook_event_name==='PermissionRequest') {
     const output=await claudePlanApproval(input)??await claudePermissionDecision(input);
     if(output)console.log(JSON.stringify(output));
