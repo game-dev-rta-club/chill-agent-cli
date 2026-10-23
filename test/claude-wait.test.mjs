@@ -121,7 +121,7 @@ test('cached history still observes ownership changes',async t=>{
  assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),false);
 });
 
-test('CLI wait holds the conversation until stopped and releases its hold',async t=>{
+test('CLI wait holds the conversation until stopped and releases its hold',{skip:process.platform==='win32'&&'Windows ends the process on kill without running its signal handler'},async t=>{
  const f=await fixture(t);await f.stop();const entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
  const p=spawn(process.execPath,[entry,'wait'],{cwd:f.cwd,env:{...process.env,CLAUDE_CODE_SESSION_ID:f.env().CHILL_AGENT_SESSION_ID,...f.env()},stdio:['ignore','pipe','pipe']});let stdout='',stderr='';
  p.stdout.on('data',b=>stdout+=b);p.stderr.on('data',b=>stderr+=b);
