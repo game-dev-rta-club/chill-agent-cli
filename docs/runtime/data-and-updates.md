@@ -68,15 +68,16 @@ Implementation: [data directory](../../lib/data-directory.mjs),
 ## Update from Web
 
 The built-in provider follows the [version file](version-file.md) recorded at
-setup. On a managed macOS server, Web shows an update icon when that file
+setup. On a background server (launchd on macOS, Task Scheduler on Windows), Web shows an update icon when that file
 selects a different package than the running snapshot, on the computer and on
 devices connected through the public link. Confirming it acquires the candidate,
 prepares a snapshot and restarts Web at the same URL. Closing the confirmation
 leaves the current version running. Detection alone never downloads or activates
 code, and a request cannot choose the package: only the computer's version file
-names it. Foreground and Windows servers retain the explicit CLI update path.
+names it. Foreground servers retain the explicit CLI update path.
 
-The updater uses a separate launchd worker so replacing Web cannot kill its own
+The updater runs as a separate launchd job on macOS, or as its own Task Scheduler
+task on Windows (removed when it finishes), so replacing Web cannot kill its own
 update. It rechecks the selection before switching, coalesces simultaneous clicks,
 and restores the previous program if restart fails. This recovery does not reverse
 schema migrations. Diagnostics remain in `runtime/update.json` and the per-attempt
@@ -92,6 +93,6 @@ for the installed skill's durable source reference. Neither paths nor package
 URLs are accepted from browser input. Providers must bound downloads and verify
 that the acquired package matches the confirmed key.
 
-Run `node test/runtime-update-native.mjs` on macOS for an isolated launchd
-roundtrip. It uses disposable code and data and verifies the URL, Goal records,
+Run `node test/runtime-update-native.mjs` on macOS or Windows for an isolated
+roundtrip through launchd or Task Scheduler. It uses disposable code and data and verifies the URL, Goal records,
 request restrictions and completed receipt; it does not touch a user's server.
