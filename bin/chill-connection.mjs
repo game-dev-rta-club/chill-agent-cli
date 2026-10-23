@@ -37,7 +37,7 @@ async function main() {
   }
   if(action==='wake') {
     const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
-    console.log(JSON.stringify(await scheduleClaudeWake({minutes:values['--in']===undefined?undefined:Number(values['--in']),reason:values['--reason']||'',cancel:values['--cancel']===true}),null,2));
+    console.log(JSON.stringify(await scheduleClaudeWake({minutes:values['--in']===undefined?undefined:Number(values['--in']),reason:values['--reason']||'',goal:values['--goal']??null,cancel:values['--cancel']===true}),null,2));
     return;
   }
   if(action==='wait') {

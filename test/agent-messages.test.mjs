@@ -185,3 +185,26 @@ test('the reader keeps public text and tool calls of the main conversation only'
  assert.deepEqual(read(claudeEntry.prompt(randomUUID(),`${keepGoingHeading} pasted by the user`)),[]);
  assert.deepEqual(read(claudeEntry.text(randomUUID(),'API Error',{message:{model:'<synthetic>'}})),[]);
 });
+
+test('a check scheduled with --goal makes that Goal current when the watcher wakes the conversation',async t=>{
+ const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
+ const {watchClaudeConversation,watcherWakeText}=await import('../lib/claude-wait.mjs');
+ const f=await fixture(t),a=await createGoal({title:'A',parentId:f.root.id});
+ await appendFeedback({goalId:f.root.id,text:'Ship it'});await f.action('inbox',{});
+ await f.action('reply',{goalId:f.root.id,text:'Shipping; CI runs on the release branch (Goal A).'});
+ await assert.rejects(scheduleClaudeWake({minutes:10,goal:'x',env:f.env}),/--goal must be a Goal ID/);
+ const stranger=await createGoal({title:'Not this conversation\'s'});
+ await assert.rejects(scheduleClaudeWake({minutes:10,goal:stranger.id,env:f.env}),/belongs to another conversation/);
+ let clock=Date.now();const now=()=>clock;
+ const {wake}=await scheduleClaudeWake({minutes:10,reason:'CI of PR #91',goal:a.id,env:f.env,now});
+ assert.equal(wake.goalId,a.id);
+ assert.equal((await f.record()).currentGoal,f.root.id,'scheduling changes nothing yet');
+ clock+=600000;
+ const controller=new AbortController(),woken=await watchClaudeConversation({sessionId:(await f.record()).sessionId,signal:controller.signal,pollMs:10,now,attached:()=>true});
+ assert.deepEqual(woken,{status:'wake',reason:'CI of PR #91',goalId:a.id});
+ assert.match(watcherWakeText(woken),new RegExp(`check you scheduled is due \\(CI of PR #91\\)\\. Do it now\\. Your messages in this conversation are posted to Goal #${a.id}\\.[\\s\\S]*--goal ${a.id}`));
+ assert.equal((await f.record()).currentGoal,a.id);
+ await f.write(claudeEntry.prompt(randomUUID(),'chill-agent watcher'));
+ assert.equal(await f.say('CI is green.'),null);
+ assert.deepEqual((await f.posted()).at(-1),[a.id,'CI is green.']);
+});
