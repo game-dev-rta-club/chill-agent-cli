@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
 import { createTunnelController } from './lib/tunnel-controller.mjs';
@@ -149,11 +149,17 @@ function sendJson(response, status, data) {
 function callCli(args, input, response, receipt, status = 200) {
   activeCommands += 1;
   const child = spawn(process.execPath, [fileURLToPath(new URL('./bin/chill-agent.mjs', import.meta.url)), ...args], { stdio: ['pipe', 'pipe', 'pipe'] });
-  let responded = false, errorText = '';
+  let responded = false, errorText = '', numbering = null;
   const finish = (code, data) => { if (!responded) { responded = true; sendJson(response, code, data); } };
   const lines = createInterface({ input: child.stdout });
   lines.on('line', line => {
-    try { const data = JSON.parse(line); if (data[receipt]) {if (receipt === 'feedback') data.feedback = renderedEvent(data.feedback); finish(status, data);} } catch { /* Ignore non-receipt output. */ }
+    try {
+      const data = JSON.parse(line);
+      if (!data[receipt]) return;
+      // A saved comment comes back with its number in the Goal, like any other read.
+      if (receipt === 'feedback') numbering = numberEvents([data.feedback]).catch(() => [data.feedback]).then(([event]) => finish(status, {...data, feedback: renderedEvent(event)}));
+      else finish(status, data);
+    } catch { /* Ignore non-receipt output. */ }
   });
   child.stderr.on('data', chunk => { if (errorText.length < 1000) errorText += chunk.toString().slice(0, 1000 - errorText.length); });
   child.stdin.on('error', () => {});
@@ -165,9 +171,10 @@ function callCli(args, input, response, receipt, status = 200) {
     child.once('exit', () => clearTimeout(force));
     finish(503, { error: 'The CLI timed out. Check the conversation before retrying.' });
   }, 45000);
-  child.on('close', () => {
+  child.on('close', async () => {
     activeCommands -= 1;
     clearTimeout(timer); lines.close();
+    await numbering;
     const code = /not found/i.test(errorText) ? 404 : 400;
     finish(code, { error: errorText.trim() || 'The CLI could not complete this request.' });
   });
@@ -301,7 +308,7 @@ const server = createServer(async (request, response) => {
   }
   const eventPath=/^\/api\/goals\/([1-9][0-9]*)\/events\/([1-9][0-9]*)$/.exec(path);
   if(eventPath&&request.method==='GET'){
-    try{const event=await readEvent(Number(eventPath[2]));return event?.goalId===eventPath[1]?sendJson(response,200,renderedEvent(event)):sendJson(response,404,{error:'Event not found.'});}
+    try{const event=await readEvent(Number(eventPath[2]));return event?.goalId===eventPath[1]?sendJson(response,200,renderedEvent((await numberEvents([event]))[0])):sendJson(response,404,{error:'Event not found.'});}
     catch(error){return sendJson(response,400,{error:error.message});}
   }
   const conversationPath=/^\/api\/goals\/([1-9][0-9]*)\/conversation$/.exec(path);
@@ -310,7 +317,7 @@ const server = createServer(async (request, response) => {
       const before=url.searchParams.has('before')?Number(url.searchParams.get('before')):undefined;
       const limit=url.searchParams.has('limit')?Number(url.searchParams.get('limit')):30;
       const page=await readConversationPage(conversationPath[1],{before,limit});
-      return sendJson(response,200,{...page,events:page.events.map(renderedEvent),answerTargets:page.answerTargets.map(renderedEvent)});
+      return sendJson(response,200,{...page,events:(await numberEvents(page.events)).map(renderedEvent),answerTargets:(await numberEvents(page.answerTargets)).map(renderedEvent)});
     }catch(error){return sendJson(response,error.status||400,{error:error.message});}
   }
   const lettersCountPath=/^\/api\/goals\/([1-9][0-9]*)\/letters\/count$/.exec(path);
@@ -423,7 +430,7 @@ const server = createServer(async (request, response) => {
     try {
       const since = Number(new URL(request.url, 'http://localhost').searchParams.get('since') || 0);
       const delta = await listEventsSince(since);
-      return sendJson(response, 200, {...delta, events:delta.events.map(renderedEvent)});
+      return sendJson(response, 200, {...delta, events:(await numberEvents(delta.events)).map(renderedEvent)});
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
     }

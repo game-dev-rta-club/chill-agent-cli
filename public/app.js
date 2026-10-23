@@ -268,6 +268,9 @@ function activityMarkup(id) {
 }
 
 const timeMarkup = at => `<time datetime="${at.toISOString()}">${at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
+// A comment's number in its Goal, small beside the time. It opens and copies the
+// comment's link; the workspace-wide id, which older text may use, is in the tooltip.
+const eventNumberMarkup = event => event.number ? `<a class="event-number" href="#/goal/${escapeHTML(event.goalId)}/activity/${escapeHTML(event.id)}" data-copy-event-link title="${event.type === 'letter' ? 'Letter' : 'comment'} ${escapeHTML(event.number)} · id ${escapeHTML(event.id)} · Copy link">${escapeHTML(event.number)}</a>` : '';
 function mentionMarkup(mention) {
   const title = goalMetadata.get(mention.goalId)?.title;
   return `<li class="timeline-event"><span class="timeline-marker" aria-hidden="true">${icon('mention')}</span>
@@ -305,7 +308,7 @@ function timelineMarkup(id) {
     const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
     const item = `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
-      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
+      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}${eventNumberMarkup(event)}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}${eventNumberMarkup(event)}</header>`}
       ${event.text?replyMarkup(event):''}
       ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<img class="event-image" src="${src}" alt="Attached image">`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
     if (waiting) { waitingMarkup += item; return ''; }
@@ -1170,6 +1173,12 @@ main.addEventListener('change', event => {
   }
   const input = event.target.closest('[data-image-type]');
   if (input?.files?.length) setPendingImages(input.dataset.imageType, [...input.files]);
+});
+
+main.addEventListener('click', event => {
+  const link = event.target.closest('[data-copy-event-link]');
+  if (!link) return;
+  navigator.clipboard?.writeText(new URL(link.getAttribute('href'), location.href).href).then(() => showToast(`Copied the link to ${link.title.split(' · ')[0]}`)).catch(() => {});
 });
 
 main.addEventListener('paste', event => {
