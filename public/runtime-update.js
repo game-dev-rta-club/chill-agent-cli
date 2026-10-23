@@ -39,9 +39,9 @@ export function createRuntimeUpdate({button,announce=()=>{}}){
    while(Date.now()<deadline){
     await new Promise(resolve=>setTimeout(resolve,1500));
     // No answer means Web is between the old and new version.
-    let result;try{result=await api();}catch{show('restarting');continue;}
+    let result;try{result=await api();}catch{state={...state,phase:'restarting'};show('restarting');continue;}
     if(result.error)throw Error(result.error);
-    if(phases[result.phase])show(result.phase);
+    if(phases[result.phase]){state={...state,phase:result.phase};show(result.phase);}
     if(result.instance!==instance&&!result.available&&result.phase==='idle'){location.reload();return;}
    }
    throw Error('Could not reconnect. Wait a moment, then reload the page.');
