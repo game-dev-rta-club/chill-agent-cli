@@ -157,8 +157,8 @@ test('a stop is held while a handed Goal awaits a reply and nothing runs; the ag
  await f.stop({stop_hook_active:true});
  await f.newPrompt();
  assert.equal(await f.stop({background_tasks:[{id:'a1',type:'subagent',status:'running',description:'Review'}]}),null,'running background work wakes the conversation later');
- const waiter={id:'b1',type:'shell',status:'running',description:'Reply waiter',command:"'/data/runtime/chill' connection wait"};
- assert.equal((await f.stop({background_tasks:[waiter]}))?.decision,'block','chill\'s own reply waiter is not work');
+ const waiter={id:'b1',type:'shell',status:'running',description:'Desktop hold',command:"'/data/runtime/chill' connection wait"};
+ assert.equal((await f.stop({background_tasks:[waiter]}))?.decision,'block','chill\'s own hold task is not work');
  await f.stop({stop_hook_active:true});
  await f.newPrompt();await appendAgentComment({goalId:f.root.id,type:'comment',text:'Waiting for CI; I will check in 10 minutes.'});
  assert.equal(await f.stop(),null,'a progress comment answers the Goal');

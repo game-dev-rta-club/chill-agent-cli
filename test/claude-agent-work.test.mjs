@@ -35,7 +35,7 @@ test('each main hook reports what the conversation is doing; a subagent reports 
   assert.equal(hookWorkEvent(subagentHook('Stop')),null);
 });
 
-test('background agents count; shells such as a dev server or chill\'s own waiter do not',()=>{
+test('background agents count; shells such as a dev server or chill\'s own hold task do not',()=>{
   assert.deepEqual(backgroundTasks([{id:'1',type:'subagent',status:'running',agent_type:'general-purpose',description:'Review'},{id:'2',type:'monitor',status:'running',server:'ci',tool:'watch'},{id:'3',type:'shell',status:'running',command:'npm run dev'},{id:'4',type:'shell',status:'running',command:'chill connection wait'},{id:'5',type:'subagent',status:'completed'}]),
     [{id:'1',type:'subagent',name:'general-purpose',description:'Review'},{id:'2',type:'monitor',name:'ci watch',description:null}]);
   assert.deepEqual(backgroundTasks(undefined),[]);

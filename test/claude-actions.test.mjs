@@ -306,7 +306,7 @@ test('two Claude conversations in one project, each with its own Root, never rec
   const connection=s=>({harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId});
   const forA=await appendFeedback({goalId:rootA.id,text:'For A'}),forB=await appendFeedback({goalId:rootB.id,text:'For B'});
   for(const event of [forA,forB])await deliverFeedback(event.changeId);
-  // Each conversation's waiter and inbox see only its own Root's feedback.
+  // Each conversation's watcher and inbox see only its own Root's feedback.
   assert.equal(await hasSavedClaudeFeedback(connection(a)),true);assert.equal(await hasSavedClaudeFeedback(connection(b)),true);
   const inboxA=await a.act('inbox',{});
   assert.match(inboxA,/For A/);assert.doesNotMatch(inboxA,/For B/);

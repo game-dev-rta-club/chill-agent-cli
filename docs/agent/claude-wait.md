@@ -7,8 +7,8 @@ keyPoints: >-
   never starts, reads or restarts it. Claude Desktop pauses idle conversations
   under memory pressure but not one running a background task, so there the
   agent also runs connection wait as a task that only holds the conversation;
-  the hook still hands the feedback. connection wait also remains the waiter
-  for older setups.
+  the hook still hands the feedback. The hook is the only delivery path: hooks
+  set up before it are told to rerun setup and restart the conversation.
 ---
 
 # Receive Web replies while Claude is idle
@@ -69,7 +69,7 @@ does not count hooks as such tasks.
 So when `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop`, chill asks the agent to
 start `connection wait` in the background (SessionStart after a resume, the
 next action of `connection` commands, and once per Stop), and stops asking
-while one runs. With the watcher hook installed, the task only holds the
+while one runs. Outside Desktop it never asks. The task only holds the
 conversation: it records itself as the conversation's `hold`, refreshes it, and
 neither claims feedback nor ends for it. The watcher hook watches as anywhere
 else and wakes the model with the feedback itself, so the agent reads no inbox
@@ -80,13 +80,13 @@ Goal or is stopped, and chill then asks for it again.
 The cost is memory: a conversation with a running task is never paused, so
 while many conversations wait for Web replies, Desktop has fewer to pause.
 
-## Setups without the watcher hook
+## Hooks set up before the watcher
 
-Hooks installed by an earlier setup have no watcher until setup prepare or a
-runtime update refreshes them. There, `connection wait` is the older route: the
-agent starts it as a background task, it exits when feedback is saved or a check
-is due, and the agent claims feedback with `connection inbox` and starts it
-again. chill names it only while the project's hooks lack the watcher. A watcher
-hook takes over from a running `connection wait` task.
+The watcher hook is the only thing that watches and delivers. Setup prepare and
+every runtime update install it with the other hooks. A conversation whose
+project hooks still lack it, at SessionStart while it owns Goals, gets one line
+asking the user to rerun setup and restart the conversation; there is no second
+delivery path. Until then, tool hooks still offer feedback while it works, and
+`connection inbox` reads it by hand.
 
 Implementation: [watcher](../../lib/claude-wait.mjs), [hooks](../../lib/claude-setup.mjs), [scheduled checks](../../lib/claude-wake.mjs), [entry record](../../lib/claude-entry.mjs).
