@@ -99,7 +99,7 @@ test('taking over works while the earlier owner still watches, and is refused fo
   await act('create-goal',{title:'Owned',scope:'',criteria:''},before);
   const [root]=await listGoals();
   const record=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,'owner').record,current=await readJson(record);
-  await writeJsonAtomically(record,{...current,waiter:{contextId:current.contextId,checkedAt:new Date().toISOString(),kind:'hook'}});
+  await writeJsonAtomically(record,{...current,waiter:{contextId:current.contextId,checkedAt:new Date().toISOString()}});
   assert.match(await act('adopt',{goalId:root.id},after),/now owns Goal/);
   assert.equal((await readGoal(root.id)).connection.sessionId,'other');
   const plain=await createGoal({title:'Local only'});

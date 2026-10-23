@@ -28,7 +28,7 @@ receives only what the earlier one was never handed.
 How the comments are carried depends on the harness. An idle Codex chat is sent
 every waiting comment as one message; a Codex chat that cannot be reached keeps
 them Saved and is sent them once chill can reach it. Claude Code receives them
-through its hooks or its reply waiter. Either way, the text lists the comments as
+through its hooks: a tool hook while it works, the watcher hook while it is idle. Either way, the text lists the comments as
 data, with the command to read each Goal and the command to reply.
 
 ## Waiting: feedback saved while the agent works

@@ -8,7 +8,7 @@ import {randomUUID} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
 import {runClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessionStartContext} from '../lib/claude-actions.mjs';
-import {waitForClaudeFeedback,waitResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
+import {holdClaudeConversation,holdResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
 import {deliverFeedback} from '../lib/delivery.mjs';
@@ -17,8 +17,11 @@ import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
 import {fileURLToPath} from 'node:url';
 import {hookFor} from './claude-fixtures.mjs';
 
+const watcherSettings=JSON.stringify({hooks:{Stop:[{hooks:[{type:'command',command:"'/x/chill' connection claude-watch",asyncRewake:true,timeout:604800}]}]}});
 async function fixture(t) {
- const dir=await mkdtemp(join(tmpdir(),'claude-wait-test-')),data=join(dir,'data'),cwd=join(dir,'project');await mkdir(cwd);
+ const dir=await mkdtemp(join(tmpdir(),'claude-wait-test-')),data=join(dir,'data'),cwd=join(dir,'project');await mkdir(join(cwd,'.claude'),{recursive:true});
+ // Setup installs the watcher hook with every other hook.
+ await writeFile(join(cwd,'.claude/settings.local.json'),watcherSettings);
  const old=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=data;
  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
  const envFile=join(dir,'env');await writeFile(envFile,'');
@@ -28,24 +31,22 @@ async function fixture(t) {
  async function action(name,payload={}) {const r=await runClaudeAction(name,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await start();const created=await action('create-goal',{title:'Wait receipt',scope:'Test',criteria:'No duplicate'});const root=(await listGoals())[0];
  const recordPath=claudeEntryPaths(data,sessionId).record;
- // Waiters run until feedback; tests stop the ones that should keep waiting.
- const wait=(opts={})=>{const controller=new AbortController();const done=waitForClaudeFeedback({env,pollMs:10,signal:controller.signal,...opts});return {done,stop:()=>{controller.abort();return done;}};};
+ // Watchers run until feedback and holds until stopped; tests stop the ones that should keep running.
+ const run=(start,opts)=>{const controller=new AbortController();const done=start({pollMs:10,signal:controller.signal,...opts});return {done,stop:()=>{controller.abort();return done;}};};
+ const wait=(opts={})=>run(o=>watchClaudeConversation({sessionId,...o}),opts),hold=(opts={})=>run(o=>holdClaudeConversation({env,...o}),opts);
  const until=async check=>{for(let i=0;i<200;i++){if(await check())return;await new Promise(r=>setTimeout(r,10));}throw Error('Timed out');};
  const waiting=()=>until(async()=>!!(await readJson(recordPath))?.waiter);
  // The response that created the Goal ends, as a real one does before the user replies.
  const stop=()=>handleClaudeToolHook(event('Stop'),{cwd});
  const tool=(patch={})=>handleClaudeToolHook(event('PostToolUse',{tool_name:'Bash',tool_use_id:randomUUID(),tool_response:{stdout:'work'},...patch}),{cwd});
- return {dir,data,cwd,root,created,event,start,action,stop,tool,wait,waiting,until,recordPath,envFile,env:()=>env,connection:{harnessId:'claude-code',sessionId,contextId:record.contextId}};
+ return {dir,data,cwd,root,created,event,start,action,stop,tool,wait,hold,waiting,until,recordPath,envFile,env:()=>env,connection:{harnessId:'claude-code',sessionId,contextId:record.contextId}};
 }
 const context=output=>output?.hookSpecificOutput?.additionalContext||'';
 
-test('a saved reply ends the waiter without handing it; the inbox then hands it and lists it until a reply',async t=>{
- const f=await fixture(t);await f.stop();const w=f.wait();await f.waiting();
+test('the inbox hands saved feedback and lists it until a reply',async t=>{
+ const f=await fixture(t);await f.stop();
  const reply=await appendFeedback({goalId:f.root.id,text:'after the response ended'});
- assert.deepEqual(await w.done,{status:'feedback'});
- assert.equal(await hasSavedClaudeFeedback(f.connection),true,'detecting is not handing');
- assert.equal((await readJson(f.recordPath)).waiter,undefined,'a finished waiter releases its record');
- const text=waitResultText({status:'feedback'});assert.match(text,/connection inbox/);assert.match(text,/connection wait/);
+ assert.equal(await hasSavedClaudeFeedback(f.connection),true);
  assert.match(context(await f.action('inbox')),/after the response ended/);
  assert.equal(await hasSavedClaudeFeedback(f.connection),false,'handed once');
  await f.action('reply',{goalId:f.root.id,text:'Done'});
@@ -53,52 +54,45 @@ test('a saved reply ends the waiter without handing it; the inbox then hands it 
  assert.ok(reply.changeId);
 });
 
-test('one waiter per context: a second exits, a stale one is replaced',async t=>{
+test('one watcher per conversation: a second exits, a stale one is replaced',async t=>{
  const f=await fixture(t),first=f.wait({refreshMs:20});await f.waiting();
- assert.deepEqual(await f.wait({livenessMs:300}).done,{status:'already-running'},'a live waiter keeps refreshing');
+ assert.deepEqual(await f.wait({livenessMs:300}).done,{status:'already-running'},'a live watcher keeps refreshing');
  assert.deepEqual(await first.stop(),{status:'stopped'});
- assert.equal((await readJson(f.recordPath)).waiter,undefined,'a stopped waiter releases its record at once');
- // A killed waiter leaves a fresh refresh behind; a new waiter sees it stop advancing and takes over.
+ assert.equal((await readJson(f.recordPath)).waiter,undefined,'a stopped watcher releases its record at once');
+ // A killed watcher leaves a fresh refresh behind; a new one sees it stop advancing and takes over.
  const record=await readJson(f.recordPath),dead=randomUUID();
  await writeJsonAtomically(f.recordPath,{...record,waiter:{id:dead,contextId:record.contextId,checkedAt:new Date().toISOString()}});
  const takeover=f.wait({livenessMs:100});await f.until(async()=>(await readJson(f.recordPath)).waiter?.id!==dead);
  assert.deepEqual(await takeover.stop(),{status:"stopped"});
- // Freshness decides liveness: a waiter that stopped refreshing can be replaced.
+ // Freshness decides liveness: a watcher that stopped refreshing can be replaced.
  const staleAt=Date.now()-120000,stale=f.wait({now:()=>staleAt});await f.waiting();
  const next=f.wait();assert.deepEqual(await stale.done,{status:'replaced'});await next.stop();
 });
 
-test('the waiter refreshes its record; status reports it and falls back when it stops',async t=>{
+test('the watcher refreshes its record; status reports it and falls back when it stops',async t=>{
  const f=await fixture(t);let clock=1_000_000;const now=()=>clock;
  const w=f.wait({now});await f.waiting();
  let status=await readClaudeConnectionStatus(f.connection,{now});assert.equal(status.state,'waiting');
  clock+=31000;await f.until(async()=>Date.parse((await readJson(f.recordPath)).waiter.checkedAt)===clock);
  await w.stop();assert.notEqual((await readClaudeConnectionStatus(f.connection,{now})).state,'waiting');
- // A waiter that was killed leaves its last refresh behind until it is stale.
+ // A watcher that was killed leaves its last refresh behind until it is stale.
  const record=await readJson(f.recordPath);await writeJsonAtomically(f.recordPath,{...record,waiter:{id:randomUUID(),contextId:record.contextId,checkedAt:new Date(clock).toISOString()}});
  clock+=60000;assert.equal((await readClaudeConnectionStatus(f.connection,{now})).state,'waiting');
  clock+=31000;status=await readClaudeConnectionStatus(f.connection,{now});assert.notEqual(status.state,'waiting');assert.match(status.detail,/No watcher is running/);
 });
 
-test('the next action names the waiter only while none is running',async t=>{
- const f=await fixture(t);assert.match(context(f.created),/connection wait/);
- const w=f.wait();await f.waiting();
+test('outside Claude Desktop nothing asks for connection wait',async t=>{
+ const f=await fixture(t);assert.doesNotMatch(context(f.created),/connection wait/);
  assert.doesNotMatch(context(await f.action('inbox')),/connection wait/);
- await w.stop();assert.match(context(await f.action('inbox')),/run_in_background/);
+ assert.equal(await f.stop(),null);
+ assert.equal(await claudeSessionStartContext(await f.start('resume')),null,'a resumed owner without a running watcher');
 });
 
-test('resume and compact keep a running waiter; only a resumed owner is told to start one',async t=>{
+test('compact keeps a running watcher; a cleared context owns no Goals',async t=>{
  const f=await fixture(t),w=f.wait();await f.waiting();
- await f.start('compact');assert.equal(await claudeSessionStartContext(await readJson(f.recordPath)),null,'a waiter survives compact');
- assert(await readJson(f.recordPath).then(r=>r.waiter));
- await w.stop();const resumed=await f.start('resume');
- assert.match(context(await claudeSessionStartContext(resumed)),/owns chill-agent Goals[\s\S]*connection wait/);
- assert.equal(await claudeSessionStartContext(await f.start('clear')),null,'a cleared context owns no Goals');
-});
-
-test('a waiter ends when its conversation context changes',async t=>{
- const f=await fixture(t),w=f.wait();await f.waiting();await f.start('clear');
- assert.deepEqual(await w.done,{status:'context-changed'});
+ await f.start('compact');assert.equal(await claudeSessionStartContext(await readJson(f.recordPath)),null);
+ assert(await readJson(f.recordPath).then(r=>r.waiter),'the watcher survives compact');
+ await w.stop();assert.equal(await claudeSessionStartContext(await f.start('clear')),null);
 });
 
 test('repeated SessionStart keeps one set of exports and preserves other hooks',async t=>{
@@ -127,13 +121,15 @@ test('cached history still observes ownership changes',async t=>{
  assert.equal(await hasSavedClaudeFeedback(f.connection,{readEvents}),false);
 });
 
-test('CLI wait prints the next actions once feedback is saved',async t=>{
+test('CLI wait holds the conversation until stopped and releases its hold',async t=>{
  const f=await fixture(t);await f.stop();const entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
  const p=spawn(process.execPath,[entry,'wait'],{cwd:f.cwd,env:{...process.env,CLAUDE_CODE_SESSION_ID:f.env().CHILL_AGENT_SESSION_ID,...f.env()},stdio:['ignore','pipe','pipe']});let stdout='',stderr='';
  p.stdout.on('data',b=>stdout+=b);p.stderr.on('data',b=>stderr+=b);
- await f.waiting();await appendFeedback({goalId:f.root.id,text:'from the Web'});
- const code=await new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});
- assert.equal(code,0);assert.equal(stderr,'');assert.match(stdout,/new Web feedback[\s\S]*connection inbox[\s\S]*connection wait/);
+ await f.until(async()=>!!(await readJson(f.recordPath)).hold);await appendFeedback({goalId:f.root.id,text:'from the Web'});
+ await new Promise(r=>setTimeout(r,50));assert.equal(p.exitCode,null,'the hold does not end for feedback');
+ const exited=new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});p.kill('SIGTERM');
+ assert.equal(await exited,0);assert.equal(stderr,'');assert.match(stdout,/Start it again as a background task[\s\S]*connection wait/);
+ assert.equal((await readJson(f.recordPath)).hold,undefined);
 });
 
 test('the claude-watch hook exits 2 with the feedback, which Claude Code shows the model',async t=>{
@@ -222,7 +218,7 @@ test('a Goal whose ended response scheduled a check shows Waiting, and Check ove
  assert.equal(activityDisplay(activity,Date.parse(wake.at)+10*60000).label,'Check overdue');
 });
 
-test('a scheduled check wakes the conversation through its waiter when it is due, once',async t=>{
+test('a scheduled check wakes the conversation through its watcher when it is due, once',async t=>{
  const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
  const f=await fixture(t);let clock=Date.now();const now=()=>clock;
  await assert.rejects(scheduleClaudeWake({minutes:0,env:f.env()}),/whole minutes/);
@@ -230,22 +226,19 @@ test('a scheduled check wakes the conversation through its waiter when it is due
  assert.equal(Date.parse(wake.at)-clock,600000);
  const w=f.wait({now});await f.waiting();
  await new Promise(r=>setTimeout(r,50));
- assert.equal((await readJson(f.recordPath)).wake.reason,'CI of PR #91','not due yet: the waiter keeps waiting');
+ assert.equal((await readJson(f.recordPath)).wake.reason,'CI of PR #91','not due yet: the watcher keeps waiting');
  clock+=600000;
  assert.deepEqual(await w.done,{status:'wake',reason:'CI of PR #91'});
  assert.equal((await readJson(f.recordPath)).wake,undefined,'a due check is cleared, so it wakes once');
- assert.match(waitResultText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*connection wake[\s\S]*connection wait/);
+ assert.match(watcherWakeText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*connection wake/);
  // Cancelling removes a scheduled check.
  await scheduleClaudeWake({minutes:5,env:f.env(),now});
  assert.deepEqual(await scheduleClaudeWake({cancel:true,env:f.env(),now}),{wake:null});
  assert.equal((await readJson(f.recordPath)).wake,undefined);
 });
 
-const watch=(f,opts={})=>{const controller=new AbortController();const done=watchClaudeConversation({sessionId:f.connection.sessionId,hook:true,pollMs:10,signal:controller.signal,...opts});return {done,stop:()=>{controller.abort();return done;}};};
-
 test('the watcher hook hands saved feedback over and wakes the model with it',async t=>{
- const f=await fixture(t);await f.stop();const w=watch(f);await f.waiting();
- assert.equal((await readJson(f.recordPath)).waiter.kind,'hook');assert.equal((await readJson(f.recordPath)).hookWatcher,true);
+ const f=await fixture(t);await f.stop();const w=f.wait();await f.waiting();
  await appendFeedback({goalId:f.root.id,text:'from the Web'});
  const result=await w.done;
  assert.equal(result.status,'feedback');assert.match(watcherWakeText(result),/from the Web/);assert.match(result.text,/connection reply --goal/);
@@ -254,30 +247,21 @@ test('the watcher hook hands saved feedback over and wakes the model with it',as
  assert.equal(await hasSavedClaudeFeedback(f.connection),false,'the next watcher does not wake for it again');
 });
 
-test('a waiter that stops checking ends as stalled, and the next waiter takes over its record',async t=>{
+test('a watcher that stops checking ends as stalled, and the next watcher takes over its record',async t=>{
  const f=await fixture(t);
  // A poll that outlasts the stall limit stands in for I/O that never settles.
  const stuck=f.wait({pollMs:60000,stallMs:100});await f.waiting();const stuckId=(await readJson(f.recordPath)).waiter.id;
  const result=await stuck.done;assert.deepEqual(result,{status:'stalled'});
- assert.match(waitResultText(result),/stopped responding[\s\S]*connection inbox[\s\S]*connection wait/);
+ assert.match(watcherWakeText(result),/stopped responding[\s\S]*connection inbox/);
  const next=f.wait({livenessMs:100});
  await f.until(async()=>(await readJson(f.recordPath)).waiter?.id!==stuckId);
  await appendFeedback({goalId:f.root.id,text:'after the stall'});
- assert.deepEqual(await next.done,{status:'feedback'},'the conversation is woken again');
+ assert.match((await next.done).text,/after the stall/,'the conversation is woken again');
  await stuck.stop();
- assert.match(watcherWakeText({status:'stalled'}),/connection inbox/);
-});
-
-test('a hook watcher takes over from a connection wait task; a second hook watcher exits',async t=>{
- const f=await fixture(t),task=f.wait();await f.waiting();
- const w=watch(f,{refreshMs:20});
- assert.deepEqual(await task.done,{status:'replaced'});
- assert.deepEqual(await watch(f,{livenessMs:200}).done,{status:'already-running'},'a live hook watcher keeps its claim');
- assert.deepEqual(await w.stop(),{status:'stopped'});
 });
 
 test('a watcher whose Claude Code process ended leaves feedback unclaimed',async t=>{
- const f=await fixture(t);let attached=true;const w=watch(f,{attached:()=>attached});await f.waiting();
+ const f=await fixture(t);let attached=true;const w=f.wait({attached:()=>attached});await f.waiting();
  attached=false;
  assert.deepEqual(await w.done,{status:'detached'});
  const reply=await appendFeedback({goalId:f.root.id,text:'nobody is listening'});
@@ -286,7 +270,7 @@ test('a watcher whose Claude Code process ended leaves feedback unclaimed',async
 });
 
 test('the watcher hook follows a cleared context and ends when the conversation owns no Goal',async t=>{
- const f=await fixture(t),w=watch(f);await f.waiting();
+ const f=await fixture(t),w=f.wait();await f.waiting();
  await f.start('clear');
  assert.deepEqual(await w.done,{status:'not-owner'},'a fresh context owns nothing to wait for');
  assert.equal((await readJson(f.recordPath)).waiter,undefined);
@@ -296,39 +280,33 @@ test('the watcher hook wakes for a due check and ends itself before its hook tim
  const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
  const f=await fixture(t);let clock=Date.now();const now=()=>clock;
  await scheduleClaudeWake({minutes:1,reason:'CI',env:f.env(),now});
- const w=watch(f,{now});await f.waiting();clock+=60000;
+ const w=f.wait({now});await f.waiting();clock+=60000;
  const due=await w.done;assert.deepEqual(due,{status:'wake',reason:'CI'});assert.match(watcherWakeText(due),/due \(CI\)\. Do it now/);
- const idle=await watch(f,{maxMs:50}).done;
+ const idle=await f.wait({maxMs:50}).done;
  assert.deepEqual(idle,{status:'idle'});assert.match(watcherWakeText(idle),/Nothing to do/);
 });
 
-test('with the watcher hook installed, nothing tells the agent to start a waiter',async t=>{
- const f=await fixture(t);
- assert.match(context(await f.action('inbox')),/connection wait/,'older setups still name the waiter');
- await mkdir(join(f.cwd,'.claude'),{recursive:true});
- await writeFile(join(f.cwd,'.claude/settings.local.json'),JSON.stringify({hooks:{Stop:[{hooks:[{type:'command',command:"'/x/chill' connection claude-watch",asyncRewake:true,timeout:604800}]}]}}));
- assert.equal(await claudeSessionStartContext(await f.start('resume')),null);
- assert.equal((await readJson(f.recordPath)).hookWatcher,true);
- assert.doesNotMatch(context(await f.action('inbox')),/connection wait/);
+test('hooks that predate the watcher are told to rerun setup, not to start a task',async t=>{
+ const f=await fixture(t);await writeFile(join(f.cwd,'.claude/settings.local.json'),'{}');
+ const text=context(await claudeSessionStartContext(await f.start('resume')));
+ assert.match(text,/predate the reply watcher[\s\S]*setup prepare --harness claude-code[\s\S]*restart/);assert.doesNotMatch(text,/connection wait/);
 });
 
 test('in Claude Desktop a task holds the conversation and the watcher hook hands the feedback',async t=>{
  const f=await fixture(t);
- await mkdir(join(f.cwd,'.claude'),{recursive:true});
- await writeFile(join(f.cwd,'.claude/settings.local.json'),JSON.stringify({hooks:{Stop:[{hooks:[{type:'command',command:"'/x/chill' connection claude-watch",asyncRewake:true,timeout:604800}]}]}}));
  process.env.CLAUDE_CODE_ENTRYPOINT='claude-desktop';t.after(()=>{delete process.env.CLAUDE_CODE_ENTRYPOINT;});
  // Desktop pauses an idle conversation with only the hook watching, so the agent is asked for a task.
  assert.match(context(await claudeSessionStartContext(await f.start('resume'))),/owns chill-agent Goals[\s\S]*connection wait/);
- const hook=watch(f,{refreshMs:20});await f.waiting();
+ const hook=f.wait({refreshMs:20});await f.waiting();
  assert.match(context(await f.action('inbox')),/run_in_background[\s\S]*connection wait/);
  const stop=await f.stop();assert.equal(stop.decision,'block');assert.match(stop.reason,/keeps it from pausing[\s\S]*run_in_background[\s\S]*connection wait/);
  assert.equal(await handleClaudeToolHook(f.event('Stop',{stop_hook_active:true}),{cwd:f.cwd}),null,'asked once per stop');
  // The task holds the conversation beside the hook, which keeps watching.
- const task=f.wait({refreshMs:20,env:{...f.env(),CLAUDE_CODE_ENTRYPOINT:'claude-desktop'}});
+ const task=f.hold({refreshMs:20});
  await f.until(async()=>!!(await readJson(f.recordPath)).hold);
- assert.equal((await readJson(f.recordPath)).waiter.kind,'hook');
- const second=await f.wait({livenessMs:200,env:{...f.env(),CLAUDE_CODE_ENTRYPOINT:'claude-desktop'}}).done;
- assert.deepEqual(second,{status:'already-running',hold:true});assert.match(waitResultText(second),/already keeps this conversation/);
+ assert.ok((await readJson(f.recordPath)).waiter,'the hook keeps watching');
+ const second=await f.hold({livenessMs:200}).done;
+ assert.deepEqual(second,{status:'already-running'});assert.match(holdResultText(second),/already keeps this conversation/);
  assert.doesNotMatch(context(await f.action('inbox')),/connection wait/);
  assert.equal(await f.stop(),null);
  assert.equal(await claudeSessionStartContext(await f.start('compact')),null,'a running task survives compact');
@@ -337,6 +315,6 @@ test('in Claude Desktop a task holds the conversation and the watcher hook hands
  const woke=await hook.done;assert.equal(woke.status,'feedback');assert.match(watcherWakeText(woke),/from the Web/);
  assert.equal(await hasSavedClaudeFeedback(f.connection),false,'the hook claimed it');
  await new Promise(r=>setTimeout(r,50));assert.ok((await readJson(f.recordPath)).hold,'the task does not end for feedback');
- const ended=await task.stop();assert.deepEqual(ended,{status:'stopped',hold:true});assert.match(waitResultText(ended),/Start it again as a background task[\s\S]*connection wait/);
+ const ended=await task.stop();assert.deepEqual(ended,{status:'stopped'});assert.match(holdResultText(ended),/Start it again as a background task[\s\S]*connection wait/);
  assert.equal((await readJson(f.recordPath)).hold,undefined,'a stopped task releases its hold');
 });

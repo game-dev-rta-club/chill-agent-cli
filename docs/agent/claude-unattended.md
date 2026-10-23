@@ -77,7 +77,7 @@ place: the affected action may wait while independent work continues.
 | What you see | Next action |
 | --- | --- |
 | A native approval prompt | Review it in the original Claude conversation; changing chill Auto mode will not answer it |
-| No watcher is running | Ask that same conversation to check `connection inbox`; its result names any task to start |
+| No watcher is running | Ask that same conversation to check `connection inbox`; its next Stop starts the watcher again, and in Claude Desktop the result names the task to start |
 | Claude closed | Resume the same native session |
 | A delivery is uncertain | Read `connection inbox` in the same conversation; do not create a replacement Root or resend the message |
 | A manual hold | Preserve it until the user resumes that work |

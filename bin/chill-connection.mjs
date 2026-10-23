@@ -5,7 +5,7 @@ import {existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {listGoals,workspaceDirectory} from '../lib/goal-store.mjs';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
-import {waitForClaudeFeedback,waitResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
+import {holdClaudeConversation,holdResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
 import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
 import {claudePauseGuard} from '../lib/claude-pause.mjs';
 import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
@@ -41,11 +41,11 @@ async function main() {
     return;
   }
   if(action==='wait') {
-    // A stopped background task releases its refresh, so a new waiter starts at once.
+    // A stopped background task releases its hold, so a new one starts at once.
     const controller=new AbortController();
     for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
-    const result=await waitForClaudeFeedback({signal:controller.signal}),text=waitResultText(result);
-    // A stalled waiter may still hold I/O that never settles: leave rather than wait for it.
+    const result=await holdClaudeConversation({signal:controller.signal}),text=holdResultText(result);
+    // A stalled task may still hold I/O that never settles: leave rather than wait for it.
     if(result.status==='stalled'){process.stdout.write(`${text}\n`,()=>process.exit(0));return;}
     console.log(text);
     return;
@@ -69,7 +69,7 @@ async function main() {
     for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
     // Claude Code is the parent; when it exits this process is reparented.
     const parent=process.ppid;
-    const result=await watchClaudeConversation({sessionId:input.session_id,hook:true,signal:controller.signal,attached:()=>process.ppid===parent}),text=watcherWakeText(result);
+    const result=await watchClaudeConversation({sessionId:input.session_id,signal:controller.signal,attached:()=>process.ppid===parent}),text=watcherWakeText(result);
     if(result.status==='stalled'){process.stderr.write(`${text}\n`,()=>process.exit(2));return;}
     if(text){process.stderr.write(`${text}\n`);process.exitCode=2;}
     return;

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Opt-in interactive qualification: earlier chat -> explicit setup -> same-chat
-// resume -> packaged skill -> native permissions -> reply waiter, feedback and receipts.
+// resume -> packaged skill -> native permissions -> watcher, feedback and receipts.
 import {spawn,execFile} from 'node:child_process';
 import {mkdtemp,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
