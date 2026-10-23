@@ -76,6 +76,10 @@
 .event-meta strong { font-size: 12px; font-weight: 700; }
 .event-meta time { font-size: 10px; color: var(--muted); }
 .event-meta time { margin-left: auto; }
+.event-number { font-size: 10px; color: var(--muted); opacity: .8; text-decoration: none; font-variant-numeric: tabular-nums; }
+.event-number:hover { opacity: 1; text-decoration: underline; }
+.goal-number { font-weight: 400; color: var(--muted); opacity: .75; font-size: .62em; letter-spacing: 0; vertical-align: .12em; }
+.tree-name .goal-number, .goal-index-link .goal-number { font-size: .85em; vertical-align: 0; }
 .event-text { font-size: 13px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 .mention-entry { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 28px; margin: 0; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .mention-entry a { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-weight: 600; }
@@ -127,6 +131,7 @@
 .event-image { display: block; max-width: 100%; max-height: 280px; border-radius: 7px; border: 1px solid var(--line); }
 .conversation-form fieldset, .annotation-form fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 .conversation-form fieldset:disabled, .annotation-form fieldset:disabled { opacity: .65; }
+.conversation-form.is-drop-target, .annotation-form.is-drop-target { outline: 2px dashed var(--theme-accent,#4e8072); outline-offset: 4px; border-radius: 10px; }
 .conversation-form .notes-panel { margin: 0 0 12px; }
 .composer-actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
 .composer-buttons { display: flex; gap: 6px; margin-left: auto; }

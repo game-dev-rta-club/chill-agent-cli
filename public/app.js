@@ -268,6 +268,9 @@ function activityMarkup(id) {
 }
 
 const timeMarkup = at => `<time datetime="${at.toISOString()}">${at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
+// A comment's number in its Goal, small beside the time. It opens and copies the
+// comment's link; the workspace-wide id, which older text may use, is in the tooltip.
+const eventNumberMarkup = event => event.number ? `<a class="event-number" href="#/goal/${escapeHTML(event.goalId)}/activity/${escapeHTML(event.id)}" data-copy-event-link title="${event.type === 'letter' ? 'Letter' : 'comment'} ${escapeHTML(event.number)} · id ${escapeHTML(event.id)} · Copy link">${escapeHTML(event.number)}</a>` : '';
 function mentionMarkup(mention) {
   const title = goalMetadata.get(mention.goalId)?.title;
   return `<li class="timeline-event"><span class="timeline-marker" aria-hidden="true">${icon('mention')}</span>
@@ -305,7 +308,7 @@ function timelineMarkup(id) {
     const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
     const item = `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
-      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
+      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}${eventNumberMarkup(event)}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}${eventNumberMarkup(event)}</header>`}
       ${event.text?replyMarkup(event):''}
       ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<img class="event-image" src="${src}" alt="Attached image">`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
     if (waiting) { waitingMarkup += item; return ''; }
@@ -1172,6 +1175,12 @@ main.addEventListener('change', event => {
   if (input?.files?.length) setPendingImages(input.dataset.imageType, [...input.files]);
 });
 
+main.addEventListener('click', event => {
+  const link = event.target.closest('[data-copy-event-link]');
+  if (!link) return;
+  navigator.clipboard?.writeText(new URL(link.getAttribute('href'), location.href).href).then(() => showToast(`Copied the link to ${link.title.split(' · ')[0]}`)).catch(() => {});
+});
+
 main.addEventListener('paste', event => {
   if (!event.target.matches('textarea')) return;
   const images = [...(event.clipboardData?.files || [])];
@@ -1179,6 +1188,30 @@ main.addEventListener('paste', event => {
     event.preventDefault();
     setPendingImages(event.target.dataset.input === 'annotation' ? 'annotation' : 'comment', images);
   }
+});
+
+// Files dropped on the comment or annotation form are attached like Add file.
+// A drop anywhere else does nothing: the browser must not leave the page to
+// open the file.
+const draggingFiles = event => [...(event.dataTransfer?.types || [])].includes('Files');
+const dropForm = target => target instanceof Element ? target.closest('form[data-form="comment"], form[data-form="annotation"]:not([hidden])') : null;
+const clearDropTarget = () => document.querySelectorAll('.is-drop-target').forEach(form => form.classList.remove('is-drop-target'));
+document.addEventListener('dragover', event => {
+  if (!draggingFiles(event)) return;
+  event.preventDefault();
+  const form = dropForm(event.target), open = form && !form.querySelector('fieldset').disabled;
+  event.dataTransfer.dropEffect = open ? 'copy' : 'none';
+  document.querySelectorAll('.is-drop-target').forEach(other => { if (other !== form) other.classList.remove('is-drop-target'); });
+  form?.classList.toggle('is-drop-target', Boolean(open));
+});
+document.addEventListener('dragleave', event => { if (!event.relatedTarget) clearDropTarget(); });
+document.addEventListener('dragend', clearDropTarget);
+document.addEventListener('drop', event => {
+  if (!draggingFiles(event)) return;
+  event.preventDefault();
+  clearDropTarget();
+  const form = dropForm(event.target), files = [...(event.dataTransfer.files || [])];
+  if (form && files.length) setPendingImages(form.dataset.form, files);
 });
 
 main.addEventListener('click', async event => {
