@@ -60,12 +60,12 @@ test('CLI prepares native hooks with no Codex executable, and status never claim
  const run=(...args)=>execute(process.execPath,[entry,...args],{env,timeout:60000});
   const prepared=JSON.parse((await run('prepare','--harness','claude-code','--project',f.project)).stdout);assert(prepared.hook.configured);assert.equal(prepared.codex,undefined);
   const readContext=async(root,directory)=>{
-    const code=`import {feedbackContext} from ${JSON.stringify(pathToFileURL(join(root,'lib/claude-actions.mjs')).href)};console.log(feedbackContext([]));`;
+    const code=`import {claudeFeedbackText} from ${JSON.stringify(pathToFileURL(join(root,'lib/claude-actions.mjs')).href)};console.log(await claudeFeedbackText([]));`;
     return (await execute(process.execPath,['--input-type=module','-e',code],{env:{...env,CHILL_AGENT_DATA_DIR:directory},timeout:10000})).stdout;
   };
   const firstContext=await readContext(prepared.root,prepared.dataDirectory);
   assert(firstContext.includes(prepared.command+' connection reply --goal <goalId>'));
-  assert(firstContext.includes(prepared.command+' goal show'));
+  assert(firstContext.includes(prepared.command+' goal letter'));
   assert.equal(prepared.command,`'${prepared.entry.replaceAll("'","'\\''")}'`,'installed hooks and agents use the short entry');
   assert(!firstContext.includes('/packages/'));
   // A runtime update must not change the suggested command, even for an old hook.

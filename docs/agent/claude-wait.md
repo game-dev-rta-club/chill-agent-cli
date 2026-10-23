@@ -25,8 +25,9 @@ watcher claims it, as a tool hook would, and exits 2 with the feedback text
         ↓
 Claude Code wakes the model with that text
         ↓
-agent works and answers with `connection reply`; the response's Stop starts
-the next watcher
+agent works; the response's Stop posts its final reply to the Goal awaiting
+one (or the agent answers several with `connection reply`) and starts the next
+watcher
 ```
 
 The agent is not told about the watcher and never handles it. It sees Web

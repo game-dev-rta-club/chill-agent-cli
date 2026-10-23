@@ -4,8 +4,9 @@ keyPoints: >-
   in its shell, as Codex commands do; there is no request marker to confirm.
   Web input reaches a conversation only through its main hooks (tool hooks and
   the watcher), which never run for a subagent. A Goal waits for a reply while
-  the user commented after the agent; `reply --goal` answers it. Stop holds a
-  response once when a handed Goal still waits for a reply with nothing left
+  the user commented after the agent; the response's final reply answers the one
+  Goal awaiting it, and `reply --goal` answers several or mid-response. Stop holds
+  a response once when handed Goals still wait for a reply with nothing left
   running. Optional connection extensions run the same way.
 ---
 
@@ -115,7 +116,10 @@ Subagent hooks never hand feedback: a subagent that received it would end with
 it, and the main conversation would never see it. Replies after a response ends
 reach the conversation through the [watcher hook](claude-wait.md).
 
-When a response ends, the Stop hook applies the shared
+When a response ends, the Stop hook first posts the response's final reply
+(`last_assistant_message`) to the one Goal still awaiting a reply, keyed by the
+session and `prompt_id` (see [Replying](feedback-and-controls.md#replying)); a
+subagent's stop never posts. It then applies the shared
 [quiet-stop rule](feedback-and-controls.md#when-the-agent-stops): if a Goal it
 was handed feedback on still waits for a reply and has had no Comment since it
 last stopped, and Claude Code lists no background work in the Stop input's `background_tasks`

@@ -48,7 +48,8 @@ an overlaid annotation control.
 
 ## Comments and Letters
 
-Use `goal comment --id 1 --text-file result.txt` for results, completion reports or routine progress. Use
+Use `goal comment --id 1 --text-file result.txt` for results, completion reports or routine progress. A connected
+agent's final reply is posted for it to the one Goal awaiting a reply, so it does not repeat that reply as a Comment. Use
 `goal letter --id 1 --title "Choose a direction" --text-file question.txt` only when a user reply, choice or permission is needed. Files preserve multiline text without shell escaping.
 
 Users answer a Letter with an ordinary Comment; there is no separate Answer

@@ -166,3 +166,32 @@ test('a reassigned Root keeps its cursor: the new chat receives only what was ne
   assert.deepEqual((await handIdleCodex(next)).map(e=>e.id),[waiting]);
   assert.notEqual(handed,waiting);
 });
+
+// The final reply of a turn answers the one Goal awaiting a reply (hand-off postFinalReply), as Claude's Stop does (test/final-reply.test.mjs).
+test('the final reply answers the one Goal awaiting a reply, once; with two, the hold asks per Goal',async t=>{
+  const f=await fixture(t),event=await f.save('Fix it'),turn=(await f.running()).id;
+  const stop=(text,patch={})=>hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn,last_assistant_message:text,...patch},f.thread);
+  const replies=async()=>(await readFeedback()).filter(e=>e.author==='agent').map(e=>[e.goalId,e.text]);
+  assert.equal(await stop('Fixed it.'),null,'answered, so the stop is not held');
+  assert.deepEqual(await replies(),[[f.root.id,'Fixed it.']]);
+  assert.equal((await readFeedback()).find(e=>e.author==='agent').answers,event);
+  assert.equal(await stop('Fixed it.'),null);assert.deepEqual(await replies(),[[f.root.id,'Fixed it.']],'a repeated Stop posts nothing more');
+  await f.endTurn();
+  const a=await createGoal({title:'A',parentId:f.root.id}),b=await createGoal({title:'B',parentId:f.root.id});
+  const next=await f.work();await appendFeedback({goalId:a.id,text:'For A'});await appendFeedback({goalId:b.id,text:'For B'});
+  assert.match((await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:next,last_assistant_message:'Done.'},f.thread)).reason,/For A/);
+  const held=await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:next,last_assistant_message:'Both done.'},f.thread);
+  assert.match(held.reason,new RegExp(`Goal #${a.id}, Goal #${b.id}\\b`));assert.match(held.reason,/comment --id <goalId>/);
+  assert.deepEqual(await replies(),[[f.root.id,'Fixed it.']]);
+});
+
+test('nothing is posted from a subagent, without text, or without an awaiting Goal',async t=>{
+  const f=await fixture(t),first=await f.work();
+  assert.equal(await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:first,last_assistant_message:'Nothing was asked.'},f.thread),null);
+  await f.endTurn();await f.save('Fix it');
+  const turn=(await f.running()).id,stop=(text,patch={})=>hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn,last_assistant_message:text,...patch},f.thread);
+  assert.equal(await stop('Subagent result',{agent_id:'child'}),null);
+  assert.equal(await hookOutput({hook_event_name:'SubagentStop',session_id:f.thread,turn_id:turn,agent_id:'child',last_assistant_message:'Subagent result'},f.thread),null);
+  for(const text of [null,'',' \n']){assert.match((await stop(text))?.reason??'',/where things stand/);await stop(text);}
+  assert.deepEqual((await readFeedback()).filter(e=>e.author==='agent'),[]);
+});

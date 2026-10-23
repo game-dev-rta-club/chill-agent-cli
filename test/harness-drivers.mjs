@@ -5,8 +5,9 @@
 // A driver plays the agent and reads what the user sees. start(t) returns a session:
 //   goalId                          the Root Goal the agent is assigned to
 //   agentStartsResponse()           the agent begins a response (a Codex turn, a Claude response)
-//   agentEndsResponse({background}) that response ends. Resolves to the reason when chill holds the stop, and the
-//                                   response then goes on; else null. `background`: work of the agent keeps running.
+//   agentEndsResponse({background,text}) that response ends with `text` as its final reply (null: none). Resolves to
+//                                   the reason when chill holds the stop, and the response then goes on; else null.
+//                                   `background`: work of the agent keeps running.
 //   userRunsLocalCommand()          the user runs a command of the agent's own app, such as /reload-skills: it writes to
 //                                   the conversation but starts no work
 //   agentIsInterrupted()            the user stops the running response in the agent's own app (Esc, Desktop's stop)
@@ -110,6 +111,9 @@ function userSide(goalId,beforeRead=()=>{}) {
 
 // Each test gets its own data directory; the process-wide variables the libraries read are restored afterwards.
 async function workspace(t,prefix,env) {
+  // Each test starts from the real clock: Codex hooks stamp their heartbeat with it, and skew piled up over
+  // earlier tests would make a fresh heartbeat look stale.
+  skew=0;
   const dir=await mkdtemp(join(tmpdir(),prefix)),previous={};
   for(const [key,value] of Object.entries({CHILL_AGENT_DATA_DIR:join(dir,'data'),...env})) {
     previous[key]=process.env[key];process.env[key]=value;
@@ -145,9 +149,9 @@ async function codexSession(t) {
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
     async agentStartsResponse() {await chat.startTurn();await tool();},
     // Codex runs the Stop hook as the turn ends; a block continues the turn with the reason.
-    async agentEndsResponse() {
+    async agentEndsResponse({text='Done.'}={}) {
       const turn=await chat.running();
-      const hold=await hook('Stop',turn?.id??randomUUID(),{stop_hook_active:continuing,last_assistant_message:'Done.',cwd:dir,model:'gpt-5.5',permission_mode:'default',transcript_path:null});
+      const hold=await hook('Stop',turn?.id??randomUUID(),{stop_hook_active:continuing,last_assistant_message:text,cwd:dir,model:'gpt-5.5',permission_mode:'default',transcript_path:null});
       continuing=hold?.decision==='block';
       if(continuing){handoff.push(...feedbackIds(hold.reason));return hold.reason;}
       if(turn)await chat.endTurn('completed');
@@ -248,9 +252,9 @@ async function codexAppSession(t,codexPath) {
   return {
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
     async agentStartsResponse() {await call('thread/queue/add',{threadId:thread,...message('Work')});await take();await tool();},
-    async agentEndsResponse() {
+    async agentEndsResponse({text='Done.'}={}) {
       if(!live()&&!(requests.length&&await turnStarts()))return null;
-      const reason=await answer([kit.textItem('Done.')]);
+      const reason=await answer(text==null?[]:[kit.textItem(text)]);
       if(reason!==null)return reason;
       passTime();
       return null;
@@ -303,12 +307,12 @@ async function claudeSession(t) {
   const session={
     ...userSide(root.id),
     agentStartsResponse:startResponse,
-    async agentEndsResponse({background=false}={}) {
+    async agentEndsResponse({background=false,text='Done.'}={}) {
       // A blocked Stop hands over feedback that waited for the end, or holds the stop; the response then goes on.
-      const output=await hook('Stop',{stop_hook_active:continuing,background_tasks:background?[{id:'a1b2c3',type:'subagent',status:'running',description:'Review the change',agent_type:'general-purpose'}]:[]});
+      const output=await hook('Stop',{stop_hook_active:continuing,last_assistant_message:text,background_tasks:background?[{id:'a1b2c3',type:'subagent',status:'running',description:'Review the change',agent_type:'general-purpose'}]:[]});
       continuing=output?.decision==='block';
       if(continuing){handoff=output.reason;return output.reason;}
-      await append([claudeEntry.text(randomUUID(),'Finished.'),claudeEntry.stop({uuid:randomUUID()})]);
+      await append([...(text==null?[]:[claudeEntry.text(randomUUID(),text)]),claudeEntry.stop({uuid:randomUUID()})]);
       responding=false;handoff=null;
       return null;
     },
