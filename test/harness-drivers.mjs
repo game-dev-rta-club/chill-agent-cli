@@ -24,7 +24,8 @@
 //   goalRunning()                   whether the Goal list marks the Goal Running
 //   agentStatus()                   the Agent menu data
 //   pauseActivity(action)           the Goal activity's Pause ('stop') or Resume
-//   approveAll(on)                  the Agent menu's Approve all
+//   approveAll(on)                  the Agent API's Approve all
+//   approveAllControl(on?)          Approve all in the More and Agent menus: reads it, or turns it on/off
 //   comments()                      the agent's comments on the Goal
 // A capability the harness lacks is declared in `capabilities` and the scenario asserts the interface says so.
 import {spawn} from 'node:child_process';
@@ -37,6 +38,7 @@ import {appendFeedback,createGoal,listGoals,readFeedback} from '../lib/goal-stor
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {agentExecutions,assignGoal,goalCommentMarks,selectAgentWork} from '../lib/agents/index.mjs';
 import {controlAgent,readGoalActivity,readAgentStatus} from '../lib/agent-status.mjs';
+import {createApproveAllExtension} from '../lib/approve-all-extension.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {claimClaudeFeedbackForWatcher} from '../lib/claude-actions.mjs';
@@ -101,6 +103,11 @@ function userSide(goalId,beforeRead=()=>{}) {
     async approveAll(on) {
       const {token}=await readAgentStatus(goalId);
       return controlAgent(goalId,{scope:'permissions',token,approveAll:on});
+    },
+    async approveAllControl(on) {
+      const control=createApproveAllExtension();
+      if(on!==undefined)await control.set(goalId,{enabled:on});
+      return control.read(goalId,{activity:true});
     },
     async comments() {
       return (await readFeedback()).filter(event=>event.goalId===goalId&&event.author==='agent').map(event=>event.text);

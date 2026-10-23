@@ -118,7 +118,15 @@ scenario('Approve all is offered where the harness supports it, and refused wher
   if(driver.capabilities.approveAll) {
     assert.equal((await s.approveAll(true)).approveAll,true);
     assert.equal((await s.approveAll(false)).approveAll,false);
-  } else await assert.rejects(s.approveAll(true),/not available/);
+    // The same switch sits beside Auto-continue in the More and Agent menus, and asks before turning on.
+    const off=await s.approveAllControl();
+    assert.equal(off.enabled,false);assert.equal(off.placement,'header');assert.ok(off.activity);assert.match(off.confirmOn.message,/Allow/);
+    assert.equal((await s.approveAllControl(true)).enabled,true);assert.equal((await s.agentStatus()).approveAll,true);
+    assert.equal((await s.approveAllControl(false)).enabled,false);
+  } else {
+    await assert.rejects(s.approveAll(true),/not available/);
+    assert.equal(await s.approveAllControl(),null,'no switch where the harness cannot answer prompts');
+  }
 });
 
 // Pause is the user's (R17); a stop in the agent's own app is Interrupted (R17b). Both show the same on the agent and the comments.
