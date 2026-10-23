@@ -72,7 +72,8 @@ saved Web input / eligible Auto mode request
 
 The [development actions](claude-actions.md) implement new-Root ownership, the
 inbox and delivery through the main hooks. The Stop hook posts the response's
-final reply to the one Goal awaiting a reply, as Codex's Stop does
+final reply to the one Goal handed feedback during the work and awaiting a
+reply, as Codex's Stop does
 ([Replying](feedback-and-controls.md#replying)). Every route hands comments by the
 same Root cursor ([hand-off](../../lib/hand-off.mjs)), which moves only after the
 text is handed, so no route hands a comment twice. The inbox lists every Goal

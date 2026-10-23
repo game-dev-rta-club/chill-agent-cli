@@ -77,6 +77,27 @@ scenario('the final reply of the work answers the Goal awaiting it, once',async 
   assert.deepEqual(await s.comments(),['Fixed the typo in the README.'],'with nothing awaiting a reply, the final reply stays in the conversation');
 });
 
+// Only feedback handed during the work takes its final reply (hand-off postFinalReply).
+scenario('feedback handed at the end of the work is answered by the final reply that follows it',async s=>{
+  await s.agentStartsResponse();
+  const event=await s.saveFeedback('One more thing');
+  assert.match(await s.agentEndsResponse({text:'Working.'}),/One more thing/,'handed at the stop; the work goes on');
+  assert.deepEqual(await s.comments(),[]);
+  assert.equal(await s.agentEndsResponse({text:'Did the one more thing.'}),null);
+  assert.equal(await s.shown(event),null);
+  assert.deepEqual(await s.comments(),['Did the one more thing.']);
+});
+
+scenario('feedback left awaiting by stopped work gets no later final reply; the stop asks for a reply',async s=>{
+  const event=await s.saveFeedback('Fix the typo');
+  await s.agentTakesFeedback(event);
+  await s.agentIsInterrupted();
+  await s.agentStartsResponse();
+  assert.match(await s.agentEndsResponse({text:'CI is green; nothing left.'}),new RegExp(`Goal #${s.goalId}\\b`));
+  assert.equal(await s.agentEndsResponse({text:'CI is green; nothing left.'}),null);
+  assert.deepEqual(await s.comments(),[]);
+});
+
 scenario('a comment reaches the agent once, and a later comment brings only itself',async s=>{
   const event=await s.saveFeedback('Once');
   assert.deepEqual(await s.agentTakesFeedback(event),[event]);
