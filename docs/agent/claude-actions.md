@@ -4,11 +4,10 @@ keyPoints: >-
   in its shell, as Codex commands do; there is no request marker to confirm.
   Web input reaches a conversation only through its main hooks (tool hooks and
   the watcher), which never run for a subagent. A Goal waits for a reply while
-  the user commented after the agent; the response's final reply answers the one
-  Goal handed feedback in that work and awaiting it, and `reply --goal` answers
-  several or mid-response. Stop holds
-  a response once when handed Goals still wait for a reply with nothing left
-  running. Optional connection extensions run the same way.
+  the user commented after the agent; every message the agent writes is posted to
+  the conversation's current Goal, and `reply --goal` replies on a specific Goal
+  and makes it current. Stop holds a response once when other handed Goals still
+  wait for a reply with nothing left running. Optional connection extensions run the same way.
 ---
 
 # Act from a Claude conversation
@@ -117,16 +116,18 @@ Subagent hooks never hand feedback: a subagent that received it would end with
 it, and the main conversation would never see it. Replies after a response ends
 reach the conversation through the [watcher hook](claude-wait.md).
 
-When a response ends, the Stop hook first posts the response's final reply
-(`last_assistant_message`) to the one Goal still awaiting a reply among the Goals
-handed feedback during this work (the record's `agentWork.goals`, kept until a
-stop ends the work, Esc or StopFailure), keyed by the session and `prompt_id`
-(see [Replying](feedback-and-controls.md#replying)); a subagent's stop never
-posts. A prompt or wake reads an Esc from the transcript first, so Goals handed
-to the stopped work are not the new work's. It then applies the shared
-[quiet-stop rule](feedback-and-controls.md#when-the-agent-stops): if a Goal it
-was handed feedback on still waits for a reply and has had no Comment since it
-last stopped, and Claude Code lists no background work in the Stop input's `background_tasks`
+Every main hook (prompt, tool, Stop, StopFailure, exit) first posts what the
+agent wrote since the last one to the conversation's current Goal, kept in the
+entry record as `currentGoal` with how far the transcript was read (`messages`):
+each new public text block of the main conversation, once, by the block's
+`uuid` and index. The Stop also posts `last_assistant_message` when the
+transcript does not show it yet, keyed by the session and `prompt_id`. A hand-off
+from one Goal, `connection reply` and a due `connection wake --goal` set the
+current Goal (see [The agent's messages](feedback-and-controls.md#the-agents-messages));
+a subagent's hooks never post. The Stop then applies the shared
+[quiet-stop rule](feedback-and-controls.md#when-the-agent-stops): if a Goal other
+than the current one that it was handed feedback on still waits for a reply and
+has had no Comment since it last stopped, and Claude Code lists no background work in the Stop input's `background_tasks`
 (chill's own `connection wait` task does not count), the hook blocks once and
 asks the agent to reply or post a progress comment. The stop right after that
 hold ends. A trusted composed

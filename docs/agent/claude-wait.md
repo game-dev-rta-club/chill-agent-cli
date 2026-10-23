@@ -25,9 +25,9 @@ watcher claims it, as a tool hook would, and exits 2 with the feedback text
         ↓
 Claude Code wakes the model with that text
         ↓
-agent works; the response's Stop posts its final reply to the Goal the wake
-handed (or the agent answers several with `connection reply`) and starts the next
-watcher
+agent works; its messages are posted to the Goal the wake handed (or, after
+feedback from several Goals, it replies on each with `connection reply`); the
+response's Stop starts the next watcher
 ```
 
 The agent is not told about the watcher and never handles it. It sees Web
@@ -43,7 +43,8 @@ the terminal when the watcher wakes the conversation.
 - Feedback is claimed through the same inbox as tool hooks, so holds, a Web
   pause, ownership checks and Resume behave as in any other delivery.
 - A `connection wake` check that is due wakes the conversation with its reason
-  and is cleared, so it wakes once.
+  and is cleared, so it wakes once. A check scheduled with `--goal` makes that
+  Goal the conversation's current Goal, which its messages are posted to.
 - It ends itself before the hook timeout (7 days) with a short routine check;
   the response that wakes starts the next watcher.
 
