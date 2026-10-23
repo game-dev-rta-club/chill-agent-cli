@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {runClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
-import {listGoals,createGoal,appendFeedback,appendAgentComment,updateGoal,readGoal} from '../lib/goal-store.mjs';
+import {listGoals,createGoal,appendFeedback,appendAgentComment,updateGoal,readGoal,readFeedback} from '../lib/goal-store.mjs';
 import {transferClaudeRoot} from '../lib/claude-roots.mjs';
 import {readForWeb,configureFromWeb,onStop} from '../lib/claude-continuation.mjs';
 import {storage} from '../lib/extension-api.mjs';
@@ -54,9 +54,9 @@ test('Web input during an Auto mode run waits for its stop, and is answered befo
  const hook=f.event('PostToolUse',{tool_name:'Read',tool_use_id:randomUUID(),tool_response:{text:'ordinary work'}});
  assert.equal(await handleClaudeToolHook(hook,{cwd:f.cwd}),null,'the running work is not interrupted');
  assert.match((await f.stop()).reason,/Correction while Auto mode is working/,'its stop hands the correction over');
- assert.match((await f.stop()).reason,/where things stand/,'a handed Goal the user heard nothing about is held first');
- assert.match((await f.stop()).reason,new RegExp(`still waits for your reply: comment ${reply.changeId} on Goal #1`),'new input is a new revision; the request names the open feedback');
- await appendAgentComment({goalId:f.root.id,type:'comment',text:'Working on the correction; next update after the tests.'});
+ const next=(await f.stop({last_assistant_message:'Fixed the correction.'})).reason;
+ assert.equal((await readFeedback()).at(-1).text,'Fixed the correction.','the final reply answers the handed Goal, so nothing is held');
+ assert.match(next,/Auto mode is On/,'new input is a new revision');assert.doesNotMatch(next,new RegExp(`comment ${reply.changeId}`));
  assert.equal(await f.stop(),null,'the same revision is not continued again, and the user has heard back');
 });
 test('Off and explicit continuation Pause preserve the attempt history',async t=>{
@@ -71,9 +71,10 @@ test('input in another owned Root is handed before any request',async t=>{
  assert.match((await f.stop()).reason,/Wait for my correction/);assert.equal((await f.read()).attempts.length,0);
 });
 test('a handed Goal still awaiting a reply is named by the request until the agent replies',async t=>{
+ // A response that ends with no text leaves the Goal awaiting a reply.
  const f=await fixture(t);await f.configure();const reply=await appendFeedback({goalId:f.root.id,text:'New input'});await f.action('inbox',{});
- assert.match((await f.stop()).reason,/where things stand/,'the hold comes first');
- const first=await f.stop();assert.equal(first.decision,'block');assert.match(first.reason,new RegExp(`comment ${reply.changeId} on Goal #${f.root.id}`));
+ assert.match((await f.stop({last_assistant_message:null})).reason,/where things stand/,'the hold comes first');
+ const first=await f.stop({last_assistant_message:null});assert.equal(first.decision,'block');assert.match(first.reason,new RegExp(`comment ${reply.changeId} on Goal #${f.root.id}`));
  const done=await fixture(t);await done.configure();await appendFeedback({goalId:done.root.id,text:'Quick input'});
  await done.action('inbox',{});await done.action('reply',{goalId:done.root.id,text:'Done'});
  const next=await done.stop();assert.equal(next.decision,'block');assert.doesNotMatch(next.reason,/still waits for your reply/);
@@ -146,7 +147,8 @@ test('a taken-over Root keeps its setting; an unconfirmed request is closed, nev
 });
 
 test('a stop is held while a handed Goal awaits a reply and nothing runs; the agent speaking on it lets it end',async t=>{
- const f=await fixture(t);
+ // Every response here ends with no text, so no final reply answers the Goal.
+ const fixed=await fixture(t),f={...fixed,stop:(patch={})=>fixed.stop({last_assistant_message:null,...patch})};
  await appendFeedback({goalId:f.root.id,text:'Short work'});await f.action('inbox',{});
  const first=await f.stop();
  assert.equal(first?.decision,'block');assert.match(first.reason,new RegExp(`Goal #${f.root.id}\\b`));
