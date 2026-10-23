@@ -51,7 +51,8 @@ const renewing = request => !['GET','HEAD'].includes(request.method);
 let activeWrites = 0, activeCommands = 0, stopIdleWatch;
 let tunnelOrigin = null, closing = false;
 const instanceToken=randomBytes(32).toString('hex');
-const updates=createRuntimeUpdater({port:()=>server.address().port,duration});
+// On Windows only Task Scheduler's Web has a service token; a foreground server is not replaced.
+const updates=createRuntimeUpdater({port:()=>server.address().port,duration,...(process.platform==='win32'?{supported:serviceToken!==null}:{})});
 const publicAccess=createPublicAccess();
 const publicTunnel=createTunnelController({directory:dataDirectory(),port:()=>server.address().port,onOrigin:origin=>{tunnelOrigin=origin;}});
 const extensions=createExtensionHost(registeredExtensions({tunnel:publicTunnel,access:publicAccess,configured}));
