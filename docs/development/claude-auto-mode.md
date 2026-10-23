@@ -2,7 +2,8 @@
 keyPoints: >-
   Experimental Claude Auto mode continues through a main Stop, once per
   meaningful revision. It preserves Off, continuation Pause, pending feedback and
-  the revision allowance; the next Stop ends each request. Native packaged qualification passes; explicit project hook setup is available.
+  the revision allowance. The request names no command; the next Stop ends it
+  and records whether the agent left anything on the Web. Native packaged qualification passes; explicit project hook setup is available.
 ---
 
 # Qualify Auto mode in a Claude conversation
@@ -59,10 +60,18 @@ CLI returns a native Stop decision. It links the packaged combined continuation
 and stopping-review guide, without claiming that native input queues are empty.
 Claude retains its input ordering and tool permission policy.
 
+The request asks the agent only to look back once before handing the turn to
+the user: carry on agreed work that needs no user, or end with one short line.
+It lists what the record already says (unfinished Goals, feedback still awaiting
+a reply, open Letters) and names no command, so a turn with nothing left ends in
+a single response, with no command and, in Claude Desktop, no turn summary.
+
 The request goes out as Stop output, so the next main Stop means the response
-that received it has ended. That Stop ends the attempt, with or without a result
-reported through `monitor result`. Waiting for the report instead stopped Auto
-mode for good when one response forgot it. One check consumes the allowance for
+that received it has ended. That Stop ends the attempt and records its result:
+`worked` when the agent left something on the Web since the request (a comment,
+a Letter, or a Goal or Deliverable change), otherwise `no-work`. A result the
+agent reported through `monitor result` is kept. Waiting for a report instead
+stopped Auto mode for good when one response forgot it. One check consumes the allowance for
 that revision, so the same revision is never continued twice; comments, results
 and Off/On toggles do not create another allowance. Substantive Goal, Deliverable
 or user-input changes create the next one. One Stop sends at most one request

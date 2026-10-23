@@ -45,7 +45,7 @@ test('a request left without a result ends at the next Stop instead of stopping 
  // later Stop waiting, so Auto mode silently never continued again.
  const f=await fixture(t);await f.configure();await f.stop();const original=(await f.read()).attempts[0].id;
  assert.equal(await f.stop(),null,'the same revision is not continued twice');
- let state=await f.read();assert.equal(state.status,'exhausted');assert.equal(state.attempts[0].phase,'ended');
+ let state=await f.read();assert.equal(state.status,'exhausted');assert.equal(state.attempts[0].phase,'completed');assert.equal(state.attempts[0].result.outcome,'no-work');
  await updateGoal(f.root.id,{title:'Changed later'});await f.newPrompt();assert.equal((await f.stop()).decision,'block');
  state=await f.read();assert.equal(state.history.at(-1).id,original);assert.notEqual(state.attempts[0].id,original);
 });
@@ -88,7 +88,7 @@ test('one Stop sends at most one request across the Roots of a conversation',asy
  const f=await fixture(t);await f.configure();await f.action('create-goal',{title:'Second Auto Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);
  await f.action('extension',{extension:'continuation',operation:'configure',input:{rootId:other.id,enabled:true}});
  assert.equal((await f.stop()).decision,'block');assert.equal((await f.read()).attempts.length,1);assert.equal((await readMonitor(other.id)).attempts.length,0);
- assert.equal((await f.stop()).decision,'block');assert.equal((await f.read()).attempts[0].phase,'ended');assert.equal((await readMonitor(other.id)).attempts.length,1);
+ assert.equal((await f.stop()).decision,'block');assert.equal((await f.read()).attempts[0].phase,'completed');assert.equal((await readMonitor(other.id)).attempts.length,1);
 });
 test('saved Web feedback and Auto mode cannot both claim the same Stop',async t=>{
  // A Stop hands comments not handed yet before Auto mode may ask for anything.
@@ -168,4 +168,24 @@ test('a stop is held while a handed Goal awaits a reply and nothing runs; the ag
  assert.equal((await f.stop())?.decision,'block','and its Goal awaits a reply again');
  await f.action('reply',{goalId:f.root.id,text:'Done'});
  assert.equal(await f.stop(),null,'a reply on the Goal');
+});
+test('the request asks for one look back and names no command, so a turn with nothing left ends in one response',async t=>{
+ const f=await fixture(t);await f.configure();
+ const {reason}=await f.stop();
+ assert.match(reason,/ask yourself once/);assert.match(reason,/Run no commands and write no turn summary/);
+ assert.doesNotMatch(reason,/monitor result|goal review|goal tree|goal show|```/);
+ assert.match(reason,/There (is|are) \d+ unfinished Goals?|Every Goal is marked Done/);
+});
+test('chill records the result at the next Stop: worked when the agent left something on the Web, otherwise no-work',async t=>{
+ const quiet=await fixture(t);await quiet.configure();await quiet.stop();
+ assert.equal(await quiet.stop(),null);
+ const quietResult=(await quiet.read()).attempts[0].result;assert.equal(quietResult.outcome,'no-work');assert.equal(quietResult.observed,true);
+ const busy=await fixture(t);await busy.configure();await busy.stop();
+ await busy.newPrompt();await appendAgentComment({goalId:busy.root.id,type:'comment',text:'Finished the remaining step; tests pass.'});
+ assert.equal(await busy.stop(),null);
+ const attempt=(await busy.read()).attempts[0];assert.equal(attempt.result.outcome,'worked');assert.equal(attempt.phase,'completed');
+ const reported=await fixture(t);await reported.configure();await reported.stop();
+ const id=(await reported.read()).attempts[0].id;await reported.newPrompt();await reported.result(id,'worked');
+ assert.equal(await reported.stop(),null);
+ const kept=(await reported.read()).attempts[0].result;assert.equal(kept.outcome,'worked');assert.equal(kept.observed,undefined,'a reported result is kept');
 });
