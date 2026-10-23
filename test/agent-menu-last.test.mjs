@@ -11,11 +11,13 @@ test('Activity keeps a link to the last Goal after the agent stops',()=>{
  assert.doesNotMatch(agentMarkup({...base,work:{status:'idle',goalId:null,last:null}}),/agent-work-link/);
 });
 
-test('the Approve all switch appears only when the agent can answer prompts',()=>{
- const able=agentMarkup({goalId:'2',rootId:'1',connected:true,agent:{name:'A'},capabilities:{approveAll:true},approveAll:true,work:{status:'idle'},queue:{items:[],truncated:false},extensions:[]});
- assert.match(able,/data-agent-approve-all[^>]*checked/);assert.match(able,/<h3>Queue/);
- const other=agentMarkup({goalId:'2',rootId:'1',connected:true,agent:{name:'B'},capabilities:{},settings:{},models:[],work:{status:'idle'},queue:null,extensions:[]});
- assert.doesNotMatch(other,/data-agent-approve-all/);
+test('Approve all sits at the bottom of the Agent menu after AutoContinue, with the same switch',()=>{
+ const controls=[{id:'continuation',label:'Auto-continue',enabled:false,placement:'header',icon:'repeat',activity:{label:'AutoContinue',entries:[]}},
+  {id:'approve-all',label:'Approve all',enabled:true,placement:'header',icon:'shield',activity:{label:'Approve all',entries:[]}}];
+ const markup=agentMarkup({goalId:'2',rootId:'1',connected:true,agent:{name:'A'},capabilities:{approveAll:true},approveAll:true,work:{status:'idle'},queue:{items:[],truncated:false},extensions:controls});
+ assert.ok(markup.indexOf('<h3>Queue')<markup.indexOf('<h3>AutoContinue')&&markup.indexOf('<h3>AutoContinue')<markup.indexOf('<h3>Approve all'));
+ assert.match(markup,/data-agent-extension="approve-all"[^>]*aria-pressed="true"[\s\S]*?<span>On<\/span>/);
+ assert.doesNotMatch(markup,/data-agent-approve-all/,'no separate switch in the agent header');
 });
 
 test('Activity lists recent Goals once each instead of a single Last link',()=>{
