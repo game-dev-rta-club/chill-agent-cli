@@ -43,11 +43,14 @@ try {
  await run('work','--id','5','--stop');
  await assert.rejects(update('1',{state:'done'}),/unfinished SubGoals/);
  for(const id of ['2','3','5'])await update(id,{state:'done'});
+ await page.setViewportSize({width:1100,height:800});
  await page.reload();await page.locator('.goal-heading .progress-value').getByText('99%',{exact:true}).waitFor();
  assert.equal(await page.locator('.goal-heading .status').count(),0,'completed children do not complete the parent');
+ const titleBox=()=>page.locator('.goal-heading h1').boundingBox(),plainTitle=await titleBox();
  const result=await update('1',{state:'done'});assert.equal(result.nextActions.ancestors.length,0);
  await page.reload();await page.locator('.goal-heading .status').getByText('Done',{exact:true}).waitFor();
  assert.equal(await page.locator('.goal-heading .progress-value').innerText(),'100%');
+ assert.deepEqual(await titleBox(),plainTitle,'the status under the progress bar never moves the title');
  // A new queued reply to a Done Goal takes precedence in both the tree and header.
  await writeFile(join(root,'fake-history.json'),JSON.stringify({status:{type:'idle'},turns:[{id:turn,status:'completed',completedAt:123}]}));
  const input=join(root,'feedback.json');await writeFile(input,JSON.stringify({text:'Check once more'}));
