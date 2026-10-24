@@ -80,5 +80,5 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  const timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
  window.addEventListener('focus',refresh);window.addEventListener('chill-extensions-changed',refresh);
- return {routeChanged(){showMore(false);close();generation++;controller?.abort();if(!getGoalId())controls=[];render(true);void refresh();},refresh,destroy(){close();panel.remove();clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);window.removeEventListener('chill-extensions-changed',refresh);}};
+ return {themeRootChanged:id=>themeMenu.rootChanged(id),routeChanged(){showMore(false);close();generation++;controller?.abort();if(!getGoalId())controls=[];render(true);void refresh();},refresh,destroy(){close();panel.remove();clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);window.removeEventListener('chill-extensions-changed',refresh);}};
 }

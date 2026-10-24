@@ -102,6 +102,7 @@ window.addEventListener('chill-extension-controls',event=>{
   agentButton.toggleAttribute('data-autocontinue',on);
 });
 const tabIcon=createTabIcon();
+window.addEventListener('chill-agent-appearance',event=>tabIcon.use(event.detail.tabIcon));
 window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)?'working':isWaitingOnCheck(wake)?'waiting':null);});
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
@@ -1038,6 +1039,12 @@ function fillRootAgents(){
 }
 function renderIndex(){updateTabTitle();main.innerHTML=goalView().index();fillRootAgents();}
 let stepFocus=null,routeReady=Promise.resolve();
+// The Root whose theme and tab icon the open Goal uses; none on the Goal list.
+function rootGoalId(id) {
+  let goal=goalMetadata.get(id);
+  for(let n=0;goal?.parentId&&goalMetadata.has(goal.parentId)&&n<goalMetadata.size;n++)goal=goalMetadata.get(goal.parentId);
+  return goal?.id||null;
+}
 function renderRoute() {
   hasNewBrief.dismiss();
   closeImageSelection();
@@ -1052,6 +1059,7 @@ function renderRoute() {
   activeVersion=activeGoalId?Number(match[2]||latestVersion(activeGoalId)):null;
   if(activeGoalId&&(match[2]||activeVersion)&&!briefAt(activeGoalId,activeVersion))activeGoalId=null;
   updateTabTitle();
+  extensionButtons.themeRootChanged(rootGoalId(activeGoalId));
   lettersMenu.close();
   agentMenu.routeChanged();
   extensionButtons.routeChanged();

@@ -18,9 +18,10 @@ try{
  await page.goto(url+'/#/goal/1');await page.locator('#goal-title').filter({hasText:'A calmer'}).waitFor();await page.evaluate(()=>{const fixture=document.createElement('div');fixture.id='theme-status-fixture';fixture.innerHTML='<article class="timeline-entry letter-comment"><header class="letter-comment-heading"><h2 class="letter-comment-title">Open Letter</h2></header></article><article class="timeline-entry letter-comment is-answered"><header class="letter-comment-heading"><h2 class="letter-comment-title">Answered Letter</h2></header></article><span class="status working">Working</span><span class="status done">Done</span>';document.querySelector('.reading-pane').prepend(fixture);});await open();
  assert.equal(await page.locator('[data-theme-choice]').count(),18);
  const semanticColors={};
- for(const t of themes){await page.locator(`[data-theme-choice="${t.id}"]`).click();await page.waitForFunction(id=>document.documentElement.dataset.theme===id,t.id);await page.getByText('Saved for this project.',{exact:true}).waitFor();assert.equal(await page.locator(`[data-theme-choice="${t.id}"]`).getAttribute('aria-pressed'),'true');
+ for(const t of themes){await page.locator(`[data-theme-choice="${t.id}"]`).click();await page.waitForFunction(id=>document.documentElement.dataset.theme===id,t.id);await page.getByText('Saved for Root #1.',{exact:true}).waitFor();assert.equal(await page.locator(`[data-theme-choice="${t.id}"]`).getAttribute('aria-pressed'),'true');
   assert.equal(await page.locator('meta[name="theme-color"]').getAttribute('content'),browserThemeColor(t.id));
-  assert.ok((await (await fetch(url)).text()).includes(`name="theme-color" content="${browserThemeColor(t.id)}"`),'initial HTML matches saved theme');
+  const served=/name="workspace-appearance" content="([^"]*)"/.exec(await (await fetch(url)).text())[1].replaceAll('&quot;','"').replaceAll('&#39;',"'").replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&');
+  assert.equal(JSON.parse(served).looks['1'].color,browserThemeColor(t.id),'initial HTML carries the Root\'s saved theme');
   const colors=await page.locator('#theme-status-fixture').evaluate(el=>[...el.querySelectorAll('.letter-comment-title,.letter-comment-heading,.status')].map(node=>node.classList.contains('letter-comment-heading')?getComputedStyle(node).backgroundColor:getComputedStyle(node).color));
   const mode=t.kind==='dark'?'dark':'light';if(semanticColors[mode])assert.deepEqual(colors,semanticColors[mode],'status meanings stay constant across hues');else semanticColors[mode]=colors;
  }
@@ -33,7 +34,8 @@ try{
  }
  await page.keyboard.press('Escape');assert.equal(await page.getByRole('button',{name:'Color theme',exact:true}).evaluate(el=>el===document.activeElement),true);assert.equal(await page.getByRole('dialog',{name:'Color theme'}).isVisible(),false);
  await page.screenshot({path:'/tmp/chill-theme-dark-page.png'});await page.reload();await page.locator('#goal-title').waitFor();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark-iris');
- assert.match(await (await fetch(url)).text(),/data-theme="dark-iris"/,'server applies preference before first paint');
+ const page1=await (await fetch(url)).text();assert.match(page1,/data-theme="gradient-mint"/,'the project default stays for other Roots');
+ assert.match(page1,/&quot;1&quot;:\{&quot;theme&quot;:&quot;dark-iris&quot;/,'the page carries the Root\'s choice for the first paint');
  assert.equal((await fetch(url+'/api/workspace/theme',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://foreign.example'},body:'{"theme":"light-mint"}'})).status,403);
  assert.equal((await fetch(url+'/api/workspace/theme',{method:'POST',headers:{'Content-Type':'application/json',Origin:url},body:'{"theme":"unknown"}'})).status,400);
  await open();await page.route('**/api/workspace/theme',route=>route.request().method()==='POST'?route.fulfill({status:500,json:{error:'test'}}):route.continue());
