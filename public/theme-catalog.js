@@ -21,7 +21,7 @@ const svg=body=>`data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www
 const outline=(sky,line)=>svg(`<rect width='32' height='32' rx='9' fill='${sky}'/><path d='M5 21h22M9 25h14M10 17a6 6 0 1 1 12 0M16 3v3M5 8l3 3M27 8l-3 3' fill='none' stroke='${line}' stroke-width='1.7' stroke-linecap='round'/>`);
 const sunrise=(sky,sun,sea,running=false)=>svg(`<rect width='32' height='32' rx='9' fill='${sky}'/><path d='M10 17a6 6 0 1 1 12 0z' fill='${sun}' stroke='${sun}' stroke-width='2' stroke-linejoin='round'/><path d='${running?'M16 1.5v4.5M3.5 6.5l4 4M28.5 6.5l-4 4':'M16 3v3M5 8l3 3M27 8l-3 3'}' fill='none' stroke='${sun}' stroke-width='${running?2.8:1.7}' stroke-linecap='round'/><path d='M5 21h22M9 25h14' fill='none' stroke='${sea}' stroke-width='2' stroke-linecap='round'/>`);
 export const tabIcons=[
- {id:'morning',name:'Morning',idle:outline('#dceee9','#006f66'),waiting:sunrise('#dceee9','#e6ab17','#5b958a'),working:sunrise('#fdd9b5','#e2600f','#2c7bb6',true)},
+ {id:'morning',name:'Morning',idle:outline('#a8dfcb','#00574f'),waiting:sunrise('#a8dfcb','#e6a200','#2e7d6e'),working:sunrise('#fdd9b5','#e2600f','#2c7bb6',true)},
  {id:'cloudy',name:'Cloudy',idle:outline('#e6e7ea','#7a808a'),waiting:sunrise('#e6e7ea','#c4ac5e','#8a96a3'),working:sunrise('#f0d6c0','#cc6f2c','#5f7189',true)},
  {id:'night',name:'Night',idle:outline('#25304d','#93a6cc'),waiting:sunrise('#25304d','#e8cf72','#7f95cf'),working:sunrise('#3c55c4','#ffa62b','#bcd8ff',true)},
 ];
