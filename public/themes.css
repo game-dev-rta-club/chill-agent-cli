@@ -47,6 +47,21 @@
 .theme-grid button:disabled { opacity:.65; }
 .theme-swatch { display:block; height:34px; border:1px solid #80808050; border-radius:5px; }
 .theme-message { min-height:2.8em; font-size:12px; color:var(--muted); }
+.theme-scope { margin-bottom:0; }
+.theme-reset { padding:0; border:0; background:none; color:var(--accent); font:inherit; text-decoration:underline; cursor:pointer; }
+.theme-section { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
+.theme-section h3 { margin:0; font-size:14px; }
+.theme-section fieldset:first-of-type { margin-top:12px; }
+.tab-icon-grid { display:grid; grid-template-columns:minmax(0,1fr) repeat(3,52px); gap:4px 0; margin-top:10px; align-items:center; }
+.tab-icon-grid > span { font-size:11px; color:var(--muted); text-align:center; }
+.tab-icon-grid button { grid-column:1 / -1; display:grid; grid-template-columns:subgrid; align-items:center; padding:6px 0 6px 8px; border:2px solid transparent; border-radius:9px; font-size:13px; text-align:left; }
+.tab-icon-grid button:hover { background:var(--surface-soft); }
+.tab-icon-grid button[aria-pressed="true"] { border-color:var(--accent); background:var(--surface-soft); }
+.tab-icon-grid button:disabled { opacity:.65; }
+.tab-icon-grid img { width:32px; height:32px; justify-self:center; }
+.tab-icon-name { display:flex; align-items:center; gap:8px; }
+.tab-icon-radio { width:12px; height:12px; border:1.5px solid var(--muted); border-radius:50%; flex:none; }
+.tab-icon-grid button[aria-pressed="true"] .tab-icon-radio { border-color:var(--accent); background:radial-gradient(var(--accent) 45%,transparent 52%); }
 /* Status meaning does not change when a project changes its decorative palette. */
 :root[data-theme] { --state-pending:#84603d; --state-pending-surface:#f8f1e5; --state-pending-border:#c6a978; --state-done:#477962; --state-done-surface:#eef6f1; --state-done-border:#80b9a5; --brief-ink:var(--state-done); --brief:var(--state-done-border); --letter-ink:var(--state-pending); --letter:var(--state-pending-border); --letter-border:var(--state-pending-border); --letter-surface:var(--state-pending-surface); }
 :root[data-theme^="dark-"] { --state-pending:#e2b97f; --state-pending-surface:#30291f; --state-pending-border:#9f8056; --state-done:#94c6ac; --state-done-surface:#202e27; --state-done-border:#5d8c74; }
