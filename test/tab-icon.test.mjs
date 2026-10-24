@@ -7,7 +7,7 @@ test('the tab icon follows the agent state within the chosen icon set',()=>{
  const attrs={href:'initial'},link={getAttribute:name=>attrs[name],setAttribute:(name,value)=>{attrs[name]=value;}};
  const [morning,,night]=tabIcons,icon=createTabIcon(link,'morning');
  icon.set('working');assert.equal(attrs.href,morning.working);assert.match(decodeURIComponent(morning.working),/fill='#fdd9b5'.*stroke-width='2.8'.*stroke='#2c7bb6'/);
- icon.set('waiting');assert.equal(attrs.href,morning.waiting);assert.match(decodeURIComponent(morning.waiting),/fill='#dceee9'.*fill='#e6ab17'.*stroke-width='1.7'/);
+ icon.set('waiting');assert.equal(attrs.href,morning.waiting);assert.match(decodeURIComponent(morning.waiting),/fill='#a8dfcb'.*fill='#e6a200'.*stroke-width='1.7'/);
  icon.use('night');assert.equal(attrs.href,night.waiting);
  icon.set(null);assert.equal(attrs.href,night.idle);
  icon.use('removed');assert.equal(attrs.href,morning.idle);
