@@ -16,7 +16,7 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  const list=document.createElement('div');list.id='extension-list';list.className='extension-list';list.setAttribute('aria-label','Settings');
  const goals=document.createElement('a');goals.href='#/goals';goals.className='extension-trigger';goals.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span class="extension-name">Goals</span>';goals.onclick=()=>showMore(false);list.append(goals);
  const theme=document.createElement('button');theme.type='button';theme.className='extension-trigger';theme.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16Z"/></svg><span class="extension-name">Color theme</span>';list.append(theme);
- const themeMenu=createThemeMenu({button:theme,closeMore:()=>showMore(false),restoreMore:()=>showMore(true)});
+ const themeMenu=createThemeMenu({button:theme,iconButton:document.querySelector('.brand-mark'),closeMore:()=>showMore(false),restoreMore:()=>showMore(true)});
  container.hidden=false;container.append(more,list);
  function showMore(value,restore=false){container.classList.toggle('is-open',value);more.setAttribute('aria-expanded',String(value));if(restore)more.focus({preventScroll:true});}
  more.onclick=()=>{themeMenu.close();const next=more.getAttribute('aria-expanded')!=='true';close();showMore(next);};

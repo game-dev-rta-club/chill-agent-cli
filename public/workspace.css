@@ -18,7 +18,12 @@ h1,h2,h3,p { margin:0; }
 .app-header { border-bottom:1px solid var(--theme-line,#557d7225); }
 .header-inner { display:flex; align-items:center; justify-content:space-between; min-height:64px; padding:0 calc(12px + var(--fluid)*8); }
 .brand { display:flex; align-items:center; gap:8px; font-size:29px; font-weight:760; letter-spacing:-1.9px; }
-.brand svg { width:27px; height:27px; color:var(--accent); }
+.brand-link { color:inherit; text-decoration:none; }
+.brand-mark { display:flex; padding:0; border:0; border-radius:9px; background:none; cursor:pointer; }
+.brand-mark img { display:block; width:30px; height:30px; }
+.brand-mark:hover img { filter:brightness(1.06); }
+.brand-mark:focus-visible { outline:2px solid var(--theme-accent,var(--accent)); outline-offset:3px; }
+.brand-mark[aria-expanded="true"] { outline:2px solid var(--theme-accent,var(--accent)); outline-offset:2px; }
 .brand-period { color:var(--accent); }
 .index-link { display:flex; align-items:center; gap:5px; padding:8px; min-height:44px; color:var(--muted); font-size:12px; }
 .index-link:hover { text-decoration:underline; text-underline-offset:4px; }
@@ -384,7 +389,7 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
  .header-inner { padding:0 12px; }
  .header-actions { gap:6px; }
  .brand { font-size:26px; gap:6px; }
- .brand svg { width:23px; height:23px; }
+ .brand-mark img { width:26px; height:26px; }
  .goal-heading h1 { font-size:22px; }
 }
 

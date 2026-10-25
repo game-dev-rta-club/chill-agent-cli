@@ -101,7 +101,7 @@ window.addEventListener('chill-extension-controls',event=>{
   const on=event.detail.controls.some(c=>c.id==='continuation'&&c.enabled);
   agentButton.toggleAttribute('data-autocontinue',on);
 });
-const tabIcon=createTabIcon();
+const tabIcon=createTabIcon(undefined,undefined,document.querySelector('.brand-mark img'));
 window.addEventListener('chill-agent-appearance',event=>tabIcon.use(event.detail.tabIcon));
 window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)?'working':isWaitingOnCheck(wake)?'waiting':null);});
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
@@ -984,7 +984,7 @@ main.addEventListener('scroll', () => { hideAnnotationAction(); updateSelectionA
 window.addEventListener('resize', () => { hideAnnotationAction(); updateSelectionAction(); hideAnnotationPreview(); });
 
 function updateBrandTarget(){
-  const brand=document.querySelector('.brand'),target=goalView().brandTarget();
+  const brand=document.querySelector('.brand-link'),target=goalView().brandTarget();
   brand.href=target.href;brand.setAttribute('aria-label',target.label);brand.title=target.label;
 }
 let tabTitleGeneration=0,letterCountRequest=false;
