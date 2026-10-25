@@ -51,7 +51,10 @@ in the tested terminal.
 Claude Desktop pauses an idle conversation under memory pressure unless a
 background task runs, so there the agent also runs `connection wait` as a task
 that only holds the conversation; the hook still wakes it with the feedback.
-Neither can start a closed conversation. Do not restart a user's
+`connection show` says when that task is not running beside a running watcher.
+On Windows, the task survives a moment when its record cannot be replaced (an
+antivirus or a running update holding the file) and refreshes it on the next
+check. Neither can start a closed conversation. Do not restart a user's
 running conversation, start a second process with its session ID, or silently
 replace it to make a connection appear successful. A closed conversation
 retains pending input in chill.
