@@ -2,7 +2,7 @@
 import '../lib/quiet-sqlite-warning.mjs';
 import {workspacePort} from '../lib/project-workspace.mjs';
 import { readFile } from 'node:fs/promises';
-import { extname } from 'node:path';
+import { basename, extname } from 'node:path';
 
 import { appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
 import { deliverFeedback, sendFeedbackNow } from '../lib/delivery.mjs';
@@ -81,7 +81,8 @@ async function main() {
   }
   if(command==='image') {
     const mimeType={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp'}[extname(v['--file']).toLowerCase()];
-    const image=await saveAttachment(await readFile(v['--file']),mimeType);
+    // Other files keep their own name, so a download gets the same extension.
+    const image=await saveAttachment(await readFile(v['--file']),mimeType,basename(v['--file']));
     return output({...image,src:`/api/images/${image.id}`});
   }
   if(command==='send-now') return console.log(JSON.stringify({comment:await sendFeedbackNow(v['--event'])}));

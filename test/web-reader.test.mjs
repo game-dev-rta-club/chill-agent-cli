@@ -200,3 +200,11 @@ test('files other than images attach with their name; only PDFs open inline',asy
  const download=await f.get('/api/images/'+html.id);assert.equal(download.headers.get('content-type'),'application/octet-stream');assert.match(download.headers.get('content-disposition'),/^attachment;/);
  assert.equal((await upload('','text/plain','empty.txt')).status,400);
 });
+test('an agent-uploaded file keeps its name and extension when downloaded',async t=>{
+ const f=await fixture(t),video=join(f.root,'rocket launch.mov'),bytes=Buffer.from('\0\0\0\x14ftypqt  not really a movie');
+ await writeFile(video,bytes);
+ const saved=await f.run('image','--file',video);assert.equal(saved.name,'rocket launch.mov');assert.equal(saved.src,`/api/images/${saved.id}`);
+ const response=await f.get(saved.src);
+ assert.equal(response.headers.get('Content-Disposition'),`attachment; filename*=UTF-8''${encodeURIComponent('rocket launch.mov')}`);
+ assert.deepEqual(Buffer.from(await response.arrayBuffer()),bytes);
+});

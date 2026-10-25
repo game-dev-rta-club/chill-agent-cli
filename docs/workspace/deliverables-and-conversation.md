@@ -37,6 +37,8 @@ previous versions and both editable source files. How agents write a
 Deliverable is set by the agent guide, not by this CLI.
 
 Upload images with `goal image` and use the returned `/api/images/<id>` reference.
+Other files, such as a video, upload the same way; they keep their file name, so
+a download from Web has the same extension.
 Text annotations retain their source version; image notes retain their attachment
 and location. Read the relevant version when responding to older feedback.
 HTML images have an annotation button. Inline SVG diagrams use the same area
