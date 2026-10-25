@@ -16,14 +16,15 @@ export function browserThemeColor(id) {
 
 // Tab icon sets share one sunrise. Idle draws it in outline. Waiting fills a
 // yellow sun on the idle sky with short rays. Running warms the sky and draws
-// long, thick rays, so the two states differ in shape as well as color.
+// long, thicker rays, so the two states differ in shape as well as color.
+// Lines are thick and high-contrast so a tab reads from a distance.
 const svg=body=>`data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>${body}</svg>`)}`;
-const outline=(sky,line)=>svg(`<rect width='32' height='32' rx='9' fill='${sky}'/><path d='M5 21h22M9 25h14M10 17a6 6 0 1 1 12 0M16 3v3M5 8l3 3M27 8l-3 3' fill='none' stroke='${line}' stroke-width='1.7' stroke-linecap='round'/>`);
-const sunrise=(sky,sun,sea,running=false)=>svg(`<rect width='32' height='32' rx='9' fill='${sky}'/><path d='M10 17a6 6 0 1 1 12 0z' fill='${sun}' stroke='${sun}' stroke-width='2' stroke-linejoin='round'/><path d='${running?'M16 1.5v4.5M3.5 6.5l4 4M28.5 6.5l-4 4':'M16 3v3M5 8l3 3M27 8l-3 3'}' fill='none' stroke='${sun}' stroke-width='${running?2.8:1.7}' stroke-linecap='round'/><path d='M5 21h22M9 25h14' fill='none' stroke='${sea}' stroke-width='2' stroke-linecap='round'/>`);
+const outline=(sky,line)=>svg(`<rect width='32' height='32' rx='9' fill='${sky}'/><path d='M5 21h22M9 25h14M10 17a6 6 0 1 1 12 0M16 3v3M5 8l3 3M27 8l-3 3' fill='none' stroke='${line}' stroke-width='2.6' stroke-linecap='round'/>`);
+const sunrise=(sky,sun,sea,running=false)=>svg(`<rect width='32' height='32' rx='9' fill='${sky}'/><path d='M10 17a6 6 0 1 1 12 0z' fill='${sun}' stroke='${sun}' stroke-width='2' stroke-linejoin='round'/><path d='${running?'M16 1.5v4.5M3.5 6.5l4 4M28.5 6.5l-4 4':'M16 3v3M5 8l3 3M27 8l-3 3'}' fill='none' stroke='${sun}' stroke-width='${running?3.2:2.4}' stroke-linecap='round'/><path d='M5 21h22M9 25h14' fill='none' stroke='${sea}' stroke-width='2.6' stroke-linecap='round'/>`);
 export const tabIcons=[
- {id:'morning',name:'Morning',idle:outline('#a8dfcb','#00574f'),waiting:sunrise('#a8dfcb','#e6a200','#2e7d6e'),working:sunrise('#fdd9b5','#e2600f','#2c7bb6',true)},
- {id:'cloudy',name:'Cloudy',idle:outline('#e6e7ea','#7a808a'),waiting:sunrise('#e6e7ea','#c4ac5e','#8a96a3'),working:sunrise('#f0d6c0','#cc6f2c','#5f7189',true)},
- {id:'night',name:'Night',idle:outline('#25304d','#93a6cc'),waiting:sunrise('#25304d','#e8cf72','#7f95cf'),working:sunrise('#3c55c4','#ffa62b','#bcd8ff',true)},
+ {id:'morning',name:'Morning',idle:outline('#2f8f74','#ffffff'),waiting:sunrise('#2f8f74','#ffd23f','#d6f3ea'),working:sunrise('#f08a3c','#fff3c4','#ffffff',true)},
+ {id:'cloudy',name:'Cloudy',idle:outline('#e6e7ea','#555b64'),waiting:sunrise('#e6e7ea','#b39a45','#6b7684'),working:sunrise('#f0d6c0','#cc6f2c','#4e5f77',true)},
+ {id:'night',name:'Night',idle:outline('#1f2946','#d3def7'),waiting:sunrise('#1f2946','#ffd84d','#aebfe6'),working:sunrise('#3c55c4','#ffa62b','#e0edff',true)},
 ];
 export const defaultTabIcon='morning';
 export const validTabIcon=id=>tabIcons.some(icon=>icon.id===id);
