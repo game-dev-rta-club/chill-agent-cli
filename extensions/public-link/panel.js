@@ -5,7 +5,7 @@ export async function mount({element,goalId,api,changed,signal,confirm}){
  // The code stays hidden until asked for, and the QR and URL are covered while it shows, so one
  // glance or photo of the screen never holds both.
  const reveal=code.querySelector('[data-reveal]');
- function showCode(){const value=state?.code||'';code.querySelector('strong').textContent=value?(revealed?`${value.slice(0,3)} ${value.slice(3)}`:'••• •••'):'';reveal.textContent=revealed?'Hide':'Show';reveal.setAttribute('aria-pressed',String(revealed));box.toggleAttribute('data-covered',revealed&&Boolean(value));}
+ function showCode(){const value=state?.code||'';code.querySelector('strong').textContent=value?(revealed?value:'••••••'):'';reveal.textContent=revealed?'Hide':'Show';reveal.setAttribute('aria-pressed',String(revealed));box.toggleAttribute('data-covered',revealed&&Boolean(value));}
  reveal.onclick=()=>{revealed=!revealed;showCode();};
  // The code can be copied without showing it on screen.
  code.querySelector('[data-copy-code]').onclick=async()=>{try{await navigator.clipboard.writeText(state.code);message.textContent='Access code copied';}catch{message.textContent='Show the code to copy it.';}};
