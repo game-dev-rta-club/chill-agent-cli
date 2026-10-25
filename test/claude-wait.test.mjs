@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {spawn} from 'node:child_process';
+import {readFileSync,writeFileSync} from 'node:fs';
 import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
 import {runClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessionStartContext} from '../lib/claude-actions.mjs';
 import {holdClaudeConversation,holdResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
@@ -341,12 +342,17 @@ test('checks that fell due while the machine slept wake the conversation one per
 
 test('a check that falls due while a response runs waits for its end',async t=>{
  const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
- const {recordClaudeWork}=await import('../lib/claude-agent-work.mjs');
- const f=await fixture(t);let clock=Date.now();const now=()=>clock;
+ const {applyWork,recordClaudeWork,recordedWork}=await import('../lib/claude-agent-work.mjs');
+ const f=await fixture(t);let clock=Date.now(),starting=false;
+ // The response starts and the check falls due at the same moment: the watcher
+ // asks the clock right after it read the record, which still shows no work.
+ const now=()=>{
+  if(starting){starting=false;const r=JSON.parse(readFileSync(f.recordPath,'utf8'));writeFileSync(f.recordPath,JSON.stringify({...r,agentWork:applyWork(recordedWork(r),[{type:'started',fresh:true}])}));clock+=60000;}
+  return clock;
+ };
  await scheduleClaudeWake({minutes:1,reason:'CI',env:f.env(),now});
  const w=f.wait({now});await f.waiting();
- await recordClaudeWork(f.connection.sessionId,[{type:'started',fresh:true}],{directory:f.data});
- clock+=60000;await new Promise(r=>setTimeout(r,80));
+ starting=true;await f.until(()=>!starting);await new Promise(r=>setTimeout(r,80));
  assert.equal((await readJson(f.recordPath)).wakes.length,1,'due, but the response still runs');
  await recordClaudeWork(f.connection.sessionId,[{type:'finished'}],{directory:f.data});
  assert.deepEqual(await w.done,{status:'wake',reason:'CI'});
