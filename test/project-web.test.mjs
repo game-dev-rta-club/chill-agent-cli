@@ -11,7 +11,7 @@ import {fileURLToPath} from 'node:url';
 test('two live project Web servers keep Goals and URLs separate and preserve a running endpoint',async t=>{
  const {spawn,execFile}=await import('node:child_process');const {promisify}=await import('node:util');const {once}=await import('node:events');
  const execute=promisify(execFile),base=await mkdtemp(join(tmpdir(),'chill-live-projects-'));
- const children=[];t.after(async()=>{for(const {child,exit} of children){child.kill('SIGTERM');await exit;}await rm(base,{recursive:true,force:true});});
+ const children=[];t.after(async()=>{for(const {child,exit} of children){child.kill('SIGTERM');await exit;}await rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  async function start(name){
   const project=join(base,name);await mkdir(project);const directory=await prepareProject(project,{base,extensions:[]});
   const env={...process.env,CHILL_AGENT_DATA_DIR:directory,CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)),CODEX_THREAD_ID:'00000000-0000-0000-0000-000000000001'};delete env.PORT;

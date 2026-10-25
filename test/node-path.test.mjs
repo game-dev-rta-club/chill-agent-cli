@@ -9,7 +9,7 @@ import {stableNodePath} from '../lib/node-path.mjs';
 import {prepareRuntime} from '../lib/runtime-package.mjs';
 import {findGitBash} from '../lib/claude-setup.mjs';
 
-async function temporary(t){const dir=await mkdtemp(join(tmpdir(),'node-path-'));t.after(()=>rm(dir,{recursive:true,force:true}));return dir;}
+async function temporary(t){const dir=await mkdtemp(join(tmpdir(),'node-path-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));return dir;}
 
 test('a Homebrew Cellar Node is persisted through its stable opt link',{skip:process.platform==='win32'&&'creating symlinks needs Windows Developer Mode'},async t=>{
  const dir=await temporary(t),bin=join(dir,'Cellar/node/25.6.1/bin');await mkdir(bin,{recursive:true});

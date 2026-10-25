@@ -73,7 +73,7 @@ test('moved Root and malformed settings cannot change configuration',async()=>{
 test('notification receipt command follows the project port',async t=>{
  const {prepareProject,workspacePort}=await import('../lib/project-workspace.mjs');const {mkdtemp,mkdir,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const {join}=await import('node:path');
  const base=await mkdtemp(join(tmpdir(),'chill-notice-port-')),oldDir=process.env.CHILL_AGENT_DATA_DIR,oldPort=process.env.PORT;
- t.after(async()=>{if(oldDir===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=oldDir;if(oldPort===undefined)delete process.env.PORT;else process.env.PORT=oldPort;await rm(base,{recursive:true,force:true});});
+ t.after(async()=>{if(oldDir===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=oldDir;if(oldPort===undefined)delete process.env.PORT;else process.env.PORT=oldPort;await rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const project=join(base,'project');await mkdir(project);process.env.CHILL_AGENT_DATA_DIR=await prepareProject(project,{base});delete process.env.PORT;
  const f=fixture();await f.api.configure('1',profile);const result=await f.api.prepare('3',f.add());
  assert.match(result.resultCommand,new RegExp("PORT='"+workspacePort()+"'"));

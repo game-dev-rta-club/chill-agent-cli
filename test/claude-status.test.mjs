@@ -19,7 +19,7 @@ const exec=promisify(execFile);
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'claude-status-')),data=join(dir,'data'),cwd=join(dir,'project'),envFile=join(dir,'env');await mkdir(cwd);await writeFile(envFile,'');
  const old=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=data;
- t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
+ t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const sessionId=randomUUID(),promptId=randomUUID();let clock=1000,env;
  const event=hookFor({session_id:sessionId,prompt_id:promptId,cwd});
  async function start(source='startup'){const r=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CLAUDE_CODE_SESSION_ID:sessionId};}

@@ -15,7 +15,7 @@ test('GitHub remotes become npm github specs; other remotes keep their git URL',
 });
 
 test('use-in writes the pushed commit to the recorded version file and refuses unpushed commits',async t=>{
- const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-use-in-')));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-use-in-')));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const git=(cwd,...args)=>execFileSync('git',args,{cwd,encoding:'utf8'}).trim();
  const remote=join(dir,'remote.git'),repo=join(dir,'repo'),project=join(dir,'project'),base=join(dir,'base');
  git(dir,'init','-q','--bare',remote);await mkdir(repo);git(repo,'init','-q');

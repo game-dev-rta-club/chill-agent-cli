@@ -20,7 +20,7 @@ const execute=promisify(execFile), cli=fileURLToPath(new URL('../bin/chill-agent
 const thread='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
 const turn='00000000-0000-0000-0000-000000000010';
 async function fixture(t){
-  const root=await mkdtemp(join(tmpdir(),'chill-execution-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await mkdtemp(join(tmpdir(),'chill-execution-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)),CODEX_THREAD_ID:thread,PORT:'4199'};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   const json=async path=>JSON.parse(await readFile(join(root,path),'utf8'));

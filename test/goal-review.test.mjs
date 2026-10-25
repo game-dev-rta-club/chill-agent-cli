@@ -29,7 +29,7 @@ test('empty filters point to remaining states; Done is not inferred from no Lett
  assert.match(done,/No unfinished Goals/);assert.match(done,/All: chill goal review --id 1/);
 });
 test('review CLI returns an index, not Deliverable or conversation bodies, with functional filters',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-review-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-review-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
  const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
  const run=async(...args)=>(await exec(process.execPath,[cli,...args],{env})).stdout;
@@ -51,7 +51,7 @@ test('review CLI returns an index, not Deliverable or conversation bodies, with 
 });
 
 test('show CLI defaults to five messages only in ordinary text browsing; since and JSON retain all',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-show-pages-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-show-pages-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
  const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
  const run=async(...args)=>(await exec(process.execPath,[cli,...args],{env})).stdout;

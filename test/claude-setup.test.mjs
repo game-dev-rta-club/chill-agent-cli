@@ -14,7 +14,7 @@ const execute=promisify(execFile);
 const posixShell=()=>process.platform==='win32'?findGitBash():'/bin/sh';
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'chill-claude-setup-')),project=join(dir,"project ' one"),data=join(dir,"data ' one");await mkdir(project);
- t.after(()=>rm(dir,{recursive:true,force:true}));
+ t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const path=join(project,'.claude/settings.local.json'),options={directory:data,entry:join(data,"runtime ' one/chill")};
  const config={permissions:{allow:['Read'],deny:['Bash(rm *)']},env:{EXISTING:'keep'},hooks:{PostToolUse:[{matcher:'Read',hooks:[{type:'command',command:'echo other'}]}]}};
  await mkdir(join(project,'.claude'));await writeFile(path,JSON.stringify(config));

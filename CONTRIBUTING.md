@@ -47,6 +47,20 @@ and review the diff; the script is not part of `npm run check`.
 The fakes are still written by hand, so before a release (and after a Codex update) run the
 [Codex verification](docs/development/codex-verification.md), which checks them against the installed app-server.
 
+### Keep tests stable
+
+A test that fails on a change it has nothing to do with costs every pull request
+a rerun and hides real failures, so it is fixed or removed, never retried
+automatically in CI.
+
+- Remove temporary folders with `rm(path,{recursive:true,force:true,maxRetries:10,retryDelay:100})`,
+  after any child process has exited. On Windows a virus scan or a late handle
+  release can briefly keep a file open.
+- Give a test that checks correctness rather than speed a time limit far above
+  its normal run time; Windows runners can be several times slower.
+- A test that still fails twice in two weeks on unrelated changes is removed,
+  or moved out of `npm run check` into a manual script like `test/*-web.mjs`.
+
 ## Documentation ownership
 
 Write for developers using the infrastructure independently. This repository owns

@@ -12,7 +12,7 @@ const {listWebRecords}=await import('../lib/web-records.mjs');
 
 for(const storage of ['sqlite','json']){
  test(`comments and Letters are numbered within their Goal on read, and a deleted comment keeps its number (${storage})`,async t=>{
-  const root=await mkdtemp(join(tmpdir(),'chill-goal-numbers-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await mkdtemp(join(tmpdir(),'chill-goal-numbers-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex',...(storage==='json'?{CHILL_AGENT_STORAGE:'json'}:{})};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   await run('create','--title','One');await run('create','--title','Two');

@@ -9,7 +9,7 @@ import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 const a='a'.repeat(40),b='b'.repeat(40),c='c'.repeat(40);
 async function fixture(t){
  const directory=await mkdtemp(join(tmpdir(),'chill-update-'));
- t.after(()=>rm(directory,{recursive:true,force:true}));
+ t.after(()=>rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  return {directory,root:join(directory,'old'),port:4173,duration:'3d',supported:true};
 }
 test('detection is read-only, unavailable without a valid candidate, and supports equal-version different commits',async t=>{

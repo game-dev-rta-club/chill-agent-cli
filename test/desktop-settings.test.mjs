@@ -13,7 +13,7 @@ test('optional Desktop IPC validates response, preserves condition and handles f
  server.listen(path);await once(server,'listening');await chmod(path,0o600);
  try{const r=await withDesktopSettings(update=>update('thread',{model:'model',effort:'high'},{ifModelEquals:'previous'}),{platform:'darwin',path});assert.equal(r.applied,false);assert.equal(calls[1].sourceClientId,'test-client');assert.equal(calls[1].version,2);assert.deepEqual(calls[1].params.condition,{ifModelEquals:'previous'});
  await assert.rejects(withDesktopSettings(()=>{}, {platform:'win32',path}));await chmod(path,0o666);await assert.rejects(withDesktopSettings(()=>{}, {platform:'darwin',path}),/Invalid Desktop/);
- }finally{server.close();await rm(dir,{recursive:true,force:true});}
+ }finally{server.close();await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });
 test('unsupported Agent UI is plain settings without an unsupported explanation',()=>{
  const data={connected:true,settings:{model:'m',label:'Model',reasoning:'high'},capabilities:{settings:false},usage:[],queue:{items:[]}};
@@ -38,5 +38,5 @@ test('resume IPC sends normalized plain text required by the Desktop renderer',{
   assert.deepEqual(input,[{type:'text',text:'続きを進めてください',text_elements:[]}]);
   // Desktop inspects UI spans synchronously, before App Server fills defaults.
   assert.equal(input.some(p=>p.type==='text'&&p.text_elements.some(e=>e.placeholder==='aeon-continuation')),false);
- }finally{server.close();await rm(dir,{recursive:true,force:true});}
+ }finally{server.close();await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });

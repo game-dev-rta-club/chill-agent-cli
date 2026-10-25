@@ -19,7 +19,7 @@ async function fixture(t,spec='github:example/chill#aaaa'){
  const versionFile=join(skill,'cli.json'),guide=join(skill,'SKILL.md');
  await writeFile(versionFile,JSON.stringify({package:spec}));await writeFile(guide,'# Guide\n');
  const old=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=data;
- t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
+ t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const env={...process.env,CHILL_AGENT_DATA_DIR:data,CHILL_AGENT_CODEX_PATH:'/never/call/codex'};
  delete env.CHILL_AGENT_HARNESS;delete env.CHILL_AGENT_SESSION_ID;delete env.CHILL_AGENT_CONNECTION_GENERATION;
  const setup=async(...extra)=>JSON.parse((await execute(process.execPath,[join(root,'bin/chill-setup.mjs'),'prepare','--harness','claude-code','--project',project,...extra],{env,timeout:30000,maxBuffer:4*1024*1024})).stdout);

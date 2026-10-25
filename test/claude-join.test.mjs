@@ -16,7 +16,7 @@ async function fixture(t) {
   const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-claude-join-')));
   const previous=process.env.CHILL_AGENT_DATA_DIR;
   process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');
-  t.after(async()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;await rm(dir,{recursive:true,force:true});});
+  t.after(async()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
   const cwd=join(dir,'project');await mkdir(cwd);
   return {dir,cwd,join:env=>joinClaudeConversation({env,cwd})};
 }
