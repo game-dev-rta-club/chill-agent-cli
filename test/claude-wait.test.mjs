@@ -251,6 +251,11 @@ test('a scheduled check wakes the conversation through its watcher when it is du
  assert.equal((await readJson(f.recordPath)).wakes,undefined,'a due check is removed, so it wakes once');
  assert.match(watcherWakeText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*connection wake/);
  await assert.rejects(scheduleClaudeWake({cancel:true,env:f.env(),now}),/whole minutes/,'there is no cancel');
+ // Compact and resume keep the checks; a cleared context starts without them.
+ await scheduleClaudeWake({minutes:5,reason:'Later',env:f.env(),now});
+ await f.start('compact');assert.deepEqual((await readJson(f.recordPath)).wakes.map(w=>w.reason),['Later']);
+ await f.start('resume');assert.equal((await readJson(f.recordPath)).wakes.length,1);
+ await f.start('clear');assert.equal((await readJson(f.recordPath)).wakes,undefined);
 });
 
 test('the watcher hook hands saved feedback over and wakes the model with it',async t=>{

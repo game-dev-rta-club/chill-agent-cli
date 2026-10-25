@@ -43,7 +43,8 @@ the terminal when the watcher wakes the conversation.
 - Feedback is claimed through the same inbox as tool hooks, so holds, a Web
   pause, ownership checks and Resume behave as in any other delivery.
 - Each `connection wake` adds a check to the conversation's list; none replaces
-  another, and `connection show` lists those still to come. A due check wakes
+  another, compact and resume keep it, and `connection show` lists those still
+  to come. A due check wakes
   the conversation with its reason and is removed, so it wakes once. One wake
   carries one check, the earliest due first; the response it wakes starts the
   next watcher, which wakes for the next due check. A check due while a response
