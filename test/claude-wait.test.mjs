@@ -13,7 +13,7 @@ import {holdClaudeConversation,holdResultText,watchClaudeConversation,watcherWak
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
 import {deliverFeedback} from '../lib/delivery.mjs';
-import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
+import {readJson,replaceRetryMs,writeJsonAtomically} from '../lib/storage.mjs';
 import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
 import {fileURLToPath} from 'node:url';
 import {hookFor} from './claude-fixtures.mjs';
@@ -421,7 +421,8 @@ test('on Windows a task outlasts a record that refuses replacement for longer th
  await until(async()=>!!(await readJson(f.recordPath)).hold);
  // A read-only record refuses replacement (EPERM) as a file an antivirus holds does.
  await chmod(f.recordPath,0o444);
- try{await new Promise(r=>setTimeout(r,7000));assert.equal(ended,null,'the task keeps holding');}
+ // Longer than a write retries (replaceRetryMs), so the watch loop itself must carry on.
+ try{await new Promise(r=>setTimeout(r,replaceRetryMs+2000));assert.equal(ended,null,'the task keeps holding');}
  finally{await chmod(f.recordPath,0o644);}
  const before=(await readJson(f.recordPath)).hold.checkedAt;
  await until(async()=>(await readJson(f.recordPath)).hold.checkedAt!==before);
