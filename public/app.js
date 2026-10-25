@@ -634,7 +634,14 @@ function selectionAnchor() {
   const quote = annotationTextNodes(body).map(n => n.textContent).join('').slice(start - base, end - base).trim();
   if (!quote) return null;
   const source = body.dataset.annotationReply ? {kind: 'comment', eventId: Number(body.dataset.annotationReply), ...(body.dataset.replyField==='title'?{field:'title'}:{})} : {kind: 'brief',version:activeVersion};
-  return {start, end, quote, source, document:body.ownerDocument, rect: (()=>{const r=range.getBoundingClientRect(),f=htmlBriefFrame();if(body.ownerDocument===document||!f)return r;const p=f.getBoundingClientRect();return {left:r.left+p.left,right:r.right+p.left,top:r.top+p.top,bottom:r.bottom+p.top};})()};
+  // A long line in a code block can run past what its scroll box shows, so the
+  // button keeps to the right edge of every box that clips the selection.
+  const f=body.ownerDocument===document?null:htmlBriefFrame(),p=f?.getBoundingClientRect(),dx=p?.left||0,dy=p?.top||0,r=range.getBoundingClientRect();
+  let clipRight=f?p.left+f.clientLeft+f.clientWidth:Infinity;
+  for(let el=range.commonAncestorContainer.nodeType===Node.ELEMENT_NODE?range.commonAncestorContainer:range.commonAncestorContainer.parentElement;el&&el!==body.ownerDocument.documentElement;el=el.parentElement){
+    if(getComputedStyle(el).overflowX==='visible')continue;const box=el.getBoundingClientRect();clipRight=Math.min(clipRight,box.left+el.clientLeft+el.clientWidth+dx);
+  }
+  return {start, end, quote, source, document:body.ownerDocument, clipRight, rect:{left:r.left+dx,right:r.right+dx,top:r.top+dy,bottom:r.bottom+dy}};
 }
 
 let selectionActionTimer;
@@ -647,7 +654,7 @@ function updateSelectionAction() {
     pendingAnchor = {start: anchor.start, end: anchor.end, quote: anchor.quote, source: anchor.source};
     const viewport = window.visualViewport;
     const leftEdge = viewport?.offsetLeft || 0;
-    const rightEdge = (viewport?.offsetLeft || 0) + (viewport?.width || window.innerWidth) - 8;
+    const rightEdge = Math.min((viewport?.offsetLeft || 0) + (viewport?.width || window.innerWidth), anchor.clipRight) - 8;
     const right = Math.min(anchor.rect.right, rightEdge);
     const left = Math.max(leftEdge, right - 44);
     if (right - left < 24) return hideAnnotationAction();

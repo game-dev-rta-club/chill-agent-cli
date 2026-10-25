@@ -12,7 +12,7 @@ const root=await mkdtemp(join(tmpdir(),'chill-markdown-web-')),env={...process.e
 const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
 const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
 await run('create','--title','Deliverable and Markdown');
-const source='# What we will realize\n\nA short **shared outcome**.\n\n## Behavior\n\n- First option\n- Second option\n\n### Details\n\n| Item | Status |\n| --- | --- |\n| Table value | Ready |\n\n```mermaid\ngraph LR\n A[Question] --> B[Answer]\n```\n\nParagraph **after diagram**.\n\n## Other\n\n```js\nconst html = "<button>";\n```';
+const source='# What we will realize\n\nA short **shared outcome**.\n\n```\nlong: '+'wide '.repeat(80)+'end\n```\n\n## Behavior\n\n- First option\n- Second option\n\n### Details\n\n| Item | Status |\n| --- | --- |\n| Table value | Ready |\n\n```mermaid\ngraph LR\n A[Question] --> B[Answer]\n```\n\nParagraph **after diagram**.\n\n## Other\n\n```js\nconst html = "<button>";\n```';
 await writeFile(join(root,'workspace/goals/1/deliverable.md'),source);await run('deliverable','update','--id','1');
 const message='**Formatted** opening.\n\n## Supporting information\n\n### Table\n\n| Item | State |\n| --- | --- |\n| Choice | Ready |\n\n```mermaid\ngraph TD\n A --> B\n```\n\nUse [the guide](https://example.com) after this diagram.';
 const comment=await run('letter','--id','1','--title','Can you read this Letter?','--text',message);
@@ -37,6 +37,13 @@ try {
  const canonical=await page.evaluate(async()=>{
   const {annotationTextNodes}=await import('/markdown-view.js');return annotationTextNodes(document.querySelector('.brief-body')).map(n=>n.textContent).join('');
  });assert.equal(canonical,markdownText(source));
+ // A line wider than its code block keeps the button inside what the block shows.
+ await brief.locator('pre').first().scrollIntoViewIfNeeded();
+ await page.evaluate(()=>{const pre=document.querySelector('.brief-body pre'),node=document.createTreeWalker(pre,NodeFilter.SHOW_TEXT).nextNode(),r=document.createRange();r.setStart(node,0);r.setEnd(node,node.textContent.indexOf('end'));const s=window.getSelection();s.removeAllRanges();s.addRange(r);});
+ await page.locator('.annotation-action').waitFor();
+ const [codeBox,wideAction]=await Promise.all([brief.locator('pre').first().boundingBox(),page.locator('.annotation-action').boundingBox()]);
+ assert.ok(wideAction.x+wideAction.width<=codeBox.x+codeBox.width,'the button stays inside a code block that scrolls sideways');
+ await page.evaluate(()=>window.getSelection().removeAllRanges());
  async function annotate(selector,quote,reply) {
   await page.locator(selector).scrollIntoViewIfNeeded();
   await page.evaluate(({selector,quote})=>{const el=document.querySelector(selector),node=el.firstChild;const r=document.createRange();r.setStart(node,node.textContent.indexOf(quote));r.setEnd(node,node.textContent.indexOf(quote)+quote.length);const s=window.getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));},{selector,quote});
