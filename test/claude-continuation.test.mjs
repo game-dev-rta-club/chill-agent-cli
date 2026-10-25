@@ -54,9 +54,9 @@ test('Web input during an Auto mode run waits for its stop, and is answered befo
  const hook=f.event('PostToolUse',{tool_name:'Read',tool_use_id:randomUUID(),tool_response:{text:'ordinary work'}});
  assert.equal(await handleClaudeToolHook(hook,{cwd:f.cwd}),null,'the running work is not interrupted');
  assert.match((await f.stop()).reason,/Correction while Auto mode is working/,'its stop hands the correction over');
- const next=(await f.stop({last_assistant_message:'Fixed the correction.'})).reason;
- assert.equal((await readFeedback()).at(-1).text,'Fixed the correction.','the final reply answers the handed Goal, so nothing is held');
- assert.match(next,/Auto mode is On/,'new input is a new revision');assert.doesNotMatch(next,new RegExp(`comment ${reply.changeId}`));
+ assert.match((await f.stop()).reason,/where things stand/,'a handed Goal the user heard nothing about is held first');
+ assert.match((await f.stop()).reason,new RegExp(`still waits for your reply: comment ${reply.changeId} on Goal #1`),'new input is a new revision; the request names the open feedback');
+ await appendAgentComment({goalId:f.root.id,type:'comment',text:'Working on the correction; next update after the tests.'});
  assert.equal(await f.stop(),null,'the same revision is not continued again, and the user has heard back');
 });
 test('Off and explicit continuation Pause preserve the attempt history',async t=>{
@@ -71,11 +71,9 @@ test('input in another owned Root is handed before any request',async t=>{
  assert.match((await f.stop()).reason,/Wait for my correction/);assert.equal((await f.read()).attempts.length,0);
 });
 test('a handed Goal still awaiting a reply is named by the request until the agent replies',async t=>{
- // A response that ends with no text leaves the Goal awaiting a reply. It is the
- // conversation's current Goal, so the stop is not held for it and the request names it.
  const f=await fixture(t);await f.configure();const reply=await appendFeedback({goalId:f.root.id,text:'New input'});await f.action('inbox',{});
- const first=await f.stop({last_assistant_message:null});assert.equal(first.decision,'block');assert.match(first.reason,new RegExp(`comment ${reply.changeId} on Goal #${f.root.id}`));
- assert.match(first.reason,new RegExp(`Your messages in this conversation are posted to Goal #${f.root.id}\\.`));
+ assert.match((await f.stop()).reason,/where things stand/,'the hold comes first');
+ const first=await f.stop();assert.equal(first.decision,'block');assert.match(first.reason,new RegExp(`comment ${reply.changeId} on Goal #${f.root.id}`));
  const done=await fixture(t);await done.configure();await appendFeedback({goalId:done.root.id,text:'Quick input'});
  await done.action('inbox',{});await done.action('reply',{goalId:done.root.id,text:'Done'});
  const next=await done.stop();assert.equal(next.decision,'block');assert.doesNotMatch(next.reason,/still waits for your reply/);
@@ -147,12 +145,17 @@ test('a taken-over Root keeps its setting; an unconfirmed request is closed, nev
  assert.deepEqual(await journal.read(f.root.id),foreign);
 });
 
-test('a stop is held while Goals handed together await replies and nothing runs; the agent speaking on them lets it end',async t=>{
- // Feedback from two Goals at once leaves no current Goal, so nothing the agent writes answers them.
- const f=await fixture(t),a=await createGoal({title:'A',parentId:f.root.id}),b=await createGoal({title:'B',parentId:f.root.id});
- await appendFeedback({goalId:a.id,text:'Short work'});await appendFeedback({goalId:b.id,text:'Other work'});await f.action('inbox',{});
- const first=await f.stop();
- assert.equal(first?.decision,'block');assert.match(first.reason,new RegExp(`Goal #${a.id}, Goal #${b.id}\\b`));
+test('a stop is held while a handed Goal awaits a reply and nothing runs; the agent speaking on it lets it end',async t=>{
+ const f=await fixture(t);
+ await appendFeedback({goalId:f.root.id,text:'Short work'});
+ const handed=(await f.action('inbox',{})).hookSpecificOutput.additionalContext;
+ assert.match(handed,/Reply on the Goal \(this answers it\): .* connection reply --goal <goalId> --text '<reply>'/);
+ // What the agent wrote is never posted for it: only a reply or Comment answers the Goal.
+ const transcript=join(f.dir,'transcript.jsonl');
+ await writeFile(transcript,JSON.stringify({type:'assistant',uuid:randomUUID(),message:{model:'claude',content:[{type:'text',text:'Done with the short work.'}]}})+'\n');
+ const first=await f.stop({transcript_path:transcript,last_assistant_message:'Done with the short work.'});
+ assert.deepEqual((await readFeedback()).filter(e=>e.author==='agent'),[],'nothing is posted at Stop');
+ assert.equal(first?.decision,'block');assert.match(first.reason,new RegExp(`Goal #${f.root.id}\\b`));
  assert.match(first.reason,/connection reply --goal <goalId>/);assert.match(first.reason,/goal comment --id <goalId>/);
  assert.equal(await f.stop({stop_hook_active:true}),null,'the stop right after a hold ends');
  await f.newPrompt();
@@ -163,19 +166,19 @@ test('a stop is held while Goals handed together await replies and nothing runs;
  const waiter={id:'b1',type:'shell',status:'running',description:'Desktop hold',command:"'/data/runtime/chill' connection wait"};
  assert.equal((await f.stop({background_tasks:[waiter]}))?.decision,'block','chill\'s own hold task is not work');
  await f.stop({stop_hook_active:true});
- await f.newPrompt();
- for(const goal of [a,b])await appendAgentComment({goalId:goal.id,type:'comment',text:'Waiting for CI; I will check in 10 minutes.'});
- assert.equal(await f.stop(),null,'progress comments answer the Goals');
- assert.deepEqual((await readFeedback()).filter(e=>e.autoPosted),[],'no message was posted to either Goal');
- await appendFeedback({goalId:a.id,text:'Long work'});
+ await f.newPrompt();await appendAgentComment({goalId:f.root.id,type:'comment',text:'Waiting for CI; I will check in 10 minutes.'});
+ assert.equal(await f.stop(),null,'a progress comment answers the Goal');
+ await appendFeedback({goalId:f.root.id,text:'Long work'});
  assert.match((await f.stop()).reason,/Long work/,'a new comment is handed at the stop');
- assert.equal(await f.stop(),null,'its Goal is now current, and the message answers it');
- assert.deepEqual((await readFeedback()).filter(e=>e.autoPosted).map(e=>e.goalId),[a.id]);
+ assert.equal((await f.stop())?.decision,'block','and its Goal awaits a reply again');
+ await f.action('reply',{goalId:f.root.id,text:'Done'});
+ assert.equal(await f.stop(),null,'a reply on the Goal');
 });
 test('the request asks for one look back and names no command, so a turn with nothing left ends in one response',async t=>{
  const f=await fixture(t);await f.configure();
  const {reason}=await f.stop();
  assert.match(reason,/ask yourself once/);assert.match(reason,/Run no commands and write no turn summary/);
+ assert.match(reason,/carry it out now and report the results in a Comment\./);
  assert.doesNotMatch(reason,/monitor result|goal review|goal tree|goal show|```/);
  assert.match(reason,/There (is|are) \d+ unfinished Goals?|Every Goal is marked Done/);
 });

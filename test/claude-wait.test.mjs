@@ -298,45 +298,41 @@ test('the watcher hook follows a cleared context and ends when the conversation 
  assert.equal((await readJson(f.recordPath)).waiter,undefined);
 });
 
-test('checks for different Goals each wake the conversation once, earliest first, with their own reason and Goal',async t=>{
+test('each check wakes the conversation once, earliest first, with its own reason',async t=>{
  const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
- const f=await fixture(t),a=await createGoal({title:'A',parentId:f.root.id}),b=await createGoal({title:'B',parentId:f.root.id});
+ const f=await fixture(t);
  let clock=Date.now();const now=()=>clock;
  // A recount in two days is scheduled first; a CI check in 15 minutes does not replace it.
- await scheduleClaudeWake({minutes:2*24*60,reason:'Recount',goal:a.id,env:f.env(),now});
- const {wake,wakes}=await scheduleClaudeWake({minutes:15,reason:'CI of PR #91',goal:b.id,env:f.env(),now});
- assert.equal(wake.goalId,b.id);
- assert.deepEqual(wakes.map(w=>[w.goalId,w.reason]),[[b.id,'CI of PR #91'],[a.id,'Recount']],'both stay, earliest first');
- // A second check for the same Goal is added beside the first.
- await scheduleClaudeWake({minutes:30,reason:'CI again',goal:b.id,env:f.env(),now});
+ await scheduleClaudeWake({minutes:2*24*60,reason:'Recount',env:f.env(),now});
+ const {wake,wakes}=await scheduleClaudeWake({minutes:15,reason:'CI of PR #91',env:f.env(),now});
+ assert.equal(wake.reason,'CI of PR #91');
+ assert.deepEqual(wakes.map(w=>w.reason),['CI of PR #91','Recount'],'both stay, earliest first');
+ // A second check for the same thing is added beside the first.
+ await scheduleClaudeWake({minutes:30,reason:'CI again',env:f.env(),now});
  assert.deepEqual((await readJson(f.recordPath)).wakes.map(w=>w.reason),['CI of PR #91','CI again','Recount']);
  clock+=15*60000;
- assert.deepEqual(await f.wait({now}).done,{status:'wake',reason:'CI of PR #91',goalId:b.id});
- assert.equal((await readJson(f.recordPath)).currentGoal,b.id);
+ assert.deepEqual(await f.wait({now}).done,{status:'wake',reason:'CI of PR #91'});
  const later=f.wait({now});await f.waiting();await new Promise(r=>setTimeout(r,50));
  assert.equal((await readJson(f.recordPath)).wakes.length,2,'the next checks are not due yet');
  clock+=15*60000;
- assert.deepEqual(await later.done,{status:'wake',reason:'CI again',goalId:b.id});
+ assert.deepEqual(await later.done,{status:'wake',reason:'CI again'});
  clock+=2*24*60*60000;
- assert.deepEqual(await f.wait({now}).done,{status:'wake',reason:'Recount',goalId:a.id});
- assert.equal((await readJson(f.recordPath)).currentGoal,a.id);
+ assert.deepEqual(await f.wait({now}).done,{status:'wake',reason:'Recount'});
  assert.equal((await readJson(f.recordPath)).wakes,undefined);
 });
 
 test('checks that fell due while the machine slept wake the conversation one per wake, in due order',async t=>{
  const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
- const f=await fixture(t),a=await createGoal({title:'A',parentId:f.root.id});
+ const f=await fixture(t);
  let clock=Date.now();const now=()=>clock;
  await scheduleClaudeWake({minutes:20,reason:'Third',env:f.env(),now});
- await scheduleClaudeWake({minutes:5,reason:'First',goal:a.id,env:f.env(),now});
+ await scheduleClaudeWake({minutes:5,reason:'First',env:f.env(),now});
  await scheduleClaudeWake({minutes:10,reason:'Second',env:f.env(),now});
  clock+=8*60*60000;
- assert.deepEqual(await f.wait({now}).done,{status:'wake',reason:'First',goalId:a.id});
- // A check without a Goal leaves the conversation's current Goal as it is.
+ assert.deepEqual(await f.wait({now}).done,{status:'wake',reason:'First'});
  assert.deepEqual(await f.wait({now}).done,{status:'wake',reason:'Second'});
- assert.equal((await readJson(f.recordPath)).currentGoal,a.id);
  assert.deepEqual(await f.wait({now}).done,{status:'wake',reason:'Third'});
- assert.equal((await readJson(f.recordPath)).currentGoal,a.id);
+ assert.equal((await readJson(f.recordPath)).currentGoal,undefined,'a wake chooses no Goal for the conversation');
  assert.deepEqual(await f.wait({maxMs:50}).done,{status:'idle'},'nothing is left to wake for');
 });
 
@@ -358,13 +354,17 @@ test('a check that falls due while a response runs waits for its end',async t=>{
  assert.deepEqual(await w.done,{status:'wake',reason:'CI'});
 });
 
-test('connection show lists the pending checks: due time, Goal and reason',async t=>{
+test('connection show lists the pending checks: due time and reason',async t=>{
  const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
- const f=await fixture(t),a=await createGoal({title:'A',parentId:f.root.id});
- const late=(await scheduleClaudeWake({minutes:60,reason:'Recount',env:f.env()})).wake,soon=(await scheduleClaudeWake({minutes:10,reason:'CI',goal:a.id,env:f.env()})).wake;
+ const f=await fixture(t);
+ const late=(await scheduleClaudeWake({minutes:60,reason:'Recount',env:f.env()})).wake,soon=(await scheduleClaudeWake({minutes:10,reason:'CI',env:f.env()})).wake;
+ // A Goal stored on a check by an earlier version is ignored.
+ const record=await readJson(f.recordPath);await writeJsonAtomically(f.recordPath,{...record,wakes:record.wakes.map((w,i)=>i?w:{...w,goalId:f.root.id})});
  const bin=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
- const shown=await new Promise((resolve,reject)=>{const child=spawn(process.execPath,[bin,'show'],{cwd:f.cwd,env:{...process.env,...f.env(),CHILL_AGENT_DATA_DIR:f.data,CLAUDE_CODE_SESSION_ID:f.connection.sessionId}});let out='',err='';child.stdout.on('data',d=>out+=d);child.stderr.on('data',d=>err+=d);child.on('close',code=>code?reject(Error(err)):resolve(JSON.parse(out)));});
- assert.deepEqual(shown.wakes,[{at:soon.at,goalId:a.id,reason:'CI'},{at:late.at,reason:'Recount'}]);
+ const run=(...args)=>new Promise((resolve,reject)=>{const child=spawn(process.execPath,[bin,...args],{cwd:f.cwd,env:{...process.env,...f.env(),CHILL_AGENT_DATA_DIR:f.data,CLAUDE_CODE_SESSION_ID:f.connection.sessionId}});let out='',err='';child.stdout.on('data',d=>out+=d);child.stderr.on('data',d=>err+=d);child.on('close',code=>code?reject(Error(err)):resolve(JSON.parse(out)));});
+ const shown=await run('show');
+ assert.deepEqual(shown.wakes,[{at:soon.at,reason:'CI'},{at:late.at,reason:'Recount'}]);
+ await assert.rejects(run('wake','--in','5','--reason','CI','--goal',f.root.id),/--goal/,'a check names no Goal');
 });
 
 test('the watcher hook wakes for a due check and ends itself before its hook timeout',async t=>{
