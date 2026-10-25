@@ -9,7 +9,7 @@ import {openSqliteWorkspace} from '../lib/sqlite-workspace.mjs';
 import {fileURLToPath} from 'node:url';
 async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chill-migrate-')),source=join(root,'old'),destination=join(root,'bundle');
- t.after(()=>rm(root,{recursive:true,force:true}));
+ t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  async function put(path,value){await mkdir(join(source,path,'..'),{recursive:true});await writeFile(join(source,path),typeof value==='string'||Buffer.isBuffer(value)?value:JSON.stringify(value,null,2)+'\n');}
  await put('schema.json',{format:'goal-workspace',version:7});
  // Parent ID larger than child ID; foreign keys must be deferred for import.

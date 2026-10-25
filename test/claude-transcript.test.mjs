@@ -9,7 +9,7 @@ import {claudeEntry,claudeLines} from './claude-fixtures.mjs';
 const assistant=(uuid,content,timestamp,patch)=>claudeEntry.assistant(uuid,content,{timestamp,effort:'high',message:{model:'claude-opus-5-5'},...patch});
 
 test('the transcript gives the model and the public text written since the work started',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-transcript-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-transcript-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const path=join(dir,'session.jsonl');
  await writeFile(path,claudeLines([
   claudeEntry.prompt('p0','Earlier request'),

@@ -53,4 +53,4 @@ try{
  }
  assert.deepEqual(errors,[]);
  console.log('passed: saved setup request, Root isolation, first click and keyboard toggle, retained connection, no Off replay, idempotent notice/result, exact history, responsive layout');
-}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

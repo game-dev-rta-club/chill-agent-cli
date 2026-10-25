@@ -6,7 +6,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const exec=promisify(execFile);
 for(const storage of ['json','sqlite'])test(`archive retains history and IDs, hides entire roots: ${storage}`,async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-archive-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-archive-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';
  import * as store from ${JSON.stringify(new URL('../lib/goal-store.mjs',import.meta.url).href)};

@@ -24,7 +24,7 @@ async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-claude-actions-'));
   const previous={data:process.env.CHILL_AGENT_DATA_DIR,codex:process.env.CHILL_AGENT_CODEX_PATH};
   process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');process.env.CHILL_AGENT_CODEX_PATH='/never/call/codex';
-  t.after(async()=>{for(const [key,value] of [['CHILL_AGENT_DATA_DIR',previous.data],['CHILL_AGENT_CODEX_PATH',previous.codex]]){if(value===undefined)delete process.env[key];else process.env[key]=value;}await rm(dir,{recursive:true,force:true});});
+  t.after(async()=>{for(const [key,value] of [['CHILL_AGENT_DATA_DIR',previous.data],['CHILL_AGENT_CODEX_PATH',previous.codex]]){if(value===undefined)delete process.env[key];else process.env[key]=value;}await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
   const cwd=join(dir,'project');await mkdir(cwd);
   async function start(sessionId='native/session',source='startup') {
     const envFile=join(dir,randomUUID());await writeFile(envFile,'');

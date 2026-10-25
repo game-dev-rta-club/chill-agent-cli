@@ -16,5 +16,5 @@ test('Activity settings match the actual turn across chunks, preserve history, a
  assert.deepEqual(await readTurnSettings(path,'new'),{model:'astra',reasoning:'xhigh'});
  assert.deepEqual(await readTurnSettings(path,'old'),{model:'astra',reasoning:'medium'});
  assert.equal(await readTurnSettings('/missing','old'),null);
- }finally{await rm(dir,{recursive:true,force:true});}
+ }finally{await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });

@@ -13,7 +13,7 @@ const execute = promisify(execFile);
 const root = fileURLToPath(new URL('../',import.meta.url));
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'chill-help-'));
-  t.after(() => rm(directory, { recursive:true, force:true }));
+  t.after(() => rm(directory, { recursive:true, force:true,maxRetries:10,retryDelay:100 }));
   const data = join(directory, 'not initialized');
   const env = {...process.env, CHILL_AGENT_DATA_DIR:data, CHILL_AGENT_CODEX_PATH:'/missing/codex',
     CHILL_AGENT_CLOUDFLARED_PATH:'/missing/cloudflared', PORT:'not-a-port', CHILL_AGENT_IDLE_TIMEOUT:'invalid'};

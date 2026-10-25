@@ -23,7 +23,7 @@ Object.assign(process.env, {
 process.on('exit', () => {
   let text = '';
   try { text = readFileSync(contractLog, 'utf8'); } catch { /* nothing was recorded */ }
-  rmSync(home, {recursive: true, force: true});
+  rmSync(home, {recursive: true, force: true, maxRetries: 10, retryDelay: 100});
   if (!text) return;
   process.stderr.write(`\nCodex contract violations recorded during this test file:\n${text}`);
   process.exitCode = 1;

@@ -33,4 +33,4 @@ try{
   await page.goto('about:blank');
  }
  assert.deepEqual(errors,[]);console.log('passed: paged history and off-page closed Letter links on desktop and mobile');
-}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

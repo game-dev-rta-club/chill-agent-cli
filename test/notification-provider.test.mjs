@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
 test('an absent provider permits legacy settings; a configured broken provider never does', async t=>{
-  const root=await mkdtemp(join(tmpdir(),'chill-provider-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await mkdtemp(join(tmpdir(),'chill-provider-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   await mkdir(join(root,'lib'));
   const loader=join(root,'lib/notification-provider.mjs');
   await copyFile(new URL('../lib/notification-provider.mjs',import.meta.url),loader);

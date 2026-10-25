@@ -37,4 +37,4 @@ try{
  await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Search',exact:true}).click();
  assert.equal(await input.inputValue(),'lighthouse');await page.keyboard.press('Escape');assert.equal(await dialog.isVisible(),false);
  assert.deepEqual(errors,[]);console.log('PASS: More → Search, pause before asking, width/case folding, marks, Enter opens an old comment, Escape closes');
-}finally{await browser?.close();server?.kill();await rm(root,{recursive:true,force:true});}
+}finally{await browser?.close();server?.kill();await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

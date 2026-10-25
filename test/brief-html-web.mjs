@@ -88,4 +88,4 @@ try {
  await page.getByRole('button',{name:'Close annotation',exact:true}).click();
  await run('deliverable','update','--id','1','--format','markdown');await page.goto(url+'/#/goal/1');await page.getByRole('heading',{name:'Markdown remains'}).waitFor();assert.equal(await page.locator('.html-brief-frame').count(),0);
  assert.deepEqual(errors,[]);console.log('passed: isolated HTML, annotation with delayed selectionchange, scroll positioning, canonical annotations, saved note preview, responsive layout, disclosures and mixed-format history');
-} finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+} finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
