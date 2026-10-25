@@ -17,7 +17,8 @@ test('Claude and Codex show the same feedback text, with the recorded guide and 
   assert.match(text,/The user reads only the Web and waits for a reply on each Goal\. Reply on each Goal: /);
  for(const text of [claude,codex]){
   assert.match(text,new RegExp(`Workflow: ${JSON.stringify(guide).replace(/[\\\\^$.*+?()[\]{}|]/g,'\\$&')}`));
-  assert.match(text,/The user reads only the Web\. Your messages in this conversation are posted to Goal #1\. To reply on a specific Goal: /);
+  assert.ok(text.includes("\nThe user reads only the Web. The last message of each turn is posted to Goal #1 as written; write it in the user's language.\n"));
+  assert.doesNotMatch(text,/To reply on a specific Goal/);
   assert.doesNotMatch(text,/final reply|Skills named/);
  }
  // Only the commands differ.

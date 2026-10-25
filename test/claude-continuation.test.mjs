@@ -11,6 +11,7 @@ import {transferClaudeRoot} from '../lib/claude-roots.mjs';
 import {readForWeb,configureFromWeb,onStop} from '../lib/claude-continuation.mjs';
 import {storage} from '../lib/extension-api.mjs';
 import {readMonitor} from '../lib/continuation-monitor.mjs';
+import {lastMessageNotice} from '../lib/agent-messages.mjs';
 import {hookFor} from './claude-fixtures.mjs';
 
 async function fixture(t){
@@ -75,7 +76,7 @@ test('a handed Goal still awaiting a reply is named by the request until the age
  // conversation's current Goal, so the stop is not held for it and the request names it.
  const f=await fixture(t);await f.configure();const reply=await appendFeedback({goalId:f.root.id,text:'New input'});await f.action('inbox',{});
  const first=await f.stop({last_assistant_message:null});assert.equal(first.decision,'block');assert.match(first.reason,new RegExp(`comment ${reply.changeId} on Goal #${f.root.id}`));
- assert.match(first.reason,new RegExp(`Your messages in this conversation are posted to Goal #${f.root.id}\\.`));
+ assert.ok(first.reason.includes(lastMessageNotice(f.root.id)));
  const done=await fixture(t);await done.configure();await appendFeedback({goalId:done.root.id,text:'Quick input'});
  await done.action('inbox',{});await done.action('reply',{goalId:done.root.id,text:'Done'});
  const next=await done.stop();assert.equal(next.decision,'block');assert.doesNotMatch(next.reason,/still waits for your reply/);

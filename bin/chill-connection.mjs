@@ -84,7 +84,7 @@ async function main() {
   if(await quietClaudeHook(input))return;
   // Every main hook reports what the conversation is doing before it is handled.
   await reportClaudeHook(input);
-  // What the agent wrote before a tool call is posted at its hooks (agent-messages).
+  // A tool call is noted at its hooks (agent-messages).
   if(['PreToolUse','PermissionRequest'].includes(input?.hook_event_name))await postClaudeHookMessages(input);
   if(input?.hook_event_name==='PermissionRequest') {
     const output=await claudePlanApproval(input)??await claudePermissionDecision(input);

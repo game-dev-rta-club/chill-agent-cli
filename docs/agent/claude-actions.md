@@ -4,7 +4,7 @@ keyPoints: >-
   in its shell, as Codex commands do; there is no request marker to confirm.
   Web input reaches a conversation only through its main hooks (tool hooks and
   the watcher), which never run for a subagent. A Goal waits for a reply while
-  the user commented after the agent; every message the agent writes is posted to
+  the user commented after the agent; the last message of each turn is posted to
   the conversation's current Goal, and `reply --goal` replies on a specific Goal
   and makes it current. Stop holds a response once when other handed Goals still
   wait for a reply with nothing left running. Optional connection extensions run the same way.
@@ -116,12 +116,11 @@ Subagent hooks never hand feedback: a subagent that received it would end with
 it, and the main conversation would never see it. Replies after a response ends
 reach the conversation through the [watcher hook](claude-wait.md).
 
-Every main hook (prompt, tool, Stop, StopFailure, exit) first posts what the
-agent wrote since the last one to the conversation's current Goal, kept in the
-entry record as `currentGoal` with how far the transcript was read (`messages`):
-each new public text block of the main conversation, once, by the block's
-`uuid` and index. The Stop also posts `last_assistant_message` when the
-transcript does not show it yet, keyed by the session and `prompt_id`. A hand-off
+Every main hook (prompt, tool, Stop, StopFailure, exit) first reads the
+transcript on from where the last one stopped, for Keep going requests and tool
+calls (`messages` in the entry record). The Stop then posts `last_assistant_message`
+to the conversation's current Goal, kept in the entry record as `currentGoal`,
+once, keyed by the session, `prompt_id` and the text. A hand-off
 from one Goal, `connection reply` and a due `connection wake --goal` set the
 current Goal (see [The agent's messages](feedback-and-controls.md#the-agents-messages));
 a subagent's hooks never post. The Stop then applies the shared

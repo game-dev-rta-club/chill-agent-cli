@@ -42,8 +42,8 @@ provider's payload; the host checks only its envelope.
 ## Decide at Stop
 
 `onStop({connection, generation, promptId, checkpointId, currentGoal})` runs under the native
-entry lock when a main response ends (`currentGoal`: the Goal the conversation's
-messages are posted to, or null); a subagent Stop never calls it. Return
+entry lock when a main response ends (`currentGoal`: the Goal the last message of
+each turn is posted to, or null); a subagent Stop never calls it. Return
 `null` to abstain or a reason string to continue. The host emits native
 `decision: "block"` with a fresh checkpoint ID each Stop; the provider's own
 reservation decides whether a repeated Stop continues again.

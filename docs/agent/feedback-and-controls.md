@@ -1,9 +1,9 @@
 ---
 keyPoints: >-
   Feedback is saved first and handed to the Root's agent by one cursor per Root.
-  A Comment on the Goal answers it; there are no receipts. Every message the agent
-  writes in its conversation is posted to the conversation's current Goal: the
-  Goal last handed feedback, replied on or woken for. While the agent's own
+  A Comment on the Goal answers it; there are no receipts. The last message of
+  each turn the agent takes in its conversation is posted to the conversation's
+  current Goal: the Goal last handed feedback, replied on or woken for. While the agent's own
   work runs, feedback waits for its end unless the user sends it now. Pause holds
   everything until Resume; a stop in the agent's own app shows as Interrupted.
 ---
@@ -18,7 +18,7 @@ Saved until an agent takes the Root over.
 ## From saved feedback to the agent
 
 ```text
-Web feedback → saved Conversation → handed to the Root's agent → the agent's messages (or a Comment) on the Goal
+Web feedback → saved Conversation → handed to the Root's agent → the turn's last message (or a Comment) on the Goal
 ```
 
 Each Root keeps one cursor: the last comment handed to its agent
@@ -31,8 +31,8 @@ How the comments are carried depends on the harness. An idle Codex chat is sent
 every waiting comment as one message; a Codex chat that cannot be reached keeps
 them Saved and is sent them once chill can reach it. Claude Code receives them
 through its hooks: a tool hook while it works, the watcher hook while it is idle. Either way, the same text lists the
-comments as data, with the command to read each Goal, names the Goal the agent's messages are posted to (or, after
-feedback from several Goals, asks for a reply on each), and gives the command to reply on a Goal (`feedbackText` in
+comments as data, with the command to read each Goal, names the Goal the last message of each turn is posted to (or, after
+feedback from several Goals, asks for a reply on each and gives the command to reply on a Goal; `feedbackText` in
 [delivery](../../lib/delivery.mjs)).
 
 ## Waiting: feedback saved while the agent works
@@ -62,18 +62,17 @@ the Goal a Claude check scheduled with `connection wake --goal` was for when it
 wakes. A hand-off that brings feedback from several Goals leaves none until the
 agent replies on one.
 
-Every public text message the agent writes is posted, in order, as an agent
-Comment on the current Goal, whether or not the Goal awaits a reply
-([agent messages](../../lib/agent-messages.mjs)). At each of its hooks chill reads
-the conversation's transcript (Claude Code's transcript, Codex's rollout file,
-both named by the hook's `transcript_path`) from where it last read, and posts
-each new text block before the hook hands anything. Each post's request ID comes
-from the block's own ID, so a block that two hooks or a repeated Stop read posts
-once. A Stop also posts the last assistant message it receives when the
-transcript does not show it yet; without a transcript, as a Codex hook may have,
-only that message is posted. Nothing is posted for empty text, from a subagent,
-while no Goal is current, or for the answer to a Keep going request that ran no
-tool since the request.
+The last message of each turn the agent takes is posted as an agent Comment on
+the Goal current at the end of the turn, whether or not the Goal awaits a reply
+([agent messages](../../lib/agent-messages.mjs)). It is the last assistant message
+the Stop hook receives (Claude Code's Stop, Codex's turn end), posted before the
+hook hands anything; what the agent writes earlier in the turn is not posted. The
+post's request ID comes from the turn and the text, so a repeated Stop posts once.
+At each of its hooks chill reads the conversation's transcript (Claude Code's
+transcript, Codex's rollout file, both named by the hook's `transcript_path`) from
+where it last read, only to see Keep going requests and tool calls. Nothing is
+posted for an empty last message, from a subagent, while no Goal is current, or
+for the answer to a Keep going request that ran no tool since the request.
 
 A post answers only the comments handed so far (`answers`): one saved during the
 work is handed after it and still awaits its own reply. Posts are marked
@@ -81,7 +80,7 @@ work is handed after it and still awaits its own reply. Posts are marked
 
 ## When the agent stops
 
-The user reads only the Web. The agent's messages are posted first (see Replying),
+The user reads only the Web. The turn's last message is posted first (see Replying),
 so the current Goal is answered and the stop goes on as usual. An agent that ends
 its work while other Goals it was handed comments on still wait for a reply (after
 feedback from several Goals), with nothing of it running to wake it later, makes

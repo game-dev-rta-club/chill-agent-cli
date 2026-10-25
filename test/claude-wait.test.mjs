@@ -140,12 +140,12 @@ test('the claude-watch hook exits 2 with the feedback, which Claude Code shows t
  p.stdin.end(JSON.stringify(f.event('Stop')));
  await f.waiting();await appendFeedback({goalId:f.root.id,text:'from the Web'});
  const code=await new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});
- assert.equal(code,2);assert.equal(stdout,'');assert.match(stderr,/from the Web[\s\S]*connection reply --goal/);
+ assert.equal(code,2);assert.equal(stdout,'');assert.match(stderr,new RegExp(`from the Web[\\s\\S]*The last message of each turn is posted to Goal #${f.root.id} `));
 });
 
 test('reply posts on the Goal on the Web and answers it',async t=>{
  const f=await fixture(t);await appendFeedback({goalId:f.root.id,text:'Please summarize'});
- assert.match(context(await f.action('inbox')),/connection reply --goal <goalId>/);
+ assert.match(context(await f.action('inbox')),new RegExp(`The last message of each turn is posted to Goal #${f.root.id} `));
  const done=context(await f.action('reply',{goalId:f.root.id,text:'Here is the summary.'}));
  assert.match(done,new RegExp(`Replied on Goal #${f.root.id}`));
  const posted=(await readFeedback()).filter(e=>e.author==='agent'&&e.goalId===f.root.id);
@@ -263,7 +263,7 @@ test('the watcher hook hands saved feedback over and wakes the model with it',as
  const f=await fixture(t);await f.stop();const w=f.wait();await f.waiting();
  await appendFeedback({goalId:f.root.id,text:'from the Web'});
  const result=await w.done;
- assert.equal(result.status,'feedback');assert.match(watcherWakeText(result),/from the Web/);assert.match(result.text,/connection reply --goal/);
+ assert.equal(result.status,'feedback');assert.match(watcherWakeText(result),/from the Web/);assert.match(result.text,new RegExp(`The last message of each turn is posted to Goal #${f.root.id} `));
  assert.equal((await readJson(f.recordPath)).agentWork.phase,'working','the wake starts the work');
  assert.equal((await readJson(f.recordPath)).waiter,undefined);
  assert.equal(await hasSavedClaudeFeedback(f.connection),false,'the next watcher does not wake for it again');

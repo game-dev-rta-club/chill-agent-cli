@@ -65,7 +65,7 @@ scenario('the end of the work without a reply leaves the comment marked, awaitin
   assert.deepEqual(await s.comments(),[]);
 });
 
-// The agent's messages are posted to the Goal it was last handed feedback on (agent-messages).
+// The last message of each response is posted to the Goal it was last handed feedback on (agent-messages).
 scenario('the agent\'s messages are posted to the Goal it was handed feedback on, once each, in every later response',async s=>{
   const event=await s.saveFeedback('Fix the typo');
   await s.agentTakesFeedback(event);
@@ -75,6 +75,20 @@ scenario('the agent\'s messages are posted to the Goal it was handed feedback on
   await s.agentStartsResponse();
   assert.equal(await s.agentEndsResponse({text:'Nothing else to do.'}),null);
   assert.deepEqual(await s.comments(),['Fixed the typo in the README.','Nothing else to do.'],'the Goal stays current with nothing awaiting a reply');
+});
+
+// A reply during the work answers the Goal at once; the last message of that response and of every later one still
+// reaches it, since the reply made it current (agent-messages).
+scenario('after a reply during the work, the last message of that response and of every later one reaches the Goal',async s=>{
+  const b=await s.splitGoal('B');
+  const event=await s.saveFeedback('Fix the typo',b);
+  await s.agentTakesFeedback(event);
+  await s.agentReplies(event,'On it.',b);
+  assert.equal(await s.agentEndsResponse({text:'Fixed the typo.'}),null);
+  await s.agentStartsResponse();
+  assert.equal(await s.agentEndsResponse({text:'Checked again; still fixed.'}),null);
+  assert.deepEqual(await s.comments(b),['On it.','Fixed the typo.','Checked again; still fixed.']);
+  assert.deepEqual(await s.comments(),[]);
 });
 
 // A Goal becomes current when its feedback is handed, so a message written before that is not its.

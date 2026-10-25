@@ -25,7 +25,7 @@ watcher claims it, as a tool hook would, and exits 2 with the feedback text
         ↓
 Claude Code wakes the model with that text
         ↓
-agent works; its messages are posted to the Goal the wake handed (or, after
+agent works; its last message is posted to the Goal the wake handed (or, after
 feedback from several Goals, it replies on each with `connection reply`); the
 response's Stop starts the next watcher
 ```
@@ -50,7 +50,7 @@ the terminal when the watcher wakes the conversation.
   next watcher, which wakes for the next due check. A check due while a response
   runs, or while the machine sleeps, waits until it ends or wakes. A check
   scheduled with `--goal` makes that Goal the conversation's current Goal, which
-  its messages are posted to; one without `--goal` leaves the current Goal.
+  the last message of each turn is posted to; one without `--goal` leaves the current Goal.
 - It ends itself before the hook timeout (7 days) with a short routine check;
   the response that wakes starts the next watcher.
 

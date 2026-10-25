@@ -49,7 +49,7 @@ an overlaid annotation control.
 ## Comments and Letters
 
 Use `goal comment --id 1 --text-file result.txt` for results, completion reports or routine progress. A connected
-agent's messages are posted for it to its conversation's current Goal (the Goal last handed feedback, replied on or woken for). Use
+agent's last message of each turn is posted for it to its conversation's current Goal (the Goal last handed feedback, replied on or woken for). Use
 `goal letter --id 1 --title "Choose a direction" --text-file question.txt` only when a user reply, choice or permission is needed. Files preserve multiline text without shell escaping.
 
 Users answer a Letter with an ordinary Comment; there is no separate Answer
