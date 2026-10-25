@@ -9,7 +9,9 @@ import {holdClaudeConversation,holdResultText,watchClaudeConversation,watcherWak
 import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
 import {claudePauseGuard} from '../lib/claude-pause.mjs';
 import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
-import {captureClaudeEntry, identifyClaudeCaller} from '../lib/claude-entry.mjs';
+import {captureClaudeEntry, claudeEntryPaths, identifyClaudeCaller} from '../lib/claude-entry.mjs';
+import {dataDirectory} from '../lib/data-directory.mjs';
+import {readJson} from '../lib/storage.mjs';
 import {reportClaudeHook} from '../lib/claude-agent-work.mjs';
 import {claudeAskGuard,claudePlanApproval} from '../lib/claude-asks.mjs';
 import {quietClaudeHook} from '../lib/claude-quiet.mjs';
@@ -28,7 +30,11 @@ async function main() {
     // Read-only: a project without saved Goals is not created here.
     const roots=(existsSync(join(workspaceDirectory(),'workspace.sqlite'))?await listGoals():[]).filter(g=>!g.parentId&&g.connection?.sessionId===identity.sessionId&&g.connection.contextId===contextId)
       .map(({id,title,state})=>({id,title,state}));
-    console.log(JSON.stringify({identity,contextId,observedAt,source,roots,status}, null, 2));
+    // The checks this conversation scheduled (connection wake), earliest first.
+    const {pendingWakes}=await import('../lib/claude-wake.mjs');
+    const record=await readJson(claudeEntryPaths(dataDirectory(),identity.sessionId).record);
+    const wakes=record?.contextId===contextId?pendingWakes(record):[];
+    console.log(JSON.stringify({identity,contextId,observedAt,source,roots,status,wakes}, null, 2));
     return;
   }
   if(action==='join') {
@@ -37,7 +43,7 @@ async function main() {
   }
   if(action==='wake') {
     const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
-    console.log(JSON.stringify(await scheduleClaudeWake({minutes:values['--in']===undefined?undefined:Number(values['--in']),reason:values['--reason']||'',goal:values['--goal']??null,cancel:values['--cancel']===true}),null,2));
+    console.log(JSON.stringify(await scheduleClaudeWake({minutes:values['--in']===undefined?undefined:Number(values['--in']),reason:values['--reason']||'',goal:values['--goal']??null}),null,2));
     return;
   }
   if(action==='wait') {

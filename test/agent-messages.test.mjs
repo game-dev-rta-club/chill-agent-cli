@@ -210,6 +210,8 @@ test('a check scheduled with --goal makes that Goal current when the watcher wak
  const {wake}=await scheduleClaudeWake({minutes:10,reason:'CI of PR #91',goal:a.id,env:f.env,now});
  assert.equal(wake.goalId,a.id);
  assert.equal((await f.record()).currentGoal,f.root.id,'scheduling changes nothing yet');
+ // The check waits for the response that scheduled it to end.
+ assert.equal(await f.say('Waiting for CI.'),null);
  clock+=600000;
  const controller=new AbortController(),woken=await watchClaudeConversation({sessionId:(await f.record()).sessionId,signal:controller.signal,pollMs:10,now,attached:()=>true});
  assert.deepEqual(woken,{status:'wake',reason:'CI of PR #91',goalId:a.id});
