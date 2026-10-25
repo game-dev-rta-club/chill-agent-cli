@@ -82,6 +82,19 @@ stay consistent: Letters, waiting and work in progress use amber; answered
 Letters and completed Goals use green. Dark palettes adjust their contrast. Attached images
 and authored HTML Deliverables retain their own colors.
 
+## Search the workspace
+
+Open **More → Search** and type. Results show the project's Goals, Comments,
+Letters and latest Deliverables in which every word appears, ignoring case and
+full or half width; archived Roots are left out. Goals come first, then the
+newest matches, up to 50. Choose a result, or press Enter for the first one, to
+open its Goal; a Comment or Letter result scrolls to that message, loading it if
+it is older than the messages already shown.
+
+Results follow the typing after a short pause, and a newer query cancels the
+previous one. The server reads the workspace text at most once every few seconds
+and shares it between searches, so typing quickly does not repeat the work.
+
 ## Preserve an existing workspace
 
 An explicit `CHILL_AGENT_DATA_DIR`, including an existing stable launcher,
