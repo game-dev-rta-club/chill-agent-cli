@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 
 test('public Goal commands persist SQLite records, preserve Letter relationships and reject parallel JSON',async t=>{
-  const root=await mkdtemp(join(tmpdir(),'chill-sqlite-goals-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await mkdtemp(join(tmpdir(),'chill-sqlite-goals-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   const goal=await run('create','--title','SQLite root');
@@ -52,7 +52,7 @@ test('isolated SQLite Web accepts a reply and CLI reads it after server shutdown
   const letter=await run('letter','--id','1','--title','Choice','--text','Choose');
   const child=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url))],{env,stdio:['ignore','pipe','pipe']});
   const exit=once(child,'exit');
-  t.after(async()=>{if(child.exitCode===null&&child.signalCode===null)child.kill('SIGTERM');await exit;await rm(root,{recursive:true,force:true});});
+  t.after(async()=>{if(child.exitCode===null&&child.signalCode===null)child.kill('SIGTERM');await exit;await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
   const url=await new Promise((resolve,reject)=>{
     let output='';child.stdout.on('data',chunk=>{output+=chunk;const match=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(match)resolve(match[0]);});
     child.stderr.on('data',chunk=>output+=chunk);child.once('error',reject);child.once('exit',()=>reject(Error(output)));
@@ -80,7 +80,7 @@ test('isolated SQLite Web accepts a reply and CLI reads it after server shutdown
 });
 
 test('existing JSON workspaces remain JSON until an explicit separate migration',async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-legacy-selection-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-legacy-selection-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'json'};
  const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
  await run('create','--title','Legacy');

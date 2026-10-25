@@ -50,6 +50,6 @@ test('extensions observe and enqueue through the Root agent, and only for a poll
   assert.deepEqual(await sentTo(dir,id),['continue'],'the idle chat runs the request');
  }finally{
   for(const [key,value] of [['CHILL_AGENT_DATA_DIR',old.dir],['CHILL_AGENT_CODEX_PATH',old.codex]])if(value===undefined)delete process.env[key];else process.env[key]=value;
-  await rm(dir,{recursive:true,force:true});
+  await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});
  }
 });

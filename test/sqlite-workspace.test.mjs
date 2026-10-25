@@ -9,7 +9,7 @@ import {openSqliteWorkspace} from '../lib/sqlite-workspace.mjs';
 
 async function fixture(t) {
   const directory=await mkdtemp(join(tmpdir(),'chill-sqlite-'));
-  t.after(()=>rm(directory,{recursive:true,force:true}));return directory;
+  t.after(()=>rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100}));return directory;
 }
 
 test('SQLite persists IDs and indexed change cursors across connections; isolates projects',async t=>{

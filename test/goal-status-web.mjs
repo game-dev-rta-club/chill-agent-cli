@@ -68,5 +68,5 @@ try {
  assert.deepEqual(errors,[]);
  console.log('Goal status Web OK: right-side labels, unmarked Open, live Running, Waiting/Letters, explicit parent Done, 99% cap and reopen.');
 } finally {
- await browser?.close();if(server){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});
+ await browser?.close();if(server){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});
 }

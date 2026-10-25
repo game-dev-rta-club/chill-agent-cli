@@ -107,4 +107,4 @@ try{
  await page.keyboard.press('Escape');
  await page.goto(`${url}/#/goals`);await page.locator('#agent-button').waitFor({state:'hidden'});assert.deepEqual(errors,[]);
  console.log('passed: ordered sections, exact escaped messages/history, preserved disclosures, responsive layout, closed-menu presence, status transitions/failure/stale routes, keyboard close, isolated extension failure, one-click toggle');
-}catch(error){if(page){console.error(await page.locator('body').innerText());await page.screenshot({path:'/tmp/chill-381-test-failure.png'});}throw error;}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+}catch(error){if(page){console.error(await page.locator('body').innerText());await page.screenshot({path:'/tmp/chill-381-test-failure.png'});}throw error;}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

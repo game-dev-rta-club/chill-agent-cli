@@ -54,4 +54,4 @@ try{
  const response=await fetch(url+'/api/extensions/public-link/toggle',{method:'POST',headers:{Origin:'https://evil.test','Content-Type':'application/json'},body:'{"enabled":true}'});assert.equal(response.status,403);
  const sw=await fetch(url+'/extensions/web-notifications/sw.js');assert.equal(sw.headers.get('service-worker-allowed'),'/');assert.match(await sw.text(),/notificationclick/);
  assert.deepEqual(errors,[]);console.log('passed: 3 panels, responsive layout, no toggle on open, public start/stop/QR, permission gesture/denial, device-specific subscription/Off, CSRF, scoped assets');
-}finally{await browser?.close();if(server&&server.exitCode===null){server.kill('SIGTERM');await once(server,'exit');}await rm(directory,{recursive:true,force:true});}
+}finally{await browser?.close();if(server&&server.exitCode===null){server.kill('SIGTERM');await once(server,'exit');}await rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

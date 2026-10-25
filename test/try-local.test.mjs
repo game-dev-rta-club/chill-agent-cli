@@ -9,7 +9,7 @@ import {readVersionSource,recordVersionSource} from '../lib/version-source.mjs';
 import {projectDirectory} from '../lib/project-workspace.mjs';
 
 test('try-local points only the project data at a packed checkout and --reset restores the recorded version file',async t=>{
- const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-try-local-')));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-try-local-')));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const project=join(dir,'project'),base=join(dir,'base'),versionFile=join(project,'cli.json'),guide=join(project,'SKILL.md');
  await mkdir(project,{recursive:true});await writeFile(versionFile,JSON.stringify({package:'github:org/cli#abc'}));await writeFile(guide,'# Guide');
  await assert.rejects(tryLocal({project,base,run:()=>''}),/no recorded version file/);
@@ -41,7 +41,7 @@ test('try-local points only the project data at a packed checkout and --reset re
 });
 
 test('try-local --restart restores the previous runtime when the new Web does not start',async t=>{
- const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-try-local-'))); t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-try-local-'))); t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const project=join(dir,'project'),base=join(dir,'base'),versionFile=join(project,'cli.json');
  await mkdir(project,{recursive:true});await writeFile(versionFile,JSON.stringify({package:'github:org/cli#abc'}));
  const directory=await projectDirectory(project,base);await recordVersionSource(directory,{versionFile});

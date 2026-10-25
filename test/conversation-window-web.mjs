@@ -135,5 +135,5 @@ try {
   console.log(JSON.stringify({result:'passed',screenshots:root,checks:['latest three','pending Letter visible','vertical controls on the icon line','hover and keyboard labels','small gap keeps both directions','three from either end','first revealed comment stays at the opened edge','draft and History preserved','new arrivals','hidden annotation and Letter references','collapse again','all messages reachable','desktop and mobile']}));
 } finally {
   await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}
-  if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true});
+  if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});
 }

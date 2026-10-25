@@ -7,7 +7,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const execute=promisify(execFile),url=new URL('../lib/goal-store.mjs',import.meta.url).href;
 for(const backend of ['json','sqlite'])test(`${backend} pages are bounded, scoped and include off-page answer targets`,async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-pages-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-pages-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import * as s from ${JSON.stringify(url)};
  await s.createGoal({title:'A'});await s.createGoal({title:'B'});

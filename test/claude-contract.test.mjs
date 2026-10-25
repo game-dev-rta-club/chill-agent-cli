@@ -65,7 +65,7 @@ test('a hook field chill reads is declared in the hook contract', async () => {
 test('chill accepts every recorded hook shape, including each way a session starts', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'claude-contract-')), previous = process.env.CHILL_AGENT_DATA_DIR;
   process.env.CHILL_AGENT_DATA_DIR = join(dir, 'data');
-  t.after(async () => { if (previous === undefined) delete process.env.CHILL_AGENT_DATA_DIR; else process.env.CHILL_AGENT_DATA_DIR = previous; await rm(dir, {recursive: true, force: true}); });
+  t.after(async () => { if (previous === undefined) delete process.env.CHILL_AGENT_DATA_DIR; else process.env.CHILL_AGENT_DATA_DIR = previous; await rm(dir, {recursive: true, force: true, maxRetries: 10, retryDelay: 100}); });
   const cwd = join(dir, 'project'), envFile = join(dir, 'env');
   await mkdir(cwd); await writeFile(envFile, '');
   const sources = hookSchema.events.SessionStart.fields.source.split(':')[1].split('|');
@@ -130,7 +130,7 @@ test('a transcript field chill reads is declared in the entry contract', async (
 
 async function stage(t, name, {upTo} = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'claude-contract-'));
-  t.after(() => rm(dir, {recursive: true, force: true}));
+  t.after(() => rm(dir, {recursive: true, force: true, maxRetries: 10, retryDelay: 100}));
   const path = join(dir, 'session.jsonl'), lines = recordedText(name).split('\n').filter(Boolean);
   await writeFile(path, lines.slice(0, upTo ?? lines.length).join('\n') + '\n');
   return path;

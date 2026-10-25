@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
 test('the entry hands commands a file path, not a URL pathname',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-entry-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-entry-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  // A space is percent-encoded in a URL pathname; on Windows the pathname also starts with /C:/.
  const bin=join(await realpath(dir),'with space','bin');await mkdir(bin,{recursive:true});
  await copyFile(new URL('../bin/chill-entry.mjs',import.meta.url),join(bin,'chill-entry.mjs'));

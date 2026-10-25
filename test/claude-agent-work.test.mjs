@@ -13,7 +13,7 @@ import {claudeEntry,claudeHook,claudeLine,hookFor,subagentHook} from './claude-f
 async function conversation(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-claude-work-')),previous=process.env.CHILL_AGENT_DATA_DIR;
   process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');
-  t.after(async()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;await rm(dir,{recursive:true,force:true});});
+  t.after(async()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
   const cwd=join(dir,'project'),transcript=join(dir,'session.jsonl'),sessionId='native/session';
   await mkdir(cwd);await writeFile(join(dir,'env'),'');await writeFile(transcript,'');
   const shared={session_id:sessionId,cwd,transcript_path:transcript},event=hookFor(shared);

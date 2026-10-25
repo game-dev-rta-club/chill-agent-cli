@@ -15,7 +15,7 @@ import {hookFor} from './claude-fixtures.mjs';
 async function fixture(t){
   const dir=await mkdtemp(join(tmpdir(),'claude-asks-test-')),data=join(dir,'data'),cwd=join(dir,'project');await mkdir(cwd);
   const old=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=data;
-  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
+  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
   const envFile=join(dir,'env');await writeFile(envFile,'');
   const sessionId=randomUUID(),event=hookFor({session_id:sessionId,prompt_id:randomUUID(),cwd});
   const record=await captureClaudeEntry(event('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});

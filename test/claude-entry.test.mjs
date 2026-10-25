@@ -15,7 +15,7 @@ const {CLAUDE_CODE_SESSION_ID:_, ...shellEnv} = process.env;
 const entry = fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'chill-claude-test-'));
-  t.after(() => rm(directory, {recursive:true, force:true}));
+  t.after(() => rm(directory, {recursive:true, force:true,maxRetries:10,retryDelay:100}));
   const cwd = join(directory, 'project'), data = join(directory, 'data');
   await mkdir(cwd);
   const envFile = join(directory, 'native env');

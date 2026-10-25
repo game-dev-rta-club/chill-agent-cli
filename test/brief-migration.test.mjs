@@ -7,7 +7,7 @@ import {migrateBrief} from '../scripts/migrate-brief.mjs';
 import {markdownText} from '../lib/markdown.mjs';
 const save=(path,data)=>writeFile(path,JSON.stringify(data));
 async function fixture(t,quote='formatted') {
- const root=await mkdtemp(join(tmpdir(),'chill-brief-migration-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-brief-migration-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const work=join(root,'workspace');await mkdir(join(work,'goals/1/overviews'),{recursive:true});await mkdir(join(work,'events'));
  await save(join(work,'schema.json'),{format:'goal-workspace',version:5});
  await writeFile(join(work,'goals/1/overview.md'),'Original');await save(join(work,'goals/1/overviews/v1.json'),{body:'Original',version:1});

@@ -167,4 +167,4 @@ try {
   await page.screenshot({path:join(root,`notice-${viewport.width}.png`)});
  }
  assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','no Answer button','Comment answer recorded by agent','failure retry','bundled annotations','Deliverable history','annotation source','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
-} finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true});}
+} finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

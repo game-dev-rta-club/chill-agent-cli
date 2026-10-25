@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
 test('Claude and Codex show the same feedback text, with the recorded guide and their own commands',async t=>{
- const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-guide-')));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-guide-')));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const guide=join(dir,'SKILL.md');await writeFile(guide,'# Guide');
  await mkdir(join(dir,'data','runtime'),{recursive:true});
  await writeFile(join(dir,'data','runtime','version-source.json'),JSON.stringify({version:1,versionFile:join(dir,'cli.json'),agentGuide:guide}));

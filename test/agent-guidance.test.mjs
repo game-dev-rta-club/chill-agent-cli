@@ -8,7 +8,7 @@ import {agentGuide} from '../lib/agent-guidance.mjs';
 
 test('optional application guidance resolves inside each copy of the runtime',async t=>{
  const base=await mkdtemp(join(tmpdir(),'chill-guide-'));
- t.after(()=>rm(base,{recursive:true,force:true}));
+ t.after(()=>rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const source=join(base,'source'),copy=join(base,'copy');
  await mkdir(source);
  const manifest=pathToFileURL(join(source,'extensions.json'));
@@ -20,7 +20,7 @@ test('optional application guidance resolves inside each copy of the runtime',as
  await writeFile(join(source,'skills/example/references/work/resume.md'),'Resume agreed work.');
  await writeFile(manifest,JSON.stringify({agentGuide:'skills/example/SKILL.md'}));
  await cp(source,copy,{recursive:true});
- await rm(source,{recursive:true});
+ await rm(source,{recursive:true,maxRetries:10,retryDelay:100});
  const entry=agentGuide(pathToFileURL(join(copy,'extensions.json')));
  assert.equal(entry,join(copy,'skills/example/SKILL.md'));
  assert.match(await readFile(entry,'utf8'),/references\/work\/resume.md/);
@@ -29,7 +29,7 @@ test('optional application guidance resolves inside each copy of the runtime',as
 
 test('guide configuration cannot silently resolve outside its packaged runtime',async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-guide-invalid-'));
- t.after(()=>rm(root,{recursive:true,force:true}));
+ t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const manifest=pathToFileURL(join(root,'extensions.json'));
  for(const agentGuidePath of ['../outside.md','/absolute.md','bad\nname.md','file.js',true]){
   await writeFile(manifest,JSON.stringify({agentGuide:agentGuidePath}));

@@ -108,4 +108,4 @@ try {
  }
  assert.deepEqual(errors,[]);await page.screenshot({path:'/tmp/chill-letter-navigation.png'});
  console.log('passed: top on entry/reload, same-Goal Deliverable reuse, delayed Letter navigation on desktop/mobile, three Activity updates without jumps, reader intent and stale route cancellation, fixed shell and reachable composer');
-} finally {await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+} finally {await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

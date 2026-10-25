@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {copyRuntime,runtimeFiles} from '../lib/runtime-package.mjs';
 
 test('dependencies hoisted above an installed package are copied to their lockfile paths',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-runtime-files-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-runtime-files-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  // npm installed the CLI as a dependency: its own dependency sits one level up.
  const root=join(dir,'node_modules/cli');
  for(const d of ['bin','lib','public/vendor','licenses'])await mkdir(join(root,d),{recursive:true});
@@ -41,7 +41,7 @@ test('every module the runtime imports is copied into it, including subfolders',
 
 test('a new package is installed by its own installer, in a separate process',async t=>{
  const {prepareWithOwnInstaller}=await import('../lib/runtime-package.mjs');
- const dir=await mkdtemp(join(tmpdir(),'chill-own-installer-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-own-installer-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const root=join(dir,'package');await mkdir(join(root,'lib'),{recursive:true});
  await writeFile(join(root,'lib','runtime-package.mjs'),"export async function prepareRuntime(root,directory,options){return {root:'installed-by-own',from:root,directory,options,pid:process.pid};}");
  const result=await prepareWithOwnInstaller(root,join(dir,'data'),{package:'file:x.tgz'});
@@ -73,7 +73,7 @@ test('installing a new package with its own installer also brings recorded Claud
  const {fileURLToPath}=await import('node:url');const {prepareWithOwnInstaller}=await import('../lib/runtime-package.mjs');
  const {configureClaudeHooks,claudeHookGroups}=await import('../lib/claude-setup.mjs');
  const repo=fileURLToPath(new URL('..',import.meta.url));
- const dir=await mkdtemp(join(tmpdir(),'chill-own-installer-hooks-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-own-installer-hooks-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const project=join(dir,'project'),data=join(dir,'data');await mkdir(project,{recursive:true});
  const entry=join(data,'runtime','chill');
  await configureClaudeHooks(project,{entry,directory:data});
@@ -83,7 +83,7 @@ test('installing a new package with its own installer also brings recorded Claud
  await writeFile(join(data,'settings/claude-projects',`${createHash('sha256').update(root).digest('hex')}.json`),JSON.stringify({project:root,owned:claudeHookGroups({entry}).filter(e=>e.event!=='Stop'),pending:false}));
  // An update also puts Cache Keep back in place for the user.
  const {claudeDirectory}=await import('../lib/claude-setup.mjs');const mod=join(claudeDirectory(),'skills','chill-agent-cache-keep');
- await rm(mod,{recursive:true,force:true});
+ await rm(mod,{recursive:true,force:true,maxRetries:10,retryDelay:100});
  const result=await prepareWithOwnInstaller(repo,data);
  assert.deepEqual(result.hooks,[{project:root,changed:true}]);
  assert.equal(JSON.parse(await readFile(path,'utf8')).hooks.Stop.length,1);

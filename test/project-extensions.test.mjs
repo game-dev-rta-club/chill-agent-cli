@@ -12,7 +12,7 @@ import {fileURLToPath} from 'node:url';
 test('project selection restricts Web, native hooks and notification routes independently',async t=>{
  const base=await mkdtemp(join(tmpdir(),'chill-project-extensions-'));
  const previous=process.env.CHILL_AGENT_DATA_DIR;
- t.after(async()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;await rm(base,{recursive:true,force:true});});
+ t.after(async()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;await rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const a=join(base,'a'),b=join(base,'b');await mkdir(a);await mkdir(b);
  process.env.CHILL_AGENT_DATA_DIR=await prepareProject(a,{base,extensions:[]});
  assert.deepEqual(registeredExtensions(),[]);assert.deepEqual(await connectionExtensions(),{});
@@ -28,7 +28,7 @@ test('project selection restricts Web, native hooks and notification routes inde
 test('Auto mode messages call the project store chill, which finds its own port',async t=>{
  const {continuationMessage}=await import('../lib/continuation-monitor.mjs');
  const base=await mkdtemp(join(tmpdir(),'chill-project-message-')),oldDir=process.env.CHILL_AGENT_DATA_DIR;
- t.after(async()=>{if(oldDir===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=oldDir;await rm(base,{recursive:true,force:true});});
+ t.after(async()=>{if(oldDir===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=oldDir;await rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const project=join(base,'project');await mkdir(project);process.env.CHILL_AGENT_DATA_DIR=await prepareProject(project,{base});
  const text=continuationMessage({rootId:'1',wake:true});
  assert.match(text,new RegExp("CHILL_AGENT_DATA_DIR='"+process.env.CHILL_AGENT_DATA_DIR.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+"'"));
@@ -37,7 +37,7 @@ test('Auto mode messages call the project store chill, which finds its own port'
 
 test('monitor start contacts the project Web without an explicit PORT',async t=>{
  const {createServer}=await import('node:http');const {execFile}=await import('node:child_process');const {promisify}=await import('node:util');
- const base=await mkdtemp(join(tmpdir(),'chill-monitor-port-'));t.after(()=>rm(base,{recursive:true,force:true}));
+ const base=await mkdtemp(join(tmpdir(),'chill-monitor-port-'));t.after(()=>rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const project=join(base,'project');await mkdir(project);const directory=await prepareProject(project,{base});let requested=null;
  const token='project-instance-test';
  const server=createServer((req,res)=>{res.setHeader('Content-Type','application/json');if(req.url==='/api/workspace-instance'){res.end(JSON.stringify({token:req.headers['x-chill-instance']===token?token:null}));return;}requested=req.url;res.end('[]');});

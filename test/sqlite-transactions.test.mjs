@@ -9,7 +9,7 @@ const execute=promisify(execFile);
 const storeUrl=new URL('../lib/goal-store.mjs',import.meta.url).href;
 
 test('SQLite operations roll back ancestor changes and serialize in-process writes without file leases',async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-sqlite-atomic-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-sqlite-atomic-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';
  import {mkdir,writeFile,readFile,rm} from 'node:fs/promises';
@@ -37,9 +37,10 @@ test('SQLite operations roll back ancestor changes and serialize in-process writ
 });
 
 test('separate CLI processes allocate unique event IDs inside SQLite transactions',async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-sqlite-processes-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-sqlite-processes-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'sqlite'};
- const run=code=>execute(process.execPath,['--input-type=module','-e',`import * as s from ${JSON.stringify(storeUrl)};${code}`],{env,timeout:20000});
+ // This checks IDs, not speed: a slow Windows runner has taken over 20 s for the 30 appends.
+ const run=code=>execute(process.execPath,['--input-type=module','-e',`import * as s from ${JSON.stringify(storeUrl)};${code}`],{env,timeout:60000});
  await run("await s.createGoal({title:'Root'});");
  await Promise.all([run("for(let i=0;i<15;i++)await s.appendAgentComment({goalId:'1',type:'comment',text:'A'+i});"),run("for(let i=0;i<15;i++)await s.appendAgentComment({goalId:'1',type:'comment',text:'B'+i});")]);
  const {stdout}=await run('console.log(JSON.stringify(await s.readFeedback()));');
