@@ -57,17 +57,18 @@ an extension retains its saved settings for future use.
 
 ## Recognize projects and Roots by color
 
-Open **More → Color theme** to choose two things: the **Tab icon** (Morning,
-Cloudy or Night) and the **Page** theme (one of six hues in Gradient, Light or
-Dark). Each Tab icon set shows the agent's state on the open Goal: an outline
-sunrise while idle, a yellow sun with short rays while it waits for a check, and a
-warm sky with long rays while it works.
+Press the sunrise icon beside **chill.** in the header to choose the **Tab icon**
+(Morning, Cloudy or Night). Open **More → Color theme** to choose the page theme,
+one of six hues in Gradient, Light or Dark. The tab icon and the header icon show
+the agent's state on the open Goal in the chosen set: an outline sunrise while
+idle, a yellow sun with short rays while it waits for a check, and a warm sky with
+long rays while it works.
 
-Opened on a Goal, the panel saves the choice for that Goal's Root, so tabs of
+Opened on a Goal, either panel saves the choice for that Goal's Root, so tabs of
 different Roots in one project can look different. Opened on the Goal list, it
 saves the project default, which every Root without its own choice follows field
-by field. **Use project default** removes a Root's own choice. Gradient Mint with
-the Morning icon is the original appearance.
+by field. **Use project default** in Color theme removes a Root's own page theme
+and tab icon. Gradient Mint with the Morning icon is the original appearance.
 
 Choices are stored in that workspace, so a reload or another device uses the same
 look; other projects are unchanged. A page opens in its Root's look from the first

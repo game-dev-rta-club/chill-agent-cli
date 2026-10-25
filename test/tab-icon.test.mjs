@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createTabIcon} from '../public/tab-icon.js';
 import {tabIcons,resolveAppearance} from '../public/theme-catalog.js';
 
-test('the tab icon follows the agent state within the chosen icon set',()=>{
+test('the tab icon and the header icon follow the agent state within the chosen icon set',()=>{
  const attrs={href:'initial'},link={getAttribute:name=>attrs[name],setAttribute:(name,value)=>{attrs[name]=value;}};
  const [morning,,night]=tabIcons,icon=createTabIcon(link,'morning');
  icon.set('working');assert.equal(attrs.href,morning.working);assert.match(decodeURIComponent(morning.working),/fill='#f08a3c'.*stroke-width='3.2'.*stroke='#ffffff'/);
@@ -11,6 +11,8 @@ test('the tab icon follows the agent state within the chosen icon set',()=>{
  icon.use('night');assert.equal(attrs.href,night.waiting);
  icon.set(null);assert.equal(attrs.href,night.idle);
  icon.use('removed');assert.equal(attrs.href,morning.idle);
+ const src={},mirror={getAttribute:name=>src[name],setAttribute:(name,value)=>{src[name]=value;}},header=createTabIcon(link,'night',mirror);
+ assert.equal(src.src,night.idle);header.set('working');assert.equal(src.src,night.working);assert.equal(attrs.href,night.working);
  assert.doesNotThrow(()=>createTabIcon(null).set('working'));
 });
 

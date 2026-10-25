@@ -19,10 +19,10 @@
     <div class="app-shell">
       <header class="app-header">
         <div class="header-inner">
-          <a href="#/goals" class="brand" aria-label="chill — Goals">
-            <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M5 21h22M9 25h14M10 17a6 6 0 1 1 12 0M16 3v3M5 8l3 3M27 8l-3 3"/></svg></span>
-            <span>chill<span class="brand-period">.</span></span>
-          </a>
+          <div class="brand">
+            <button type="button" class="brand-mark" aria-label="Tab icon"><img src="__TAB_ICON__" alt=""></button>
+            <a href="#/goals" class="brand-link" aria-label="chill — Goals">chill<span class="brand-period">.</span></a>
+          </div>
           <div class="header-actions"><span class="agent-control"><button type="button" id="agent-button" class="agent-trigger" aria-label="Agent" aria-describedby="agent-tooltip" aria-expanded="false" aria-controls="agent-panel" hidden></button><span id="agent-tooltip" class="extension-tooltip" role="tooltip">Agent<small>Settings, usage, and connection.</small></span></span>
           <button type="button" id="letters-button" class="header-letters" aria-label="Letters" aria-expanded="false" aria-controls="letters-panel" aria-haspopup="dialog"></button>
           <button type="button" id="runtime-update-button" class="header-letters runtime-update-button" aria-label="Update" hidden></button>
