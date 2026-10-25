@@ -1,4 +1,5 @@
 import {createThemeMenu} from './theme-menu.js';
+import {createSearchDialog} from './search-dialog.js';
 import {browserClientId} from './browser-context.js';
 import {confirmAction} from './confirmation-dialog.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,6 +16,8 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  more.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>More</span>';
  const list=document.createElement('div');list.id='extension-list';list.className='extension-list';list.setAttribute('aria-label','Settings');
  const goals=document.createElement('a');goals.href='#/goals';goals.className='extension-trigger';goals.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span class="extension-name">Goals</span>';goals.onclick=()=>showMore(false);list.append(goals);
+ const search=document.createElement('button');search.type='button';search.className='extension-trigger';search.setAttribute('aria-haspopup','dialog');search.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg><span class="extension-name">Search</span>';list.append(search);
+ const searchDialog=createSearchDialog();search.onclick=()=>{themeMenu.close();close();showMore(false);searchDialog.open();};
  const theme=document.createElement('button');theme.type='button';theme.className='extension-trigger';theme.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16Z"/></svg><span class="extension-name">Color theme</span>';list.append(theme);
  const themeMenu=createThemeMenu({button:theme,iconButton:document.querySelector('.brand-mark'),closeMore:()=>showMore(false),restoreMore:()=>showMore(true)});
  container.hidden=false;container.append(more,list);

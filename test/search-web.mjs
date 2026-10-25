@@ -1,0 +1,40 @@
+// PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node test/search-web.mjs
+import assert from 'node:assert/strict';
+import {spawn,execFile} from 'node:child_process';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
+const root=await mkdtemp(join(tmpdir(),'chill-search-web-'));let server,browser;
+const env={...process.env,CHILL_AGENT_DATA_DIR:root,CODEX_HOME:root,PORT:'0',CHILL_AGENT_EXTENSIONS:'none'};
+const run=async(...args)=>JSON.parse((await promisify(execFile)(process.execPath,[fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url)),...args],{env})).stdout);
+try{
+ await run('create','--title','A calmer workspace');
+ const old=await run('comment','--id','1','--text','The oldest note mentions a lighthouse…');
+ for(let i=0;i<40;i++)await run('comment','--id','1','--text',`Filler ${i}`);
+ server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--local'],{env,stdio:['ignore','pipe','pipe']});
+ const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(Error(`Server exit ${c}`)));});
+ browser=await chromium.launch();const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[],requests=[];
+ page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.url().includes('/api/search'))requests.push(r.url());});
+ await page.goto(url+'/#/goal/1');await page.locator('#goal-title').waitFor();
+ assert.equal(await page.locator(`#event-${old.id}`).count(),0,'the old comment is outside the loaded window');
+ await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Search',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'Search'}),input=dialog.getByRole('searchbox',{name:'Search text'});
+ assert.equal(await input.evaluate(el=>el===document.activeElement),true);
+ await input.pressSequentially('ＬＩＧＨＴ',{delay:30});await dialog.getByText('1 match',{exact:true}).waitFor();
+ assert.ok(requests.length<=2,`typing waits for a pause (${requests.length} requests)`);
+ assert.equal(await dialog.locator('mark').first().innerText(),'light');
+ assert.match(await dialog.locator('.search-where').first().innerText(),/#1 A calmer workspace · Comment 1 · Agent/);
+ await input.fill('no such words here');await dialog.getByText('No matches.').waitFor();
+ await input.fill('lighthouse');await dialog.getByText('1 match',{exact:true}).waitFor();
+ await page.keyboard.press('Enter');
+ await page.waitForFunction(id=>location.hash===`#/goal/1/activity/${id}`,old.id);
+ assert.equal(await dialog.isVisible(),false);
+ await page.locator(`#event-${old.id}`).waitFor();
+ assert.equal(await page.locator(`#event-${old.id}`).evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.top<innerHeight;}),true,'the old comment is loaded and shown');
+ await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Search',exact:true}).click();
+ assert.equal(await input.inputValue(),'lighthouse');await page.keyboard.press('Escape');assert.equal(await dialog.isVisible(),false);
+ assert.deepEqual(errors,[]);console.log('PASS: More → Search, pause before asking, width/case folding, marks, Enter opens an old comment, Escape closes');
+}finally{await browser?.close();server?.kill();await rm(root,{recursive:true,force:true});}

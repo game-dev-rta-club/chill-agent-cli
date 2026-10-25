@@ -429,3 +429,19 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 .root-agent:empty { display:none; }
 .replies-heading { margin-top:12px; }
 .replies-read { border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit; padding:4px 10px; font-size:13px; cursor:pointer; }
+/* More → Search: a centered dialog whose results scroll inside it. */
+.search-dialog { width:min(640px,calc(100vw - 24px)); max-height:min(720px,calc(100dvh - 48px)); margin:max(24px,8dvh) auto auto; padding:18px 18px 8px; border:1px solid var(--theme-line,#d9ded8); border-radius:14px; background:var(--theme-surface,#fffdf9); color:var(--theme-ink,#34483e); box-shadow:0 10px 32px #243f3026; font-size:13px; box-sizing:border-box; overflow:hidden; }
+.search-dialog[open] { display:flex; flex-direction:column; }
+.search-dialog::backdrop { background:#243f3040; }
+.search-dialog .extension-panel-heading { margin-bottom:12px; }
+.search-input { width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid var(--theme-line,#d9ded8); border-radius:9px; background:var(--theme-soft,#f5f7f1); color:inherit; font:inherit; font-size:15px; }
+.search-input:focus-visible { outline:2px solid var(--theme-accent,#527763); outline-offset:1px; }
+.search-status { margin:8px 2px; font-size:12px; min-height:1.4em; }
+.search-results { list-style:none; margin:0 -8px; padding:0 0 8px; overflow:auto; min-height:0; }
+.search-result { display:block; padding:9px 10px; border-radius:9px; color:inherit; text-decoration:none; }
+.search-result:hover,.search-result:focus-visible { background:var(--theme-soft,#f5f7f1); outline:none; }
+.search-result:focus-visible { box-shadow:inset 0 0 0 2px var(--theme-accent,#527763); }
+.search-where { display:block; font-size:11.5px; color:var(--theme-muted,#64756b); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.search-snippet { display:block; margin-top:3px; line-height:1.55; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.search-snippet mark { background:#ffe58f; color:#2b2a1f; border-radius:3px; padding:0 1px; }
+@media (max-width:640px) { .search-dialog { margin-top:12px; max-height:calc(100dvh - 24px); } }
