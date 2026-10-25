@@ -8,7 +8,7 @@ import { appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, cr
 import { deliverFeedback, sendFeedbackNow } from '../lib/delivery.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import {assignGoal} from '../lib/agents/index.mjs';
-import {agentReplied,assertAnswerer,selectAgentWork} from '../lib/agents/index.mjs';
+import {assertAnswerer,selectAgentWork} from '../lib/agents/index.mjs';
 import {readConnectedTree,readGoalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
 import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
@@ -69,10 +69,8 @@ async function main() {
     return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--deliverable-offset']??0)})):output(page);
   }
   if(command==='comment'||command==='letter') {
-    const {root}=await readGoalContext(id);
-    await assertAnswerer(root);
+    await assertAnswerer((await readGoalContext(id)).root);
     const event=await appendAgentComment({goalId:id,type:command,...(command==='letter'?{title:v['--title'],...(v['--no-reply']?{replyRequired:false}:{})}:{ }),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
-    if(command==='comment')await agentReplied(root,String(id));
     return output({...event,url:command==='letter'?`${url(id)}/letter/${event.id}`:url(id)});
   }
   if(command==='check') return output(await checkFeedback({goalId:id,since:Number(v['--since']??0)}));

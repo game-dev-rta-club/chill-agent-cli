@@ -64,7 +64,7 @@ export async function hookOutput(input, assignedThreadId = process.env.CODEX_THR
   if (input.agent_id || assignedThreadId && assignedThreadId !== input.session_id) return null;
   const threadId = validThreadId(input.session_id);
   if (input.hook_event_name === 'Stop') {
-    const stop = await codexStop({ threadId, turnId: input.turn_id ?? null, text: input.last_assistant_message, transcript: input.transcript_path ?? null });
+    const stop = await codexStop({ threadId, turnId: input.turn_id ?? null });
     if (stop?.feedback) return { decision: 'block', reason: stop.feedback };
     if (!stop?.quiet) return null;
     const command = codexCommand();
@@ -74,7 +74,7 @@ export async function hookOutput(input, assignedThreadId = process.env.CODEX_THR
     }) };
   }
   await recordWorkHeartbeat({threadId, turnId: input.turn_id});
-  const context = await codexToolHook({ threadId, turnId: input.turn_id, limit: hookSpecs.PostToolUse.hook.additionalContextLimit, transcript: input.transcript_path ?? null });
+  const context = await codexToolHook({ threadId, turnId: input.turn_id, limit: hookSpecs.PostToolUse.hook.additionalContextLimit });
   return context ? { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: context } } : null;
 }
 

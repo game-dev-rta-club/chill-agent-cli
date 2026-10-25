@@ -2,14 +2,13 @@
 // The user-visible flows are in test/harness-scenarios.test.mjs; this file covers what only Codex does.
 import nodeTest from 'node:test';
 import assert from 'node:assert/strict';
-import {appendFile,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
+import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {appendAgentComment,appendFeedback,createGoal,listGoals,readFeedback,readGoalContext} from '../lib/goal-store.mjs';
-import {agentExecutions,agentReplied,assignGoal} from '../lib/agents/index.mjs';
-import {keepGoingHeading} from '../lib/agent-messages.mjs';
+import {appendAgentComment,appendFeedback,createGoal,listGoals,readFeedback} from '../lib/goal-store.mjs';
+import {agentExecutions,assignGoal} from '../lib/agents/index.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {codexFeedbackText,codexSnapshot,codexStop,codexToolHook,handIdleCodex,pauseCodex,readCodexWork,resumeCodex} from '../lib/agents/codex-work.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
@@ -41,7 +40,7 @@ test('an idle chat is sent waiting comments as one message, quoting the user as 
   assert.deepEqual(ids(text),[first]);
   assert.deepEqual(await f.queue(),[],'Codex runs it as a turn at once');
   assert.match(text,/"text":"Please start"/);assert.match(text,new RegExp(`show --id ${f.root.id} --since ${first-1} --format text`));
-  assert.match(text,/comment --id <goalId> --text/);assert.doesNotMatch(text,/activity --event|--state/);
+  assert.match(text,/Reply on the Goal \(this answers it\): .* comment --id <goalId> --text/);assert.doesNotMatch(text,/activity --event|--state/);
   await f.endTurn();
   const letter=await appendAgentComment({goalId:child.id,type:'letter',title:'Which one?',text:'A or B?'});
   await appendAgentComment({goalId:child.id,type:'letter',title:'Still open?',text:'And this?'});
@@ -131,18 +130,21 @@ test('hooks of a subagent or another chat hand nothing and leave the comments wa
   assert.deepEqual(ids(output.hookSpecificOutput.additionalContext),[event]);
 });
 
-test('the Stop is held once while Goals handed together await replies, and a reply on each ends that',async t=>{
-  const f=await fixture(t),a=await createGoal({title:'A',parentId:f.root.id}),b=await createGoal({title:'B',parentId:f.root.id});
-  const turn=await f.work(),stop=()=>hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread);
-  const forA=await appendFeedback({goalId:a.id,text:'For A'}),forB=await appendFeedback({goalId:b.id,text:'For B'});
-  assert.deepEqual(ids((await stop()).reason),[forA.changeId,forB.changeId],'both are handed when the turn would end');
-  const held=await stop();
-  assert.equal(held.decision,'block');assert.match(held.reason,new RegExp(`Goal #${a.id}, Goal #${b.id}\\b`));assert.match(held.reason,/comment --id <goalId>/);
-  assert.equal(await stop(),null,'the stop right after a hold ends');
-  for(const goal of [a,b])await appendAgentComment({goalId:goal.id,type:'comment',text:'Fixed'});
-  assert.equal(await stop(),null);
-  assert.equal((await codexSnapshot(f.thread)).roots[0].awaiting.size,0);
+test('the Stop is held once while a handed Goal awaits a reply, and a reply on it ends that',async t=>{
+  const f=await fixture(t),event=await f.save('Fix it');
+  const turn=await f.startTurn();
+  // What the chat wrote is never posted for it: only its own comment answers the Goal.
+  const transcript=join(f.dir,'rollout.jsonl');
+  await writeFile(transcript,JSON.stringify({timestamp:new Date().toISOString(),type:'response_item',payload:{type:'message',role:'assistant',content:[{type:'output_text',text:'Fixed it.'}],phase:'final_answer'}})+'\n');
+  const held=await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn,last_assistant_message:'Fixed it.',transcript_path:transcript},f.thread);
+  assert.deepEqual((await readFeedback()).filter(e=>e.author==='agent'),[],'nothing is posted at Stop');
+  assert.equal(held.decision,'block');assert.match(held.reason,new RegExp(`Goal #${f.root.id}\\b`));assert.match(held.reason,/comment --id <goalId>/);
+  assert.equal(await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread),null,'the stop right after a hold ends');
+  await appendAgentComment({goalId:f.root.id,type:'comment',text:'Fixed'});
+  assert.equal(await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread),null);
+  assert.equal((await codexSnapshot(f.thread)).roots[0].awaiting.size,0,`#${event} is answered`);
 });
+
 test('Pause stops the turn and holds comments; Resume sends them, or asks the chat to go on',async t=>{
   const f=await fixture(t),turn=await f.work(),calls=[];
   const interrupt=async(threadId,turnId)=>{calls.push(turnId);await f.endTurn('interrupted');return {ok:true,interruptedTurnId:turnId};};
@@ -167,89 +169,4 @@ test('a reassigned Root keeps its cursor: the new chat receives only what was ne
   invalidateAgentObservation(next);
   assert.deepEqual((await handIdleCodex(next)).map(e=>e.id),[waiting]);
   assert.notEqual(handed,waiting);
-});
-
-// What the chat writes is posted to its current Goal (lib/agent-messages.mjs), read from the rollout file
-// Codex names as transcript_path, as Claude's transcript is (test/agent-messages.test.mjs).
-const rollout=(...records)=>records.map(payload=>JSON.stringify({timestamp:new Date().toISOString(),type:'response_item',payload})+'\n').join('');
-const said=(text,phase='commentary')=>({type:'message',id:`msg_${randomUUID()}`,role:'assistant',content:[{type:'output_text',text}],phase});
-const ran=()=>({type:'function_call',name:'exec_command',arguments:'{"cmd":"true"}',call_id:`call_${randomUUID()}`});
-async function chatting(t) {
-  const f=await fixture(t),transcript=join(f.dir,'rollout.jsonl');await writeFile(transcript,'');
-  const hook=(name,patch={})=>hookOutput({hook_event_name:name,session_id:f.thread,turn_id:f.turn,transcript_path:transcript,...patch},f.thread);
-  const posted=async()=>(await readFeedback()).filter(e=>e.autoPosted).map(e=>[e.goalId,e.text]);
-  return Object.assign(f,{transcript,hook,posted,write:(...records)=>appendFile(transcript,rollout(...records))});
-}
-
-test('every message of the turn, mid-turn ones too, is posted in order to the current Goal, once',async t=>{
-  const f=await chatting(t),event=await f.save('Fix it');f.turn=(await f.running()).id;
-  await f.hook('PostToolUse');
-  await f.write(said('Looking at it.'),ran());
-  await f.hook('PostToolUse');await f.hook('PostToolUse');
-  assert.deepEqual(await f.posted(),[[f.root.id,'Looking at it.']],'posted at the tool hook, once');
-  await f.write(said('Fixed it.','final_answer'));
-  assert.equal(await f.hook('Stop',{last_assistant_message:'Fixed it.'}),null,'answered, so the stop is not held');
-  assert.equal(await f.hook('Stop',{last_assistant_message:'Fixed it.'}),null);
-  assert.deepEqual(await f.posted(),[[f.root.id,'Looking at it.'],[f.root.id,'Fixed it.']]);
-  assert.ok((await readFeedback()).filter(e=>e.autoPosted).every(e=>e.answers===event));
-  await f.endTurn();
-  f.turn=await f.work();await f.write(said('Also checked the docs.','final_answer'));
-  await f.hook('Stop',{last_assistant_message:'Also checked the docs.'});
-  assert.equal((await f.posted()).at(-1)[1],'Also checked the docs.','a later turn without feedback still reaches the Goal');
-});
-
-test('without a transcript only the Stop\'s last message is posted, once per turn',async t=>{
-  const f=await fixture(t);await f.save('Fix it');const turn=(await f.running()).id;
-  const stop=text=>hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn,last_assistant_message:text,transcript_path:null},f.thread);
-  assert.equal(await stop('Fixed it.'),null);assert.equal(await stop('Fixed it.'),null);
-  assert.deepEqual((await readFeedback()).filter(e=>e.autoPosted).map(e=>e.text),['Fixed it.']);
-});
-
-test('the current Goal follows a one-Goal hand-off and the chat\'s own goal comment; two Goals at once leave none',async t=>{
-  const f=await chatting(t),a=await createGoal({title:'A',parentId:f.root.id}),b=await createGoal({title:'B',parentId:f.root.id});
-  f.turn=await f.work();await f.hook('PostToolUse');
-  await f.write(said('Nothing is current yet.'),ran());await f.hook('PostToolUse');
-  assert.deepEqual(await f.posted(),[]);
-  await appendFeedback({goalId:a.id,text:'For A'});await sendFeedbackNow((await readFeedback()).at(-1).changeId);
-  assert.match((await f.hook('PostToolUse')).hookSpecificOutput.additionalContext,new RegExp(`Your messages in this conversation are posted to Goal #${a.id}\\.`));
-  assert.equal((await readCodexWork(f.thread)).currentGoal,a.id);
-  await f.write(said('On A.'),ran());await f.hook('PostToolUse');
-  // bin/chill-agent's comment command, from another chat and then from this one.
-  const {root}=await readGoalContext(b.id);
-  await agentReplied(root,b.id,{CODEX_THREAD_ID:randomUUID()});
-  assert.equal((await readCodexWork(f.thread)).currentGoal,a.id,'another chat\'s comment changes nothing');
-  await agentReplied(root,b.id,{CODEX_THREAD_ID:f.thread});
-  await f.write(said('On B.'),ran());await f.hook('PostToolUse');
-  assert.deepEqual(await f.posted(),[[a.id,'On A.'],[b.id,'On B.']]);
-  await appendFeedback({goalId:a.id,text:'More A'});await appendFeedback({goalId:b.id,text:'More B'});
-  const text=(await f.hook('Stop',{last_assistant_message:null})).reason;
-  assert.match(text,/waits for a reply on each Goal\. Reply on each Goal:/);
-  assert.equal((await readCodexWork(f.thread)).currentGoal,null);
-  await f.write(said('Both noted.','final_answer'));
-  assert.match((await f.hook('Stop',{last_assistant_message:'Both noted.'})).reason,new RegExp(`Goal #${a.id}, Goal #${b.id}\\b`));
-  assert.deepEqual((await f.posted()).length,2,'nothing is posted while no Goal is current');
-});
-
-test('a Keep going answer without a tool call is not posted; one that runs a tool is',async t=>{
-  const f=await chatting(t);await f.save('Check the build');f.turn=(await f.running()).id;
-  await f.hook('PostToolUse');
-  await f.write(said('The build is green.','final_answer'));await f.hook('Stop',{last_assistant_message:'The build is green.'});
-  await f.endTurn();
-  const nudge={type:'message',role:'user',content:[{type:'input_text',text:`${keepGoingHeading}\n\nAuto mode is On.`}]};
-  f.turn=randomUUID();
-  await f.write(nudge,said('Nothing left to move forward.','final_answer'));
-  assert.equal(await f.hook('Stop',{last_assistant_message:'Nothing left to move forward.'}),null);
-  f.turn=randomUUID();
-  await f.write(nudge,said('Updating the docs.'),ran());await f.hook('PostToolUse');
-  await f.write(said('The docs are updated.','final_answer'));await f.hook('Stop',{last_assistant_message:'The docs are updated.'});
-  assert.deepEqual((await f.posted()).map(([,text])=>text),['The build is green.','Updating the docs.','The docs are updated.']);
-});
-
-test('nothing is posted from a subagent or without text',async t=>{
-  const f=await fixture(t);await f.save('Fix it');
-  const turn=(await f.running()).id,stop=(text,patch={})=>hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn,last_assistant_message:text,...patch},f.thread);
-  assert.equal(await stop('Subagent result',{agent_id:'child'}),null);
-  assert.equal(await hookOutput({hook_event_name:'SubagentStop',session_id:f.thread,turn_id:turn,agent_id:'child',last_assistant_message:'Subagent result'},f.thread),null);
-  for(const text of [null,'',' \n'])assert.equal(await stop(text),null,'the current Goal is not held for');
-  assert.deepEqual((await readFeedback()).filter(e=>e.author==='agent'),[]);
 });

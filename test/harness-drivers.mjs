@@ -5,20 +5,18 @@
 // A driver plays the agent and reads what the user sees. start(t) returns a session:
 //   goalId                          the Root Goal the agent is assigned to
 //   agentStartsResponse()           the agent begins a response (a Codex turn, a Claude response)
-//   agentEndsResponse({background,text}) that response ends with `text` as its final reply (null: none). Resolves to
-//                                   the reason when chill holds the stop, and the response then goes on; else null.
-//                                   `background`: work of the agent keeps running.
+//   agentEndsResponse({background}) that response ends. Resolves to the reason when chill holds the stop, and the
+//                                   response then goes on; else null. `background`: work of the agent keeps running.
 //   userRunsLocalCommand()          the user runs a command of the agent's own app, such as /reload-skills: it writes to
 //                                   the conversation but starts no work
 //   agentIsInterrupted()            the user stops the running response in the agent's own app (Esc, Desktop's stop)
 //   agentTakesFeedback(eventId)     the agent's next opportunity to read Web feedback. An idle agent is woken by the
 //                                   feedback, which starts its response. Resolves to the feedback IDs that reached it.
 //   strangerAnswers(eventId)        a conversation the Goal is not assigned to tries to answer the feedback
-//   agentReplies(eventId, text, goalId) the agent's reply on a Goal (the Root Goal unless named)
+//   agentReplies(eventId, text)     the agent's reply on the feedback's Goal
 //   agentSelectsWork()              `goal work` on the Root Goal for the current response
 //   agentComments(text)             a progress `goal comment` on the Root Goal
-//   saveFeedback(text, goalId)      the user posts feedback in the Web (on the Root Goal unless named); resolves to its event ID
-//   splitGoal(title)                a Split Goal under the Root Goal; resolves to its ID
+//   saveFeedback(text)              the user posts feedback in the Web; resolves to its event ID
 //   sendNow(eventId)                the user's Send now
 //   shown(eventId)                  the small mark under the feedback (saved, waiting, paused, handed, interrupted),
 //                                   or null once the Goal has a reply after it
@@ -28,7 +26,7 @@
 //   pauseActivity(action)           the Goal activity's Pause ('stop') or Resume
 //   approveAll(on)                  the Agent API's Approve all
 //   approveAllControl(on?)          Approve all in the More and Agent menus: reads it, or turns it on/off
-//   comments(goalId)                the agent's comments on the Goal (the Root Goal unless named)
+//   comments()                      the agent's comments on the Goal
 // A capability the harness lacks is declared in `capabilities` and the scenario asserts the interface says so.
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
@@ -75,8 +73,8 @@ async function runWith(file,args,{env,cwd,input}={}) {
 function userSide(goalId,beforeRead=()=>{}) {
   return {
     goalId,
-    async saveFeedback(text,on=goalId) {
-      const event=await appendFeedback({goalId:on,text});
+    async saveFeedback(text) {
+      const event=await appendFeedback({goalId,text});
       await deliverFeedback(event.changeId);
       return event.changeId;
     },
@@ -111,10 +109,9 @@ function userSide(goalId,beforeRead=()=>{}) {
       if(on!==undefined)await control.set(goalId,{enabled:on});
       return control.read(goalId,{activity:true});
     },
-    async comments(on=goalId) {
-      return (await readFeedback()).filter(event=>event.goalId===on&&event.author==='agent').map(event=>event.text);
+    async comments() {
+      return (await readFeedback()).filter(event=>event.goalId===goalId&&event.author==='agent').map(event=>event.text);
     },
-    splitGoal:async title=>(await createGoal({title,parentId:goalId})).id,
   };
 }
 
@@ -158,9 +155,9 @@ async function codexSession(t) {
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
     async agentStartsResponse() {await chat.startTurn();await tool();},
     // Codex runs the Stop hook as the turn ends; a block continues the turn with the reason.
-    async agentEndsResponse({text='Done.'}={}) {
+    async agentEndsResponse() {
       const turn=await chat.running();
-      const hold=await hook('Stop',turn?.id??randomUUID(),{stop_hook_active:continuing,last_assistant_message:text,cwd:dir,model:'gpt-5.5',permission_mode:'default',transcript_path:null});
+      const hold=await hook('Stop',turn?.id??randomUUID(),{stop_hook_active:continuing,last_assistant_message:'Done.',cwd:dir,model:'gpt-5.5',permission_mode:'default',transcript_path:null});
       continuing=hold?.decision==='block';
       if(continuing){handoff.push(...feedbackIds(hold.reason));return hold.reason;}
       if(turn)await chat.endTurn('completed');
@@ -185,7 +182,7 @@ async function codexSession(t) {
     },
     // Another chat in the same project replies on the Goal.
     strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
-    agentReplies:(eventId,text,goalId=root.id)=>runWith(cli,['comment','--id',goalId,'--text',text],{env}),
+    agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
@@ -261,9 +258,9 @@ async function codexAppSession(t,codexPath) {
   return {
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
     async agentStartsResponse() {await call('thread/queue/add',{threadId:thread,...message('Work')});await take();await tool();},
-    async agentEndsResponse({text='Done.'}={}) {
+    async agentEndsResponse() {
       if(!live()&&!(requests.length&&await turnStarts()))return null;
-      const reason=await answer(text==null?[]:[kit.textItem(text)]);
+      const reason=await answer([kit.textItem('Done.')]);
       if(reason!==null)return reason;
       passTime();
       return null;
@@ -282,7 +279,7 @@ async function codexAppSession(t,codexPath) {
       return ids;
     },
     strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
-    agentReplies:(eventId,text,goalId=root.id)=>runWith(cli,['comment','--id',goalId,'--text',text],{env}),
+    agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
@@ -316,11 +313,11 @@ async function claudeSession(t) {
   const session={
     ...userSide(root.id),
     agentStartsResponse:startResponse,
-    async agentEndsResponse({background=false,text='Done.'}={}) {
-      // Claude Code writes the response's last message before its Stop hook runs.
-      if(text!=null)await append([claudeEntry.text(randomUUID(),text)]);
+    async agentEndsResponse({background=false}={}) {
+      // Claude Code writes the response's last message before its Stop hook runs, and passes it to the hook.
+      await append([claudeEntry.text(randomUUID(),'Done.')]);
       // A blocked Stop hands over feedback that waited for the end, or holds the stop; the response then goes on.
-      const output=await hook('Stop',{stop_hook_active:continuing,last_assistant_message:text,background_tasks:background?[{id:'a1b2c3',type:'subagent',status:'running',description:'Review the change',agent_type:'general-purpose'}]:[]});
+      const output=await hook('Stop',{stop_hook_active:continuing,last_assistant_message:'Done.',background_tasks:background?[{id:'a1b2c3',type:'subagent',status:'running',description:'Review the change',agent_type:'general-purpose'}]:[]});
       continuing=output?.decision==='block';
       if(continuing){handoff=output.reason;return output.reason;}
       await append([claudeEntry.stop({uuid:randomUUID()})]);
@@ -353,7 +350,7 @@ async function claudeSession(t) {
       await captureClaudeEntry(hookFor({session_id:other,cwd,transcript_path:transcript})('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:join(dir,'other-env')}});
       await runWith(connectionCli,['reply','--goal',root.id,'--text','Not mine'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other},cwd});
     },
-    async agentReplies(eventId,text,goalId=root.id) {await connection(['reply','--goal',goalId,'--text',text]);},
+    async agentReplies(eventId,text) {await connection(['reply','--goal',root.id,'--text',text]);},
     agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env:agentEnv}),
   };

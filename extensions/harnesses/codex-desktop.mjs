@@ -5,7 +5,7 @@ export default {
   operations:{
    inspect:{command:'goal show --id <GOAL> --section context --format text',confirmation:'Read the current Goal and its bound conversation before continuing.'},
    createRoot:{command:'goal create --help',confirmation:'Supply --thread-id with the actual calling Codex conversation UUID. Read the saved Root and verify its threadId matches. Do not create an unbound Root or infer identity from the folder.'},
-   reply:{command:'goal comment --id <GOAL> --text <TEXT>',confirmation:'Replies on that Goal at once, and one reply answers all of its comments. Your messages in this chat are posted to its current Goal: the Goal last handed feedback or replied on.'},
+   reply:{command:'goal comment --id <GOAL> --text <TEXT>',confirmation:'Posts the answer on the Goal at once. A Goal waits for a reply while the user commented after the agent; one reply answers all of it.'},
    selectWork:{command:'goal work --id <GOAL>',confirmation:'A reply does not select work or complete the Goal.'}
   },
   activation:{
