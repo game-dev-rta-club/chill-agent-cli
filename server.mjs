@@ -26,6 +26,7 @@ import {readAgentStatus,saveAgentSettings,controlAgent,readGoalActivity} from '.
 import {readAgentPresence} from './lib/agent-presence.mjs';
 import {goalCommentMarks} from './lib/agents/index.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
+import {searchWorkspace} from './lib/workspace-search.mjs';
 import {readAttention,markRead} from './lib/read-marks.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
 import {largeSize} from './lib/limits.mjs';
@@ -439,6 +440,11 @@ const server = createServer(async (request, response) => {
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
     }
+  }
+  if(path==='/api/search'){
+    if(request.method!=='GET')return sendJson(response,405,{error:'Method not allowed.'});
+    try{return sendJson(response,200,await searchWorkspace(url.searchParams.get('q')||''));}
+    catch(error){recordHidden('server.search',error);return sendJson(response,500,{error:'Could not search. Please try again.'});}
   }
   if (path === '/api/goals') {
     try {

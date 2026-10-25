@@ -1502,10 +1502,11 @@ async function navigate({refresh=true}={}){
         Object.assign(briefAt(match[1],Number(match[2]))||brief,loaded);
       }
     }
-    const letterLink=/^#\/goal\/([1-9][0-9]*)\/letter\/([1-9][0-9]*)$/.exec(target);
-    if(letterLink&&!events.some(e=>e.id===Number(letterLink[2]))){
-      const response=await fetch(`/api/goals/${letterLink[1]}/events/${letterLink[2]}`,{signal:AbortSignal.timeout(12000)});
-      if(!response.ok)throw Error('Could not load this Letter.');
+    // Letter and Activity links (from Search too) may name an event older than the loaded window.
+    const letterLink=/^#\/goal\/([1-9][0-9]*)\/(letter|activity)\/([1-9][0-9]*)$/.exec(target);
+    if(letterLink&&!events.some(e=>e.id===Number(letterLink[3]))){
+      const response=await fetch(`/api/goals/${letterLink[1]}/events/${letterLink[3]}`,{signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw Error(letterLink[2]==='letter'?'Could not load this Letter.':'Could not load this Comment.');
       addEvent(await response.json());
     }
     if(generation!==navigationGeneration||location.hash!==target)return;
