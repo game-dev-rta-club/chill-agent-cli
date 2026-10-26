@@ -15,6 +15,7 @@ import {createRuntimeUpdate} from './runtime-update.js';
 import {createTabIcon} from './tab-icon.js';
 import {isRunning} from './goal-state.js';
 import {createSkillMenu} from './skill-menu.js';
+import {autonomyLevels,autonomyOf} from './autonomy.js';
 
 history.scrollRestoration='manual';
 const briefsByGoal = new Map();
@@ -93,14 +94,7 @@ const viewUpdate = document.querySelector('#view-update');
 let currentRoute = '';
 let activeGoalId = null;
 const agentButton=document.getElementById('agent-button');
-// The AutoContinue cup, set on a saucer.
-const coffeeOnSaucer='<svg class="monitor-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(1.5 1) scale(.88)"><path class="coffee-fill" d="M3 6h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6z"/><path d="M17 8h2a3 3 0 0 1 0 6h-2"/><path class="coffee-steam" d="M7 4c-2-1 2-2 0-3m6 3c-2-1 2-2 0-3"/></g><path d="M1.5 18.6c2.5 2.2 16.5 2.2 19 0"/></svg>';
-agentButton.innerHTML=agentAvatar(true)+`<span class="agent-auto-mark" aria-hidden="true">${coffeeOnSaucer}</span>`;
-// A small coffee at the Agent's lower left while AutoContinue is on for this Goal.
-window.addEventListener('chill-extension-controls',event=>{
-  const on=event.detail.controls.some(c=>c.id==='continuation'&&c.enabled);
-  agentButton.toggleAttribute('data-autocontinue',on);
-});
+agentButton.innerHTML=agentAvatar(true);
 const tabIcon=createTabIcon(undefined,undefined,document.querySelector('.brand-mark img'));
 window.addEventListener('chill-agent-appearance',event=>tabIcon.use(event.detail.tabIcon));
 window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)?'working':isWaitingOnCheck(wake)?'waiting':null);});
@@ -216,9 +210,85 @@ function composerMarkup(id, comment) {
     <div class="comment-field"><label class="sr-only" for="conversation-comment">Reply</label>
       <textarea id="conversation-comment" data-input="comment" rows="3" placeholder="Write a comment">${escapeHTML(comment)}</textarea></div>
     ${imageControl('comment')}<div data-notes-slot>${notesPanelMarkup(id)}</div>
-    <div class="composer-actions"><div class="composer-buttons">${imagePicker('comment')}<button type="submit" class="composer-submit comment" data-submit-mode="comment">${icon('comment')}Comment</button></div></div>
+    <div class="composer-actions">${autonomyMarkup(id)}<div class="composer-buttons">${imagePicker('comment')}<button type="submit" class="composer-submit comment" data-submit-mode="comment">${icon('comment')}Comment</button></div></div>
   </fieldset></form>`;
 }
+
+// Autonomy: a 4-stop slider for this Goal's own level. The stops' names are
+// its labels and the current one is highlighted; each stop's description shows
+// on hover. A change saves at once, apart from any comment.
+const autonomySaves = new Map();
+const autonomyText = level => `Lv ${level} ${autonomyLevels[level-1].name}. ${autonomyLevels[level-1].tip}`;
+function autonomyMarkup(id) {
+  const level = autonomyOf(goalMetadata.get(id));
+  return `<div class="autonomy" data-autonomy data-goal-id="${id}" data-level="${level}">
+    <span class="autonomy-name" id="autonomy-name">Autonomy</span>
+    <div class="autonomy-track"><span class="autonomy-ticks" aria-hidden="true">${autonomyLevels.map(l => `<i data-level="${l.level}"></i>`).join('')}</span>
+      <input type="range" class="autonomy-range" data-autonomy-range min="1" max="${autonomyLevels.length}" step="1" value="${level}" aria-labelledby="autonomy-name" aria-valuetext="${escapeHTML(autonomyText(level))}"></div>
+    <ol class="autonomy-stops">${autonomyLevels.map(l => `<li class="autonomy-stop" data-level="${l.level}" ${l.level === level ? 'aria-current="true"' : ''}>
+      <button type="button" data-autonomy-level="${l.level}" tabindex="-1" aria-label="${escapeHTML(autonomyText(l.level))}"><b>Lv ${l.level}</b><span>${escapeHTML(l.name)}</span></button>
+      <span class="autonomy-tip" role="tooltip">${escapeHTML(l.tip)}</span></li>`).join('')}</ol>
+    <span class="autonomy-error" role="status" data-autonomy-error></span></div>`;
+}
+// Show a level in the slider without rendering the composer again.
+function showAutonomy(id, level = autonomyOf(goalMetadata.get(id)), error = '') {
+  const box = main.querySelector(`[data-autonomy][data-goal-id="${id}"]`);
+  if (!box) return;
+  const range = box.querySelector('[data-autonomy-range]');
+  range.value = String(level);
+  range.setAttribute('aria-valuetext', autonomyText(level));
+  box.dataset.level = String(level);
+  box.querySelectorAll('.autonomy-stop').forEach(stop => stop.toggleAttribute('aria-current', Number(stop.dataset.level) === level));
+  box.querySelector('[data-autonomy-error]').textContent = error;
+}
+async function saveAutonomy(id, level) {
+  const previous = autonomyOf(goalMetadata.get(id));
+  showAutonomy(id, level);
+  if (level === previous && !autonomySaves.has(id)) return;
+  const request = {};
+  autonomySaves.set(id, request);
+  goalMetadata.set(id, {...goalMetadata.get(id), autonomy: level});
+  try {
+    const response = await fetch(`/api/goals/${id}/autonomy`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level}), signal:AbortSignal.timeout(15000)});
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Could not save Autonomy.');
+    if (autonomySaves.get(id) === request) { goalMetadata.set(id, {...goalMetadata.get(id), autonomy: result.autonomy}); showAutonomy(id, result.autonomy); }
+  } catch (error) {
+    if (autonomySaves.get(id) !== request) return;
+    goalMetadata.set(id, {...goalMetadata.get(id), autonomy: previous});
+    showAutonomy(id, previous, error.name === 'TimeoutError' ? 'Save unconfirmed. Reload to check.' : error.message);
+  } finally {
+    if (autonomySaves.get(id) === request) autonomySaves.delete(id);
+  }
+}
+main.addEventListener('input', event => {
+  const range = event.target.closest?.('[data-autonomy-range]');
+  if (range) showAutonomy(range.closest('[data-autonomy]').dataset.goalId, Number(range.value));
+});
+main.addEventListener('change', event => {
+  const range = event.target.closest?.('[data-autonomy-range]');
+  if (range) void saveAutonomy(range.closest('[data-autonomy]').dataset.goalId, Number(range.value));
+});
+main.addEventListener('click', event => {
+  const stop = event.target.closest?.('[data-autonomy-level]');
+  if (!stop) return;
+  const box = stop.closest('[data-autonomy]');
+  void saveAutonomy(box.dataset.goalId, Number(stop.dataset.autonomyLevel));
+  box.querySelector('[data-autonomy-range]').focus({preventScroll:true});
+});
+// Hovering the track shows the description of the stop under the pointer.
+main.addEventListener('pointermove', event => {
+  const track = event.target.closest?.('.autonomy-track');
+  const box = event.target.closest?.('[data-autonomy]');
+  if (!box) return;
+  if (!track) { delete box.dataset.hover; return; }
+  const rect = track.getBoundingClientRect();
+  box.dataset.hover = String(Math.min(autonomyLevels.length, Math.max(1, Math.round((event.clientX - rect.left) / rect.width * (autonomyLevels.length - 1)) + 1)));
+});
+main.addEventListener('pointerout', event => {
+  const box = event.target.closest?.('[data-autonomy]');
+  if (box && !box.contains(event.relatedTarget)) delete box.dataset.hover;
+});
 
 const commentMarks = new Map();
 const activityControls=createActivityControls({main,getGoalId:()=>activeGoalId,onChange:()=>{
@@ -1585,6 +1655,7 @@ async function refreshGoals(){
     updateNoticeForRoute();
     if(activeGoalId===id&&activeVersion===previousLatest&&latestVersion(id)>previousLatest)await (routeReady=updateCurrentBrief(latestVersion(id)));
     refreshGoalFrame();updateTimeline(activeGoalId);renderAnnotations();updateNoticeForRoute();
+    if(!autonomySaves.has(activeGoalId))showAutonomy(activeGoalId);
     const heading=main.querySelector('.document-heading');
     if(heading&&!main.querySelector('.version-pager:focus-within'))heading.innerHTML=`<h2>Deliverable</h2>${briefAt(activeGoalId,activeVersion)?goalView().pager(activeGoalId,activeVersion):''}`;
   }else if(currentRoute==='#/goals')renderIndex();

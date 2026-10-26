@@ -2,6 +2,7 @@
 keyPoints: >-
   A Goal records an outcome and its criteria; children inherit the root's chat.
   Done requires every descendant to be Done, while progress counts completed leaves.
+  Each Goal has its own Autonomy, 1 to 4, set with the slider in its comment box.
 ---
 
 # Goals describe outcomes
@@ -42,6 +43,46 @@ See [execution state](../agent/execution-state.md).
 
 Implementation: [Goal store](../../lib/goal-store.mjs),
 [progress calculation](../../public/goal-progress.js).
+
+## Autonomy: how far the agent goes on its own
+
+Each Goal keeps one Autonomy level, 1 to 4, set with the slider left of "Add
+file" in the Goal's comment box. Moving it saves at once, apart from any comment.
+A new Goal copies its parent's level when it is created; a Root starts at 1.
+Nothing is inherited afterwards: each slider changes only its own Goal.
+
+| Level | Feedback text for that Goal | End of turn | Tool prompts (Claude) |
+| --- | --- | --- | --- |
+| 1 Normal | nothing added | nothing | asked as usual |
+| 2 Thorough | think in the user's place; accuracy over speed | one self-check of the reply | asked as usual |
+| 3 Continue | as 2 | keep working on what was agreed for the Goal | allowed |
+| 4 Drive | as 2 | advance the whole Root tree where no user judgment is needed; decisions go to Letters | allowed |
+
+Hooks read the level afresh, so a running agent meets a change at its next hook.
+A conversation's Goals are the unfinished Goals, in the Roots it owns, that its
+current work was handed, that it last worked in, or that it selected with
+`goal work`; when none is unfinished, each owned Root's focus (the Goal with its
+latest user comment, or the Root) stands in.
+
+- **End of turn.** One message per conversation, from the highest level among its
+  Goals. It lists the Goals at 2 or higher with what each level asks, so it stands
+  on its own. A Goal at 4 brings its Root tree in, without the Goals other live
+  conversations work on, which it names as taken. A Claude conversation gets it at
+  its Stop hook; the Web server checks a Codex chat every 30 seconds. One check per
+  revision: a user comment, a Goal or Deliverable change, or a level change.
+- **Tool prompts.** Allowed when any of the conversation's Goals is at 4, or when
+  the lowest among them is at least 3; otherwise, and with no Goals, the prompt
+  asks as usual. Questions for the user (AskUserQuestion) are never answered, and
+  a paused conversation is not answered. Codex prompts cannot be answered by hooks.
+
+`POST /api/goals/<id>/autonomy` with `{"level":3}` (same-origin JSON) is the
+slider's API. Workspaces from before Autonomy had an AutoContinue switch per
+Root: on first use, every Goal under a Root that had it On without a level of
+its own starts at 3, and the switch is removed from the Root's journal. Approve
+all is not carried over.
+
+Implementation: [levels](../../public/autonomy.js), [rules](../../lib/autonomy.mjs),
+[end-of-turn message](../../lib/continuation-monitor.mjs).
 
 ## Hide an unused root
 

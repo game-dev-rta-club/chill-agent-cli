@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief, setGoalAutonomy } from './lib/goal-store.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
 import { createTunnelController } from './lib/tunnel-controller.mjs';
@@ -118,6 +118,7 @@ const assets = new Map([
   ['/goal-progress.js', ['goal-progress.js', 'text/javascript; charset=utf-8']],
   ['/goal-state.js', ['goal-state.js', 'text/javascript; charset=utf-8']],
   ['/letter-state.js', ['letter-state.js', 'text/javascript; charset=utf-8']],
+  ['/autonomy.js', ['autonomy.js', 'text/javascript; charset=utf-8']],
   ['/brief-navigation.js', ['brief-navigation.js', 'text/javascript; charset=utf-8']],
   ['/brief-body.js', ['brief-body.js', 'text/javascript; charset=utf-8']],
   ['/markdown-view.js', ['markdown-view.js', 'text/javascript; charset=utf-8']],
@@ -311,6 +312,13 @@ const server = createServer(async (request, response) => {
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
     try{return sendJson(response,200,await controlAgent(controlPath[1],await readJson(request)));}
     catch(error){return sendJson(response,409,{error:error.message});}
+  }
+  // The comment box's Autonomy slider saves one Goal's level by itself, apart from any comment.
+  const autonomyPath=/^\/api\/goals\/([1-9][0-9]*)\/autonomy$/.exec(path);
+  if(autonomyPath&&request.method==='POST'){
+    if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    try{const goal=await setGoalAutonomy(autonomyPath[1],(await readJson(request)).level);return sendJson(response,200,{goalId:goal.id,autonomy:goal.autonomy});}
+    catch(error){return sendJson(response,/not found/i.test(error.message)?404:400,{error:error.message});}
   }
   const eventPath=/^\/api\/goals\/([1-9][0-9]*)\/events\/([1-9][0-9]*)$/.exec(path);
   if(eventPath&&request.method==='GET'){

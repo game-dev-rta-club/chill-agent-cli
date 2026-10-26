@@ -24,8 +24,10 @@
 //   goalRunning()                   whether the Goal list marks the Goal Running
 //   agentStatus()                   the Agent menu data
 //   pauseActivity(action)           the Goal activity's Pause ('stop') or Resume
-//   approveAll(on)                  the Agent API's Approve all
-//   approveAllControl(on?)          Approve all in the More and Agent menus: reads it, or turns it on/off
+//   setAutonomy(level)              the Autonomy slider in the Goal's comment box
+//   feedbackText()                  the last feedback text that reached the agent
+//   permissionPrompt()              a tool permission prompt in the agent's app: 'allow' when chill answers it, else
+//                                   null. Only where a hook can answer prompts (capabilities.approvals)
 //   comments()                      the agent's comments on the Goal
 // A capability the harness lacks is declared in `capabilities` and the scenario asserts the interface says so.
 import {spawn} from 'node:child_process';
@@ -34,11 +36,10 @@ import {appendFile,mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {appendFeedback,createGoal,listGoals,readFeedback} from '../lib/goal-store.mjs';
+import {appendFeedback,createGoal,listGoals,readFeedback,setGoalAutonomy} from '../lib/goal-store.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {agentExecutions,assignGoal,goalCommentMarks,selectAgentWork} from '../lib/agents/index.mjs';
 import {controlAgent,readGoalActivity,readAgentStatus} from '../lib/agent-status.mjs';
-import {createApproveAllExtension} from '../lib/approve-all-extension.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {claimClaudeFeedbackForWatcher} from '../lib/claude-actions.mjs';
@@ -100,15 +101,8 @@ function userSide(goalId,beforeRead=()=>{}) {
       const activity=await readGoalActivity(goalId);
       return controlAgent(goalId,{action,token:activity?.token,turnId:activity?.turnId});
     },
-    async approveAll(on) {
-      const {token}=await readAgentStatus(goalId);
-      return controlAgent(goalId,{scope:'permissions',token,approveAll:on});
-    },
-    async approveAllControl(on) {
-      const control=createApproveAllExtension();
-      if(on!==undefined)await control.set(goalId,{enabled:on});
-      return control.read(goalId,{activity:true});
-    },
+    setAutonomy:level=>setGoalAutonomy(goalId,level),
+    feedbackText:()=>lastFeedback,
     async comments() {
       return (await readFeedback()).filter(event=>event.goalId===goalId&&event.author==='agent').map(event=>event.text);
     },
@@ -119,7 +113,7 @@ function userSide(goalId,beforeRead=()=>{}) {
 async function workspace(t,prefix,env) {
   // Each test starts from the real clock: Codex hooks stamp their heartbeat with it, and skew piled up over
   // earlier tests would make a fresh heartbeat look stale.
-  skew=0;
+  skew=0;lastFeedback='';
   const dir=await mkdtemp(join(tmpdir(),prefix)),previous={};
   for(const [key,value] of Object.entries({CHILL_AGENT_DATA_DIR:join(dir,'data'),...env})) {
     previous[key]=process.env[key];process.env[key]=value;
@@ -133,7 +127,9 @@ async function workspace(t,prefix,env) {
 
 // ---- Codex ----------------------------------------------------------------------
 
-const feedbackIds=text=>[...text.matchAll(/"eventId":(\d+),"goalId"/g)].map(match=>Number(match[1]));
+// The IDs in a text that reached the agent; the last feedback text is kept for scenarios that read it.
+let lastFeedback='';
+const feedbackIds=text=>{if(text?.includes('=== chill-agent · User Feedback ==='))lastFeedback=text;return [...(text||'').matchAll(/"eventId":(\d+),"goalId"/g)].map(match=>Number(match[1]));};
 
 async function codexSession(t) {
   const dir=await workspace(t,'chill-scenario-codex-',{CHILL_AGENT_CODEX_PATH:fakeCodex});
@@ -351,6 +347,7 @@ async function claudeSession(t) {
       await runWith(connectionCli,['reply','--goal',root.id,'--text','Not mine'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other},cwd});
     },
     async agentReplies(eventId,text) {await connection(['reply','--goal',root.id,'--text',text]);},
+    async permissionPrompt() {return (await hook('PermissionRequest',{tool_name:'Bash',tool_input:{command:'ls'}}))?.hookSpecificOutput?.decision?.behavior??null;},
     agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env:agentEnv}),
   };
@@ -359,14 +356,14 @@ async function claudeSession(t) {
 
 const win32Codex=process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable';
 
-// Approve all and settings are Claude features. Pause goes through Desktop's IPC, which each Codex driver stands in for.
+// Answering tool prompts (Autonomy approvals) and settings are Claude features. Pause goes through Desktop's IPC, which each Codex driver stands in for.
 // Codex's Stop hook input names no background work, so chill cannot see it.
-const codexCapabilities={approveAll:false,pause:true,backgroundWork:false};
+const codexCapabilities={approvals:false,pause:true,backgroundWork:false};
 const appCodex=process.env.CHILL_SCENARIO_CODEX;
 export const drivers=appCodex?[
   {name:'Codex app-server',start:t=>codexAppSession(t,appCodex),agentName:'Codex',pending:'handed',capabilities:codexCapabilities},
 ]:[
   {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'handed',capabilities:codexCapabilities},
   {name:'Claude Code',start:claudeSession,agentName:'Claude Code',pending:'saved',
-    capabilities:{approveAll:true,pause:true,backgroundWork:true}},
+    capabilities:{approvals:true,pause:true,backgroundWork:true}},
 ];

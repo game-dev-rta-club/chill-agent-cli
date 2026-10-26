@@ -2,7 +2,8 @@
 keyPoints: >-
   Before leaving Claude, confirm a watcher is running and try one Web reply
   in the same conversation, then review native permissions for the actual work.
-  chill Auto mode delegates decisions; it does not approve tools. The Web does not
+  A Goal's Autonomy decides how far the agent goes on its own; from 3 it also
+  answers tool prompts chill can answer. The Web does not
   start a closed Claude process.
 ---
 
@@ -25,18 +26,18 @@ SessionStart context asks the agent to start the `connection wait` task again.
 
 ## Decide what to delegate
 
-There are two independent decisions:
+There are two decisions:
 
 | Setting | What it controls |
 | --- | --- |
-| chill Auto mode | Whether the agent chooses and carries out the next useful action toward the agreed Goal |
-| Claude tool permissions | Which reads, commands and edits can execute without another approval |
+| A Goal's [Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own) | How far the agent goes on its own: think harder (2), keep working on the agreed work (3) or drive the whole Root tree (4). From 3 the PermissionRequest hook answers prompts with Allow |
+| Claude tool permissions | Which reads, commands and edits can execute without another approval at Autonomy 1 or 2 |
 
 Review the operations the work requires in Claude's permission settings. Saved
 command-specific allowances can avoid repeated prompts. A one-time approval does
 not authorize the next reply. Native ask or deny rules can override an
 allowance. Claude's own permission mode named `auto` is a separate native policy;
-selecting chill Auto mode does not select it.
+raising a Goal's Autonomy does not select it.
 See [Claude's permission guide](https://code.claude.com/docs/en/permissions).
 
 Every chill command starts with the entry printed by setup, so a single command
@@ -76,7 +77,7 @@ place: the affected action may wait while independent work continues.
 
 | What you see | Next action |
 | --- | --- |
-| A native approval prompt | Review it in the original Claude conversation; changing chill Auto mode will not answer it |
+| A native approval prompt | Review it in the original Claude conversation, or raise the Autonomy of the conversation's Goals to 3; a prompt Claude Code never lets a hook approve still asks |
 | No watcher is running | Ask that same conversation to check `connection inbox`; its next Stop starts the watcher again, and in Claude Desktop the result names the task to start |
 | Claude closed | Resume the same native session |
 | A delivery is uncertain | Read `connection inbox` in the same conversation; do not create a replacement Root or resend the message |

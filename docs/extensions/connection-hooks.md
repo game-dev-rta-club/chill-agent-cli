@@ -10,7 +10,8 @@ keyPoints: >-
 
 Protocol v1's optional `connection-hooks` capability lets a packaged extension
 participate in the experimental [Claude connection](../agent/claude-actions.md).
-The standalone CLI contains no Auto mode policy. Register trusted modules in the
+The CLI's own `continuation` module sends the end-of-turn check that a Goal's
+[Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own) asks for. Register trusted modules in the
 composed runtime's `extensions.json`:
 
 ```json

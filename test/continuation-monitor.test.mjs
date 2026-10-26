@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createMonitorRunner,continuationMessage,configureMonitor,readMonitor} from '../lib/continuation-monitor.mjs';
+import {createMonitorRunner,continuationMessage,readMonitor} from '../lib/continuation-monitor.mjs';
+import {codexTurnPlan} from '../lib/agents/codex-continuation.mjs';
 import {continuationObservation} from '../lib/agents/codex-continuation-observation.mjs';
 import {continuationEligibility} from '../lib/continuation-eligibility.mjs';
 import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {createGoal,updateGoal,updateBrief,appendFeedback,readFeedback} from '../lib/goal-store.mjs';
+import {createGoal,updateGoal,updateBrief,appendFeedback,readFeedback,setGoalAutonomy} from '../lib/goal-store.mjs';
 import {mkdir} from 'node:fs/promises';
 import {recordVersionSource} from '../lib/version-source.mjs';
 import {codexThread,contractStub} from './codex-contract.mjs';
@@ -23,9 +24,11 @@ async function installedSkill(t){
  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
 }
 const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootState:'idle',revision:'r1',progress:'p1',candidates:[{id:'2',title:'Work'}],lastUserEvent:1,paused:false,pendingFeedback:[],queue:[],stable:true,harnessState:'notLoaded',heartbeatFresh:false,turn:{id:'turn',status:'completed',completedAt:1}});
+// The chat's Autonomy plan: one Goal at Continue, its revision following the facts'.
+const planFor=f=>({rootId:'1',threadId:'t',level:3,goalId:'2',goalTitle:'Work',revision:f.revision,goals:[{id:'2',title:'Work',level:3,rootId:'1'}],trees:[]});
 function fixture(){
- let saved={enabled:true,threadId:'t',attempts:[]},time=1000,f=idle(),sent=[],failure=false,observations=0,mutate=()=>{};
- const deps={read:async()=>structuredClone(saved),write:async(_id,s)=>{saved=structuredClone(s);},observe:async()=>{mutate(++observations);return structuredClone(f);},lock:async(_id,fn)=>fn(),now:()=>time,send:async(_f,text,id)=>{sent.push({text,id});if(failure)throw Error('timeout');return {queuedSubmission:{id:'q'}};}};
+ let saved=null,time=1000,f=idle(),sent=[],failure=false,observations=0,mutate=()=>{};
+ const deps={plan:async()=>deps.planned===undefined?planFor(f):deps.planned,read:async()=>structuredClone(saved),write:async(_id,s)=>{saved=structuredClone(s);},observe:async()=>{mutate(++observations);return structuredClone(f);},lock:async(_id,fn)=>fn(),now:()=>time,send:async(_f,text,id)=>{sent.push({text,id});if(failure)throw Error('timeout');return {queuedSubmission:{id:'q'}};}};
  return {run:()=>createMonitorRunner(deps)('1'),get state(){return saved;},get sent(){return sent;},f,advance:(n=101)=>{time+=n;},fail:()=>{failure=true;},mutate:fn=>{mutate=fn;},complete:()=>{f.pendingWork={endedAt:new Date(time).toISOString()};f.turn={id:'next'+sent.length,status:'completed',completedAt:time/1000};},deps};
 }
 for(const [name,patch] of Object.entries({queued:{queue:[{id:'other-goal'}]},sending:{pendingFeedback:[{eventId:2,status:'sending'}]},saved:{pendingFeedback:[{eventId:2,status:'saved'}]},paused:{paused:true},unfinished:{turn:{id:'x',completedAt:null,status:'interrupted'}},heartbeat:{heartbeatFresh:true},unknown:{harnessState:'unknown'},changing:{stable:false},interrupted:{turn:{id:'t',completedAt:1,status:'interrupted'}}})){
@@ -46,6 +49,23 @@ test('one nudge per revision across restarts; completed result alone does not pr
  x.complete();assert.equal((await x.run()).status,'exhausted');assert.equal(x.sent.length,1);
  x.advance(10000);assert.equal((await x.run()).status,'exhausted');assert.equal(x.sent.length,1);
  x.f.revision='r2';await x.run();assert.equal(x.sent.length,2);assert.equal(x.state.history.length,1);
+});
+test('nothing is checked while no Goal asks for it, or for a Root the plan does not name',async()=>{
+ const x=fixture();x.deps.planned=null;assert.equal((await x.run()).status,'off');assert.equal(x.sent.length,0);
+ x.deps.planned={...planFor(x.f),rootId:'9'};assert.equal((await x.run()).status,'off','the chat gets one message, from the Root of its highest level');
+ x.deps.planned=undefined;await x.run();assert.equal(x.sent.length,1);
+ assert.match(x.sent[0].text,/Goal #2 “Work”, Lv 3 Continue: After each turn, keep working on what was agreed for this Goal/);
+});
+test('a level change is a new revision',async()=>{
+ const x=fixture();await x.run();x.complete();assert.equal((await x.run()).status,'exhausted');
+ x.deps.planned={...planFor(x.f),level:2,revision:'level-2',goals:[{id:'2',title:'Work',level:2,rootId:'1'}]};
+ await x.run();assert.equal(x.sent.length,2);assert.match(x.sent[1].text,/Lv 2 Thorough: Is there anything in this reply you asked or left open/);
+});
+test('a reassigned Root starts over for its new chat; the earlier request is closed, never resent',async t=>{
+ expectHidden(t,'continuation-monitor.send');
+ const x=fixture();x.fail();await x.run();
+ x.deps.planned={...planFor(x.f),threadId:'u'};x.f.threadId='u';
+ await x.run();assert.equal(x.state.history[0].phase,'assignment-changed');assert.equal(x.state.threadId,'u');
 });
 test('Done and no candidates do not suppress monitoring',async()=>{
  const x=fixture();x.f.rootState='done';x.f.candidates=[];await x.run();assert.equal(x.sent.length,1);
@@ -124,14 +144,16 @@ test('real store: content revisions stay separate from agent Web events',async()
   await appendFeedback({goalId:root.id,text:'New user input'});
   const revision=(await observe()).revision;assert.notEqual(revision,briefRevision);
   // Actual state persistence and shared thread lock; two monitors race.
-  await configureMonitor(root.id,true);let sends=0;
-  const run=createMonitorRunner({observe:async()=>({...idle(),rootId:root.id,threadId,revision}),
+  // A Done Goal asks for nothing; reopened at Continue, it does.
+  await setGoalAutonomy(root.id,3);
+  assert.equal(await codexTurnPlan(threadId),null);await updateGoal(root.id,{state:'idle'});let sends=0;
+  const run=createMonitorRunner({plan:()=>codexTurnPlan(threadId),observe:async()=>({...idle(),rootId:root.id,threadId,revision:(await observe()).revision}),
    send:async()=>{sends++;return {queuedSubmission:{id:'queue'}};}});
   await Promise.all([run(root.id),run(root.id)]);assert.equal(sends,1);
   const events=await readFeedback();
-  assert.deepEqual(await readFeedback(),events);assert.equal((await observe()).revision,revision);
+  assert.deepEqual(await readFeedback(),events);assert.notEqual((await observe()).revision,revision,'the Autonomy change is a revision');
   assert.equal((await run(root.id)).status,'awaiting-run');assert.equal(sends,1);
-  await configureMonitor(root.id,false);await configureMonitor(root.id,true);
+  await setGoalAutonomy(root.id,1);assert.equal((await run(root.id)).status,'off');
   assert.equal((await readMonitor(root.id)).attempts.length,1);
  }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });
@@ -168,7 +190,7 @@ test('the request points to the guide recorded by setup',async t=>{
  assert.ok(path.endsWith(join('references','auto-mode','continue.md')));
  const guide=await readFile(path,'utf8');
  assert.ok(guide.length>0);
- assert.match(text,/Auto mode is On/);
+ assert.match(text,/ask yourself once/);
 });
 
 test('nudge describes unfinished Goals, pending Letters, and a settled tree without confusing them',()=>{
@@ -194,13 +216,14 @@ test('chill records the result when the run ends: worked when the agent left som
  }
 });
 
-test('continuation anchors to the last work Goal and preserves the observed run when archived',async()=>{
- const x=fixture();x.f.context={focus:{id:'7',title:'Current outcome'}};
+test('continuation anchors to the highest-level Goal and preserves the observed run when archived',async()=>{
+ const x=fixture(),at=(id,title)=>{x.deps.planned={...planFor(x.f),goalId:id,goalTitle:title,goals:[{id,title,level:3,rootId:'1'}]};};
+ at('7','Current outcome');
  await x.run();assert.equal(x.state.attempts[0].goalId,'7');
  assert.equal(x.state.attempts[0].goalTitle,'Current outcome');
- x.f.context.focus={id:'8',title:'Next outcome'};x.complete();
+ x.complete();x.f.revision='r2';at('8','Next outcome');
  x.f.pendingWork.turnId='auto-run';x.f.pendingWork.messages=[{text:'Public update'}];
- x.f.revision='r2';await x.run();
+ await x.run();
  assert.equal(x.state.history[0].goalId,'7');assert.equal(x.state.history[0].turnId,'auto-run');
  assert.deepEqual(x.state.history[0].work.messages,[{text:'Public update'}]);
  assert.equal(x.state.attempts[0].goalId,'8');

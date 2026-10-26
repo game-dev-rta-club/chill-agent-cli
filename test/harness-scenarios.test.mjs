@@ -113,19 +113,18 @@ scenario('the Agent menu reads the agent\'s name, model and status',async (s,dri
   assert.ok(done.agent.model.model,'the model it answered with');
 });
 
-scenario('Approve all is offered where the harness supports it, and refused where it does not',async (s,driver) => {
-  assert.equal((await s.agentStatus()).capabilities.approveAll,driver.capabilities.approveAll);
-  if(driver.capabilities.approveAll) {
-    assert.equal((await s.approveAll(true)).approveAll,true);
-    assert.equal((await s.approveAll(false)).approveAll,false);
-    // The same switch sits beside Auto-continue in the More and Agent menus, and asks before turning on.
-    const off=await s.approveAllControl();
-    assert.equal(off.enabled,false);assert.equal(off.placement,'header');assert.ok(off.activity);assert.match(off.confirmOn.message,/Allow/);
-    assert.equal((await s.approveAllControl(true)).enabled,true);assert.equal((await s.agentStatus()).approveAll,true);
-    assert.equal((await s.approveAllControl(false)).enabled,false);
+// Autonomy (public/autonomy.js) is the Goal's own level; the agent meets it at its next hook.
+scenario('Autonomy reaches the agent: feedback at 2 asks it to think in the user\'s place, and tool prompts are approved at 3 where a hook can answer them',async (s,driver) => {
+  await s.setAutonomy(2);
+  const event=await s.saveFeedback('Choose the safer migration');
+  assert.deepEqual(await s.agentTakesFeedback(event),[event]);
+  assert.match(s.feedbackText(),/Autonomy Lv 2 Thorough on Goal #\d+: Think in the user's place\. Prefer accuracy to speed/);
+  if(driver.capabilities.approvals) {
+    assert.equal(await s.permissionPrompt(),null,'Thorough still asks');
+    await s.setAutonomy(3);
+    assert.equal(await s.permissionPrompt(),'allow','Continue approves');
   } else {
-    await assert.rejects(s.approveAll(true),/not available/);
-    assert.equal(await s.approveAllControl(),null,'no switch where the harness cannot answer prompts');
+    assert.equal(s.permissionPrompt,undefined,'the harness has no prompt a hook can answer');
   }
 });
 

@@ -19,7 +19,7 @@ const store=new URL('../lib/goal-store.mjs',import.meta.url).href;
 const feedbackToken=randomUUID(),memoryToken=randomUUID();
 const env={};for(const key of ['PATH','HOME','TMPDIR','USER','LOGNAME','SHELL','LANG','LC_ALL',...(values['auth-settings']?[]:authNames)])if(process.env[key]!==undefined)env[key]=process.env[key];
 Object.assign(env,{CLAUDE_CONFIG_DIR:config,CHILL_AGENT_DATA_DIR:data,CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:'1',CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL:'1'});
-const report={checkedAt:new Date().toISOString(),scope:'Disposable authenticated print-mode main-hook roundtrip. No existing user chat, interactive idle wake, controls or Auto mode qualification.'};
+const report={checkedAt:new Date().toISOString(),scope:'Disposable authenticated print-mode main-hook roundtrip. No existing user chat, interactive idle wake, controls or end-of-turn check qualification.'};
 report.feedbackMode=values.automatic?'automatic-tool-hook':'explicit-inbox';
 let phase='prepare';
 try {

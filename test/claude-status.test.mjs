@@ -42,7 +42,7 @@ test('status follows the last hook; resume preserves ownership and clear cannot 
 
 test('child Agent menu and CLI show expose safe evidence without controls or private connection fields',async t=>{
  const f=await fixture(t),child=await createGoal({title:'Child',parentId:f.root.id});await f.hook('SessionEnd');
- const data=await readAgentStatus(child.id);assert.equal(data.rootId,f.root.id);assert.equal(data.agent.status.label,'Session ended');assert.deepEqual(data.capabilities,{settings:false,stop:false,resume:false,approveAll:true});
+ const data=await readAgentStatus(child.id);assert.equal(data.rootId,f.root.id);assert.equal(data.agent.status.label,'Session ended');assert.deepEqual(data.capabilities,{settings:false,stop:false,resume:false});
  assert.doesNotMatch(JSON.stringify(data.agent),new RegExp(`${f.root.connection.sessionId}|${f.root.connection.contextId}|Private|transcript|cwd|generation`));
  const html=agentMarkup(data);assert.match(html,/Session ended/);assert.doesNotMatch(html,/<select|data-agent-settings|data-agent-extension|<progress/);
  const {stdout}=await exec(process.execPath,[fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url)),'show'],{cwd:f.cwd,env:{...process.env,...f.env()}});assert.equal(JSON.parse(stdout).status.state,'ended');
