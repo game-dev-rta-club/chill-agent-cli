@@ -176,7 +176,6 @@
 .autonomy-choice[aria-pressed="true"] .autonomy-check { visibility: visible; }
 .autonomy-message { margin: 6px 8px 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .autonomy-message:empty { display: none; }
-.autonomy-scope { margin: 6px 0 0; padding: 6px 8px 0; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.5; color: var(--muted); }
 .composer-submit svg { width: 14px; height: 14px; }
 .composer-submit:disabled { background: var(--surface); color: var(--muted); opacity: .6; }
 .comment-submit > .image-pick { margin-left: auto; }

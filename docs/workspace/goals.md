@@ -54,10 +54,9 @@ value. It is stored as 1 to 3 but always shown by name, never by number.
 In the comment box it is a button at the left of the Add file / Comment row,
 showing the level's icon and name; on a narrow row the comment buttons wrap below
 it. The button opens a small Autonomy panel, built like the Color theme panel:
-each level as a row with its icon, name and one-line description, a check on the
-current one, and the line "For the agent on this Root." Choosing a row saves at
-once, apart from any comment, and closes the panel; Escape or a click outside
-closes it without a change. If the save fails the panel stays open and says so.
+each level as a row with its icon, name and one-line description, and a check on
+the current one. Choosing a row saves at once, apart from any comment, and closes
+the panel; Escape or a click outside closes it without a change. If the save fails the panel stays open and says so.
 
 | Level | End of turn | Tool prompts (Claude) |
 | --- | --- | --- |
