@@ -17,8 +17,10 @@ export function createReadingPane(pane, {rectOf = el => el.getBoundingClientRect
   };
   function captureIn(container) {
     const top = container.scrollTop, bounds = container.getBoundingClientRect();
-    // A Conversation column read at its very end keeps showing the newest lines.
-    const atEnd = container !== pane && top + container.clientHeight >= container.scrollHeight - 2;
+    // A Conversation read at its very end keeps showing the newest lines, in its
+    // own column or, on a narrow screen, at the end of the page. A page not yet
+    // scrolled stays at its top while it loads.
+    const atEnd = (container !== pane || top > 0) && top + container.clientHeight >= container.scrollHeight - 2;
     const owner = pane.firstElementChild, revision = interaction;
     const inView = el => {
       if(!el?.isConnected)return false;
