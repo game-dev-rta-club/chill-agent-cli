@@ -26,7 +26,7 @@ try{
  assert.equal(await trigger.getAttribute('aria-expanded'),'true');
  assert.deepEqual(await panel.locator('[data-autonomy-level] b').allTextContents(),['Normal','Auto Continue','Ultra Continue']);
  assert.deepEqual(await panel.locator('[data-autonomy-level]').evaluateAll(b=>b.map(x=>x.getAttribute('aria-pressed'))),['true','false','false']);
- assert.match(await panel.innerText(),/^Autonomy\n[\s\S]*For the agent on this Root\.$/);
+ assert.match(await panel.innerText(),/^Autonomy\n/);
  assert.doesNotMatch(await page.locator('.autonomy').innerText(),/Lv|\d/,'no level numbers are shown');
  const box=await panel.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=375&&box.y>=0&&box.y+box.height<=812,`the panel stays on a phone screen: ${JSON.stringify(box)}`);assert.ok(await unclipped(panel),'the panel shows whole on a phone');
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.autonomyLevel),'1','the current level has focus');

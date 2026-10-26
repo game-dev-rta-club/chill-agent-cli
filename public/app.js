@@ -251,8 +251,7 @@ autonomyPanel.setAttribute('role', 'dialog');
 autonomyPanel.setAttribute('aria-label', 'Autonomy');
 autonomyPanel.innerHTML = `<h2 class="autonomy-heading">Autonomy</h2>
   <div class="autonomy-choices">${autonomyLevels.map(l => `<button type="button" class="autonomy-choice" data-autonomy-level="${l.level}" aria-pressed="false">${autonomyIcon(l.level)}<span class="autonomy-choice-text"><b>${escapeHTML(l.name)}</b><span>${escapeHTML(l.description)}</span></span><span class="autonomy-check" aria-hidden="true">✓</span></button>`).join('')}</div>
-  <p class="autonomy-message" role="status"></p>
-  <p class="autonomy-scope">For the agent on this Root.</p>`;
+  <p class="autonomy-message" role="status"></p>`;
 document.body.append(autonomyPanel);
 const autonomyMessage = autonomyPanel.querySelector('.autonomy-message');
 const autonomyChoices = () => [...autonomyPanel.querySelectorAll('[data-autonomy-level]')];
