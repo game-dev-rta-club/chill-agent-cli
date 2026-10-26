@@ -202,7 +202,9 @@ const server = createServer(async (request, response) => {
   const release = () => { if (!finished) { finished = true; if (write) activeWrites -= 1; } };
   response.once('finish', release);
   response.once('close', release);
-  response.setHeader('Cache-Control', 'no-store');
+  // no-transform: a proxy such as a Cloudflare tunnel must not rewrite pages
+  // (it hides email addresses), or annotation offsets no longer match.
+  response.setHeader('Cache-Control', 'no-store, no-transform');
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
   // Existing sockets can pipeline more requests after server.close() has
