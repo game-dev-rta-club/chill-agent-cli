@@ -13,6 +13,7 @@ import {readConnectedTree,readGoalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
 import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
 import {largeSize} from '../lib/limits.mjs';
+import {briefLayoutHint} from '../lib/brief.mjs';
 
 // Agents see the Deliverable by that name; stored records keep their internal names.
 const agentNames={brief:'deliverable',briefs:'deliverables',briefPath:'deliverablePath'};
@@ -51,7 +52,8 @@ async function main() {
     const result=subcommand==='path'?await briefSource(id,v['--format']):await updateBrief(id,v['--format']);
     // An unchanged file usually means the edit never reached it, so say so as a failure.
     if(result.changed===false)throw Error(`Not published: ${result.path} is the same as v${result.version}. Check that the edit was saved, then run deliverable update again.`);
-    return output({...result,url:url(id,result.version)});
+    const hint=subcommand==='update'&&briefLayoutHint(result.body,result.format);
+    return output({...result,url:url(id,result.version),...(hint?{hint}:{})});
   }
   if(command==='assign') return output(await assignGoal(id,v['--off']?null:v['--thread-id']));
   if(command==='work') return output(await selectAgentWork(id,{stop:Boolean(v['--stop'])}));

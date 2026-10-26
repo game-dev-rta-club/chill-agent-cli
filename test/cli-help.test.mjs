@@ -34,7 +34,13 @@ test('every command help works without data, valid settings, Codex, or server st
     assert.match(stdout,/Usage:/,path); assert.equal(stderr,'',path);
     assert.ok(stdout.includes(commands[path].summary),path);
   }
-  assert.match((await f.run(join(root,entries.goal),['help','deliverable','update'])).stdout,/Markdown/);
+  const update=(await f.run(join(root,entries.goal),['help','deliverable','update'])).stdout;
+  assert.match(update,/one clear idea\s+and one meaningful relationship per screen, with only enough text to connect them/);
+  assert.match(update,/Values: html, markdown\./,'html is listed before markdown');
+  assert.match(update,/Existing Markdown Deliverables still work/);
+  assert.doesNotMatch(update,/Mermaid|headings, lists|!\[Description\]/,'Markdown features are no longer advertised');
+  assert.match((await f.run(join(root,entries.goal),['help','deliverable'])).stdout,/one clear idea and one meaningful relationship per screen, with only enough text to connect them/);
+  assert.match((await f.run(join(root,entries.goal),['image','--help'])).stdout,/Deliverable HTML \(img\)/);
   assert.match((await f.run(join(root,entries.setup),['-h'])).stdout,/prepare/);
   assert.match((await f.run(join(root,entries.link),['settings','remote','--help'])).stdout,/accessAud/);
   assert.deepEqual(await readdir(f.directory),[], 'help must not migrate/create store, install a hook, or write runtime files');

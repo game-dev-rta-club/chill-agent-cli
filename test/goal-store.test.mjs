@@ -37,6 +37,19 @@ test('empty Goals accept Conversation; stable Markdown updates only publish chan
  assert.equal(past.conversation.length,2);assert.equal(past.latestVersion,2);
  assert.equal(await readFile(path,'utf8'),bytes);
 });
+test('publishing a Deliverable without layout succeeds with a one-line visual-first hint',async t=>{
+ const f=await fixture(t);await f.run('create','--title','Visual Goal');
+ const publish=async(body,format)=>{const {path}=await f.run('deliverable','path','--id','1','--format',format);await writeFile(path,body);return f.run('deliverable','update','--id','1','--format',format);};
+ const markdown=await publish('# Plan\n\n- Step one\n- Step two','markdown');
+ assert.equal(markdown.changed,true,'Markdown still publishes');assert.match(markdown.hint,/^This is Markdown\. Make it a visual-first HTML page: diagrams \(inline SVG\), tables, the current and finished form side by side\.$/);
+ const plain=await publish('<h1>Plan</h1><ul><li>Step one</li></ul><style>p{color:red}</style>','html');
+ assert.equal(plain.changed,true);assert.match(plain.hint,/^This reads like Markdown in HTML\. Make it a visual-first page: /);assert.doesNotMatch(plain.hint,/\n/);
+ for(const body of ['<table><tr><td>Now</td><td>Finished</td></tr></table>','<svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg>',
+   '<img src="/api/images/00000000-0000-0000-0000-000000000000" alt="Mockup">','<style>.pair{display: grid}</style><div class="pair"><p>Now</p><p>Finished</p></div>',
+   '<div style="display:inline-flex"><p>Now</p><p>Finished</p></div>'])
+  assert.equal((await publish(body,'html')).hint,undefined,body);
+ assert.equal((await publish('','html')).hint,undefined,'clearing the Deliverable needs no hint');
+});
 test('typed Agent posts require a title for Letters and no legacy entrypoints are supported',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');
  await assert.rejects(f.run('letter','--id','1','--text','A question'),/title.*required/);
