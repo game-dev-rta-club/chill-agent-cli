@@ -106,7 +106,7 @@ test('a comment shows a mark only until its Goal has a reply, and the agent show
   assert.equal(background.live,false);
 });
 
-test('an AutoContinue run is found by the ID its request was queued with',async()=>{
+test('an end-of-turn check run is found by the ID its request was queued with',async()=>{
  const id='00000000-0000-0000-0000-000000000123',queued={threadId:thread,messageId:id,history:[]};
  const sent=clientId=>({...userMessage('=== chill-agent · Keep going ==='),clientId});
  assert.equal((await workReader(clientFor([],{...meta,items:[sent(id)]}))(queued)).turnId,turn);

@@ -42,7 +42,7 @@ export function activityMarkup(controls){
   return `<section class="agent-section agent-auto"><div class="agent-section-heading"><h3>${esc(a.label||c.label)}</h3>${c.configured===false?`<button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup?.label||'Set up')}</button>`:`<button type="button" class="extension-trigger agent-auto-toggle" data-agent-extension="${esc(c.id)}" aria-label="${esc(c.label)}" aria-pressed="${c.enabled}" title="${esc(c.label)}: ${c.enabled?'ON · Turn off':'OFF · Turn on'}">${extensionIcon(c.icon)}<span>${c.enabled?'On':'Off'}</span></button>`}</div>${c.detail?`<p class="agent-muted agent-auto-empty agent-extension-detail" title="${esc(c.detail)}">${esc(c.detail)}${c.configured&&c.setup?` <button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup.label)}</button>`:''}</p>`:''}${entries.length?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-activity"><summary>History</summary>${a.total>entries.length?`<p class="agent-muted">Latest ${entries.length}</p>`:''}${entries.map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}<p class="agent-muted" data-extension-message role="status"></p></section>`;
  }).join('');
 }
-// Every agent shares the same extension sections, such as AutoContinue.
+// Every agent shares the same extension sections, such as Notifications.
 // Recent Goals of this agent, newest first, each once.
 const currentGoal=id=>new RegExp(`^#/goal/${id}(?:/|$)`).test(globalThis.location?.hash||'');
 const recentMarkup=recent=>recent?.length?`<h4 class="agent-recent-heading">Recent</h4><ol class="agent-recent">${recent.map(g=>`<li><a href="#/goal/${esc(g.goalId)}" class="${currentGoal(g.goalId)?'is-current':''}"><span class="agent-recent-id">#${esc(g.goalId)}</span><span class="agent-recent-title">${esc(g.title||'Goal')}</span></a></li>`).join('')}</ol>`:'';
@@ -107,7 +107,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   }catch(error){runLogs.delete(key);if(target.isConnected&&goalId===getGoalId())target.innerHTML='<p class="agent-muted">Log unavailable.</p><button type="button" class="text-button" data-run-refresh>Retry</button>';}
  }
  content.addEventListener('toggle',event=>{if(event.target.matches('[data-extension-run]'))void loadRun(event.target);},true);
- // A control that is consequential to turn on (Approve all) asks first.
+ // A control that is consequential to turn on asks first.
  async function toggleExtension(controlId,enabled,selector){
   const control=current?.extensions?.find(c=>c.id===controlId);
   if(enabled&&control?.confirmOn&&!await confirmAction(control.confirmOn))return;

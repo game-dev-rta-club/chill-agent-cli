@@ -4,7 +4,7 @@ keyPoints: >-
   other hooks. Repeating preparation reconciles owned entries; status reports
   configuration, not live activation. A conversation that was already running
   connects with connection join, without resuming. A Git worktree shares its
-  main checkout's project; native tool permissions remain separate from Auto mode.
+  main checkout's project; native tool permissions are answered only by Autonomy 3 or 4.
 ---
 
 # Prepare hooks for a Claude conversation
@@ -20,10 +20,10 @@ Codex remains the default when `--harness` is omitted. The Claude route does not
 look up Codex. It prepares the [stable runtime](../runtime/data-and-updates.md)
 and adds SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse,
 Stop and SessionEnd hooks to `.claude/settings.local.json`. It does not start
-Claude or the Web server, enable Auto mode, assign an existing Goal, or change
+Claude or the Web server, raise a Goal's Autonomy, assign an existing Goal, or change
 native permissions.
 
-PermissionRequest answers Claude's permission prompts with Allow only while the conversation's Approve all switch in the Agent menu is on (Claude only); otherwise prompts ask as usual. Prompts Claude Code never lets a hook approve still ask. PreToolUse applies a [Web pause](claude-status.md#pause-resume-and-queue) to every tool call. For Bash it also keeps unattended work from stopping at a prompt. Claude
+PermissionRequest answers Claude's permission prompts with Allow only when the [Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own) of the conversation's Goals asks for it: any at 4, or all at 3 or higher (Claude only); otherwise prompts ask as usual. Prompts Claude Code never lets a hook approve still ask. PreToolUse applies a [Web pause](claude-status.md#pause-resume-and-queue) to every tool call. For Bash it also keeps unattended work from stopping at a prompt. Claude
 Code asks a person before `rm` or `rmdir` whose target is a glob or trailing
 slash directly under a shell variable, such as `rm -f $DIR/*.png`, even in
 bypass mode, and no allow rule or hook may approve it (its
@@ -96,13 +96,13 @@ presses Update; setup is needed once per machine.
 ## Allow the operations you intend to delegate
 
 Claude may ask to read the plugin's references and run chill commands. These are
-native tool permissions: turning on chill Auto mode does not answer them or grant
-tools. With one-time permissions, later Web feedback can reach the conversation
+native tool permissions: below Autonomy 3 chill does not answer them, and it never
+grants tools in Claude's own settings. With one-time permissions, later Web feedback can reach the conversation
 but replying to it can still wait for another Bash approval.
 
 Follow [Leave a Claude conversation working](claude-unattended.md) to review the
 actual operations, try one Web reply and recover without sending it twice.
-Trusting a folder, reviewing hooks, permitting tools and enabling chill Auto mode
+Trusting a folder, reviewing hooks, permitting tools and raising a Goal's Autonomy
 are distinct choices. Setup does not grant tools or change native permission mode.
 
 ## Receive replies and remove the hooks
@@ -125,8 +125,8 @@ to finish and use native hook controls for the current session.
 
 The Agent panel continues to identify this as an experimental connection. It
 does not offer unverified model settings, usage or execution controls. Optional
-continuation extensions are separate from installation; the standalone CLI has
-no Auto mode policy.
+continuation extensions are separate from installation; with `CHILL_AGENT_EXTENSIONS=none`
+no end-of-turn check is sent.
 
 Implementation: [installer](../../lib/claude-setup.mjs),
 [setup entry](../../bin/chill-setup.mjs). Qualification uses the disposable

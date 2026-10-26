@@ -163,7 +163,7 @@ failed native return path.
 
 Native clear/fork behavior and packaged user-facing setup still require
 qualification. Explicit project installation is covered separately
-in the [setup guide](claude-setup.md). A composed Auto mode extension has passed its
+in the [setup guide](claude-setup.md). The end-of-turn check (Autonomy) has passed its
 separate native Stop probe through [connection hooks](../extensions/connection-hooks.md).
 Replies after a response ends use the [watcher hook](claude-wait.md). See the
 full [connection criteria](claude-conversation.md#qualify-before-exposing-controls).

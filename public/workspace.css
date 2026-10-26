@@ -157,9 +157,6 @@ h1,h2,h3,p { margin:0; }
 .agent-trigger { position:relative; width:var(--header-control-size,44px); height:var(--header-control-size,44px); padding:7px; border-radius:10px; display:grid; place-items:center; }
 .agent-trigger:hover,.agent-trigger[aria-expanded=true] { background:var(--theme-surface,#ffffff85); }
 .agent-trigger .agent-avatar { width:29px; height:29px; overflow:visible; transform:translateY(-2px); }
-.agent-auto-mark { position:absolute; left:2px; bottom:2px; width:18px; height:18px; display:none; pointer-events:none; }
-.agent-trigger[data-autocontinue] .agent-auto-mark { display:block; }
-.agent-auto-mark .monitor-logo { width:100%; height:100%; display:block; }
 .agent-panel { position:fixed; z-index:60; top:60px; right:16px; width:360px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 76px); overflow:auto; overscroll-behavior:contain; border:1px solid var(--theme-line,#a9bdb0); border-radius:12px; background:var(--theme-surface,white); box-shadow:0 10px 32px #274c3326; padding:0 19px 18px; font-size:13px; }
 .agent-panel-heading { position:sticky; top:0; background:var(--theme-surface,white); display:flex; align-items:center; justify-content:space-between; padding:15px 0 11px; z-index:1; }
 .agent-panel-heading h2 { font-size:17px; }
@@ -241,11 +238,7 @@ a.status.interrupted:hover {text-decoration:underline;}
 .extension-control { position:relative; display:inline-flex; }
 .extension-trigger { gap:0; }
 .extension-trigger[aria-pressed="true"] { color:var(--theme-muted,#976b50); background:var(--theme-soft,#f5ece373); }
-.extension-trigger[aria-pressed="false"] .monitor-logo,.extension-trigger:not([aria-pressed]) .monitor-logo { filter:grayscale(1); opacity:.65; }
 .extension-trigger:focus-visible { outline-color:#976b50; }
-.coffee-fill { fill:var(--theme-muted,#e4c4a7); }
-.extension-trigger:not([aria-pressed="true"]) .coffee-fill { fill:none; }
-.extension-trigger:not([aria-pressed="true"]) .coffee-steam { visibility:hidden; }
 .agent-control { position:relative; display:inline-flex; }
 .agent-control:has(.agent-trigger[hidden]) { display:none; }
 .agent-control:hover .extension-tooltip,.agent-control:focus-within .extension-tooltip { display:block; }
@@ -275,7 +268,7 @@ a.status.interrupted:hover {text-decoration:underline;}
 .agent-auto-history .agent-auto-entry { border-top:1px solid var(--line); padding:12px 0; }
 [data-settings-message]:empty,.activity-entry>p:empty { display:none; }
 
-/* Only the optional continuation history is collapsed. Everyday controls stay visible. */
+/* Only an extension's optional history is collapsed. Everyday controls stay visible. */
 .agent-settings-section { border:0; margin-top:0; padding-top:4px; }
 .agent-auto.agent-section { grid-template-columns:minmax(0,1fr) auto; gap:7px 12px; }
 .agent-auto-empty { grid-column:1; grid-row:2; align-self:start; }
@@ -284,7 +277,6 @@ a.status.interrupted:hover {text-decoration:underline;}
 .agent-auto .agent-section-heading { grid-column:1 / -1; }
 .agent-auto-toggle { width:auto; min-width:65px; height:26px; flex-direction:row; gap:4px; padding:0 5px; margin:-3px 0; border-radius:7px; }
 .agent-auto-toggle span { font-size:11px; letter-spacing:0; font-weight:500; }
-.agent-auto-toggle .monitor-logo { width:24px; height:24px; }
 /* The antenna itself carries presence, leaving the mascot's face unobscured. */
 .agent-antenna-light { fill:var(--theme-muted,#a2afa7); stroke:#657b6e; stroke-width:1; }
 .agent-antenna-track,.agent-antenna-orbit,.agent-antenna-paused,.agent-antenna-unknown { display:none; }
@@ -300,7 +292,7 @@ a.status.interrupted:hover {text-decoration:underline;}
 .agent-trigger[data-state="unlinked"] .agent-antenna-light { fill:none; stroke-dasharray:2 2; }
 @media(prefers-reduced-motion:reduce) { .agent-trigger[data-state="working"] .agent-antenna-orbit { animation:none; } }
 
-.agent-auto-toggle > svg:not(.monitor-logo) { width:20px; height:20px; }
+.agent-auto-toggle > svg { width:20px; height:20px; }
 .agent-extension-setup { border:0; background:none; color:var(--accent); font:inherit; font-size:11px; padding:0; cursor:pointer; }
 .agent-extension-setup:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
 .agent-extension-setup:disabled { color:var(--muted); cursor:default; }

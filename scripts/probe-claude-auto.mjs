@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve,relative} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {parseArgs,promisify} from 'node:util';
+import {pathToFileURL} from 'node:url';
 import {prepareRuntime} from '../lib/runtime-package.mjs';
 import {authNames,probeAuthSettings} from './claude-probe-auth.mjs';
 const {values}=parseArgs({options:{run:{type:'boolean'},runtime:{type:'string'},claude:{type:'string',default:'claude'},'auth-settings':{type:'string'},'setup-resume':{type:'boolean'},help:{type:'boolean'}}});
@@ -23,7 +24,9 @@ try {
  const runtime=await prepareRuntime(resolve(values.runtime),data),entry=runtime.launcher;
  await writeFile(runner,`import {execFileSync} from 'node:child_process';
 const action=process.argv[2];
-const args=action==='create'?['connection','create-goal','--title','Disposable Auto mode probe']:action==='enable'?['monitor','enable','--id','1']:null;
+// enable stands for the user moving the Goal's Autonomy slider to 3 (Continue) in the Web.
+if(action==='enable'){const {setGoalAutonomy}=await import(${JSON.stringify(pathToFileURL(join(runtime.root,'lib','goal-store.mjs')).href)});await setGoalAutonomy('1',3);console.log('Autonomy 3');process.exit(0);}
+const args=action==='create'?['connection','create-goal','--title','Disposable Autonomy probe']:null;
 if(!args)throw Error('Unknown probe action');
 try{process.stdout.write(execFileSync(process.execPath,[${JSON.stringify(entry)},...args],{encoding:'utf8',timeout:10000}));}catch(error){console.error('Probe action failed:',action);throw error;}\n`);
  await writeFile(hook,`import {execFileSync} from 'node:child_process';import {appendFileSync} from 'node:fs';
@@ -48,7 +51,7 @@ if(failed)process.exitCode=1;else process.stdout.write(out);\n`);
   if(!setup.hook.configured)throw Error('Native settings were not configured.');
  }
  const q=s=>/^[A-Za-z0-9_/.:-]+$/.test(s)?s:`'${s.replaceAll("'","'\\''")}'`,call=a=>`${q(process.execPath)} ${q(runner)} ${a}`;
- const prompt=`This is a disposable integration probe. ${earlier?'Keep the token from our earlier conversation; it is not repeated here.':`Remember ${memory}.`} Run two separate Bash calls, first ${call('create')}, then ${call('enable')}. Read their native hooks, then reply READY and the memory token and finish. Do not run more tools. If Auto mode then asks you to look back, the agreed scope was only this probe and nothing is left: run no tools, do not change the Goal or write comments, and end with one short line that says COMPLETE and the original memory token. Use only this helper; do not create more work or call other tools.`;
+ const prompt=`This is a disposable integration probe. ${earlier?'Keep the token from our earlier conversation; it is not repeated here.':`Remember ${memory}.`} Run two separate Bash calls, first ${call('create')}, then ${call('enable')}. Read their native hooks, then reply READY and the memory token and finish. Do not run more tools. If chill then asks you to keep going, the agreed scope was only this probe and nothing is left: run no tools, do not change the Goal or write comments, and end with one short line that says COMPLETE and the original memory token. Use only this helper; do not create more work or call other tools.`;
  const args=['--print','--verbose','--output-format','stream-json','--max-budget-usd','0.75',...(auth?.model?['--model',auth.model]:[]),...(earlier?['--resume',earlier.session_id,'--setting-sources','local']:['--no-session-persistence','--setting-sources','','--settings',settings]),'--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--tools','Bash','--allowedTools',`Bash(${process.execPath} ${runner} *)`,'--no-chrome',prompt];
  phase='conversation';child=spawn(values.claude,args,{env,cwd,stdio:['ignore','pipe','pipe'],detached:true});
  const ended=new Promise(r=>{child.on('error',()=>r({spawnError:true}));child.on('exit',(code,signal)=>r({code,signal}));});
@@ -59,7 +62,7 @@ if(failed)process.exitCode=1;else process.stdout.write(out);\n`);
  const events=(await readFile(trace,'utf8')).trim().split('\n').map(JSON.parse),goal=JSON.parse(await readFile(join(data,'workspace/goals/1/goal.json'),'utf8')),state=JSON.parse(await readFile(join(data,'workspace/continuation/1.json'),'utf8'));
  const attempt=state.attempts[0],blocks=events.filter(e=>e.decision==='block'),final=messages.filter(m=>m.includes('COMPLETE'));
  report.hooks=events;report.nativeResults=results.map(r=>({sessionId:r.session_id,isError:r.is_error===true,subtype:r.subtype,costUSD:r.total_cost_usd}));
- report.continuation={enabled:state.enabled,status:state.status,attempts:state.attempts.length,phase:attempt?.phase,outcome:attempt?.result?.outcome,completed:!!attempt?.completedAt};
+ report.continuation={autonomy:goal.autonomy,status:state.status,attempts:state.attempts.length,phase:attempt?.phase,outcome:attempt?.result?.outcome,completed:!!attempt?.completedAt};
  report.checks={oneGoal:(await readdir(join(data,'workspace/goals'))).length===1,oneInitialInput:events.filter(e=>e.event==='UserPromptSubmit').length===1,oneContinuation:blocks.length===1&&state.attempts.length===1,savedBeforeOutput:Date.parse(attempt?.at)<=blocks[0]?.at,oneNativeSession:results.length===1&&results[0].session_id===goal.connection.sessionId,mainHooks:events.every(e=>e.main&&!e.failed&&e.sessionId===goal.connection.sessionId),contextRetained:final.some(m=>m.includes(memory)),continuedWithoutTools:toolCalls.length===2&&toolCalls.every(c=>c.helper)&&toolCalls.map(c=>c.action).join()==='create,enable',resultObserved:attempt?.result?.observed===true&&attempt.result.outcome==='no-work'&&attempt.phase==='completed',matchingFinalStop:events.some(e=>e.event==='Stop'&&e.decision===null&&e.promptId===attempt?.nativePromptId&&e.at>=Date.parse(attempt?.completedAt)),allowanceConsumed:state.status==='exhausted',noCodexBinding:goal.threadId===null&&goal.connection.harnessId==='claude-code',nativeSuccess:exit.code===0&&results.length===1&&!results[0].is_error&&!streamError,sessionEnded:events.some(e=>e.event==='SessionEnd'&&!e.failed)};
  if(earlier){
   report.scope='Explicit native project setup after an earlier persisted conversation; native resume of the same conversation, not hot-installation into a running process.';

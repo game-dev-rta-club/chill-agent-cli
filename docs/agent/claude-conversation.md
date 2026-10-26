@@ -64,7 +64,7 @@ retains pending input in chill.
 The flow is:
 
 ```text
-saved Web input / eligible Auto mode request
+saved Web input / eligible end-of-turn check (Autonomy)
                   |
    Root cursor (hand-off): what has not been handed yet
                   |
@@ -90,8 +90,8 @@ the same main session. Directory equality is not identity. Keep an opaque native
 session ID, optional prompt identity and a connection generation; reject stale
 owners. A clear/fork or different session must not inherit a Root binding merely
 because it uses the same project directory. Offer input only from chill's saved
-events and reservations. Leave tool permissions with Claude;
-chill Auto mode does not enable Claude's permission relay or permission modes.
+events and reservations. Leave tool permissions with Claude; only Autonomy 3 or 4
+answers a PermissionRequest, and chill never changes Claude's permission relay or modes.
 
 ## Qualify before exposing controls
 
@@ -157,6 +157,6 @@ then woke for a Web reply, answered on the Web and restarted the waiter; that
 check predates the watcher hook and the Desktop task that only holds. A
 separate [project setup and resume check](claude-setup.md) passes with earlier
 context retained in the same native session. Native clear/fork/interruption and
-the remaining checks above are still open. The optional product
-Auto mode extension has a separate native Stop qualification; setup does
-not enable it.
+the remaining checks above are still open. The end-of-turn check that
+Autonomy asks for has a separate native Stop qualification; setup leaves
+every Goal at Autonomy 1.

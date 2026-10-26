@@ -56,7 +56,7 @@ test('create-goal binds a Root to the calling conversation at once',async t=>{
   assert.match(await s.act('create-goal',goalInput),/Created Goal #1/);
   const g=(await listGoals())[0];assert.equal(g.threadId,null);assert.deepEqual(g.connection,{harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId});
   const status=await readAgentStatus(g.id);assert.equal(status.connected,true);assert.equal(status.agent.name,'Claude Code');
-  assert.deepEqual(status.capabilities,{settings:false,stop:false,resume:false,approveAll:true});
+  assert.deepEqual(status.capabilities,{settings:false,stop:false,resume:false});
   assert.match(agentMarkup(status),/Claude Code/);assert.doesNotMatch(agentMarkup(status),/Codex account|data-agent-settings/);
   await assert.rejects(s.act('create-goal',{...goalInput,title:' '}),/Invalid title/);
 });
@@ -324,16 +324,16 @@ test('two Claude conversations in one project, each with its own Root, never rec
   assert.equal(await agentFor(await rootOf(rootB.id)).isCaller(a.env),false);
   // goal work from B on A's Goal is refused.
   await assert.rejects(selectAgentWork(rootA.id,{env:b.env}),/assigned chat/);
-  // Pause and Approve all on A leave B alone.
+  // Pause and Autonomy on A leave B alone.
   const second=await appendFeedback({goalId:rootA.id,text:'A again'});await deliverFeedback(second.changeId);
   await reportClaudeHook(a.event('UserPromptSubmit'));
   await controlAgent(rootA.id,{action:'stop',token:statusA.token});
   assert.equal((await readAgentStatus(rootA.id)).capabilities.resume,true);
   assert.equal((await readAgentStatus(rootB.id)).capabilities.resume,false);
-  await controlAgent(rootA.id,{scope:'permissions',token:statusA.token,approveAll:true});
+  const {setGoalAutonomy}=await import('../lib/goal-store.mjs');
+  await setGoalAutonomy(rootA.id,4);
   const ask=s=>claudePermissionDecision(s.event('PermissionRequest'));
   assert.equal(await ask(b),null,'B still asks for its own permissions');
-  assert.equal((await readAgentStatus(rootB.id)).approveAll,false);
 });
 
 test('one reply answers the Goal, whichever of its comments it answers',async t=>{
