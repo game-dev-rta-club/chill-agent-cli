@@ -9,7 +9,8 @@ import {runClaudeAction} from '../lib/claude-actions.mjs';
 import {recordClaudeWork} from '../lib/claude-agent-work.mjs';
 import {claudeAskGuard,claudePlanApproval} from '../lib/claude-asks.mjs';
 import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
-import {appendAgentComment,appendFeedback,listGoals,setGoalAutonomy} from '../lib/goal-store.mjs';
+import {appendAgentComment,appendFeedback,listGoals} from '../lib/goal-store.mjs';
+import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {hookFor} from './claude-fixtures.mjs';
 
 async function fixture(t){
@@ -38,7 +39,7 @@ test('a question or a task suggestion is refused and sent to the Web instead',as
   const chip=denied(await f.pre('mcp__ccd_session__spawn_task',{title:'Fix the flaky test',prompt:'…',tldr:'…'}));
   assert.match(chip,/nothing was suggested[\s\S]*goal create --parent 1 /);
   assert.equal(await f.pre('Bash',{command:'ls'}),null,'other tools run');
-  await setGoalAutonomy(f.goal.id,3);
+  await setRootAutonomy(f.goal.id,3);
   assert.equal(await claudePermissionDecision(f.event('PermissionRequest',{tool_name:'AskUserQuestion',tool_input:{}})),null,'Autonomy never answers a question');
 });
 

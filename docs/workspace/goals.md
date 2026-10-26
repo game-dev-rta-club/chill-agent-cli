@@ -2,7 +2,7 @@
 keyPoints: >-
   A Goal records an outcome and its criteria; children inherit the root's chat.
   Done requires every descendant to be Done, while progress counts completed leaves.
-  Each Goal has its own Autonomy, 1 Normal to 3 Drive, set with the slider in its comment box.
+  Autonomy is set per agent (per Root): Normal, Auto Continue or Ultra Continue, from any Goal's comment box.
 ---
 
 # Goals describe outcomes
@@ -46,50 +46,62 @@ Implementation: [Goal store](../../lib/goal-store.mjs),
 
 ## Autonomy: how far the agent goes on its own
 
-Each Goal keeps one Autonomy level, 1 to 3, set with the one-line slider left of
-"Add file" in the Goal's comment box: the level's icon, then the stops, with the
-current one named. Hovering the icon or a stop shows the level and what it asks.
-Moving it saves at once, apart from any comment.
-A new Goal copies its parent's level when it is created; a Root starts at 1.
-Nothing is inherited afterwards: each slider changes only its own Goal.
+Autonomy is set per agent (per Root): the conversation that owns a Root has one
+level for it, **Normal**, **Auto Continue** or **Ultra Continue**. Every Goal's
+comment box shows that level and sets it; all Goals of a tree show the same
+value. It is stored as 1 to 3 but always shown by name. Changing it saves at
+once, apart from any comment.
 
 | Level | End of turn | Tool prompts (Claude) |
 | --- | --- | --- |
-| 1 Normal | nothing | asked as usual |
-| 2 Continue | keep working on what was agreed for the Goal | allowed |
-| 3 Drive | advance the whole Root tree where no user judgment is needed; decisions go to Letters | allowed |
+| Normal | nothing | asked as usual |
+| Auto Continue | keep carrying out what the agent and the user agreed, in any Goal under the Root; questions go to Letters | allowed |
+| Ultra Continue | the Root is delegated: plan toward its success criteria and move its whole tree forward; only the user's decisions go to Letters | allowed |
+
+The level is kept as `autonomy` in the Root's continuation journal record
+(`workspace/continuation/<rootId>.json`), which names the agent it was written
+for. The same conversation, or a continued one that took the Root over (listed in
+the Root's `previousConnections`), keeps the level. Any other conversation taking
+the Root gets a fresh record, so it starts at Normal. A level set on a Root no
+conversation works on yet is kept without an owner, and the first agent on the
+Root takes it over. Goals have no level of their own.
 
 Autonomy adds nothing to the feedback text.
 Hooks read the level afresh, so a running agent meets a change at its next hook.
-A conversation's Goals are the unfinished Goals, in the Roots it owns, that its
-current work was handed, that it last worked in, or that it selected with
-`goal work`; when none is unfinished, each owned Root's focus (the Goal with its
-latest user comment, or the Root) stands in.
 
-- **End of turn.** One message per conversation, from the highest level among its
-  Goals. It lists the Goals at 2 or higher with what each level asks, so it stands
-  on its own. A Goal at 3 brings its Root tree in, without the Goals other live
-  conversations work on, which it names as taken. A Claude conversation gets it at
-  its Stop hook; the Web server checks a Codex chat every 30 seconds. One check per
-  revision: a user comment, a Goal or Deliverable change, or a level change.
-- **Tool prompts.** Allowed when any of the conversation's Goals is at 3, or when
-  the lowest among them is at least 2; otherwise, and with no Goals, the prompt
-  asks as usual. Questions for the user (AskUserQuestion) are never answered, and
-  a paused conversation is not answered. Codex prompts cannot be answered by hooks.
+- **End of turn.** One message per conversation, from its Root at the highest
+  level. It lists each unfinished Root it owns above Normal, by level name, with
+  what that level asks, so it stands on its own. A Root at Ultra Continue brings
+  its unfinished Goals in, without the Goals other live conversations work on,
+  which it names as taken. A Claude conversation gets it at its Stop hook; the
+  Web server checks a Codex chat every 30 seconds. One check per revision: a user
+  comment, a Goal or Deliverable change, or a level change.
+- **Tool prompts.** Allowed when the conversation owns at least one Root and every
+  Root it owns is at Auto Continue or Ultra Continue; owning none, the prompt asks
+  as usual. Questions for the user (AskUserQuestion) are never answered, and a
+  paused conversation is not answered. Codex prompts cannot be answered by hooks.
 
-`POST /api/goals/<id>/autonomy` with `{"level":2}` (same-origin JSON) is the
-slider's API. Workspaces from before Autonomy had an AutoContinue switch per
-Root: on first use, every Goal under a Root that had it On without a level of
-its own starts at Continue, and the switch is removed from the Root's journal.
-Approve all is not carried over.
+`POST /api/goals/<id>/autonomy` with `{"level":2}` (same-origin JSON) sets the
+level of the Goal's Root agent and answers `{"goalId","rootId","autonomy"}`.
+`GET /api/goals?view=web` gives every Goal the `autonomy` of its Root's agent.
 
-Autonomy first had four levels, with 2 Thorough between Normal and Continue.
-Once per workspace, stored levels move to the three-level scale: 2 becomes 1, 3
-becomes 2 and 4 becomes 3. `workspace/autonomy-scale.json` records the Goals to
-move before any is written and reads `{"levels":3}` when done, so an interrupted
-run repeats the same writes. The AutoContinue move above runs first.
+Earlier workspaces move on first use, in this order:
 
-Implementation: [levels](../../public/autonomy.js), [rules](../../lib/autonomy.mjs),
+1. AutoContinue was an On/Off switch per Root. Every Goal under a Root that had
+   it On without a level of its own gets the level now named Auto Continue, and
+   the switch is removed from the Root's journal. Approve all is not carried over.
+2. Autonomy first had four levels, with Thorough between Normal and Continue.
+   Once per workspace, stored levels move to the three-level scale: 2 becomes 1,
+   3 becomes 2 and 4 becomes 3. `workspace/autonomy-scale.json` records the Goals
+   to move before any is written and reads `{"levels":3}` when done, so an
+   interrupted run repeats the same writes.
+3. Autonomy was then kept per Goal. Each Root Goal's level, when above Normal,
+   is written into its journal for the Root's current agent (or with no owner),
+   and the `autonomy` field is removed from every Goal. Once the field is gone
+   nothing is left to move, so the step is idempotent.
+
+Implementation: [levels](../../public/autonomy.js), [per-Root storage](../../lib/root-autonomy.mjs),
+[journal owner](../../lib/continuation-owner.mjs), [rules](../../lib/autonomy.mjs),
 [end-of-turn message](../../lib/continuation-monitor.mjs).
 
 ## Hide an unused root

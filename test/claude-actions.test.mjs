@@ -335,8 +335,8 @@ test('two Claude conversations in one project, each with its own Root, never rec
   await controlAgent(rootA.id,{action:'stop',token:statusA.token});
   assert.equal((await readAgentStatus(rootA.id)).capabilities.resume,true);
   assert.equal((await readAgentStatus(rootB.id)).capabilities.resume,false);
-  const {setGoalAutonomy}=await import('../lib/goal-store.mjs');
-  await setGoalAutonomy(rootA.id,3);
+  const {setRootAutonomy}=await import('../lib/root-autonomy.mjs');
+  await setRootAutonomy(rootA.id,3);
   const ask=s=>claudePermissionDecision(s.event('PermissionRequest'));
   assert.equal(await ask(b),null,'B still asks for its own permissions');
 });

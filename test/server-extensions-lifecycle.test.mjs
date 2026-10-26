@@ -291,7 +291,7 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   assert.equal((await f.exited)[0],0);
 });
 
-test('the Autonomy API saves one Goal\'s level apart from comments, rejects foreign origins and shows no extension switch', {timeout:8000}, async t=>{
+test('the Autonomy API saves the level of the Goal\'s Root agent apart from comments, rejects foreign origins and shows no extension switch', {timeout:8000}, async t=>{
  const f=await fixture(t,'1h');
  await f.run(['create','--title','Root']);
  await f.run(['create','--title','Child','--parent','1']);
@@ -300,10 +300,12 @@ test('the Autonomy API saves one Goal\'s level apart from comments, rejects fore
  assert.equal(await shown('1'),1);assert.equal(await shown('2'),1);
  assert.deepEqual((await (await fetch(`${f.url}/api/goals/2/extensions`)).json()).filter(c=>['continuation','approve-all'].includes(c.id)),[],'no AutoContinue or Approve all switch');
  assert.equal((await set('1',2,'https://foreign.example')).status,403);
- const saved=await set('1',2);assert.equal(saved.status,200);assert.deepEqual(await saved.json(),{goalId:'1',autonomy:2});
- assert.equal(await shown('1'),2);assert.equal(await shown('2'),1,'each Goal keeps its own value');
+ const saved=await set('1',2);assert.equal(saved.status,200);assert.deepEqual(await saved.json(),{goalId:'1',rootId:'1',autonomy:2});
+ assert.equal(await shown('1'),2);assert.equal(await shown('2'),2,'every Goal of the tree shows the Root agent\'s level');
+ assert.deepEqual(await (await set('2',3)).json(),{goalId:'2',rootId:'1',autonomy:3},'set on a child, it is the Root\'s');assert.equal(await shown('1'),3);
  assert.equal((await set('1',4)).status,400,'there are three levels');assert.equal((await set('1','2')).status,400);assert.equal((await set('99',2)).status,404);
- await f.run(['create','--title','Later child','--parent','1']);assert.equal(await shown('3'),2,'a new Goal copies its parent');
+ await f.run(['create','--title','Later child','--parent','1']);assert.equal(await shown('3'),3,'a new Goal shows its Root\'s level');
+ await f.run(['create','--title','Other Root']);assert.equal(await shown('4'),1,'another Root has its own');
  assert.equal((await fetch(f.url+'/')).status,200);
  assert.equal((await fetch(`${f.url}/api/goals/1/extensions/continuation`,{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:JSON.stringify({enabled:true,rootId:'1'})})).status,409,'the old switch API is gone');
 });

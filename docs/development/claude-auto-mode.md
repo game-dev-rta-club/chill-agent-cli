@@ -1,6 +1,6 @@
 ---
 keyPoints: >-
-  A Claude conversation gets the end-of-turn check its Goals' Autonomy asks for
+  A Claude conversation gets the end-of-turn check its Roots' Autonomy asks for
   at its main Stop, once per meaningful revision; a level change is a revision.
   It respects pending feedback and the revision allowance. The request is the
   same one Codex gets and names no command; the next Stop ends it and chill
@@ -15,30 +15,31 @@ continuation extension registers [claude-continuation](../../lib/claude-continua
 through the optional `connection-hooks` capability. Codex remains the default
 setup route. Experimental native project hooks use explicit
 `setup prepare --harness claude-code --project /absolute/project`. Setup leaves
-every Goal at Autonomy 1 and does not change native permissions.
+every Root at Autonomy Normal and does not change native permissions.
 
-What the check asks follows each Goal's
-[Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own),
-set with the slider in the Goal's comment box. There is no other switch: the
-AutoContinue and Approve all controls and `chill monitor enable|disable|pause|resume`
-were removed. `chill monitor status --id <ROOT>` prints a Root's check record.
+What the check asks follows the
+[Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own)
+of each Root the conversation owns, set from any of its Goals' comment boxes.
+There is no other switch: the AutoContinue and Approve all controls and
+`chill monitor enable|disable|pause|resume` were removed.
+`chill monitor status --id <ROOT>` prints a Root's check record.
 
-## Which Goals, and which Root keeps the record
+## Which Roots, and which Root keeps the record
 
-The conversation's Goals are the unfinished Goals, in the Roots it owns, that its
-current work was handed, that it last worked in, or that it selected with
-`goal work`; when none is unfinished, each owned Root's focus stands in. At a main
-Stop with nothing left to hand over, the extension builds one message from the
-highest level among them; with none at 2 or higher, it sends nothing. The Root
-of the highest-level Goal keeps the attempt in its journal
-(`workspace/continuation/<root>.json`), which holds only attempts, history and
-the revision.
+The conversation's levels are those of the Roots it owns. At a main Stop with
+nothing left to hand over, the extension builds one message from the highest
+level among its unfinished Roots; with none above Normal, it sends nothing. The
+Root at the highest level keeps the attempt in its journal
+(`workspace/continuation/<root>.json`), which holds the Root agent's level,
+attempts, history and the revision.
 
-When a continued conversation takes a Root over with `connection adopt`, a
-request the earlier conversation never answered is closed as Agent changed and
-never resent. The Root's owner is part of the revision, so the new conversation
-receives its own single check, as a reassigned Codex Root does. A record of an
-owner the Root never had starts over and keeps its history.
+When a continued conversation takes a Root over with `connection adopt`, it
+keeps the journal and its level; a request the earlier conversation never
+answered is closed as Agent changed and never resent. The Root's owner is part
+of the revision, so the new conversation receives its own single check, as a
+reassigned Codex Root does. A record with no owner yet (a level set before any
+conversation worked on the Root) is taken over the same way. A record of an
+owner the Root never had starts over at Normal and keeps its history.
 
 ## Continue once; chill records the result
 
@@ -46,11 +47,12 @@ At a main Stop, the extension checks saved feedback and holds across every Root
 in this native connection. Unprocessed input suppresses continuation. The
 extension saves one attempt before the CLI returns a native Stop decision,
 without claiming that native input queues are empty. Claude retains its input
-ordering; tool prompts follow Autonomy (any Goal at 3, or all at 2 or higher).
+ordering; tool prompts follow Autonomy (every owned Root at Auto Continue or Ultra Continue).
 
-The request lists the Goals at 2 or higher with what each level asks, so it
-stands on its own: the agreed work of the Goal (2), or the whole Root tree,
-without Goals other live conversations work on (3).
+The request lists the owned Roots above Normal by level name with what each
+asks, so it stands on its own: the agreed work anywhere under the Root (Auto
+Continue), or the whole Root tree toward its criteria, without Goals other live
+conversations work on (Ultra Continue).
 It lists what the record already says (unfinished Goals, feedback still awaiting
 a reply, open Letters) and names no command, so a turn with nothing left ends in
 a single response. Codex receives the same text; only a conversation that can
@@ -81,7 +83,7 @@ node scripts/probe-claude-auto.mjs --run --runtime "$PWD" --auth-settings /absol
 ```
 
 The probe copies the runtime to a disposable data directory and uses its
-stable launcher. It creates a Root, sets its Autonomy to 2 (Continue) and finishes the initial
+stable launcher. It creates a Root, sets its Autonomy to Auto Continue and finishes the initial
 response. The native Stop continues that same process; with nothing left to do,
 the continued response retains an initial memory token and ends in one line
 without tool calls. A second Stop ends the attempt without another nudge, and

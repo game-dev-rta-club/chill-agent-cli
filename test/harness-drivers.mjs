@@ -24,7 +24,7 @@
 //   goalRunning()                   whether the Goal list marks the Goal Running
 //   agentStatus()                   the Agent menu data
 //   pauseActivity(action)           the Goal activity's Pause ('stop') or Resume
-//   setAutonomy(level)              the Autonomy slider in the Goal's comment box
+//   setAutonomy(level)              the Autonomy control in the Goal's comment box (its Root agent's level)
 //   feedbackText()                  the last feedback text that reached the agent
 //   permissionPrompt()              a tool permission prompt in the agent's app: 'allow' when chill answers it, else
 //                                   null. Only where a hook can answer prompts (capabilities.approvals)
@@ -36,7 +36,8 @@ import {appendFile,mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {appendFeedback,createGoal,listGoals,readFeedback,setGoalAutonomy} from '../lib/goal-store.mjs';
+import {appendFeedback,createGoal,listGoals,readFeedback} from '../lib/goal-store.mjs';
+import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {agentExecutions,assignGoal,goalCommentMarks,selectAgentWork} from '../lib/agents/index.mjs';
 import {controlAgent,readGoalActivity,readAgentStatus} from '../lib/agent-status.mjs';
@@ -101,7 +102,7 @@ function userSide(goalId,beforeRead=()=>{}) {
       const activity=await readGoalActivity(goalId);
       return controlAgent(goalId,{action,token:activity?.token,turnId:activity?.turnId});
     },
-    setAutonomy:level=>setGoalAutonomy(goalId,level),
+    setAutonomy:level=>setRootAutonomy(goalId,level),
     feedbackText:()=>lastFeedback,
     async comments() {
       return (await readFeedback()).filter(event=>event.goalId===goalId&&event.author==='agent').map(event=>event.text);

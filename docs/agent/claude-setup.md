@@ -5,7 +5,7 @@ keyPoints: >-
   current version's, so a rewritten or deleted settings file heals; status reports
   configuration, not live activation. A conversation that was already running
   connects with connection join, without resuming. A Git worktree shares its
-  main checkout's project; native tool permissions are answered only by Autonomy 2 or 3.
+  main checkout's project; native tool permissions are answered only by Autonomy Auto Continue or Ultra Continue.
 ---
 
 # Prepare hooks for a Claude conversation
@@ -21,10 +21,10 @@ Codex remains the default when `--harness` is omitted. The Claude route does not
 look up Codex. It prepares the [stable runtime](../runtime/data-and-updates.md)
 and adds SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse,
 Stop and SessionEnd hooks to `.claude/settings.local.json`. It does not start
-Claude or the Web server, raise a Goal's Autonomy, assign an existing Goal, or change
+Claude or the Web server, raise a Root's Autonomy, assign an existing Goal, or change
 native permissions.
 
-PermissionRequest answers Claude's permission prompts with Allow only when the [Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own) of the conversation's Goals asks for it: any at 3, or all at 2 or higher (Claude only); otherwise prompts ask as usual. Prompts Claude Code never lets a hook approve still ask. PreToolUse applies a [Web pause](claude-status.md#pause-resume-and-queue) to every tool call. For Bash it also keeps unattended work from stopping at a prompt. Claude
+PermissionRequest answers Claude's permission prompts with Allow only when the [Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own) of the conversation's Roots asks for it: it owns a Root and every Root it owns is at Auto Continue or Ultra Continue (Claude only); otherwise prompts ask as usual. Prompts Claude Code never lets a hook approve still ask. PreToolUse applies a [Web pause](claude-status.md#pause-resume-and-queue) to every tool call. For Bash it also keeps unattended work from stopping at a prompt. Claude
 Code asks a person before `rm` or `rmdir` whose target is a glob or trailing
 slash directly under a shell variable, such as `rm -f $DIR/*.png`, even in
 bypass mode, and no allow rule or hook may approve it (its
@@ -98,13 +98,13 @@ the project and presses Update; setup is needed once per machine.
 ## Allow the operations you intend to delegate
 
 Claude may ask to read the plugin's references and run chill commands. These are
-native tool permissions: below Autonomy 2 chill does not answer them, and it never
+native tool permissions: at Autonomy Normal chill does not answer them, and it never
 grants tools in Claude's own settings. With one-time permissions, later Web feedback can reach the conversation
 but replying to it can still wait for another Bash approval.
 
 Follow [Leave a Claude conversation working](claude-unattended.md) to review the
 actual operations, try one Web reply and recover without sending it twice.
-Trusting a folder, reviewing hooks, permitting tools and raising a Goal's Autonomy
+Trusting a folder, reviewing hooks, permitting tools and raising a Root's Autonomy
 are distinct choices. Setup does not grant tools or change native permission mode.
 
 ## Receive replies and remove the hooks

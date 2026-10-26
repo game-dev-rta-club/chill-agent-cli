@@ -90,8 +90,8 @@ the same main session. Directory equality is not identity. Keep an opaque native
 session ID, optional prompt identity and a connection generation; reject stale
 owners. A clear/fork or different session must not inherit a Root binding merely
 because it uses the same project directory. Offer input only from chill's saved
-events and reservations. Leave tool permissions with Claude; only Autonomy 2 or 3
-answers a PermissionRequest, and chill never changes Claude's permission relay or modes.
+events and reservations. Leave tool permissions with Claude; only Autonomy Auto Continue or
+Ultra Continue answers a PermissionRequest, and chill never changes Claude's permission relay or modes.
 
 ## Qualify before exposing controls
 
@@ -159,4 +159,4 @@ separate [project setup and resume check](claude-setup.md) passes with earlier
 context retained in the same native session. Native clear/fork/interruption and
 the remaining checks above are still open. The end-of-turn check that
 Autonomy asks for has a separate native Stop qualification; setup leaves
-every Goal at Autonomy 1.
+every Root at Autonomy Normal.

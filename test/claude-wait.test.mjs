@@ -183,24 +183,27 @@ test('a prompt the user types in the conversation resumes a Web pause; Claude Co
  assert.equal(await paused(),false,'the user wrote here, so the work continues without the Web');
 });
 
-test('Autonomy answers permission prompts from the conversation\'s Goals: any at 3, or all at 2 or higher',async t=>{
+test('Autonomy answers permission prompts when every Root the conversation owns is at Auto Continue or Ultra Continue',async t=>{
  const {claudePermissionDecision}=await import('../lib/claude-permissions.mjs');
- const {setGoalAutonomy,createGoal,updateGoal}=await import('../lib/goal-store.mjs');
- const {recordClaudeWork}=await import('../lib/claude-agent-work.mjs');
+ const {createGoal,updateGoal}=await import('../lib/goal-store.mjs');
+ const {setRootAutonomy}=await import('../lib/root-autonomy.mjs');
  const f=await fixture(t),prompt=()=>claudePermissionDecision(f.event('PermissionRequest',{tool_name:'mcp__computer-use__request_access'}));
  const allowed=async()=>(await prompt())?.hookSpecificOutput?.decision?.behavior==='allow';
- assert.equal(await prompt(),null,'a new Root is at 1: prompts ask normally');
- await setGoalAutonomy(f.root.id,2);assert.equal(await allowed(),true,'Continue approves');
- await f.start('compact');assert.equal(await allowed(),true,'it belongs to the Goal, so it survives compact');
+ assert.equal(await prompt(),null,'a new Root is at Normal: prompts ask normally');
+ await setRootAutonomy(f.root.id,2);assert.equal(await allowed(),true,'Auto Continue approves');
+ await f.start('compact');assert.equal(await allowed(),true,'it belongs to the Root\'s agent, so it survives compact');
  assert.equal(await claudePermissionDecision(f.event('PermissionRequest',{session_id:'other-session'})),null,'another conversation is not answered');
- // The conversation works on two Goals: the lowest decides, unless one is at 3.
- const child=await createGoal({title:'Side',parentId:f.root.id});assert.equal(child.autonomy,2,'a new Goal copies its parent');
- await setGoalAutonomy(child.id,1);
- await recordClaudeWork(f.connection.sessionId,[{type:'started'},{type:'handed',goals:[f.root.id,child.id]}],{directory:f.data});
- assert.equal(await allowed(),false,'one Goal at 1 keeps prompts asking');
- await setGoalAutonomy(child.id,3);await setGoalAutonomy(f.root.id,1);assert.equal(await allowed(),true,'Drive on one Goal approves');
- await updateGoal(child.id,{state:'done'});assert.equal(await allowed(),false,'a Done Goal no longer counts');
- await setGoalAutonomy(f.root.id,2);
+ // A Goal in the tree has no level of its own: setting it on a child sets the Root's.
+ const child=await createGoal({title:'Side',parentId:f.root.id});
+ await setRootAutonomy(child.id,1);assert.equal(await allowed(),false,'Normal on the Root keeps prompts asking');
+ await setRootAutonomy(child.id,3);assert.equal(await allowed(),true,'Ultra Continue approves');
+ // A second owned Root: every one must be above Normal.
+ await f.action('create-goal',{title:'Second Root',scope:'',criteria:''});const second=(await (await import('../lib/goal-store.mjs')).listGoals()).at(-1);
+ assert.equal(await allowed(),false,'one owned Root at Normal keeps prompts asking');
+ await setRootAutonomy(second.id,2);assert.equal(await allowed(),true);
+ await updateGoal(second.id,{archived:true});assert.equal(await allowed(),true,'an archived Root is not owned work');
+ await updateGoal(f.root.id,{archived:true});assert.equal(await prompt(),null,'owning no Root means asking');
+ await updateGoal(f.root.id,{archived:false});
  const {setClaudePause}=await import('../lib/claude-pause.mjs');
  await setClaudePause(f.connection,true);assert.equal(await prompt(),null,'a paused conversation is not answered');
 });
