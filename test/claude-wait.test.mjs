@@ -25,7 +25,7 @@ async function fixture(t) {
  // Setup installs the watcher hook with every other hook.
  await writeFile(join(cwd,'.claude/settings.local.json'),watcherSettings);
  const old=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=data;
- t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
+ t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const envFile=join(dir,'env');await writeFile(envFile,'');
  let record,env;const sessionId=randomUUID(),promptId=randomUUID();
  const event=hookFor({session_id:sessionId,prompt_id:promptId,cwd});
