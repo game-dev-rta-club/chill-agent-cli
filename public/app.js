@@ -12,6 +12,7 @@ import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-
 import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversation-window.js';
 import { createReadingPane } from './reading-pane.js';
 import {createRuntimeUpdate} from './runtime-update.js';
+import {watchNewDevices} from './device-notice.js';
 import {createTabIcon} from './tab-icon.js';
 import {isRunning} from './goal-state.js';
 import {createSkillMenu} from './skill-menu.js';
@@ -116,6 +117,7 @@ const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementByI
 const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel'),readReplies});
 const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,announce:showToast});
 createRuntimeUpdate({button:document.getElementById('runtime-update-button'),announce:showToast});
+watchNewDevices();
 let activeVersion = null;
 let pendingAnchor = null;
 let annotationOpen = false;
