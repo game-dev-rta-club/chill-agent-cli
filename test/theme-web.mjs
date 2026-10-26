@@ -43,4 +43,4 @@ try{
  await page.locator('[data-theme-choice="gradient-mint"]').click();await page.waitForFunction(()=>document.documentElement.dataset.theme==='gradient-mint');
  await page.keyboard.press('Escape');await page.setViewportSize({width:1400,height:900});await page.screenshot({path:'/tmp/chill-theme-original.png'});
  assert.deepEqual(errors,[]);console.log('PASS: 18 palettes, saved preference/first paint, error retention, origin validation, mobile picker and keyboard dismissal');
-}finally{await browser?.close();server?.kill();await rm(root,{recursive:true,force:true});}
+}finally{await browser?.close();server?.kill();await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

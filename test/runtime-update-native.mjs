@@ -46,5 +46,5 @@ try{
   console.log(`PASS: ${process.platform==='win32'?'Task Scheduler':'launchd'} worker survived Web restart; same URL, Goal data, completed receipt, and no update icon after adoption. Public/cross-origin requests rejected.`);
  }
 }finally{
- if(!keep){if(launcher)await run(process.execPath,[launcher,'server','stop'],{env}).catch(()=>{});await rm(base,{recursive:true,force:true});}
+ if(!keep){if(launcher)await run(process.execPath,[launcher,'server','stop'],{env}).catch(()=>{});await rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 }

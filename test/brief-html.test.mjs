@@ -15,7 +15,7 @@ test('HTML Deliverable isolates author styling and preserves only static content
  assert.throws(()=>briefHTML('source','pdf'),/format/);assert.equal(briefReadableText('<h1>A</h1><p>B</p>','html'),'A\n\nB');
 });
 test('switching Deliverable formats keeps both originals, exact histories and HTML annotation coordinates',async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-brief-html-'));process.env.CHILL_AGENT_DATA_DIR=root;t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-brief-html-'));process.env.CHILL_AGENT_DATA_DIR=root;t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const goal=await createGoal({title:'Compare formats'});
  assert.match(goal.briefPath,/deliverable.html$/,'a new Goal starts with an HTML source');
  await writeFile((await briefSource(goal.id,'markdown')).path,'# Markdown\n\nOriginal');const markdown=await updateBrief(goal.id);
@@ -30,7 +30,7 @@ test('switching Deliverable formats keeps both originals, exact histories and HT
 });
 
 test('one-time format conversion preserves snapshots, originals and conversations in a backup',async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-html-migration-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-html-migration-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const work=join(root,'workspace');await mkdir(join(work,'goals/1/briefs'),{recursive:true});await mkdir(join(work,'events'));
  const old={goalId:1,version:1,body:'# Original',createdAt:'2026-10-04T00:00:00Z'};
  await writeFile(join(work,'schema.json'),JSON.stringify({format:'goal-workspace',version:6}));

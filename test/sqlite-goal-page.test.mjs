@@ -7,7 +7,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const execute=promisify(execFile),moduleURL=name=>new URL('../lib/'+name+'.mjs',import.meta.url).href;
 test('SQLite CLI pages match complete-history output while selecting only requested bodies',async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-cli-page-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-cli-page-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import {writeFile} from 'node:fs/promises';
  import * as s from ${JSON.stringify(moduleURL('goal-store'))};

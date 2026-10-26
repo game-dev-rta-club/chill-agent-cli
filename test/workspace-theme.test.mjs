@@ -8,7 +8,7 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {themes} from '../public/theme-catalog.js';
 test('theme stays with its workspace; invalid input cannot overwrite it',async t=>{
- const a=await mkdtemp(join(tmpdir(),'theme-a-')),b=await mkdtemp(join(tmpdir(),'theme-b-'));t.after(()=>Promise.all([a,b].map(p=>rm(p,{recursive:true,force:true}))));
+ const a=await mkdtemp(join(tmpdir(),'theme-a-')),b=await mkdtemp(join(tmpdir(),'theme-b-'));t.after(()=>Promise.all([a,b].map(p=>rm(p,{recursive:true,force:true,maxRetries:10,retryDelay:100}))));
  assert.deepEqual(await readWorkspaceTheme(a),{theme:'gradient-mint',tabIcon:'morning',roots:{}});
  assert.equal(new Set(themes.map(t=>t.id)).size,18);
  for(const theme of themes){await saveWorkspaceTheme({theme:theme.id},a);assert.equal((await readWorkspaceTheme(a)).theme,theme.id);}
@@ -19,7 +19,7 @@ test('theme stays with its workspace; invalid input cannot overwrite it',async t
 });
 
 test('a Root keeps its own choice; the project default stays for the rest',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'theme-root-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'theme-root-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  await writeFile(join(dir,'appearance.json'),JSON.stringify({theme:'light-ocean'}));
  assert.deepEqual(await readWorkspaceTheme(dir),{theme:'light-ocean',tabIcon:'morning',roots:{}});
  await saveWorkspaceTheme({rootId:'5',tabIcon:'night'},dir);
@@ -48,7 +48,7 @@ test('prepared runtime includes theme catalog and stylesheet',async t=>{
  const {copyRuntime}=await import('../lib/runtime-package.mjs');
  const {pathToFileURL,fileURLToPath}=await import('node:url');
  const {readFile}=await import('node:fs/promises');
- const root=await mkdtemp(join(tmpdir(),'theme-runtime-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'theme-runtime-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  await copyRuntime(fileURLToPath(new URL('../',import.meta.url)),root);
  const api=await import(pathToFileURL(join(root,'lib/workspace-theme.mjs')));
  assert.equal((await api.readWorkspaceTheme(join(root,'data'))).theme,'gradient-mint');

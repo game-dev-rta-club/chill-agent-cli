@@ -29,7 +29,7 @@ test('managed connector survives Web release, reattaches once, and stops on Off'
   for(let i=0;i<100;i++){try{process.kill(before.connectorPid,0);}catch{break;}await delay(20);}
   assert.throws(()=>process.kill(before.connectorPid,0));
   await assert.rejects(readFile(tunnelStatePath(directory,port)),{code:'ENOENT'});
- }finally{await first?.release();await second?.();await stopManagedTunnel(directory,port);await rm(directory,{recursive:true,force:true});if(previous===undefined)delete process.env.CHILL_AGENT_CLOUDFLARED_PATH;else process.env.CHILL_AGENT_CLOUDFLARED_PATH=previous;}
+ }finally{await first?.release();await second?.();await stopManagedTunnel(directory,port);await rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100});if(previous===undefined)delete process.env.CHILL_AGENT_CLOUDFLARED_PATH;else process.env.CHILL_AGENT_CLOUDFLARED_PATH=previous;}
 });
 test('on Windows the connector is its own task: it survives Web release, reattaches once, and stops on Off',{skip:process.platform!=='win32',timeout:150000},async()=>{
  const directory=await mkdtemp(join(tmpdir(),'chill-managed-test-'));const port=51494;

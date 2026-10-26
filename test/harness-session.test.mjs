@@ -31,7 +31,7 @@ for(const harness of ['codex-desktop','claude-code'])for(const running of [true,
   assert.notEqual(result.next,'legacy setup instructions');
   assert(result.interface.activation.beforeCreate);assert(result.interface.onboarding.initialGoal.welcome);
   assert.equal(calls.some(args=>args[2]==='start'),!running);
- }finally{await rm(project,{recursive:true,force:true});}
+ }finally{await rm(project,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });
 test('guide is read-only and returns independent welcome data for each caller',()=>{
  const a=harnessGuidance('codex-desktop'),b=harnessGuidance('claude-code');

@@ -9,7 +9,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {DatabaseSync} from 'node:sqlite';
 import {withStoreLock} from '../lib/storage.mjs';
 const moduleURL=new URL('../lib/storage.mjs',import.meta.url).href;
-async function fixture(t){const root=await mkdtemp(join(tmpdir(),'chill-sqlite-leases-'));t.after(()=>rm(root,{recursive:true,force:true}));const workspace=join(root,'workspace');return {root,workspace,lock:join(workspace,'locks','test')};}
+async function fixture(t){const root=await mkdtemp(join(tmpdir(),'chill-sqlite-leases-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));const workspace=join(root,'workspace');return {root,workspace,lock:join(workspace,'locks','test')};}
 test('SQLite leases serialize callers, release after errors, and keep file count bounded',async t=>{
  const f=await fixture(t);let value=0;
  await Promise.all(Array.from({length:12},()=>withStoreLock(f.lock,async()=>{const old=value;await delay(3);value=old+1;})));assert.equal(value,12);
@@ -48,7 +48,7 @@ test('legacy protocols and foreign databases are not silently adopted',async t=>
  const f=await fixture(t);await mkdir(f.lock,{recursive:true});await writeFile(join(f.lock,'1.json'),JSON.stringify({pid:process.pid,released:true}));
  await assert.rejects(withStoreLock(f.lock,()=>{}),/offline reconciliation/);
  await writeFile(join(f.workspace,'schema.json'),'{}');await withStoreLock(f.lock,()=>{});assert.equal((await readdir(f.lock)).length,2);
- await rm(join(f.workspace,'schema.json'));await rm(f.lock,{recursive:true});
+ await rm(join(f.workspace,'schema.json'));await rm(f.lock,{recursive:true,maxRetries:10,retryDelay:100});
  const db=new DatabaseSync(join(f.workspace,'coordination.sqlite'));db.exec('CREATE TABLE foreign_data (value TEXT)');db.close();
  await assert.rejects(withStoreLock(f.lock,()=>{}),/foreign/);
  const check=new DatabaseSync(join(f.workspace,'coordination.sqlite'));assert.ok(check.prepare("SELECT name FROM sqlite_master WHERE name='foreign_data'").get());check.close();

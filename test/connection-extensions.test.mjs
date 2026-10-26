@@ -8,7 +8,7 @@ import {connectionExtensions} from '../lib/connection-extensions.mjs';
 
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'connection-extensions-')),root=join(dir,'runtime');await mkdir(root);
- t.after(()=>rm(dir,{recursive:true,force:true}));
+ t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const manifest=pathToFileURL(join(root,'extensions.json'));
  return {dir,root,manifest,save:connectionExtensions=>writeFile(manifest,JSON.stringify({connectionExtensions}))};
 }

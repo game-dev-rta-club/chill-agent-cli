@@ -20,7 +20,7 @@ async function installedSkill(t){
  await writeFile(join(skill,'cli.json'),JSON.stringify({package:'example'}));
  process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');
  await recordVersionSource(process.env.CHILL_AGENT_DATA_DIR,{versionFile:join(skill,'cli.json'),agentGuide:join(skill,'SKILL.md')});
- t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
+ t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
 }
 const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootState:'idle',revision:'r1',progress:'p1',candidates:[{id:'2',title:'Work'}],lastUserEvent:1,paused:false,pendingFeedback:[],queue:[],stable:true,harnessState:'notLoaded',heartbeatFresh:false,turn:{id:'turn',status:'completed',completedAt:1}});
 function fixture(){
@@ -80,7 +80,7 @@ test('adapter paginates native queue and detects turns changing during observati
    throw Error(method);
   }))});
   assert.equal(facts.queue.length,1);assert.equal(facts.stable,false);assert.equal(continuationEligibility(facts),'queued');
- }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});}
+ }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });
 
 test('adapter treats interrupted without an end timestamp as running',async()=>{
@@ -94,7 +94,7 @@ test('adapter treats interrupted without an end timestamp as running',async()=>{
    throw Error(method);
   }))});
   assert.equal(facts.paused,false);assert.equal(continuationEligibility(facts),'running');
- }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});}
+ }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });
 
 test('real store: content revisions stay separate from agent Web events',async()=>{
@@ -133,7 +133,7 @@ test('real store: content revisions stay separate from agent Web events',async()
   assert.equal((await run(root.id)).status,'awaiting-run');assert.equal(sends,1);
   await configureMonitor(root.id,false);await configureMonitor(root.id,true);
   assert.equal((await readMonitor(root.id)).attempts.length,1);
- }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});}
+ }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });
 
 test('the request names open Letters without counters, report dumps or commands',async t=>{

@@ -173,7 +173,7 @@ test('no-reply outcome uses the same once-only Letter delivery and respects Off'
 test('local notification permission is scoped to the automatic project port',async t=>{
  const {prepareProject,workspacePort}=await import('../lib/project-workspace.mjs');const {mkdtemp,mkdir,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const {join}=await import('node:path');
  const base=await mkdtemp(join(tmpdir(),'chill-webpush-port-')),oldDir=process.env.CHILL_AGENT_DATA_DIR,oldPort=process.env.PORT;
- t.after(async()=>{if(oldDir===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=oldDir;if(oldPort===undefined)delete process.env.PORT;else process.env.PORT=oldPort;await rm(base,{recursive:true,force:true});});
+ t.after(async()=>{if(oldDir===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=oldDir;if(oldPort===undefined)delete process.env.PORT;else process.env.PORT=oldPort;await rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const project=join(base,'project');await mkdir(project);process.env.CHILL_AGENT_DATA_DIR=await prepareProject(project,{base});delete process.env.PORT;
  const f=fixture(),port=workspacePort(),input={goalId:'2',rootId:'1',enabled:true,deviceId:device,subscription};
  await f.api.configure({...input,origin:`http://127.0.0.1:${port}`});

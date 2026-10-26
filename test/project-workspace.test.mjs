@@ -8,7 +8,7 @@ import {prepareProject,projectProfile,selectProjectPort,workspacePort,resolveWor
 import {saveMessageSetting,readMessageSettings} from '../lib/message-settings.mjs';
 
 test('project identity isolates stores, settings and extension choices; aliases reuse identity',{skip:process.platform==='win32'&&'creating symlinks needs Windows Developer Mode'},async t=>{
- const base=await mkdtemp(join(tmpdir(),'chill-projects-'));t.after(()=>rm(base,{recursive:true,force:true}));
+ const base=await mkdtemp(join(tmpdir(),'chill-projects-'));t.after(()=>rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const a=join(base,'a'),b=join(base,'b');await mkdir(a);await mkdir(b);
  const da=await prepareProject(a,{base,extensions:[]}),db=await prepareProject(b,{base,extensions:['public-link']});
  assert.notEqual(da,db);assert.deepEqual(projectProfile(da).extensions,[]);assert.deepEqual(projectProfile(db).extensions,['public-link']);
@@ -18,7 +18,7 @@ test('project identity isolates stores, settings and extension choices; aliases 
  assert.equal(workspacePort({CHILL_AGENT_DATA_DIR:da}),projectProfile(da).port);
 });
 test('occupied automatic port is replaced without taking over another server',async t=>{
- const base=await mkdtemp(join(tmpdir(),'chill-ports-'));t.after(()=>rm(base,{recursive:true,force:true}));
+ const base=await mkdtemp(join(tmpdir(),'chill-ports-'));t.after(()=>rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const project=join(base,'project');await mkdir(project);const data=await prepareProject(project,{base});
  const port=projectProfile(data).port,other=createServer();await new Promise(r=>other.listen(port,'127.0.0.1',r));t.after(()=>other.close());
  const replacement=await resolveWorkspacePort({CHILL_AGENT_DATA_DIR:data});assert.notEqual(replacement,port);assert.equal(other.listening,true);
@@ -28,7 +28,7 @@ test('occupied automatic port is replaced without taking over another server',as
 
 test('stale instance records never adopt a foreign Web; explicit ports remain caller choices',async t=>{
  const {createServer: httpServer}=await import('node:http');const {writeJsonAtomically}=await import('../lib/storage.mjs');
- const base=await mkdtemp(join(tmpdir(),'chill-foreign-web-'));t.after(()=>rm(base,{recursive:true,force:true}));
+ const base=await mkdtemp(join(tmpdir(),'chill-foreign-web-'));t.after(()=>rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const project=join(base,'project');await mkdir(project);const data=await prepareProject(project,{base}),port=projectProfile(data).port;
  let requests=0;const other=httpServer((req,res)=>{requests++;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({token:'different-instance'}));});
  await new Promise(resolve=>other.listen(port,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>other.close(resolve)));

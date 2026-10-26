@@ -126,7 +126,7 @@ async function workspace(t,prefix,env) {
   }
   t.after(async()=>{
     for(const [key,value] of Object.entries(previous))value===undefined?delete process.env[key]:process.env[key]=value;
-    await rm(dir,{recursive:true,force:true});
+    await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});
   });
   return dir;
 }

@@ -83,4 +83,4 @@ try {
  await page.goto(`${url}/#/goals`);await page.locator('#agent-button').waitFor({state:'hidden'});assert.equal(await page.locator('#agent-button').isVisible(),false);assert.equal(await page.locator('#agent-panel').isVisible(),false);
  await page.goto(`${url}/#/goal/1`);await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByText('GPT-6 Astra',{exact:true}).waitFor();await page.screenshot({path:'/tmp/chill-agent-menu.png'});assert.deepEqual(errors,[]);
  console.log('passed: icon-only entry, on-demand reads, settings and usage, responsive overflow, Escape/close/iframe outside click, draft and scroll retention, stale route isolation and unassigned Goals');
-}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

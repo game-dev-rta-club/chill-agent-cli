@@ -69,4 +69,4 @@ try {
  // Invalid Mermaid keeps its source readable without breaking the page.
  await run('comment','--id','1','--text','```mermaid\nnot a diagram\n```');await page.reload();await page.locator('.mermaid-diagram[data-rendered="error"]').waitFor();
  assert.deepEqual(errors,[]);console.log('passed: nested folds, tables, Mermaid, canonical annotations, saved references, mobile layout, invalid diagram fallback');
-} finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+} finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

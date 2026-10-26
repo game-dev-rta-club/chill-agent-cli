@@ -79,4 +79,4 @@ try{
  assert.equal(await page.locator(`#delivery-${savedId} .delivery-heading strong`).textContent(),'Saved');
  assert.equal(await page.locator('[data-activity-control]').count(),1);releaseActivity();
  assert.deepEqual(errors,[]);console.log('passed: shared-turn single control, pause/resume, target Goal badge, reload and fold pinning, paused link, draft retention, desktop/mobile, stale routes, uncertain action refresh without resend, unsupported controls omitted');
-}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(dir,{recursive:true,force:true});}
+}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

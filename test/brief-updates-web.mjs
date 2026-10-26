@@ -51,4 +51,4 @@ try{
  await publish();await page.getByRole('heading',{name:'Deliverable 5',exact:true}).waitFor();await page.locator('#update-notice:not([hidden])').waitFor();
  await page.locator('main').focus();await page.keyboard.press('PageDown');await page.locator('#update-notice').waitFor({state:'hidden'});
  assert.deepEqual(errors,[]);console.log('passed: auto-update, retained reading position and drafts, original annotation version, View brief scroll only, wheel/keyboard dismissal, HTML, history, mobile');
-}finally{await browser?.close();server.kill();await once(server,'exit');await rm(root,{recursive:true,force:true});}
+}finally{await browser?.close();server.kill();await once(server,'exit');await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

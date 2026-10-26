@@ -7,7 +7,7 @@ import {join} from 'node:path';
 import {writeJsonAtomically} from '../lib/storage.mjs';
 
 test('concurrent atomic writes to one file all succeed and leave one complete value',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-storage-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-storage-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const path=join(dir,'value.json');
  // Windows reports EPERM when two replacements of the same file overlap.
  const results=await Promise.allSettled(Array.from({length:200},(_,i)=>writeJsonAtomically(path,{i})));

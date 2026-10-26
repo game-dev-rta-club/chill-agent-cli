@@ -23,5 +23,5 @@ test('monitor summary includes the root, derived Waiting and own Letters without
   assert.equal((await observe()).unfinished,1,'an Open root remains unfinished when its last child finishes');
   await updateGoal(root.id,{state:'done'});
   assert.equal((await observe()).unfinished,0);assert.equal((await observe()).letters,1,'Done does not close a Letter');
- }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});}
+ }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });

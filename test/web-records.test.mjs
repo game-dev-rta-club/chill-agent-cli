@@ -7,7 +7,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const execute=promisify(execFile),store=new URL('../lib/goal-store.mjs',import.meta.url).href,web=new URL('../lib/web-records.mjs',import.meta.url).href,letters=new URL('../public/letter-state.js',import.meta.url).href;
 for(const backend of ['json','sqlite'])test(`${backend} compact Web keeps open Letters and off-page reply status without history bodies`,async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-web-records-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-web-records-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import * as s from ${JSON.stringify(store)};
  import {listWebRecords} from ${JSON.stringify(web)};import {letterState} from ${JSON.stringify(letters)};
@@ -35,7 +35,7 @@ for(const backend of ['json','sqlite'])test(`${backend} compact Web keeps open L
  assert.equal(result.stdout,'');
 });
 for(const backend of ['json','sqlite'])test(`${backend} Web records carry the Goals that mention each Goal`,async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-web-mentions-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-web-mentions-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import * as s from ${JSON.stringify(store)};
  import {listWebRecords} from ${JSON.stringify(web)};
