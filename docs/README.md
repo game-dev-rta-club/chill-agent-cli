@@ -21,7 +21,7 @@ The integrating application decides what work to pursue and when to continue it.
 | Try a local CLI change in a project's Web, without GitHub | [Try a local change](development/try-local.md) |
 | Try an unreleased CLI commit in another project | [Use a development version](development/use-development-version.md) |
 | Add a host or change host-specific setup and operation guidance | [Harness boundaries](development/harness-boundaries.md) |
-| Qualify Auto mode continuation in a native Claude conversation | [Claude Auto mode](development/claude-auto-mode.md) |
+| Qualify the end-of-turn check (Autonomy) in a native Claude conversation | [Claude end-of-turn check](development/claude-auto-mode.md) |
 | Keep test data tied to a real Claude Code release | [Claude contract samples](development/claude-contract.md) |
 | Check chill against the installed Codex and Codex Desktop before a release | [Codex verification](development/codex-verification.md) |
 | Change Web navigation, layout updates or focus without scroll jumps | [Scrolling guidelines](development/scrolling.md) |

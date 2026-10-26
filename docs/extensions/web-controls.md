@@ -43,7 +43,7 @@ When `activity: true` is requested, a descriptor may include:
 
 ```js
 activity: {
-  label: 'AutoContinue',
+  label: 'Checks',
   activeCount: 0,
   total: 1,
   entries: [{

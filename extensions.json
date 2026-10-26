@@ -5,7 +5,6 @@
   },
   "modules": [
     "./lib/continuation-extension.mjs",
-    "./lib/approve-all-extension.mjs",
     "./lib/notifications.mjs",
     "./lib/web-notifications.mjs",
     "./lib/public-link-extension.mjs"
@@ -21,8 +20,8 @@
       "detail": "Use chill session --help for the supported harness IDs and interface."
     },
     "monitor": {
-      "summary": "Optional continuation checks with durable attempt limits.",
-      "detail": "Use chill monitor --help for controls and internal results."
+      "summary": "End-of-turn checks that Autonomy asks for, with durable attempt limits.",
+      "detail": "Use chill monitor --help to read a Root's check record."
     }
   }
 }

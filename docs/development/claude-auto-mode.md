@@ -1,89 +1,74 @@
 ---
 keyPoints: >-
-  Experimental Claude Auto mode continues through a main Stop, once per
-  meaningful revision. It preserves Off, continuation Pause, pending feedback and
-  the revision allowance. The request is the same light one Codex gets and names
-  no command; the next Stop ends it and chill records whether the agent left
-  anything on the Web, as it does when a Codex run ends. Nothing is reported.
-  Native packaged qualification passes; explicit project hook setup is available.
+  A Claude conversation gets the end-of-turn check its Goals' Autonomy asks for
+  at its main Stop, once per meaningful revision; a level change is a revision.
+  It respects pending feedback and the revision allowance. The request is the
+  same one Codex gets and names no command; the next Stop ends it and chill
+  records whether the agent left anything on the Web. Nothing is reported.
 ---
 
-# Qualify Auto mode in a Claude conversation
+# Qualify the end-of-turn check in a Claude conversation
 
-This development route uses the same Auto mode request, result recording and
-revision allowance as Codex, but a different native delivery mechanism. The built-in continuation extension registers
-[claude-continuation](../../lib/claude-continuation.mjs) through the optional
-`connection-hooks` capability. Codex remains the default setup route. Experimental native project hooks
-use explicit `setup prepare --harness claude-code --project /absolute/project`.
-Setup does not enable Auto mode or change native permissions. This route is not
-advertised as a supported Claude Web control, apart from the AutoContinue switch below.
+This development route uses the same request, result recording and revision
+allowance as Codex, but a different native delivery mechanism. The built-in
+continuation extension registers [claude-continuation](../../lib/claude-continuation.mjs)
+through the optional `connection-hooks` capability. Codex remains the default
+setup route. Experimental native project hooks use explicit
+`setup prepare --harness claude-code --project /absolute/project`. Setup leaves
+every Goal at Autonomy 1 and does not change native permissions.
 
-Prepare the composed runtime in an isolated data directory. Configure the CLI's
-`connection claude-hook` for SessionStart, UserPromptSubmit, PostToolUse, Stop and
-SessionEnd. Create a new Root with connection create-goal. In that same
-main conversation, using the prepared launcher:
+What the check asks follows each Goal's
+[Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own),
+set with the slider in the Goal's comment box. There is no other switch: the
+AutoContinue and Approve all controls and `chill monitor enable|disable|pause|resume`
+were removed. `chill monitor status --id <ROOT>` prints a Root's check record.
 
-```sh
-chill monitor enable --id <ROOT>
-chill monitor disable --id <ROOT>
-chill monitor pause --id <ROOT>
-chill monitor resume --id <ROOT>
-```
+## Which Goals, and which Root keeps the record
 
-Each command acts at once for the calling conversation. `pause` holds **future automatic
-continuations**; it does not interrupt Claude. Enabling does not release a pause
-or reset history. The existing Web polling scheduler, `start`, `tick` and `watch`
-do not drive this experimental route. No new native process is launched.
+The conversation's Goals are the unfinished Goals, in the Roots it owns, that its
+current work was handed, that it last worked in, or that it selected with
+`goal work`; when none is unfinished, each owned Root's focus stands in. At a main
+Stop with nothing left to hand over, the extension builds one message from the
+highest level among them; with none at 2 or higher, it sends nothing. The Root
+of the highest-level Goal keeps the attempt in its journal
+(`workspace/continuation/<root>.json`), which holds only attempts, history and
+the revision.
 
-## Switch it from Web
-
-The Agent menu of a Claude Root shows the same AutoContinue switch as a Codex
-Root. Switching it is the user's own action, so it needs no native prompt; it
-always writes the setting for the Root's current conversation. Like `enable`,
-switching it On keeps a Pause, the history and the revision allowance. Its status
-is read from the saved record (Watching, Paused, Awaiting the run, Delivery
-pending, Checks complete or Agent changed); it does not go stale between Stops.
-The Web log of a run shows the saved request; Claude's own output stays in its
-conversation. Pause/Resume remain conversation commands.
-
-When a continued conversation takes a Root over with `connection adopt`, its
-On/Off and Pause move to the new conversation, because they describe the Goal's
-work rather than one session. A request the earlier conversation never answered
-is closed as Agent changed and never resent. The Root's owner is part of the
-revision, so the new conversation receives its own single check, as a reassigned
-Codex Root does. A record of an owner the Root never had reads as Off and is not
-overwritten.
+When a continued conversation takes a Root over with `connection adopt`, a
+request the earlier conversation never answered is closed as Agent changed and
+never resent. The Root's owner is part of the revision, so the new conversation
+receives its own single check, as a reassigned Codex Root does. A record of an
+owner the Root never had starts over and keeps its history.
 
 ## Continue once; chill records the result
 
-At a main Stop, the extension checks saved feedback and holds across
-every Root in this native connection. Off, Pause and unprocessed input suppress continuation. The extension saves one attempt before the
-CLI returns a native Stop decision. It links the packaged combined continuation
-and stopping-review guide, without claiming that native input queues are empty.
-Claude retains its input ordering and tool permission policy.
+At a main Stop, the extension checks saved feedback and holds across every Root
+in this native connection. Unprocessed input suppresses continuation. The
+extension saves one attempt before the CLI returns a native Stop decision,
+without claiming that native input queues are empty. Claude retains its input
+ordering; tool prompts follow Autonomy (any Goal at 4, or all at 3 or higher).
 
-The request asks the agent only to look back once before handing the turn to
-the user: carry on agreed work that needs no user, or end with one short line.
+The request lists the Goals at 2 or higher with what each level asks, so it
+stands on its own: a self-check of the reply (2), the agreed work of the Goal
+(3), or the whole Root tree, without Goals other live conversations work on (4).
 It lists what the record already says (unfinished Goals, feedback still awaiting
 a reply, open Letters) and names no command, so a turn with nothing left ends in
-a single response, with no command and, in Claude Desktop, no turn summary.
-Codex receives the same text; only a conversation that can schedule its own
-wake-up also hears about `connection wake`.
+a single response. Codex receives the same text; only a conversation that can
+schedule its own wake-up also hears about `connection wake`.
 
 The request goes out as Stop output, so the next main Stop means the response
 that received it has ended. That Stop ends the attempt and records its result:
 `worked` when the agent left something on the Web since the request (a comment,
 a Letter, or a Goal or Deliverable change), otherwise `no-work`. The agent
-reports nothing; waiting for a report once stopped Auto mode for good when one
-response forgot it. A Codex run is recorded the same way when chill sees the
-turn that received the request end. One check consumes the allowance for
-that revision, so the same revision is never continued twice; comments, results
-and Off/On toggles do not create another allowance. Substantive Goal, Deliverable
-or user-input changes create the next one. One Stop sends at most one request
-across the Roots of a conversation.
+reports nothing. A Codex run is recorded the same way when chill sees the turn
+that received the request end. One check consumes the allowance for that
+revision, so the same revision is never continued twice; comments and results do
+not create another allowance. Substantive Goal, Deliverable, user-input or
+Autonomy changes create the next one. One Stop sends at most one request for the
+conversation.
 
 Saved Web feedback detected by the watcher stays pending until a hook or the inbox
-claims it, so a pending reply makes Auto mode abstain at Stop. A continuation
+claims it, so a pending reply makes the check abstain at Stop. A continuation
 removes its old checkpoint. The continued prompt receives new Web replies at its
 next ordinary tool hook, preserving uncertain-offer deduplication.
 
@@ -96,7 +81,7 @@ node scripts/probe-claude-auto.mjs --run --runtime "$PWD" --auth-settings /absol
 ```
 
 The probe copies the runtime to a disposable data directory and uses its
-stable launcher. It creates a Root, enables Auto mode and finishes the initial
+stable launcher. It creates a Root, sets its Autonomy to 3 and finishes the initial
 response. The native Stop continues that same process; with nothing left to do,
 the continued response retains an initial memory token and ends in one line
 without tool calls. A second Stop ends the attempt without another nudge, and
@@ -108,7 +93,7 @@ Claude Code 2.1.289 passed all 13 checks on 2026-10-06, when the continued
 response still read the Goal and reported its result; the current checks
 (`continuedWithoutTools`, `resultObserved`) have not been run since. The continuation kept the
 same native prompt ID and needed no new user input. Local tests additionally cover
-concurrent/repeated Stops, Off/Pause, pending input in other Roots, resumed feedback,
+concurrent/repeated Stops, Autonomy levels, pending input in other Roots, resumed feedback,
 subagents, clear, unknown output and delayed replies.
 
 The additional `--setup-resume` probe first saves an earlier conversation without

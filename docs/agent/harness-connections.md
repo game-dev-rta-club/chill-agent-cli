@@ -36,11 +36,11 @@ Codex Desktop conversation       Claude Code conversation
           \                       /
        chill: assignment, the Root's hand-off cursor, replies
                          |
-           Goals / Deliverables / Letters / Auto mode
+           Goals / Deliverables / Letters / Autonomy
 ```
 
 Setup recognizes the calling harness and binds its conversation. Web feedback
-returns to that same conversation, including during Auto mode. A supported model
+returns to that same conversation, including while it continues on its own (Autonomy). A supported model
 change stays within that connection. Setup must not silently start a replacement
 agent when the existing conversation cannot be reached.
 
@@ -53,7 +53,7 @@ assigned to its chat before the agent selects its next Goal.
 
 These are proposed internal contracts, not new CLI commands or protocol methods.
 A harness can use the shared workspace even when some remote controls are absent;
-report such limitations explicitly rather than claiming full Auto mode support.
+report such limitations explicitly rather than claiming full Autonomy support.
 
 | Operation | Contract |
 | --- | --- |
@@ -69,7 +69,7 @@ to each adapter. Pause holds the relevant input and may cancel a known run;
 resume delivers the preserved input. A protocol's cancellation method alone is
 not this complete behavior. A disconnect after dispatch remains uncertain and
 does not permit automatic repetition. Keep permission handling with the harness;
-Auto mode does not change its permission policy.
+only a harness whose hooks can answer prompts (Claude) applies Autonomy to them.
 
 ## Keep the existing model menu
 
@@ -112,19 +112,20 @@ mode policy; its packaged native Stop probe passes.
 Core code reaches an agent only through [`lib/agents/index.mjs`](../../lib/agents/index.mjs).
 `agentFor(root)` returns the Root's agent connection, or none. Core never learns
 which harness it is: the agent's name and model come back as display strings, and
-`capabilities` says what the Web may offer (settings, Pause, Resume, Approve all).
+`capabilities` says what the Web may offer (settings, Pause, Resume).
 
 | The interface provides | Used for |
 | --- | --- |
 | `status`, `presence`, `activity`, `comments` | Agent menu, Goal list Running marks, the agent's state after a Goal's conversation, the marks under its comments |
-| `control`, `setApproveAll`, `saveSettings` | Pause/Resume of the current work, permissions, model settings |
+| `control`, `saveSettings` | Pause/Resume of the current work, model settings |
 | `isCaller`, `token` | Whether a command runs in the agent's own conversation; a key that changes on reassignment |
-| `continuation` | AutoContinue: read, switch, show a run's output; polled agents also tick |
+| `continuation` | The end-of-turn check Autonomy asks for: `live`, and for a polled agent its plan, observation, tick and busy |
+| `goalsHeldElsewhere(token)` | The Goals other live conversations work on, left out of an Autonomy 4 (Drive) tree |
 | `deliveryCarrier(state)` | How a saved feedback is handed: `deliver` and `sendNow`, each returning the comment's mark |
 
 Each adapter lives in `lib/agents/` (`codex*.mjs`, `claude*.mjs`). Both hand
 feedback by the Root's cursor ([hand-off](../../lib/hand-off.mjs)). Codex sends an
-idle chat one Queue message and is polled for AutoContinue. Claude receives
+idle chat one Queue message and is polled for its end-of-turn check. Claude receives
 feedback through its hooks and watcher, and continues at its own Stop. A Comment
 on the Goal answers it; no harness records receipts. Behavior that a harness cannot
 offer is a capability set to false, not a branch in core code.
@@ -134,7 +135,7 @@ if core code names a harness outside a shrinking list of files still being moved
 First wrap and verify the working Codex path. For Claude, qualify the entry point,
 caller identity and return path to the **same** conversation before choosing a
 transport library. Verify feedback across Goals, replies, interrupted
-work, manual Pause, Auto mode continuation and unavailable controls. No successful
+work, manual Pause, end-of-turn checks and unavailable controls. No successful
 check may depend on silently moving work into a fresh agent.
 
 The [Claude conversation proposal](claude-conversation.md) maps this boundary to

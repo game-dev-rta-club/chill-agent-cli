@@ -30,7 +30,7 @@ export default {
    'Other conversations may work in the same project at the same time, often in other Git worktrees; each owns its own Root. Work only on Goals under your own Root and change only your own working folder. Read other Roots only when the user asks.'
   ],
   constraints:[
-   'Setup preserves native permissions, other Hooks and disablement; it never enables Auto mode.',
+   'Setup preserves native permissions, other Hooks and disablement; it never raises the Autonomy of a Goal.',
    'Reception after a response needs the original conversation open; the watcher hook wakes it. A closed Claude process receives nothing until it is opened again.',
    'Pause from the Web refuses the next tool call and holds new feedback and continuation until Resume. Model settings, usage and cancellation remain native controls.'
   ]

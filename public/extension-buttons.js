@@ -3,12 +3,9 @@ import {createSearchDialog} from './search-dialog.js';
 import {browserClientId} from './browser-context.js';
 import {confirmAction} from './confirmation-dialog.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const repeatIcon=`<svg class="monitor-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="coffee-fill" d="M3 6h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6z"/><path d="M17 8h2a3 3 0 0 1 0 6h-2"/><path class="coffee-steam" d="M7 4c-2-1 2-2 0-3m6 3c-2-1 2-2 0-3"/></svg>`;
 const bellIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>';
-const shieldIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/><path d="m9 12 2 2 4-4"/></svg>';
-export const extensionIcon=icon=>icon==='shield'?shieldIcon:icon==='bell'?bellIcon:icon==='repeat'?repeatIcon:icon==='globe'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>';
-// Other header parts (the Agent button's AutoContinue mark) follow the
-// extension states shown for the current Goal.
+export const extensionIcon=icon=>icon==='bell'?bellIcon:icon==='globe'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>';
+// Other parts of the page follow the extension states shown for the current Goal.
 export const announceControls=controls=>window.dispatchEvent(new CustomEvent('chill-extension-controls',{detail:{controls}}));
 export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  let controls=[],generation=0,controller=null,opened=null,panelController=null,cleanup=null;
@@ -34,7 +31,7 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
    const button=wrapper.querySelector('button');button.setAttribute('aria-label',c.label);button.setAttribute('aria-describedby',`extension-tip-${c.id}`);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded',String(opened===c.id));
    button.setAttribute('aria-pressed',String(c.enabled));button.disabled=unknown;button.removeAttribute('title');
    const icon=extensionIcon(c.icon)+`<span class="extension-name">${esc(c.label)}</span><span class="extension-value">${unknown?'Unavailable':c.enabled?'On':'Off'}</span>`;if(button.innerHTML!==icon)button.innerHTML=icon;
-   wrapper.querySelector('[role="tooltip"]').innerHTML=`${esc(c.label)} · ${unknown?'Unavailable':c.enabled?'On':'Off'}<small>${esc(c.description||'Prompts the agent to keep going.')}</small>`;
+   wrapper.querySelector('[role="tooltip"]').innerHTML=`${esc(c.label)} · ${unknown?'Unavailable':c.enabled?'On':'Off'}${c.description?`<small>${esc(c.description)}</small>`:''}`;
   }
   for(const button of container.querySelectorAll('[data-header-extension]'))if(!retained.has(button.dataset.headerExtension))button.parentElement.remove();
   announceControls(unknown?[]:controls);
@@ -64,7 +61,7 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
     const module=await import(control.panelModule);if(signal.aborted)return;
     cleanup=await module.mount({element,control,goalId,clientId:browserClientId(),api,changed,signal,confirm:options=>confirmAction({...options,signal})});
    }else{
-    element.innerHTML=`<label class="agent-extension"><span>On / Off</span><input type="checkbox" role="switch" aria-label="${esc(control.label)}" ${control.enabled?'checked':''}></label><p class="agent-muted">${esc(control.description||'Prompts the agent to keep going.')}</p><p class="extension-message" role="status"></p>`;
+    element.innerHTML=`<label class="agent-extension"><span>On / Off</span><input type="checkbox" role="switch" aria-label="${esc(control.label)}" ${control.enabled?'checked':''}></label>${control.description?`<p class="agent-muted">${esc(control.description)}</p>`:''}<p class="extension-message" role="status"></p>`;
     const toggle=element.querySelector('input');toggle.onchange=async()=>{
      if(toggle.checked&&control.confirmOn&&!await confirmAction({...control.confirmOn,signal})){toggle.checked=false;return;}
      toggle.disabled=true;
