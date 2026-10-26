@@ -1,7 +1,7 @@
 {
   "name": "chill-agent-cache-keep",
-  "version": "0.3.0",
-  "description": "Cache Keep: keeps an idle conversation's one-hour prompt cache alive, then compacts it if it stays idle.",
+  "version": "0.4.0",
+  "description": "Cache Keep: keeps an idle conversation's one-hour prompt cache alive, then compacts it if it stays idle. Records the plan's usage for chill's Web.",
   "author": { "name": "Game Dev RTA Club" },
   "userConfig": {
     "enabled": {
