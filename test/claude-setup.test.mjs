@@ -143,6 +143,18 @@ test('an update brings recorded hooks up to the new version, leaving other hooks
  assert.equal((await f.read()).hooks?.SessionStart,undefined);
 });
 
+test('hooks rewritten with their keys in another order still count as chill\'s and are refreshed',async t=>{
+ const {refreshRecordedClaudeHooks,cacheKeepPlugin}=await import('../lib/claude-setup.mjs');
+ const f=await fixture(t);
+ await configureClaudeHooks(f.project,f.options);
+ const reverse=v=>Array.isArray(v)?v.map(reverse):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).reverse().map(k=>[k,reverse(v[k])])):v;
+ const settings=await f.read();delete settings.enabledPlugins;settings.hooks=reverse(settings.hooks);await writeFile(f.path,JSON.stringify(settings));
+ assert.equal((await claudeSetupStatus(f.project,{directory:f.data})).conflict,false);
+ const [result]=await refreshRecordedClaudeHooks(f.options);
+ assert.equal(result.error,undefined);
+ assert.equal((await f.read()).enabledPlugins?.[cacheKeepPlugin],true,'the update turns Cache Keep on again');
+});
+
 test('setup places Cache Keep for the user, off there and on in the project; remove takes back only its on',async t=>{
  const {cacheKeepPlugin}=await import('../lib/claude-setup.mjs');
  const f=await fixture(t),claude=join(f.dir,'claude'),options={...f.options,claude};
