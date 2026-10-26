@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,rm} from 'node:fs/promises';
+import {chmod,mkdtemp,mkdir,rm} from 'node:fs/promises';
 import {readFile,writeFile} from './record-fixture.mjs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -13,10 +13,11 @@ import {holdClaudeConversation,holdResultText,watchClaudeConversation,watcherWak
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
 import {deliverFeedback} from '../lib/delivery.mjs';
-import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
+import {readJson,replaceRetryMs,writeJsonAtomically} from '../lib/storage.mjs';
 import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
 import {fileURLToPath} from 'node:url';
 import {hookFor} from './claude-fixtures.mjs';
+import {expectHidden} from './hidden-failures.mjs';
 
 const watcherSettings=JSON.stringify({hooks:{Stop:[{hooks:[{type:'command',command:"'/x/chill' connection claude-watch",asyncRewake:true,timeout:604800}]}]}});
 async function fixture(t) {
@@ -24,11 +25,11 @@ async function fixture(t) {
  // Setup installs the watcher hook with every other hook.
  await writeFile(join(cwd,'.claude/settings.local.json'),watcherSettings);
  const old=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=data;
- t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
+ t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const envFile=join(dir,'env');await writeFile(envFile,'');
  let record,env;const sessionId=randomUUID(),promptId=randomUUID();
  const event=hookFor({session_id:sessionId,prompt_id:promptId,cwd});
- async function start(source='startup'){record=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CHILL_AGENT_CONNECTION_GENERATION:record.generation};return record;}
+ async function start(source='startup'){record=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile,CLAUDE_CODE_ENTRYPOINT:process.env.CLAUDE_CODE_ENTRYPOINT}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CHILL_AGENT_CONNECTION_GENERATION:record.generation};return record;}
  async function action(name,payload={}) {const r=await runClaudeAction(name,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await start();const created=await action('create-goal',{title:'Wait receipt',scope:'Test',criteria:'No duplicate'});const root=(await listGoals())[0];
  const recordPath=claudeEntryPaths(data,sessionId).record;
@@ -389,6 +390,8 @@ test('in Claude Desktop a task holds the conversation and the watcher hook hands
  // Desktop pauses an idle conversation with only the hook watching, so the agent is asked for a task.
  assert.match(context(await claudeSessionStartContext(await f.start('resume'))),/owns chill-agent Goals[\s\S]*connection wait/);
  const hook=f.wait({refreshMs:20});await f.waiting();
+ // Status says when the task is missing beside a running watcher.
+ assert.match((await readClaudeConnectionStatus(f.connection)).detail,/A watcher is running[\s\S]*\(connection wait\) is not running/);
  assert.match(context(await f.action('inbox')),/run_in_background[\s\S]*connection wait/);
  const stop=await f.stop();assert.equal(stop.decision,'block');assert.match(stop.reason,/keeps it from pausing[\s\S]*run_in_background[\s\S]*connection wait/);
  assert.equal(await handleClaudeToolHook(f.event('Stop',{stop_hook_active:true}),{cwd:f.cwd}),null,'asked once per stop');
@@ -396,6 +399,7 @@ test('in Claude Desktop a task holds the conversation and the watcher hook hands
  const task=f.hold({refreshMs:20});
  await f.until(async()=>!!(await readJson(f.recordPath)).hold);
  assert.ok((await readJson(f.recordPath)).waiter,'the hook keeps watching');
+ assert.doesNotMatch((await readClaudeConnectionStatus(f.connection)).detail,/connection wait/);
  const second=await f.hold({livenessMs:200}).done;
  assert.deepEqual(second,{status:'already-running'});assert.match(holdResultText(second),/already keeps this conversation/);
  assert.doesNotMatch(context(await f.action('inbox')),/connection wait/);
@@ -408,4 +412,19 @@ test('in Claude Desktop a task holds the conversation and the watcher hook hands
  await new Promise(r=>setTimeout(r,50));assert.ok((await readJson(f.recordPath)).hold,'the task does not end for feedback');
  const ended=await task.stop();assert.deepEqual(ended,{status:'stopped'});assert.match(holdResultText(ended),/Start it again as a background task[\s\S]*connection wait/);
  assert.equal((await readJson(f.recordPath)).hold,undefined,'a stopped task releases its hold');
+});
+test('on Windows a task outlasts a record that refuses replacement for longer than a write retries',{skip:process.platform!=='win32'&&'only Windows refuses to replace a file another process holds',timeout:60000},async t=>{
+ expectHidden(t,'claude-wait.write');
+ const f=await fixture(t);
+ const until=async check=>{for(let i=0;i<1000;i++){if(await check())return;await new Promise(r=>setTimeout(r,10));}throw Error('Timed out');};
+ const task=f.hold({refreshMs:20});let ended=null;task.done.then(result=>{ended=result;},error=>{ended=error;});
+ await until(async()=>!!(await readJson(f.recordPath)).hold);
+ // A read-only record refuses replacement (EPERM) as a file an antivirus holds does.
+ await chmod(f.recordPath,0o444);
+ // Longer than a write retries (replaceRetryMs), so the watch loop itself must carry on.
+ try{await new Promise(r=>setTimeout(r,replaceRetryMs+2000));assert.equal(ended,null,'the task keeps holding');}
+ finally{await chmod(f.recordPath,0o644);}
+ const before=(await readJson(f.recordPath)).hold.checkedAt;
+ await until(async()=>(await readJson(f.recordPath)).hold.checkedAt!==before);
+ assert.deepEqual(await task.stop(),{status:'stopped'});
 });
