@@ -10,7 +10,8 @@ keyPoints: >-
   of the conversation, judged by the first response after the last
   compaction or by everything but the messages. Each ping and compaction is logged per session.
   Settings are in the Claude Code config menu under Cache Keep; it is on by
-  default.
+  default. It also records the plan's rate-limit windows for the Agent menu's
+  Usage, even when its pings are off.
 ---
 
 # Keep an idle conversation's prompt cache
@@ -86,6 +87,17 @@ Each ping, retry, stop and compaction adds a line to
 2026-10-23T08:25:41.002Z compacted (manual) at 182004 tokens
 2026-10-23T09:12:30.415Z size after the last compaction: 61208 tokens
 ```
+
+## Record the plan's usage
+
+After each turn, and when a rate-limit window moves a point, the mod writes the
+windows the last response reported (`$.session.usage().rateLimits`: kind,
+percent used, reset time) with the time to
+`<Claude folder>/chill-agent-cache-keep/usage.json`. One file serves the
+account; the latest reading wins. A session off a Pro or Max plan reports none
+and leaves the file alone. The Agent menu reads it
+([Claude status](claude-status.md#see-the-plans-usage)). This costs no request:
+the values come with the responses the conversation already gets.
 
 ## Settings
 
