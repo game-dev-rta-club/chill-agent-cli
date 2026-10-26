@@ -2,7 +2,7 @@
 // re-reads the conversation from the cache before it lapses, so the person's
 // next message does not pay to write it all again. After the last ping the
 // conversation is compacted if that makes it much smaller, then left alone.
-import type { EngineInterface, PluginOptions, Register } from 'claude-code'
+import type { EngineInterface, PluginOptions, Register, SessionRateLimit } from 'claude-code'
 
 // The cache lapses an hour after the request that last read it. Nothing is
 // sent once this much has passed, so a late timer (a Mac waking from sleep)
@@ -59,6 +59,19 @@ async function note($: EngineInterface, text: string) {
     await $.fs.write(path, `${earlier}${new Date(await $.clock.now()).toISOString()} ${text}\n`)
   } catch (error) {
     $.ui.log(`Cache Keep: ${text} (not logged: ${error instanceof Error ? error.message : error})`)
+  }
+}
+
+// The plan's rate-limit windows, as the last response reported them, for the
+// Agent menu in chill's Web. One file for the account; the latest reading wins.
+// A session off a subscription reports none and leaves the file alone.
+async function recordUsage($: EngineInterface, rateLimits: readonly SessionRateLimit[]) {
+  if (!rateLimits.length) return
+  try {
+    const at = new Date(await $.clock.now()).toISOString()
+    await $.fs.write(`${$.plugin.root}/../../chill-agent-cache-keep/usage.json`, JSON.stringify({ at, rateLimits }))
+  } catch (error) {
+    $.ui.log(`Cache Keep: usage not recorded (${error instanceof Error ? error.message : error})`)
   }
 }
 
@@ -158,6 +171,12 @@ export const register: Register = (on, options) => {
       compactedSizeUnknown = true
       await note($, `compacted (${e.trigger}) at ${result.tokensBefore ?? 'unknown'} tokens`)
     }
+    return result
+  })
+  // After each turn and when a window moves a point; recorded even with Cache Keep off.
+  on('session.measure', async ($, e, next) => {
+    const result = await next(e)
+    await recordUsage($, e.rateLimits)
     return result
   })
   on('session.end', async ($, e, next) => {

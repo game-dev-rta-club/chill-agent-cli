@@ -124,7 +124,8 @@ records. Neither command interrupts a running response. Allow any in-flight hook
 to finish and use native hook controls for the current session.
 
 The Agent panel continues to identify this as an experimental connection. It
-does not offer unverified model settings, usage or execution controls. Optional
+does not offer unverified model settings or execution controls; usage comes
+from [Cache Keep](cache-keep.md). Optional
 continuation extensions are separate from installation; with `CHILL_AGENT_EXTENSIONS=none`
 no end-of-turn check is sent.
 
