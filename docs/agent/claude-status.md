@@ -71,11 +71,11 @@ Codex. Claude Desktop has no way to interrupt a running response from outside,
 so Pause works through the conversation's own hooks
 ([claude-pause](../../lib/claude-pause.mjs)): its next tool call, in the main
 conversation or a subagent, is refused with a reason to stop and end the
-response; no end-of-turn check continues it and Autonomy answers no tool prompt;
-new Web feedback is held and listed in
-Queue, and the watcher does not wake for it. A running command finishes
-first. The pause survives compact and resume. Resume clears it and wakes the
-conversation once with a notice to continue, together with the held feedback.
+response; no end-of-turn check continues it and Autonomy answers no tool prompt.
+A running command finishes first. The pause survives compact and resume. Resume
+clears it and wakes the conversation once with a notice to continue, together
+with any held feedback. A new Web comment resumes it the same way, so the
+comment is handed rather than held.
 A prompt the user types in the conversation itself also clears it, so a paused
 conversation never needs the Web to be running to continue. Claude Code's own
 wakes, schedules and task notices do not.

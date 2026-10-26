@@ -78,9 +78,11 @@ runs. The rule is `quietGoals` in [agent rules](../../lib/agent-rules.mjs).
 ## Pause, Resume and Interrupted
 
 Pause is the user's: it stops the agent's current work where the harness can
-(Codex interrupts the turn), and hands no feedback until Resume. Comments saved
-meanwhile show Paused. Resume hands them in one message, or asks the agent to go
-on with the stopped work. A stop in the agent's own app (Esc, Desktop's stop, an
+(Codex interrupts the turn), and hands no feedback until Resume. Resume hands
+what waits in one message, or asks the agent to go on with the stopped work. A
+new comment from the user resumes the agent the same way, so it is handed
+without a separate Resume; if resuming fails, the comment stays saved and shows
+Paused. A stop in the agent's own app (Esc, Desktop's stop, an
 API error) is Interrupted, shown on the agent and on the comments it was handed;
 feedback is handed to an interrupted agent at once, and its next work shows
 Running again.

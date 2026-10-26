@@ -129,20 +129,19 @@ scenario('Autonomy reaches the agent: feedback at 2 asks it to think in the user
 });
 
 // Pause is the user's (R17); a stop in the agent's own app is Interrupted (R17b). Both show the same on the agent and the comments.
-scenario('Pause holds new feedback and Resume releases it where the harness can pause, and is refused where it cannot',async (s,driver) => {
+scenario('Pause holds the agent until a new comment resumes it where the harness can pause, and is refused where it cannot',async (s,driver) => {
   const first=await s.saveFeedback('Start');
   await s.agentTakesFeedback(first);
   assert.equal((await s.activity()).capabilities.stop,driver.capabilities.pause);
   if(driver.capabilities.pause) {
     await s.pauseActivity('stop');
-    assert.equal((await s.activity()).state,'paused');
-    const held=await s.saveFeedback('Hold this');
-    assert.equal(await s.shown(held),'paused');assert.equal(await s.shown(first),'paused');
-    assert.deepEqual(await s.agentTakesFeedback(held),[],'nothing is handed while paused');
-    await s.pauseActivity('resume');
-    assert.notEqual(await s.shown(held),'paused');
+    assert.equal((await s.activity()).state,'paused');assert.equal(await s.shown(first),'paused');
+    // The user's next comment resumes the agent, so it is handed without Resume.
+    const next=await s.saveFeedback('Go on with this');
+    assert.notEqual((await s.activity()).state,'paused');
+    assert.notEqual(await s.shown(next),'paused');
     await s.agentEndsResponse();
-    assert.deepEqual(await s.agentTakesFeedback(held),[held]);
+    assert.deepEqual(await s.agentTakesFeedback(next),[next]);
   } else await assert.rejects(s.pauseActivity('stop'),/Status changed/);
 });
 
