@@ -4,7 +4,7 @@ import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
-import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, workDisclosure } from './work-ui.js';
+import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, thinkView, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
 import { briefBody } from './brief-body.js';
@@ -230,10 +230,13 @@ function workMarkup(key, work, live) {
   if (!work) return '';
   const view = workDisclosure(workViews.get(key), live);
   workViews.set(key, view);
+  const think = thinkView(work.messages, view.all);
   const settings = work.settings?.model ? `<p class="activity-settings">${escapeHTML(work.settings.model)}${work.settings.reasoning ? ` · ${escapeHTML(work.settings.reasoning)}` : ''}</p>` : '';
   return `<details class="work-progress" data-work-id="${escapeHTML(key)}" ${view.open ? 'open' : ''}>
     <summary>Think</summary><div class="work-output" aria-label="Think">${settings}
-    ${work.messages.map(message => `<p class="work-message">${escapeHTML(message.text)}</p>`).join('')}
+    ${think.earlier ? `<button type="button" class="work-earlier" data-action="expand-work" data-work-id="${escapeHTML(key)}"><span class="conversation-gap-marker" aria-hidden="true">${icon('expandOlder')}</span><span>${think.earlier} earlier ${think.earlier === 1 ? 'message' : 'messages'}</span></button>` : ''}
+    ${think.shown.map(message => `<p class="work-message${think.clamped ? ' work-latest' : ''}"${think.clamped ? ` data-action="expand-work" data-work-id="${escapeHTML(key)}" title="Show all of Think"` : ''}>${escapeHTML(message.text)}</p>`).join('')}
+    ${think.less ? `<button type="button" class="work-earlier work-less" data-action="collapse-work" data-work-id="${escapeHTML(key)}">Show less</button>` : ''}
     ${!work.messages.length ? '<p class="work-hint">No text yet.</p>' : ''}
     </div></details>`;
 }
@@ -1235,6 +1238,12 @@ document.addEventListener('drop', event => {
 main.addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
   if (!button || !activeGoalId) return;
+  if(button.dataset.action==='expand-work'||button.dataset.action==='collapse-work'){
+    // Selecting text in the newest message must not open Think.
+    if(button.matches('p')&&!window.getSelection()?.isCollapsed)return;
+    const view=workViews.get(button.dataset.workId);if(!view)return;
+    view.all=button.dataset.action==='expand-work';updateTimeline(activeGoalId);renderAnnotations();return;
+  }
   if(button.dataset.action==='load-older-conversation'){
     const id=activeGoalId,state=historyPages.get(id);if(!state?.hasMore||state.loading)return;
     state.loading=true;button.disabled=true;

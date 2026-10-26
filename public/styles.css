@@ -125,6 +125,11 @@
 .work-output { padding: 0 11px 11px; overflow-wrap: anywhere; }
 .work-output .work-message { white-space: pre-wrap; font-size: 13px; line-height: 1.75; color: var(--ink); margin: 0; }
 .work-output .work-message + .work-message { border-top: 1px solid var(--theme-line,#e3e8e3); margin-top: 10px; padding-top: 10px; }
+.work-output .work-latest { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; height: 5.25em; cursor: pointer; }
+.work-earlier { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 10px; padding: 4px 0; border-top: 1px solid var(--theme-line,#e3e8e3); border-bottom: 1px solid var(--theme-line,#e3e8e3); color: var(--muted); font-size: 13px; line-height: 1.6; text-align: left; }
+.work-earlier .conversation-gap-marker { color: var(--accent); border-radius: 5px; }
+.work-earlier:hover .conversation-gap-marker { background: var(--theme-soft,#edf3ef); }
+.work-less { margin: 10px 0 0; padding: 8px 0 0; border-bottom: 0; color: var(--accent); }
 .work-output .work-hint { color: var(--theme-muted,#6d7971); font-size: 11px; margin-top: 8px; }
 .timeline-entry > .event-image, .timeline-entry > .annotatable-image { margin-top: 10px; }
 .timeline-entry > .annotatable-image { display: block; width: fit-content; }
