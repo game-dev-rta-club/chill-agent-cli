@@ -14,7 +14,7 @@ const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...arg
 await run('create','--title','Deliverable and Markdown');
 const source='# What we will realize\n\nA short **shared outcome**.\n\n```\nlong: '+'wide '.repeat(80)+'end\n```\n\n## Behavior\n\n- First option\n- Second option\n\n### Details\n\n| Item | Status |\n| --- | --- |\n| Table value | Ready |\n\n```mermaid\ngraph LR\n A[Question] --> B[Answer]\n```\n\nParagraph **after diagram**.\n\n## Other\n\n```js\nconst html = "<button>";\n```';
 await writeFile(join(root,'workspace/goals/1/deliverable.md'),source);await run('deliverable','update','--id','1');
-const message='**Formatted** opening.\n\n## Supporting information\n\n### Table\n\n| Item | State |\n| --- | --- |\n| Choice | Ready |\n\n```mermaid\ngraph TD\n A --> B\n```\n\nUse [the guide](https://example.com) after this diagram.';
+const message='**Formatted** opening.\n\n## Supporting information\n\n### Table\n\n| Item | State |\n| --- | --- |\n| Choice | Ready |\n\n```mermaid\ngraph TD\n A --> B\n```\n\nUse [the guide](https://example.com) after this diagram. Back to #1.';
 const comment=await run('letter','--id','1','--title','Can you read this Letter?','--text',message);
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
 const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});
@@ -31,6 +31,8 @@ try {
  await brief.getByText('Details',{exact:true}).click();await brief.locator('.mermaid-diagram svg').waitFor();
  assert.equal(await brief.locator('td').first().innerText(),'Table value');assert.equal(await brief.locator('details[open]').count(),2);
  assert.equal(await brief.evaluate(el=>[...el.querySelectorAll('style')].every(s=>s.nonce===document.querySelector('meta[name="style-nonce"]').content)),true);
+ // A Goal link stays in this tab; a link to another site opens a new one.
+ assert.deepEqual(await card.locator('.event-text a').evaluateAll(links=>links.map(a=>[a.getAttribute('href'),a.target])),[['https://example.com','_blank'],['#/goal/1','']]);
  await card.getByText('Supporting information',{exact:true}).click();await card.getByText('Table',{exact:true}).click();await card.locator('.mermaid-diagram svg').waitFor();
  const {annotationTextNodes}=await import('../public/markdown-view.js'); // Browser-independent module import is harmless.
  assert.equal(typeof annotationTextNodes,'function');
@@ -51,7 +53,7 @@ try {
   await page.locator('.annotation-form').getByRole('button',{name:'Save',exact:true}).click();
  }
  await annotate('.brief-body .detail-content p strong','after diagram','Deliverable after a diagram');
- await annotate(`#event-${comment.id} .event-text a`,'the guide','Letter formatted link');
+ await annotate(`#event-${comment.id} .event-text a[href^="https:"]`,'the guide','Letter formatted link');
  const sent=page.waitForResponse(r=>r.url().endsWith('/feedback')&&r.request().method()==='POST');
  await page.locator('.conversation-form').getByRole('button',{name:'Comment',exact:true}).click();const result=await sent;assert.equal(result.status(),201);const event=(await result.json()).feedback;
  assert.equal(event.annotations.length,2);assert.equal(event.annotations[0].anchor.start,markdownText(source).indexOf('after diagram'));

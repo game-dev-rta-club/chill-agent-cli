@@ -5,8 +5,10 @@ export function briefBody(html, {hasGoal, replyId = null, opened = new Set()}) {
   template.content.querySelectorAll('a[data-goal]').forEach(link => { if (!hasGoal(link.dataset.goal)) link.replaceWith(link.textContent); });
   template.content.querySelectorAll('a[href]').forEach(link => {
     // A link that is not a valid URL stays as text; it must not stop the page.
+    // Read the written href: inside a template, link.href resolves against
+    // about:blank, so #/goal/N would look like another site and open a new tab.
     let origin = null;
-    try { origin = new URL(link.href, location.origin).origin; } catch { link.removeAttribute('href'); return; }
+    try { origin = new URL(link.getAttribute('href'), location.href).origin; } catch { link.removeAttribute('href'); return; }
     if (origin !== location.origin) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
   });
   template.content.querySelectorAll('details').forEach((el, i) => {
