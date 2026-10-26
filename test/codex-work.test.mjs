@@ -145,16 +145,15 @@ test('the Stop is held once while a handed Goal awaits a reply, and a reply on i
   assert.equal((await codexSnapshot(f.thread)).roots[0].awaiting.size,0,`#${event} is answered`);
 });
 
-test('Pause stops the turn and holds comments; Resume sends them, or asks the chat to go on',async t=>{
+test('Pause stops the turn; a new comment resumes and is sent, and Resume asks the chat to go on',async t=>{
   const f=await fixture(t),turn=await f.work(),calls=[];
   const interrupt=async(threadId,turnId)=>{calls.push(turnId);await f.endTurn('interrupted');return {ok:true,interruptedTurnId:turnId};};
   await pauseCodex(f.thread,turn,{interrupt});
   assert.deepEqual(calls,[turn]);assert.equal((await codexSnapshot(f.thread,{fresh:true})).status,'paused');
-  const event=await f.save('While paused');
-  assert.deepEqual(await f.sent(),[],'held until Resume');
   assert.equal(await codexStop({threadId:f.thread,turnId:turn}),null,'a paused chat is handed nothing and not held');
-  await resumeCodex(f.thread);
-  assert.deepEqual((await f.sent()).map(ids),[[event]]);
+  const event=await f.save('While paused');
+  assert.deepEqual((await f.sent()).map(ids),[[event]],'the comment resumes the chat and is sent');
+  assert.notEqual((await codexSnapshot(f.thread,{fresh:true})).status,'paused');
   await f.endTurn();
   await f.work();await pauseCodex(f.thread,(await codexSnapshot(f.thread,{fresh:true})).work.id,{interrupt});
   await resumeCodex(f.thread);

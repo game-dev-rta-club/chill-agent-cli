@@ -209,7 +209,7 @@ test('compact keeps its Goals; clear starts a context that owns nothing',async t
   assert.equal(await claimClaudeFeedbackForWatcher(f.s.record.sessionId),'');
 });
 
-test('Pause on a Claude Goal holds the conversation\'s comments until Resume',async t=>{
+test('Pause on a Claude Goal holds the conversation until Resume or a new comment',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
   const {readGoalActivity,controlAgent}=await import('../lib/agent-status.mjs');
   const {goalCommentMarks}=await import('../lib/agents/index.mjs');
@@ -222,12 +222,17 @@ test('Pause on a Claude Goal holds the conversation\'s comments until Resume',as
   await controlAgent(goal.id,{action:'stop',token:running.token});
   const paused=await readGoalActivity(goal.id);
   assert.equal(paused.status,'paused');assert.deepEqual(paused.capabilities,{stop:false,resume:true});
-  const held=await appendFeedback({goalId:goal.id,text:'While paused'});await deliverFeedback(held.changeId);
-  assert.deepEqual((await goalCommentMarks(goal.id)).map(m=>m.mark),['paused','paused']);
-  assert.equal(await handleClaudeToolHook(s.event('Stop',{stop_hook_active:true})),null,'nothing is handed while paused');
+  assert.deepEqual((await goalCommentMarks(goal.id)).map(m=>m.mark),['paused']);
+  assert.equal(await handleClaudeToolHook(s.event('Stop',{stop_hook_active:true})),null,'nothing continues it while paused');
   await controlAgent(goal.id,{action:'resume',token:running.token});
   assert.notEqual((await readGoalActivity(goal.id))?.status,'paused');
-  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId),/While paused/);
+  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId),/Resume/);
+  // A comment written after Pause resumes the conversation and is handed, without Resume.
+  await controlAgent(goal.id,{action:'stop',token:running.token});
+  assert.equal((await readGoalActivity(goal.id)).status,'paused');
+  const next=await appendFeedback({goalId:goal.id,text:'Go on with this'});await deliverFeedback(next.changeId);
+  assert.notEqual((await readGoalActivity(goal.id))?.status,'paused');
+  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId),/Go on with this/);
 });
 
 test('goal work from a Claude conversation marks its Goal Running for the current response',async t=>{
