@@ -179,7 +179,9 @@ test('HTML diagram annotations retain the exact version and reject missing or fo
  const f=await fixture(t),source=join(f.root,'workspace/goals/1/deliverable.html');
  await writeFile(source,'<style>.drawing{color:#243b3e}</style><h1>Before</h1><svg class="drawing" viewBox="0 0 100 100" onload="bad()"><text x="10" y="20">First</text><script>bad()</script></svg>');
  await f.run('deliverable','update','--id','1','--format','html');
- const doc=await(await f.get('/api/goals/1/briefs/1/document')).text();assert.match(doc,/data-brief-svg="0"/);
+ const page=await f.get('/api/goals/1/briefs/1/document'),doc=await page.text();assert.match(doc,/data-brief-svg="0"/);
+ // A tunnel proxy must not rewrite the page (Cloudflare hides email addresses), or annotation offsets shift.
+ assert.equal(page.headers.get('Cache-Control'),'no-store, no-transform');
  const svg=await f.get('/api/goals/1/briefs/1/svg/0');assert.equal(svg.status,200);assert.match(svg.headers.get('Content-Type'),/image\/svg\+xml/);
  const image=await svg.text();assert.match(image,/xmlns="http:\/\/www.w3.org\/2000\/svg"/);assert.match(image,/>First</);assert.doesNotMatch(image,/onload|<script|bad\(\)/);
  const note={kind:'image',source:{kind:'brief',version:1,svgIndex:0},rect:{x:.1,y:.1,width:.5,height:.5},imageName:'First diagram',text:'Diagram note'};
