@@ -24,8 +24,8 @@ try {
  const runtime=await prepareRuntime(resolve(values.runtime),data),entry=runtime.launcher;
  await writeFile(runner,`import {execFileSync} from 'node:child_process';
 const action=process.argv[2];
-// enable stands for the user moving the Goal's Autonomy slider to 2 (Continue) in the Web.
-if(action==='enable'){const {setGoalAutonomy}=await import(${JSON.stringify(pathToFileURL(join(runtime.root,'lib','goal-store.mjs')).href)});await setGoalAutonomy('1',2);console.log('Autonomy 2');process.exit(0);}
+// enable stands for the user setting the Root agent's Autonomy to Auto Continue in the Web.
+if(action==='enable'){const {setRootAutonomy}=await import(${JSON.stringify(pathToFileURL(join(runtime.root,'lib','root-autonomy.mjs')).href)});await setRootAutonomy('1',2);console.log('Autonomy Auto Continue');process.exit(0);}
 const args=action==='create'?['connection','create-goal','--title','Disposable Autonomy probe']:null;
 if(!args)throw Error('Unknown probe action');
 try{process.stdout.write(execFileSync(process.execPath,[${JSON.stringify(entry)},...args],{encoding:'utf8',timeout:10000}));}catch(error){console.error('Probe action failed:',action);throw error;}\n`);

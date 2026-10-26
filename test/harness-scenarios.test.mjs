@@ -113,7 +113,7 @@ scenario('the Agent menu reads the agent\'s name, model and status',async (s,dri
   assert.ok(done.agent.model.model,'the model it answered with');
 });
 
-// Autonomy (public/autonomy.js) is the Goal's own level; the agent meets it at its next hook.
+// Autonomy (public/autonomy.js) is the level of the Root's agent; the agent meets it at its next hook.
 scenario('Autonomy reaches the agent: feedback text stays the same, and tool prompts are approved at 2 where a hook can answer them',async (s,driver) => {
   await s.setAutonomy(2);
   const event=await s.saveFeedback('Choose the safer migration');

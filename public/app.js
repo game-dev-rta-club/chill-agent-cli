@@ -62,12 +62,12 @@ const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 
   <text class="agent-antenna-unknown" x="25" y="2.5" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">?</text>`:agentAntenna}
   ${agentFace}
   </svg>`;
-// Autonomy icons (48x48): the agent with what its level adds around it, a
-// speech bubble (Normal), an arrow going round (Continue), a car (Drive). The
-// effects follow the current colour; the face and wheels keep their own.
+// Autonomy icons (48x48): the agent with what its level adds around it,
+// nothing (Normal), an arrow going round (Auto Continue), a car (Ultra Continue).
+// The effects follow the current colour; the face and wheels keep their own.
 const agentIn = (x, y, scale) => `<g transform="translate(${x} ${y}) scale(${scale})" stroke="none">${agentAntenna}${agentFace}</g>`;
 const autonomyIcons = {
-  1: `<rect x="31" y="2.5" width="15" height="10.5" rx="4" stroke-width="2"/><path d="M34 13l-1.5 3.5 4.5-3.5" stroke-width="2"/><path d="M35 7.8h.01M38.5 7.8h.01M42 7.8h.01" stroke-width="2.6"/>${agentIn(9.6, 9.9, .72)}`,
+  1: agentIn(9.6, 9.9, .72),
   2: `<path d="M42.79 18.16A20 20 0 1 1 27.47 5.3" stroke-width="2.6"/><path d="M25.2 1.6l5.4 4.2-6.2 2.6z" fill="currentColor" stroke="none"/>${agentIn(9.6, 9.9, .72)}`,
   3: `${agentIn(10, 6.8, .6)}<path d="M0.8 24h4.5M0 30h5M0.8 36h4" stroke-width="2.2"/><path d="M34 25.5l3-6" stroke="#373e42" stroke-width="1.6"/><path d="M7 27.5q0-2 2-2h28.5q3 0 5 3l2.2 3.2q1.3 1.6 1.3 3.3v1.5q0 1.5-1.5 1.5H8.5Q7 38 7 36.5z" fill="currentColor" stroke="none"/><circle cx="43" cy="31" r="1.4" fill="#f3d486" stroke="none"/><circle cx="15" cy="38.5" r="4.6" fill="#373e42" stroke="none"/><circle cx="15" cy="38.5" r="1.6" fill="#fff9e9" stroke="none"/><circle cx="37" cy="38.5" r="4.6" fill="#373e42" stroke="none"/><circle cx="37" cy="38.5" r="1.6" fill="#fff9e9" stroke="none"/>`,
 };
@@ -229,7 +229,8 @@ function composerMarkup(id, comment) {
   </fieldset></form>`;
 }
 
-// Autonomy: this Goal's own level on one line, its icon, then the stops: the
+// Autonomy: the level of the Root's agent, the same on every Goal of the tree,
+// on one line: its icon, then the stops: the
 // current one is a pill with its name, the others small numbered dots. The word
 // "Autonomy" is only in the icon's hover text and the slider's accessible name;
 // hovering a stop shows its name and description. A visually hidden range input
@@ -272,15 +273,17 @@ async function saveAutonomy(id, level) {
   if (level === previous && !autonomySaves.has(id)) return;
   const request = {};
   autonomySaves.set(id, request);
-  goalMetadata.set(id, {...goalMetadata.get(id), autonomy: level});
+  // The level belongs to the Root's agent, so every Goal of the tree shows it.
+  const tree = autonomy => { const rootId = rootGoalId(id); for (const goal of goalMetadata.values()) if (goal.id === id || rootGoalId(goal.id) === rootId) goalMetadata.set(goal.id, {...goal, autonomy}); };
+  tree(level);
   try {
     const response = await fetch(`/api/goals/${id}/autonomy`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level}), signal:AbortSignal.timeout(15000)});
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Could not save Autonomy.');
-    if (autonomySaves.get(id) === request) { goalMetadata.set(id, {...goalMetadata.get(id), autonomy: result.autonomy}); showAutonomy(id, result.autonomy); }
+    if (autonomySaves.get(id) === request) { tree(result.autonomy); showAutonomy(id, result.autonomy); }
   } catch (error) {
     if (autonomySaves.get(id) !== request) return;
-    goalMetadata.set(id, {...goalMetadata.get(id), autonomy: previous});
+    tree(previous);
     showAutonomy(id, previous, error.name === 'TimeoutError' ? 'Save unconfirmed. Reload to check.' : error.message);
   } finally {
     if (autonomySaves.get(id) === request) autonomySaves.delete(id);

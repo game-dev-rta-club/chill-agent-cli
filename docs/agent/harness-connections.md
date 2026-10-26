@@ -120,7 +120,7 @@ which harness it is: the agent's name and model come back as display strings, an
 | `control`, `saveSettings` | Pause/Resume of the current work, model settings |
 | `isCaller`, `token` | Whether a command runs in the agent's own conversation; a key that changes on reassignment |
 | `continuation` | The end-of-turn check Autonomy asks for: `live`, and for a polled agent its plan, observation, tick and busy |
-| `goalsHeldElsewhere(token)` | The Goals other live conversations work on, left out of an Autonomy 3 (Drive) tree |
+| `goalsHeldElsewhere(token)` | The Goals other live conversations work on, left out of an Ultra Continue tree |
 | `deliveryCarrier(state)` | How a saved feedback is handed: `deliver` and `sendNow`, each returning the comment's mark |
 
 Each adapter lives in `lib/agents/` (`codex*.mjs`, `claude*.mjs`). Both hand

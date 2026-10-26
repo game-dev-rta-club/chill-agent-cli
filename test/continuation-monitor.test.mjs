@@ -7,7 +7,8 @@ import {continuationEligibility} from '../lib/continuation-eligibility.mjs';
 import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {createGoal,updateGoal,updateBrief,appendFeedback,readFeedback,setGoalAutonomy} from '../lib/goal-store.mjs';
+import {createGoal,updateGoal,updateBrief,appendFeedback,readFeedback} from '../lib/goal-store.mjs';
+import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {mkdir} from 'node:fs/promises';
 import {recordVersionSource} from '../lib/version-source.mjs';
 import {codexThread,contractStub} from './codex-contract.mjs';
@@ -24,8 +25,8 @@ async function installedSkill(t){
  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
 }
 const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootState:'idle',revision:'r1',progress:'p1',candidates:[{id:'2',title:'Work'}],lastUserEvent:1,paused:false,pendingFeedback:[],queue:[],stable:true,harnessState:'notLoaded',heartbeatFresh:false,turn:{id:'turn',status:'completed',completedAt:1}});
-// The chat's Autonomy plan: one Goal at Continue, its revision following the facts'.
-const planFor=f=>({rootId:'1',threadId:'t',level:2,goalId:'2',goalTitle:'Work',revision:f.revision,goals:[{id:'2',title:'Work',level:2,rootId:'1'}],trees:[]});
+// The chat's Autonomy plan: its Root at Auto Continue, its revision following the facts'.
+const planFor=f=>({rootId:'1',threadId:'t',level:2,goalId:'1',goalTitle:'Root',revision:f.revision,roots:[{id:'1',title:'Root',level:2}]});
 function fixture(){
  let saved=null,time=1000,f=idle(),sent=[],failure=false,observations=0,mutate=()=>{};
  const deps={plan:async()=>deps.planned===undefined?planFor(f):deps.planned,read:async()=>structuredClone(saved),write:async(_id,s)=>{saved=structuredClone(s);},observe:async()=>{mutate(++observations);return structuredClone(f);},lock:async(_id,fn)=>fn(),now:()=>time,send:async(_f,text,id)=>{sent.push({text,id});if(failure)throw Error('timeout');return {queuedSubmission:{id:'q'}};}};
@@ -50,22 +51,27 @@ test('one nudge per revision across restarts; completed result alone does not pr
  x.advance(10000);assert.equal((await x.run()).status,'exhausted');assert.equal(x.sent.length,1);
  x.f.revision='r2';await x.run();assert.equal(x.sent.length,2);assert.equal(x.state.history.length,1);
 });
-test('nothing is checked while no Goal asks for it, or for a Root the plan does not name',async()=>{
+test('nothing is checked while no Root asks for it, or for a Root the plan does not name',async()=>{
  const x=fixture();x.deps.planned=null;assert.equal((await x.run()).status,'off');assert.equal(x.sent.length,0);
  x.deps.planned={...planFor(x.f),rootId:'9'};assert.equal((await x.run()).status,'off','the chat gets one message, from the Root of its highest level');
  x.deps.planned=undefined;await x.run();assert.equal(x.sent.length,1);
- assert.match(x.sent[0].text,/Goal #2 “Work”, Lv 2 Continue: After each turn, keep working on what was agreed for this Goal/);
+ assert.match(x.sent[0].text,/- Root Goal #1 “Root”, Auto Continue: After each turn, keep carrying out what you and the user clearly see the same way, in any Goal under Root Goal #1/);
 });
 test('a level change is a new revision',async()=>{
  const x=fixture();await x.run();x.complete();assert.equal((await x.run()).status,'exhausted');
- x.deps.planned={...planFor(x.f),level:3,revision:'level-3',goals:[{id:'2',title:'Work',level:3,rootId:'1'}]};
- await x.run();assert.equal(x.sent.length,2);assert.match(x.sent[1].text,/Lv 3 Drive: Drive the whole project under Root #1/);
+ x.deps.planned={...planFor(x.f),level:3,revision:'level-3',roots:[{id:'1',title:'Root',level:3,open:[{id:'2',title:'Work'}],taken:[]}]};
+ await x.run();assert.equal(x.sent.length,2);assert.match(x.sent[1].text,/Root Goal #1 “Root”, Ultra Continue: Root Goal #1 is delegated to you/);
+ assert.match(x.sent[1].text,/Unfinished in that tree: #2 “Work”\./);
 });
-test('a reassigned Root starts over for its new chat; the earlier request is closed, never resent',async t=>{
+test('a reassigned Root starts over for its new chat, without the earlier level; the earlier request is closed, never resent',async t=>{
  expectHidden(t,'continuation-monitor.send');
- const x=fixture();x.fail();await x.run();
+ const x=fixture();x.fail();await x.run();await x.deps.write('1',{...x.state,autonomy:3});
  x.deps.planned={...planFor(x.f),threadId:'u'};x.f.threadId='u';
- await x.run();assert.equal(x.state.history[0].phase,'assignment-changed');assert.equal(x.state.threadId,'u');
+ await x.run();assert.equal(x.state.history[0].phase,'assignment-changed');assert.equal(x.state.threadId,'u');assert.equal('autonomy' in x.state,false);
+});
+test('a record written before any chat worked on the Root is taken over with its level',async()=>{
+ const x=fixture();await x.deps.write('1',{rootId:'1',attempts:[],autonomy:2});
+ await x.run();assert.equal(x.sent.length,1);assert.equal(x.state.threadId,'t');assert.equal(x.state.autonomy,2);assert.equal(x.state.status,'queued');
 });
 test('Done and no candidates do not suppress monitoring',async()=>{
  const x=fixture();x.f.rootState='done';x.f.candidates=[];await x.run();assert.equal(x.sent.length,1);
@@ -144,8 +150,8 @@ test('real store: content revisions stay separate from agent Web events',async()
   await appendFeedback({goalId:root.id,text:'New user input'});
   const revision=(await observe()).revision;assert.notEqual(revision,briefRevision);
   // Actual state persistence and shared thread lock; two monitors race.
-  // A Done Goal asks for nothing; reopened at Continue, it does.
-  await setGoalAutonomy(root.id,2);
+  // A Done Root asks for nothing; reopened at Auto Continue, it does.
+  await setRootAutonomy(root.id,2);
   assert.equal(await codexTurnPlan(threadId),null);await updateGoal(root.id,{state:'idle'});let sends=0;
   const run=createMonitorRunner({plan:()=>codexTurnPlan(threadId),observe:async()=>({...idle(),rootId:root.id,threadId,revision:(await observe()).revision}),
    send:async()=>{sends++;return {queuedSubmission:{id:'queue'}};}});
@@ -153,7 +159,7 @@ test('real store: content revisions stay separate from agent Web events',async()
   const events=await readFeedback();
   assert.deepEqual(await readFeedback(),events);assert.notEqual((await observe()).revision,revision,'the Autonomy change is a revision');
   assert.equal((await run(root.id)).status,'awaiting-run');assert.equal(sends,1);
-  await setGoalAutonomy(root.id,1);assert.equal((await run(root.id)).status,'off');
+  await setRootAutonomy(root.id,1);assert.equal((await run(root.id)).status,'off');
   assert.equal((await readMonitor(root.id)).attempts.length,1);
  }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });

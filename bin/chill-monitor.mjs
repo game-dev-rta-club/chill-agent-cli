@@ -6,7 +6,7 @@ import {readGoalContext} from '../lib/extension-api.mjs';
 const [command,...args]=process.argv.slice(2);
 const usage=`End-of-turn checks that Autonomy asks for, with durable attempt limits.
 Usage: chill monitor <status|tick> --id <ROOT>
-Autonomy is set per Goal with the slider in the Web's comment box: at 2 or higher, the agent gets one end-of-turn check per user/Goal/Deliverable/Autonomy revision. A Claude conversation is checked at its own Stop; the Web server checks a Codex chat every 30s. Unknown/paused/queued states never send.
+Autonomy is set per agent (per Root) in any of its Goals' comment boxes on the Web: at Auto Continue or Ultra Continue, the agent gets one end-of-turn check per user/Goal/Deliverable/Autonomy revision. A Claude conversation is checked at its own Stop; the Web server checks a Codex chat every 30s. Unknown/paused/queued states never send.
 status prints the Root's check record. tick runs one check now for a Codex chat; the Web server runs the same check itself.
 chill records the result of each check itself; there is nothing to report.`;
 try{

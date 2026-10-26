@@ -1,10 +1,11 @@
-// Autonomy: how far the agent goes on its own for one Goal, 1 to 3. Each Goal
-// keeps its own value; a new Goal copies its parent's when it is created.
+// Autonomy: how far the agent on a Root goes on its own, stored as 1 to 3 and
+// always shown by name. One value per Root's agent, kept in the Root's
+// continuation journal (lib/root-autonomy.mjs); every Goal of the tree shows it.
 export const autonomyLevels=Object.freeze([
-  {level:1,name:'Normal',tip:'Work as usual. chill adds nothing.'},
-  {level:2,name:'Continue',tip:'After each turn, keep working on what we agreed for this Goal. Tool requests are approved.'},
-  {level:3,name:'Drive',tip:'Drive the whole project under this Root. Move forward everything that doesn\'t need my decision; ask the rest as Letters.'},
+  {level:1,name:'Normal',tip:'Does what each comment asks, then waits for you.'},
+  {level:2,name:'Auto Continue',tip:'Keeps working on what you\'ve agreed, across the whole Root Goal. Questions come as Letters. No tool prompts.'},
+  {level:3,name:'Ultra Continue',tip:'Plans its own way to the Root Goal\'s success criteria and moves every Goal under it forward. Letters only for your decisions. No tool prompts.'},
 ]);
 export const validAutonomy=level=>Number.isInteger(level)&&level>=1&&level<=autonomyLevels.length;
-// A Goal saved before Autonomy existed reads as Normal.
-export const autonomyOf=goal=>validAutonomy(goal?.autonomy)?goal.autonomy:1;
+// A record without a level reads as Normal.
+export const autonomyOf=record=>validAutonomy(record?.autonomy)?record.autonomy:1;

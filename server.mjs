@@ -14,7 +14,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief, setGoalAutonomy } from './lib/goal-store.mjs';
+import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { setRootAutonomy, goalsWithRootAutonomy } from './lib/root-autonomy.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
 import { createTunnelController } from './lib/tunnel-controller.mjs';
@@ -316,11 +317,11 @@ const server = createServer(async (request, response) => {
     try{return sendJson(response,200,await controlAgent(controlPath[1],await readJson(request)));}
     catch(error){return sendJson(response,409,{error:error.message});}
   }
-  // The comment box's Autonomy slider saves one Goal's level by itself, apart from any comment.
+  // The comment box's Autonomy control saves the level of the Goal's Root agent by itself, apart from any comment.
   const autonomyPath=/^\/api\/goals\/([1-9][0-9]*)\/autonomy$/.exec(path);
   if(autonomyPath&&request.method==='POST'){
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
-    try{const goal=await setGoalAutonomy(autonomyPath[1],(await readJson(request)).level);return sendJson(response,200,{goalId:goal.id,autonomy:goal.autonomy});}
+    try{return sendJson(response,200,await setRootAutonomy(autonomyPath[1],(await readJson(request)).level));}
     catch(error){return sendJson(response,/not found/i.test(error.message)?404:400,{error:error.message});}
   }
   const eventPath=/^\/api\/goals\/([1-9][0-9]*)\/events\/([1-9][0-9]*)$/.exec(path);
@@ -461,7 +462,8 @@ const server = createServer(async (request, response) => {
     try {
       const web=url.searchParams.get('view')==='web';
       const [goals,attention]=await Promise.all([readConnectedGoals({render:!web,paged:web&&url.searchParams.get('history')==='paged'}),readAttention()]);
-      let body = Buffer.from(JSON.stringify(web?webSnapshot(goals).map(goal=>attention(goal,goal.conversation)):goals));
+      // Every Goal shows the Autonomy of its Root's agent.
+      let body = Buffer.from(JSON.stringify(web?webSnapshot(await goalsWithRootAutonomy(goals)).map(goal=>attention(goal,goal.conversation)):goals));
       response.setHeader('Vary','Accept-Encoding');
       if(acceptsGzip(request)){body=gzipSync(body);response.setHeader('Content-Encoding','gzip');}
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
