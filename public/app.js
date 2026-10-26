@@ -465,7 +465,10 @@ function mountHTMLBrief(id,version) {
       // Clicking the image or diagram itself opens the same annotation screen, shown large.
       const picture=event.target.closest('.annotatable-image')?.querySelector(':scope > [data-action="annotate-image"]');
       if(picture&&!event.target.closest('button')){event.preventDefault();openImageSelection(picture.dataset.imageId,picture.dataset.svgIndex);return;}
-      const link=event.target.closest('a[href]');if(link){event.preventDefault();window.open(link.href,'_blank','noopener,noreferrer');}
+      const link=event.target.closest('a[href]');if(!link)return;event.preventDefault();
+      // A link to a Goal (#N) moves this page there; any other link opens a new tab.
+      const route=link.getAttribute('href');if(route.startsWith('#/')){location.hash=route;return;}
+      window.open(link.href,'_blank','noopener,noreferrer');
     });
     doc.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches('.annotation-mark')){event.preventDefault();event.target.click();}});
     renderAnnotations();size();
