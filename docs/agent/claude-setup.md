@@ -1,7 +1,8 @@
 ---
 keyPoints: >-
   Explicit Claude setup adds project-local hooks without changing permissions or
-  other hooks. Repeating preparation reconciles owned entries; status reports
+  other hooks. Every preparation and update replaces chill's own hooks with the
+  current version's, so a rewritten or deleted settings file heals; status reports
   configuration, not live activation. A conversation that was already running
   connects with connection join, without resuming. A Git worktree shares its
   main checkout's project; native tool permissions are answered only by Autonomy 2 or 3.
@@ -41,12 +42,13 @@ with an installation hint when Git Bash is not found (it also honours
 setup are replaced on the next prepare. PowerShell and cmd can use
 `runtime\chill.cmd`, which runs the Node on PATH.
 
-The installer preserves other settings and hooks. It replaces only its exact
-recorded entries, so repeating setup does not add duplicate hooks. Edited or
-untracked chill hooks are reported instead of overwritten. Symlinked local
-settings are rejected. An interrupted write retains enough ownership information
-to reconcile either settings version on the next prepare, without copying a
-backup of credential-bearing settings.
+The installer preserves other settings and hooks. chill's own hooks, those
+that run `connection claude-hook` or `claude-watch`, are replaced with the
+current version's every time, whatever they look like now, so repeating setup
+does not add duplicates. Claude Code rewrites this file, in its own key order,
+when it saves its own settings there; a hand edit of a chill hook is put back,
+and a person's hook in the same group stays. Symlinked local settings are
+rejected. No backup of credential-bearing settings is copied.
 
 Claude's [settings locations](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-repository)
 matter: a conversation in a linked Git worktree also loads the main checkout's
@@ -88,10 +90,10 @@ installation.
 
 A version update (the Web's Update button, or a changed version file at server
 start) also brings the hooks setup recorded for each project up to the new
-version, for example when it handles a new event. Only chill's own recorded
-groups are replaced. A project whose hooks were removed, or whose chill hook was
-edited by hand, is left as it is. So a teammate only pulls the project and
-presses Update; setup is needed once per machine.
+version, for example when it handles a new event, and writes them again where
+the settings file was rewritten or deleted. Only chill's own hooks are replaced.
+A project whose hooks were removed is left as it is. So a teammate only pulls
+the project and presses Update; setup is needed once per machine.
 
 ## Allow the operations you intend to delegate
 

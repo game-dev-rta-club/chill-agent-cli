@@ -35,8 +35,9 @@ async function main() {
     if(command==='status'){console.log(JSON.stringify(await claudeSetupStatus(values['--project']),null,2));return;}
     if(command==='remove'){console.log(JSON.stringify(await configureClaudeHooks(values['--project'],{remove:true}),null,2));return;}
     if(process.platform==='win32'&&!findGitBash())throw Error('Claude Code on Windows runs these hooks with Git Bash, which was not found. Install Git for Windows (https://git-scm.com/downloads/win), or set CLAUDE_CODE_GIT_BASH_PATH to its bash.exe, then run setup again.');
-    // Inspect before preparing a runtime; never consult Codex for this route.
-    const status=await claudeSetupStatus(values['--project']);if(status.conflict)throw Error('A Claude chill hook is untracked or edited. Review it before preparing again.');
+    // Read the settings before preparing a runtime, so a malformed or symlinked
+    // file stops setup first; never consult Codex for this route.
+    await claudeSetupStatus(values['--project']);
     const prepared=await prepareRuntime(fileURLToPath(new URL('../',import.meta.url)),undefined,{package:version?.spec});
     if(version)await recordVersionSource(prepared.dataDirectory,version);
     // Match the launcher's canonical spelling (for example /var -> /private/var).
