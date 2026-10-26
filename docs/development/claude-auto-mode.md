@@ -46,11 +46,11 @@ At a main Stop, the extension checks saved feedback and holds across every Root
 in this native connection. Unprocessed input suppresses continuation. The
 extension saves one attempt before the CLI returns a native Stop decision,
 without claiming that native input queues are empty. Claude retains its input
-ordering; tool prompts follow Autonomy (any Goal at 4, or all at 3 or higher).
+ordering; tool prompts follow Autonomy (any Goal at 3, or all at 2 or higher).
 
 The request lists the Goals at 2 or higher with what each level asks, so it
-stands on its own: a self-check of the reply (2), the agreed work of the Goal
-(3), or the whole Root tree, without Goals other live conversations work on (4).
+stands on its own: the agreed work of the Goal (2), or the whole Root tree,
+without Goals other live conversations work on (3).
 It lists what the record already says (unfinished Goals, feedback still awaiting
 a reply, open Letters) and names no command, so a turn with nothing left ends in
 a single response. Codex receives the same text; only a conversation that can
@@ -81,7 +81,7 @@ node scripts/probe-claude-auto.mjs --run --runtime "$PWD" --auth-settings /absol
 ```
 
 The probe copies the runtime to a disposable data directory and uses its
-stable launcher. It creates a Root, sets its Autonomy to 3 and finishes the initial
+stable launcher. It creates a Root, sets its Autonomy to 2 (Continue) and finishes the initial
 response. The native Stop continues that same process; with nothing left to do,
 the continued response retains an initial memory token and ends in one line
 without tool calls. A second Stop ends the attempt without another nudge, and

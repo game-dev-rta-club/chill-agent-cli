@@ -45,19 +45,32 @@ const icons = {
   mention: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">${icons[name]}</svg>`;
-const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-  <path d="${presence?'M20 9V7l5-2.5':'M20 9V5l4-2'}" stroke="#373e42" stroke-width="1.8"/>${presence?`<circle class="agent-antenna-light" cx="25" cy="-1" r="5.5"/>
-  <circle class="agent-antenna-track" cx="25" cy="-1" r="8"/>
-  <circle class="agent-antenna-orbit" cx="25" cy="-1" r="8" pathLength="100" stroke-dasharray="32 68"/>
-  <path class="agent-antenna-paused" d="M23 -4v6m4-6v6" stroke="#fff" stroke-width="1.8"/>
-  <text class="agent-antenna-unknown" x="25" y="2.5" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">?</text>`:'<circle cx="25" cy="3" r="2.5" fill="#e4b854"/>'}
-  <rect x="3.5" y="8.5" width="33" height="29" rx="12" fill="#f3d486" stroke="#373e42" stroke-width="1.5"/>
+// The agent's face (40x40), shared by its avatar and the Autonomy icons.
+const agentAntenna = '<path d="M20 9V5l4-2" stroke="#373e42" stroke-width="1.8" fill="none"/><circle cx="25" cy="3" r="2.5" fill="#e4b854"/>';
+const agentFace = `<rect x="3.5" y="8.5" width="33" height="29" rx="12" fill="#f3d486" stroke="#373e42" stroke-width="1.5"/>
   <rect x="7" y="14" width="26" height="18" rx="8" fill="#fff9e9"/>
   <path d="M3 20v7m34-7v7" stroke="#373e42" stroke-width="3"/>
   <ellipse cx="10.5" cy="25" rx="2.5" ry="1.5" fill="#efb3a4"/><ellipse cx="29.5" cy="25" rx="2.5" ry="1.5" fill="#efb3a4"/>
   <circle cx="14" cy="21" r="1.8" fill="#373e42"/><circle cx="26" cy="21" r="1.8" fill="#373e42"/>
-  <path d="M17 26q3 3 6 0" stroke="#373e42" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M17 26q3 3 6 0" stroke="#373e42" stroke-width="1.7" stroke-linecap="round" fill="none"/>`;
+const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+  ${presence?`<path d="M20 9V7l5-2.5" stroke="#373e42" stroke-width="1.8"/><circle class="agent-antenna-light" cx="25" cy="-1" r="5.5"/>
+  <circle class="agent-antenna-track" cx="25" cy="-1" r="8"/>
+  <circle class="agent-antenna-orbit" cx="25" cy="-1" r="8" pathLength="100" stroke-dasharray="32 68"/>
+  <path class="agent-antenna-paused" d="M23 -4v6m4-6v6" stroke="#fff" stroke-width="1.8"/>
+  <text class="agent-antenna-unknown" x="25" y="2.5" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">?</text>`:agentAntenna}
+  ${agentFace}
   </svg>`;
+// Autonomy icons (48x48): the agent with what its level adds around it, a
+// speech bubble (Normal), an arrow going round (Continue), a car (Drive). The
+// effects follow the current colour; the face and wheels keep their own.
+const agentIn = (x, y, scale) => `<g transform="translate(${x} ${y}) scale(${scale})" stroke="none">${agentAntenna}${agentFace}</g>`;
+const autonomyIcons = {
+  1: `<rect x="31" y="2.5" width="15" height="10.5" rx="4" stroke-width="2"/><path d="M34 13l-1.5 3.5 4.5-3.5" stroke-width="2"/><path d="M35 7.8h.01M38.5 7.8h.01M42 7.8h.01" stroke-width="2.6"/>${agentIn(9.6, 9.9, .72)}`,
+  2: `<path d="M42.79 18.16A20 20 0 1 1 27.47 5.3" stroke-width="2.6"/><path d="M25.2 1.6l5.4 4.2-6.2 2.6z" fill="currentColor" stroke="none"/>${agentIn(9.6, 9.9, .72)}`,
+  3: `${agentIn(10, 6.8, .6)}<path d="M0.8 24h4.5M0 30h5M0.8 36h4" stroke-width="2.2"/><path d="M34 25.5l3-6" stroke="#373e42" stroke-width="1.6"/><path d="M7 27.5q0-2 2-2h28.5q3 0 5 3l2.2 3.2q1.3 1.6 1.3 3.3v1.5q0 1.5-1.5 1.5H8.5Q7 38 7 36.5z" fill="currentColor" stroke="none"/><circle cx="43" cy="31" r="1.4" fill="#f3d486" stroke="none"/><circle cx="15" cy="38.5" r="4.6" fill="#373e42" stroke="none"/><circle cx="15" cy="38.5" r="1.6" fill="#fff9e9" stroke="none"/><circle cx="37" cy="38.5" r="4.6" fill="#373e42" stroke="none"/><circle cx="37" cy="38.5" r="1.6" fill="#fff9e9" stroke="none"/>`,
+};
+const autonomyIcon = level => `<svg class="autonomy-svg" viewBox="0 0 48 48" aria-hidden="true">${autonomyIcons[level]}</svg>`;
 const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
 const attachmentFiles = new Map();
 const isImageFile = file => ['image/png', 'image/jpeg', 'image/webp'].includes(file.type);
@@ -214,20 +227,26 @@ function composerMarkup(id, comment) {
   </fieldset></form>`;
 }
 
-// Autonomy: a 4-stop slider for this Goal's own level. The stops' names are
-// its labels and the current one is highlighted; each stop's description shows
-// on hover. A change saves at once, apart from any comment.
+// Autonomy: this Goal's own level on one line, its icon, then the stops: the
+// current one is a pill with its name, the others small numbered dots. The word
+// "Autonomy" is only in the icon's hover text and the slider's accessible name;
+// hovering a stop shows its name and description. A visually hidden range input
+// carries the keyboard and the accessible value; a click on a stop or between
+// two saves the nearest one. A change saves at once, apart from any comment.
 const autonomySaves = new Map();
-const autonomyText = level => `Lv ${level} ${autonomyLevels[level-1].name}. ${autonomyLevels[level-1].tip}`;
+const autonomyName = level => `Lv ${level} ${autonomyLevels[level-1].name}`;
+const autonomyTip = (level, heading = autonomyName(level)) => `<span class="autonomy-tip" aria-hidden="true"><b>${escapeHTML(heading)}</b> ${escapeHTML(autonomyLevels[level-1].tip)}</span>`;
+function autonomyStops(level) {
+  return autonomyLevels.map(l => `${l.level > 1 ? `<span class="autonomy-segment${l.level <= level ? ' is-on' : ''}"></span>` : ''}<span class="autonomy-stop${l.level < level ? ' is-on' : ''}" data-autonomy-level="${l.level}"${l.level === level ? ' aria-current="true"' : ''}>
+      ${l.level === level ? `<span class="autonomy-pill">${escapeHTML(autonomyName(l.level))}</span>` : `<span class="autonomy-dot">${l.level}</span>`}${autonomyTip(l.level)}</span>`).join('');
+}
+const autonomyIconMarkup = level => `${autonomyIcon(level)}${autonomyTip(level, `Autonomy: ${autonomyName(level)}`)}`;
 function autonomyMarkup(id) {
   const level = autonomyOf(goalMetadata.get(id));
   return `<div class="autonomy" data-autonomy data-goal-id="${id}" data-level="${level}">
-    <span class="autonomy-name" id="autonomy-name">Autonomy</span>
-    <div class="autonomy-track"><span class="autonomy-ticks" aria-hidden="true">${autonomyLevels.map(l => `<i data-level="${l.level}"></i>`).join('')}</span>
-      <input type="range" class="autonomy-range" data-autonomy-range min="1" max="${autonomyLevels.length}" step="1" value="${level}" aria-labelledby="autonomy-name" aria-valuetext="${escapeHTML(autonomyText(level))}"></div>
-    <ol class="autonomy-stops">${autonomyLevels.map(l => `<li class="autonomy-stop" data-level="${l.level}" ${l.level === level ? 'aria-current="true"' : ''}>
-      <button type="button" data-autonomy-level="${l.level}" tabindex="-1" aria-label="${escapeHTML(autonomyText(l.level))}"><b>Lv ${l.level}</b><span>${escapeHTML(l.name)}</span></button>
-      <span class="autonomy-tip" role="tooltip">${escapeHTML(l.tip)}</span></li>`).join('')}</ol>
+    <span class="autonomy-icon" data-autonomy-icon>${autonomyIconMarkup(level)}</span>
+    <div class="autonomy-rail"><input type="range" class="autonomy-range" data-autonomy-range min="1" max="${autonomyLevels.length}" step="1" value="${level}" aria-label="Autonomy: ${escapeHTML(autonomyName(level))}" aria-valuetext="${escapeHTML(`${autonomyName(level)}. ${autonomyLevels[level-1].tip}`)}">
+      <span class="autonomy-stops" data-autonomy-stops>${autonomyStops(level)}</span></div>
     <span class="autonomy-error" role="status" data-autonomy-error></span></div>`;
 }
 // Show a level in the slider without rendering the composer again.
@@ -236,9 +255,13 @@ function showAutonomy(id, level = autonomyOf(goalMetadata.get(id)), error = '') 
   if (!box) return;
   const range = box.querySelector('[data-autonomy-range]');
   range.value = String(level);
-  range.setAttribute('aria-valuetext', autonomyText(level));
-  box.dataset.level = String(level);
-  box.querySelectorAll('.autonomy-stop').forEach(stop => stop.toggleAttribute('aria-current', Number(stop.dataset.level) === level));
+  range.setAttribute('aria-label', `Autonomy: ${autonomyName(level)}`);
+  range.setAttribute('aria-valuetext', `${autonomyName(level)}. ${autonomyLevels[level-1].tip}`);
+  if (box.dataset.level !== String(level)) {
+    box.dataset.level = String(level);
+    box.querySelector('[data-autonomy-icon]').innerHTML = autonomyIconMarkup(level);
+    box.querySelector('[data-autonomy-stops]').innerHTML = autonomyStops(level);
+  }
   box.querySelector('[data-autonomy-error]').textContent = error;
 }
 async function saveAutonomy(id, level) {
@@ -270,24 +293,16 @@ main.addEventListener('change', event => {
   if (range) void saveAutonomy(range.closest('[data-autonomy]').dataset.goalId, Number(range.value));
 });
 main.addEventListener('click', event => {
-  const stop = event.target.closest?.('[data-autonomy-level]');
-  if (!stop) return;
-  const box = stop.closest('[data-autonomy]');
+  const rail = event.target.closest?.('.autonomy-rail');
+  if (!rail) return;
+  const box = rail.closest('[data-autonomy]'), range = box.querySelector('[data-autonomy-range]');
+  if (range.disabled) return;
+  // The stop under the pointer, or the nearest one when between two.
+  const stops = [...rail.querySelectorAll('[data-autonomy-level]')];
+  const centre = stop => { const rect = stop.getBoundingClientRect(); return rect.left + rect.width / 2; };
+  const stop = event.target.closest('[data-autonomy-level]') || stops.reduce((near, next) => Math.abs(centre(next) - event.clientX) < Math.abs(centre(near) - event.clientX) ? next : near);
   void saveAutonomy(box.dataset.goalId, Number(stop.dataset.autonomyLevel));
-  box.querySelector('[data-autonomy-range]').focus({preventScroll:true});
-});
-// Hovering the track shows the description of the stop under the pointer.
-main.addEventListener('pointermove', event => {
-  const track = event.target.closest?.('.autonomy-track');
-  const box = event.target.closest?.('[data-autonomy]');
-  if (!box) return;
-  if (!track) { delete box.dataset.hover; return; }
-  const rect = track.getBoundingClientRect();
-  box.dataset.hover = String(Math.min(autonomyLevels.length, Math.max(1, Math.round((event.clientX - rect.left) / rect.width * (autonomyLevels.length - 1)) + 1)));
-});
-main.addEventListener('pointerout', event => {
-  const box = event.target.closest?.('[data-autonomy]');
-  if (box && !box.contains(event.relatedTarget)) delete box.dataset.hover;
+  range.focus({preventScroll:true});
 });
 
 const commentMarks = new Map();

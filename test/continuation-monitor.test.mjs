@@ -25,7 +25,7 @@ async function installedSkill(t){
 }
 const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootState:'idle',revision:'r1',progress:'p1',candidates:[{id:'2',title:'Work'}],lastUserEvent:1,paused:false,pendingFeedback:[],queue:[],stable:true,harnessState:'notLoaded',heartbeatFresh:false,turn:{id:'turn',status:'completed',completedAt:1}});
 // The chat's Autonomy plan: one Goal at Continue, its revision following the facts'.
-const planFor=f=>({rootId:'1',threadId:'t',level:3,goalId:'2',goalTitle:'Work',revision:f.revision,goals:[{id:'2',title:'Work',level:3,rootId:'1'}],trees:[]});
+const planFor=f=>({rootId:'1',threadId:'t',level:2,goalId:'2',goalTitle:'Work',revision:f.revision,goals:[{id:'2',title:'Work',level:2,rootId:'1'}],trees:[]});
 function fixture(){
  let saved=null,time=1000,f=idle(),sent=[],failure=false,observations=0,mutate=()=>{};
  const deps={plan:async()=>deps.planned===undefined?planFor(f):deps.planned,read:async()=>structuredClone(saved),write:async(_id,s)=>{saved=structuredClone(s);},observe:async()=>{mutate(++observations);return structuredClone(f);},lock:async(_id,fn)=>fn(),now:()=>time,send:async(_f,text,id)=>{sent.push({text,id});if(failure)throw Error('timeout');return {queuedSubmission:{id:'q'}};}};
@@ -54,12 +54,12 @@ test('nothing is checked while no Goal asks for it, or for a Root the plan does 
  const x=fixture();x.deps.planned=null;assert.equal((await x.run()).status,'off');assert.equal(x.sent.length,0);
  x.deps.planned={...planFor(x.f),rootId:'9'};assert.equal((await x.run()).status,'off','the chat gets one message, from the Root of its highest level');
  x.deps.planned=undefined;await x.run();assert.equal(x.sent.length,1);
- assert.match(x.sent[0].text,/Goal #2 “Work”, Lv 3 Continue: After each turn, keep working on what was agreed for this Goal/);
+ assert.match(x.sent[0].text,/Goal #2 “Work”, Lv 2 Continue: After each turn, keep working on what was agreed for this Goal/);
 });
 test('a level change is a new revision',async()=>{
  const x=fixture();await x.run();x.complete();assert.equal((await x.run()).status,'exhausted');
- x.deps.planned={...planFor(x.f),level:2,revision:'level-2',goals:[{id:'2',title:'Work',level:2,rootId:'1'}]};
- await x.run();assert.equal(x.sent.length,2);assert.match(x.sent[1].text,/Lv 2 Thorough: Is there anything in this reply you asked or left open/);
+ x.deps.planned={...planFor(x.f),level:3,revision:'level-3',goals:[{id:'2',title:'Work',level:3,rootId:'1'}]};
+ await x.run();assert.equal(x.sent.length,2);assert.match(x.sent[1].text,/Lv 3 Drive: Drive the whole project under Root #1/);
 });
 test('a reassigned Root starts over for its new chat; the earlier request is closed, never resent',async t=>{
  expectHidden(t,'continuation-monitor.send');
@@ -145,7 +145,7 @@ test('real store: content revisions stay separate from agent Web events',async()
   const revision=(await observe()).revision;assert.notEqual(revision,briefRevision);
   // Actual state persistence and shared thread lock; two monitors race.
   // A Done Goal asks for nothing; reopened at Continue, it does.
-  await setGoalAutonomy(root.id,3);
+  await setGoalAutonomy(root.id,2);
   assert.equal(await codexTurnPlan(threadId),null);await updateGoal(root.id,{state:'idle'});let sends=0;
   const run=createMonitorRunner({plan:()=>codexTurnPlan(threadId),observe:async()=>({...idle(),rootId:root.id,threadId,revision:(await observe()).revision}),
    send:async()=>{sends++;return {queuedSubmission:{id:'queue'}};}});
@@ -217,7 +217,7 @@ test('chill records the result when the run ends: worked when the agent left som
 });
 
 test('continuation anchors to the highest-level Goal and preserves the observed run when archived',async()=>{
- const x=fixture(),at=(id,title)=>{x.deps.planned={...planFor(x.f),goalId:id,goalTitle:title,goals:[{id,title,level:3,rootId:'1'}]};};
+ const x=fixture(),at=(id,title)=>{x.deps.planned={...planFor(x.f),goalId:id,goalTitle:title,goals:[{id,title,level:2,rootId:'1'}]};};
  at('7','Current outcome');
  await x.run();assert.equal(x.state.attempts[0].goalId,'7');
  assert.equal(x.state.attempts[0].goalTitle,'Current outcome');

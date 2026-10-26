@@ -183,25 +183,24 @@ test('a prompt the user types in the conversation resumes a Web pause; Claude Co
  assert.equal(await paused(),false,'the user wrote here, so the work continues without the Web');
 });
 
-test('Autonomy answers permission prompts from the conversation\'s Goals: any at 4, or all at 3 or higher',async t=>{
+test('Autonomy answers permission prompts from the conversation\'s Goals: any at 3, or all at 2 or higher',async t=>{
  const {claudePermissionDecision}=await import('../lib/claude-permissions.mjs');
  const {setGoalAutonomy,createGoal,updateGoal}=await import('../lib/goal-store.mjs');
  const {recordClaudeWork}=await import('../lib/claude-agent-work.mjs');
  const f=await fixture(t),prompt=()=>claudePermissionDecision(f.event('PermissionRequest',{tool_name:'mcp__computer-use__request_access'}));
  const allowed=async()=>(await prompt())?.hookSpecificOutput?.decision?.behavior==='allow';
  assert.equal(await prompt(),null,'a new Root is at 1: prompts ask normally');
- await setGoalAutonomy(f.root.id,2);assert.equal(await allowed(),false,'Thorough still asks');
- await setGoalAutonomy(f.root.id,3);assert.equal(await allowed(),true,'Continue approves');
+ await setGoalAutonomy(f.root.id,2);assert.equal(await allowed(),true,'Continue approves');
  await f.start('compact');assert.equal(await allowed(),true,'it belongs to the Goal, so it survives compact');
  assert.equal(await claudePermissionDecision(f.event('PermissionRequest',{session_id:'other-session'})),null,'another conversation is not answered');
- // The conversation works on two Goals: the lowest decides, unless one is at 4.
- const child=await createGoal({title:'Side',parentId:f.root.id});assert.equal(child.autonomy,3,'a new Goal copies its parent');
+ // The conversation works on two Goals: the lowest decides, unless one is at 3.
+ const child=await createGoal({title:'Side',parentId:f.root.id});assert.equal(child.autonomy,2,'a new Goal copies its parent');
  await setGoalAutonomy(child.id,1);
  await recordClaudeWork(f.connection.sessionId,[{type:'started'},{type:'handed',goals:[f.root.id,child.id]}],{directory:f.data});
  assert.equal(await allowed(),false,'one Goal at 1 keeps prompts asking');
- await setGoalAutonomy(child.id,4);await setGoalAutonomy(f.root.id,1);assert.equal(await allowed(),true,'Drive on one Goal approves');
+ await setGoalAutonomy(child.id,3);await setGoalAutonomy(f.root.id,1);assert.equal(await allowed(),true,'Drive on one Goal approves');
  await updateGoal(child.id,{state:'done'});assert.equal(await allowed(),false,'a Done Goal no longer counts');
- await setGoalAutonomy(f.root.id,3);
+ await setGoalAutonomy(f.root.id,2);
  const {setClaudePause}=await import('../lib/claude-pause.mjs');
  await setClaudePause(f.connection,true);assert.equal(await prompt(),null,'a paused conversation is not answered');
 });
