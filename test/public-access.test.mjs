@@ -37,6 +37,16 @@ test('wrong tries and time end a code; a device disconnects alone or with all th
  assert.deepEqual(await access.devices(),[]);
 });
 
+test('the newest connection is the one every page announces',async()=>{
+ let now=Date.parse('2026-10-26T07:00:00Z');
+ const access=createPublicAccess({store:memory(),now:()=>now});
+ assert.equal(await access.newest(),null);
+ await access.connect(await access.code(),{device:'iPhone · Safari'});
+ now+=60*1000;
+ await access.connect(await access.code(),{device:'Mac · Chrome'});
+ assert.deepEqual(await access.newest(),{device:'Mac · Chrome',connectedAt:'2026-10-26T07:01:00.000Z'});
+});
+
 test('a reset ends the code and keeps connected devices',async()=>{
  const access=createPublicAccess({store:memory()});
  const session=await access.connect(await access.code(),{device:'iPhone · Safari'});

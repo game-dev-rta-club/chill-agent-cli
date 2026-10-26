@@ -66,7 +66,7 @@ function connectPage(response,nonce,{status=401,message=''}={}){
   response.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Referrer-Policy':'same-origin'});
   response.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect · chill</title>
 <style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui,-apple-system,sans-serif;background:#f4f6f2;color:#243b3e}form{width:min(320px,calc(100vw - 32px));display:grid;gap:12px}h1{font-size:20px;margin:0}p{margin:0;color:#56655f;font-size:14px}input{font:600 22px ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;padding:12px;border:1px solid #b9c4bd;border-radius:8px}button{font:600 16px system-ui,sans-serif;padding:12px;border:0;border-radius:8px;background:#2f5d50;color:#fff}.error{color:#a03a2c}</style>
-<form method="post"><h1>Connect to chill</h1><p>Enter the 6-digit access code shown in Public link on your computer.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required inputmode="numeric" autocomplete="one-time-code" spellcheck="false" maxlength="8" pattern="[0-9 -]{6,8}" aria-label="Access code" autofocus><button>Connect</button></form></html>`);
+<form method="post"><h1>Connect to chill</h1><p>Enter the 6-digit access code shown in Public link on your computer or a connected device.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required inputmode="numeric" autocomplete="one-time-code" spellcheck="false" maxlength="8" pattern="[0-9 -]{6,8}" aria-label="Access code" autofocus><button>Connect</button></form></html>`);
 }
 // Not connected, every page is the connect form. The form posts back to its own page,
 // so after connecting the browser returns there with its #/goal/N.
@@ -78,12 +78,12 @@ async function publicGate(request,response,url,nonce){
     if(tunnelOrigin===null||request.headers.origin!==tunnelOrigin){sendJson(response,403,{error:'Connect from the public link.'});return true;}
     let code=null;try{code=new URLSearchParams((await readUpload(request)).toString()).get('code');}catch{}
     const session=await publicAccess.connect(code,{device:deviceName(request.headers['user-agent'])});
-    if(!session){connectPage(response,nonce,{message:'That code is wrong, used or expired. Check the access code on your computer.'});return true;}
+    if(!session){connectPage(response,nonce,{message:'That code is wrong, used or expired. Check the access code in Public link.'});return true;}
     response.writeHead(303,{'Set-Cookie':`${sessionCookie}=${session}; Path=/; Max-Age=34560000; HttpOnly; Secure; SameSite=Lax`,Location:url.pathname});
     response.end();return true;
   }
   if(request.method==='GET'&&(request.headers.accept||'').includes('text/html'))connectPage(response,nonce);
-  else sendJson(response,401,{error:'Connect with the access code shown in Public link on your computer.'});
+  else sendJson(response,401,{error:'Connect with the access code shown in Public link.'});
   return true;
 }
 
@@ -235,6 +235,7 @@ const server = createServer(async (request, response) => {
     const preserve=request.headers['x-chill-preserve-tunnel']==='1';
     console.log(`Service ${preserve?'restart':'stop'} requested. Stopping server.`);shutdown(preserve);return;
   }
+  if(path==='/api/devices/newest'&&request.method==='GET')return sendJson(response,200,{newest:await publicAccess.newest()});
   if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
   if(path==='/api/runtime-update'){
     // A device connected through the public link may update too: the

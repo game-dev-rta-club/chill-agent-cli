@@ -1,8 +1,9 @@
 ---
 keyPoints: >-
   More → Public link opens access controls and a QR. The QR opens the link; the device
-  connects once with the panel's 6-digit access code, hidden until Show. Connected
-  devices are listed and disconnect one by one. Fixed URLs and Access are prepared in the
+  connects once with the panel's 6-digit access code, hidden until Show, which the
+  computer and connected devices show. Every open page announces a new connection
+  at once. Connected devices are listed; only the computer disconnects them. Fixed URLs and Access are prepared in the
   user's own Cloudflare CLI.
 ---
 
@@ -16,14 +17,21 @@ away; press **Show** to read it, and type it on the device. After connecting,
 the device opens the Goal the link pointed to. The **More** link inside that
 panel explains access and custom URLs.
 
+A device already connected shows the same panel and code, so it can let in
+another device away from the computer. Turning the link On or Off and
+disconnecting devices stay on the computer.
+
 ## Who can open it
 
 A device opens the workspace only after it connects with the access code. The
 code has six digits, like the one-time codes of two-step sign-in, and exists
-only while the panel on the computer shows it. It works once, changes after 10
+only while a panel shows it, on the computer or a connected device. It works once, changes after 10
 minutes, stops working after five wrong tries and ends when you turn the link On or Off; opening the panel then shows a new one. No account is
 created: the device keeps a cookie, and the panel lists it under **Connected
-devices** with its system, browser and time of connection. **Disconnect** on a
+devices** with its system, browser and time of connection. When a device
+connects, every open page, on the computer and on connected devices, shows a
+**New device connected** notice with its name and time, within a few seconds; a
+browser that had the page open before shows it when it opens the page again. On the computer, **Disconnect** on a
 row removes that device; **Disconnect all** removes every device. A removed
 device needs a new code to come back. The computer running chill-agent never
 needs to connect.
