@@ -1,6 +1,6 @@
 ---
 keyPoints: >-
-  The Deliverable holds only a Goal's final output; plans and progress go to Conversation.
+  The Deliverable holds only a Goal's final output; progress and questions go to Conversation.
   Edit its source and publish a snapshot; comments preserve discussion.
   Static HTML works in Messages; HTML Deliverable images and SVG diagrams support notes.
   Letters distinguish questions from reply-free outcomes; neither answers nor viewing complete or unblock work.
@@ -9,8 +9,9 @@ keyPoints: >-
 # Keep the final output and the discussion apart
 
 The Deliverable holds only the final output of a Goal: the document, design or
-result it hands over, which may be a draft while the work goes on. Plans,
-progress and questions belong in Conversation, which also keeps feedback tied to
+result it hands over, which may be a draft while the work goes on. A plan or
+proposal the user decides on may be a SubGoal's Deliverable. Progress and
+questions belong in Conversation, which also keeps feedback tied to
 an older Deliverable version. Updating the Deliverable does not erase that history.
 The editable source is `deliverable.html` or `deliverable.md`; files from before the
 rename (`brief.*`) are moved to the new name the first time the workspace opens.
@@ -29,12 +30,13 @@ command fails, so an edit that never reached the file is noticed. An empty sourc
 clears the Deliverable. The command does not create a Conversation message or complete
 the Goal.
 
-A new Deliverable starts as HTML (`deliverable.html`): a standalone document
-with inline CSS and SVG, rendered in an isolated frame where scripts, forms and
-remote assets do not run. Markdown remains available with `--format markdown`
-and supports lists, tables, code and Mermaid diagrams. Switching format keeps
-previous versions and both editable source files. How agents write a
-Deliverable is set by the agent guide, not by this CLI.
+A new Deliverable starts as HTML (`deliverable.html`): a standalone,
+visual-first page with its own `<style>` and inline SVG diagrams, rendered in an
+isolated frame where scripts, forms and remote assets do not run. Existing
+Markdown Deliverables still work with `--format markdown`. Switching format keeps
+previous versions and both editable source files. When the published content is
+Markdown, or HTML without any table, SVG, image or grid/flex layout, `update`
+still publishes and adds a one-line `hint` toward a visual-first page.
 
 Upload images with `goal image` and use the returned `/api/images/<id>` reference.
 Other files, such as a video, upload the same way; they keep their file name, so
