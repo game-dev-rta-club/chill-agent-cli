@@ -4,7 +4,7 @@ import {mkdtemp, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {workReader} from '../lib/agents/codex-work-output.mjs';
-import {activityDisplay, commentMarkDisplay, workDisclosure} from '../public/work-ui.js';
+import {activityDisplay, commentMarkDisplay, thinkView, workDisclosure} from '../public/work-ui.js';
 import {codexThread, contractStub} from './codex-contract.mjs';
 
 const thread='00000000-0000-0000-0000-000000000001';
@@ -111,4 +111,12 @@ test('an end-of-turn check run is found by the ID its request was queued with',a
  const sent=clientId=>({...userMessage('=== chill-agent · Keep going ==='),clientId});
  assert.equal((await workReader(clientFor([],{...meta,items:[sent(id)]}))(queued)).turnId,turn);
  for(const item of [sent(id.replace('000123','000124')),userMessage(id)])assert.equal(await workReader(clientFor([],{...meta,items:[item]}))(queued),null);
+});
+
+test('Think shows the newest message and folds the earlier ones until opened',()=>{
+ const m=['one','two','three'].map(text=>({text}));
+ assert.deepEqual(thinkView(m),{earlier:2,shown:[m[2]],clamped:true,less:false});
+ assert.deepEqual(thinkView(m,true),{earlier:0,shown:m,clamped:false,less:true});
+ assert.deepEqual(thinkView([m[0]]),{earlier:0,shown:[m[0]],clamped:true,less:false},'a single long message is also held at three lines');
+ assert.deepEqual(thinkView([]),{earlier:0,shown:[],clamped:false,less:false});
 });

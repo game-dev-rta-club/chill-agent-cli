@@ -53,3 +53,12 @@ export function activityDisplay(activity, now = Date.now()) {
 export function workDisclosure(previous, live) {
   return !previous || previous.live !== live ? {live, open: live} : previous;
 }
+
+// Think shows only the newest message, held at three lines so its height does
+// not change as messages arrive, and folds the older ones into one row. The
+// user can open them all, as before, and fold them again.
+export function thinkView(messages, all = false) {
+  const list = messages || [];
+  if (all || list.length < 2) return {earlier: 0, shown: list, clamped: !all && list.length === 1, less: all && list.length > 0};
+  return {earlier: list.length - 1, shown: list.slice(-1), clamped: true, less: false};
+}
