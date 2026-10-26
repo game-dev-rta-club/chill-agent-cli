@@ -114,14 +114,15 @@ scenario('the Agent menu reads the agent\'s name, model and status',async (s,dri
 });
 
 // Autonomy (public/autonomy.js) is the Goal's own level; the agent meets it at its next hook.
-scenario('Autonomy reaches the agent: feedback at 2 asks it to think in the user\'s place, and tool prompts are approved at 3 where a hook can answer them',async (s,driver) => {
+scenario('Autonomy reaches the agent: feedback text stays the same, and tool prompts are approved at 2 where a hook can answer them',async (s,driver) => {
   await s.setAutonomy(2);
   const event=await s.saveFeedback('Choose the safer migration');
   assert.deepEqual(await s.agentTakesFeedback(event),[event]);
-  assert.match(s.feedbackText(),/Autonomy Lv 2 Thorough on Goal #\d+: Think in the user's place\. Prefer accuracy to speed/);
+  assert.doesNotMatch(s.feedbackText(),/Autonomy|Think in the user's place/);
   if(driver.capabilities.approvals) {
-    assert.equal(await s.permissionPrompt(),null,'Thorough still asks');
-    await s.setAutonomy(3);
+    await s.setAutonomy(1);
+    assert.equal(await s.permissionPrompt(),null,'Normal still asks');
+    await s.setAutonomy(2);
     assert.equal(await s.permissionPrompt(),'allow','Continue approves');
   } else {
     assert.equal(s.permissionPrompt,undefined,'the harness has no prompt a hook can answer');

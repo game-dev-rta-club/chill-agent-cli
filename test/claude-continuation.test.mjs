@@ -25,23 +25,23 @@ async function fixture(t){
  async function action(action,payload){const r=await runClaudeAction(action,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await start();await action('create-goal',{title:'Native Autonomy',scope:'One verified continuation',criteria:'No duplicate or lost input'});const root=(await listGoals())[0];
  // The Web's Autonomy slider on the Root.
- const configure=(level=3)=>setGoalAutonomy(root.id,level);
+ const configure=(level=2)=>setGoalAutonomy(root.id,level);
  return {dir,cwd,root,event,action,start,configure,sessionId,read:()=>readMonitor(root.id),stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
 }
 
 test('Stop reserves once; the next Stop ends the request and consumes the revision',async t=>{
  const f=await fixture(t);await f.configure();
  const response=await f.stop();
- assert.equal(response.decision,'block');assert.match(response.reason,/Goal #1 “Native Autonomy”, Lv 3 Continue: After each turn, keep working on what was agreed for this Goal/);assert.match(response.reason,/connection wake --in/);
+ assert.equal(response.decision,'block');assert.match(response.reason,/Goal #1 “Native Autonomy”, Lv 2 Continue: After each turn, keep working on what was agreed for this Goal/);assert.match(response.reason,/connection wake --in/);
  let state=await f.read();assert.equal(state.attempts.length,1);const attempt=state.attempts[0];assert.equal(attempt.message,response.reason);assert.equal(attempt.phase,'uncertain');
  await f.newPrompt();assert.equal((await f.read()).attempts[0].completedAt,undefined,'a new prompt is not native completion');
  assert.equal(await f.stop({prompt_id:randomUUID()}),null);
  assert.equal(await f.stop(),null);state=await f.read();assert.equal(state.status,'exhausted');assert.equal(state.attempts[0].phase,'completed');
  await f.configure(1);assert.equal(await f.stop(),null,'Normal asks for nothing');
- await f.configure(3);assert.equal(await f.stop(),null,'returning to the same level does not reset the allowance');
- await f.configure(2);await f.newPrompt();const thorough=await f.stop();
- assert.equal(thorough.decision,'block','a level change is a new revision');assert.equal((await f.read()).history.length,1);
- assert.match(thorough.reason,/Lv 2 Thorough: Is there anything in this reply you asked or left open that you could have investigated or decided yourself\? If so, do it now\./);
+ await f.configure(2);assert.equal(await f.stop(),null,'returning to the same level does not reset the allowance');
+ await f.configure(3);await f.newPrompt();const drive=await f.stop();
+ assert.equal(drive.decision,'block','a level change is a new revision');assert.equal((await f.read()).history.length,1);
+ assert.match(drive.reason,/Lv 3 Drive: Drive the whole project under Root #1/);
  await f.stop();
  await updateGoal(f.root.id,{scope:'A new agreed outcome'});await f.newPrompt();assert.equal((await f.stop()).decision,'block','so is a content change');
 });
@@ -90,25 +90,25 @@ test('a subagent Stop never continues, and a cleared context does not continue t
  await f.start('clear');assert.equal(await f.stop(),null);assert.equal(await f.read(),null);
 });
 test('one message per conversation, from the Root of its highest-level Goal, listing each Goal with its level',async t=>{
- const f=await fixture(t);await f.configure(3);await f.action('create-goal',{title:'Second Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);
- await setGoalAutonomy(other.id,4);
+ const f=await fixture(t);await f.configure(2);await f.action('create-goal',{title:'Second Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);
+ await setGoalAutonomy(other.id,3);
  const {reason}=await f.stop();
- assert.match(reason,new RegExp(`Goal #${f.root.id} “Native Autonomy”, Lv 3 Continue`));assert.match(reason,new RegExp(`Goal #${other.id} “Second Root”, Lv 4 Drive: Drive the whole project under Root #${other.id}`));
+ assert.match(reason,new RegExp(`Goal #${f.root.id} “Native Autonomy”, Lv 2 Continue`));assert.match(reason,new RegExp(`Goal #${other.id} “Second Root”, Lv 3 Drive: Drive the whole project under Root #${other.id}`));
  assert.equal(await f.read(),null);assert.equal((await readMonitor(other.id)).attempts.length,1,'the highest level\'s Root keeps the attempt');
  assert.equal(await f.stop(),null,'once per revision');assert.equal((await readMonitor(other.id)).attempts[0].phase,'completed');
 });
 test('the conversation\'s Goals are the ones its work was handed or last worked in; others in the Root do not count',async t=>{
  const f=await fixture(t);const side=await createGoal({title:'Side',parentId:f.root.id}),work=await createGoal({title:'Work',parentId:f.root.id});
- await setGoalAutonomy(side.id,3);
+ await setGoalAutonomy(side.id,2);
  assert.equal(await f.stop(),null,'the Root itself is the focus, and it is at 1');
  await recordClaudeWork(f.sessionId,[{type:'started'},{type:'commented',goalId:work.id}]);
  assert.equal(await f.stop(),null,'the Goal it last worked in is at 1');
  await setGoalAutonomy(work.id,2);await f.newPrompt();await recordClaudeWork(f.sessionId,[{type:'commented',goalId:work.id}]);
- const {reason}=await f.stop();assert.match(reason,new RegExp(`Goal #${work.id} “Work”, Lv 2 Thorough`));assert.doesNotMatch(reason,new RegExp(`Goal #${side.id} `));
+ const {reason}=await f.stop();assert.match(reason,new RegExp(`Goal #${work.id} “Work”, Lv 2 Continue`));assert.doesNotMatch(reason,new RegExp(`Goal #${side.id} `));
 });
 test('Drive covers the whole Root tree and leaves out Goals another live conversation works on',async t=>{
  const f=await fixture(t);const a=await createGoal({title:'Part A',parentId:f.root.id}),b=await createGoal({title:'Part B',parentId:f.root.id}),done=await createGoal({title:'Shipped',parentId:f.root.id});
- await updateGoal(done.id,{state:'done'});await f.configure(4);
+ await updateGoal(done.id,{state:'done'});await f.configure(3);
  // Another conversation in the project is working on Part B right now.
  const otherSession=randomUUID(),other=hookFor({session_id:otherSession,prompt_id:randomUUID(),cwd:f.cwd});
  await captureClaudeEntry(other('SessionStart',{source:'startup'}),{cwd:f.cwd,env:{CLAUDE_ENV_FILE:join(f.dir,'env')}});
@@ -118,11 +118,13 @@ test('Drive covers the whole Root tree and leaves out Goals another live convers
  assert.match(reason,new RegExp(`Taken by other live conversations, so leave them: #${b.id} “Part B”`));
  assert.doesNotMatch(reason,/Shipped/);assert.match(reason,/Ask the user's decisions as Letters \(goal letter\)/);
 });
-test('feedback for a Goal at 2 or higher asks the agent to think in the user\'s place',async t=>{
- const f=await fixture(t);await appendFeedback({goalId:f.root.id,text:'Plain request'});
- assert.doesNotMatch((await f.action('inbox',{})).hookSpecificOutput.additionalContext,/Think in the user's place/);
- await f.configure(2);await appendFeedback({goalId:f.root.id,text:'Careful request'});
- assert.match((await f.action('inbox',{})).hookSpecificOutput.additionalContext,new RegExp(`Autonomy Lv 2 Thorough on Goal #${f.root.id}: Think in the user's place\\. Prefer accuracy to speed: investigate deeply and widely, then give your best answer\\. Ask only what only the user can decide\\.`));
+test('feedback text adds nothing for Autonomy at any level',async t=>{
+ const f=await fixture(t);
+ for(const level of [1,2,3]){
+  await f.configure(level);await appendFeedback({goalId:f.root.id,text:`Request at ${level}`});
+  const text=(await f.action('inbox',{})).hookSpecificOutput.additionalContext;
+  assert.match(text,new RegExp(`Request at ${level}`));assert.doesNotMatch(text,/Autonomy|Think in the user's place/);
+ }
 });
 test('saved Web feedback and the end-of-turn check cannot both claim the same Stop',async t=>{
  // A Stop hands comments not handed yet before the check may ask for anything.
@@ -148,7 +150,7 @@ test('a taken-over Root keeps its Autonomy; an unconfirmed request is closed, ne
  const stop=connection=>onStop({connection,promptId:randomUUID(),checkpointId:randomUUID(),generation:randomUUID()});
  assert.equal(await stop(earlier),null,'the earlier conversation owns nothing now');
  // The owner is part of the revision: the new conversation gets one check of its own.
- const next=await stop(continued);assert.match(next,/Lv 3 Continue/);
+ const next=await stop(continued);assert.match(next,/Lv 2 Continue/);
  const state=await f.read();assert.deepEqual(state.connection,continued);
  assert.equal(state.history[0].id,first.id,'the closed request is kept as history');assert.equal(state.history[0].phase,'assignment-changed');
  assert.equal(state.attempts.length,1);assert.notEqual(state.attempts[0].id,first.id);

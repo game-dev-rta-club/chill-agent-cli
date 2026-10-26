@@ -299,11 +299,11 @@ test('the Autonomy API saves one Goal\'s level apart from comments, rejects fore
  const shown=async id=>(await (await fetch(`${f.url}/api/goals?view=web&history=paged`)).json()).find(g=>g.id===id).autonomy;
  assert.equal(await shown('1'),1);assert.equal(await shown('2'),1);
  assert.deepEqual((await (await fetch(`${f.url}/api/goals/2/extensions`)).json()).filter(c=>['continuation','approve-all'].includes(c.id)),[],'no AutoContinue or Approve all switch');
- assert.equal((await set('1',3,'https://foreign.example')).status,403);
- const saved=await set('1',3);assert.equal(saved.status,200);assert.deepEqual(await saved.json(),{goalId:'1',autonomy:3});
- assert.equal(await shown('1'),3);assert.equal(await shown('2'),1,'each Goal keeps its own value');
- assert.equal((await set('1',5)).status,400);assert.equal((await set('1','3')).status,400);assert.equal((await set('99',2)).status,404);
- await f.run(['create','--title','Later child','--parent','1']);assert.equal(await shown('3'),3,'a new Goal copies its parent');
+ assert.equal((await set('1',2,'https://foreign.example')).status,403);
+ const saved=await set('1',2);assert.equal(saved.status,200);assert.deepEqual(await saved.json(),{goalId:'1',autonomy:2});
+ assert.equal(await shown('1'),2);assert.equal(await shown('2'),1,'each Goal keeps its own value');
+ assert.equal((await set('1',4)).status,400,'there are three levels');assert.equal((await set('1','2')).status,400);assert.equal((await set('99',2)).status,404);
+ await f.run(['create','--title','Later child','--parent','1']);assert.equal(await shown('3'),2,'a new Goal copies its parent');
  assert.equal((await fetch(f.url+'/')).status,200);
  assert.equal((await fetch(`${f.url}/api/goals/1/extensions/continuation`,{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:JSON.stringify({enabled:true,rootId:'1'})})).status,409,'the old switch API is gone');
 });

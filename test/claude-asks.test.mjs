@@ -38,7 +38,7 @@ test('a question or a task suggestion is refused and sent to the Web instead',as
   const chip=denied(await f.pre('mcp__ccd_session__spawn_task',{title:'Fix the flaky test',prompt:'…',tldr:'…'}));
   assert.match(chip,/nothing was suggested[\s\S]*goal create --parent 1 /);
   assert.equal(await f.pre('Bash',{command:'ls'}),null,'other tools run');
-  await setGoalAutonomy(f.goal.id,4);
+  await setGoalAutonomy(f.goal.id,3);
   assert.equal(await claudePermissionDecision(f.event('PermissionRequest',{tool_name:'AskUserQuestion',tool_input:{}})),null,'Autonomy never answers a question');
 });
 
