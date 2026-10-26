@@ -49,8 +49,15 @@ Implementation: [Goal store](../../lib/goal-store.mjs),
 Autonomy is set per agent (per Root): the conversation that owns a Root has one
 level for it, **Normal**, **Auto Continue** or **Ultra Continue**. Every Goal's
 comment box shows that level and sets it; all Goals of a tree show the same
-value. It is stored as 1 to 3 but always shown by name. Changing it saves at
-once, apart from any comment.
+value. It is stored as 1 to 3 but always shown by name, never by number.
+
+In the comment box it is a button at the left of the Add file / Comment row,
+showing the level's icon and name; on a narrow row the comment buttons wrap below
+it. The button opens a small Autonomy panel, built like the Color theme panel:
+each level as a row with its icon, name and one-line description, a check on the
+current one, and the line "For the agent on this Root." Choosing a row saves at
+once, apart from any comment, and closes the panel; Escape or a click outside
+closes it without a change. If the save fails the panel stays open and says so.
 
 | Level | End of turn | Tool prompts (Claude) |
 | --- | --- | --- |
@@ -102,7 +109,9 @@ Earlier workspaces move on first use, in this order:
 
 Implementation: [levels](../../public/autonomy.js), [per-Root storage](../../lib/root-autonomy.mjs),
 [journal owner](../../lib/continuation-owner.mjs), [rules](../../lib/autonomy.mjs),
-[end-of-turn message](../../lib/continuation-monitor.mjs).
+[end-of-turn message](../../lib/continuation-monitor.mjs). The comment box's
+dropdown is checked in a browser by `test/autonomy-web.mjs` (run by hand with
+Playwright, like the other `test/*-web.mjs` scripts).
 
 ## Hide an unused root
 

@@ -140,29 +140,43 @@
 .conversation-form .notes-panel { margin: 0 0 12px; }
 .composer-actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
 .composer-buttons { display: flex; gap: 6px; margin-left: auto; }
-/* Autonomy: one line left of the composer buttons. The level icon, then the
-   stops: numbered dots, and the current level as a pill. Each hover text sits
-   above the line, at its left edge, so it stays on narrow screens. */
-.autonomy { position: relative; flex: none; max-width: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; color: var(--accent); }
-.autonomy-icon { display: inline-flex; flex: none; }
-.autonomy-svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.autonomy-rail { display: flex; align-items: center; min-height: 32px; border-radius: 999px; cursor: pointer; }
-.autonomy-range { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: none; }
-.autonomy-stops { display: flex; align-items: center; }
-.autonomy-segment { width: 16px; height: 3px; background: var(--line); }
-.autonomy-segment.is-on { background: var(--accent); }
-.autonomy-stop { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; min-height: 32px; }
-.autonomy-dot { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; background: var(--surface); border: 1.5px solid var(--line); color: var(--muted); font-size: 10px; font-weight: 700; line-height: 1; }
-.autonomy-stop.is-on .autonomy-dot { background: var(--accent); border-color: var(--accent); color: var(--surface); }
-.autonomy-pill { padding: 1px 9px; border-radius: 999px; background: var(--surface); border: 2px solid var(--accent); color: var(--accent); font-size: 11px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
-.autonomy-rail:has(.autonomy-range:focus-visible) .autonomy-pill { outline: 2px solid var(--focus); outline-offset: 2px; }
-.autonomy-rail:has(.autonomy-range:disabled) { cursor: default; }
-.autonomy-tip { display: none; position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 30; width: max-content; max-width: min(300px, calc(100vw - 48px)); padding: 7px 10px; border-radius: 8px; background: var(--ink); color: var(--surface); font-size: 11.5px; font-weight: 500; line-height: 1.5; text-align: left; white-space: normal; box-shadow: 0 5px 18px #0002; pointer-events: none; }
-.autonomy-tip b { font-weight: 700; }
-.autonomy-icon:hover .autonomy-tip, .autonomy-stop:hover .autonomy-tip,
-.autonomy-rail:has(.autonomy-range:focus-visible):not(:hover) .autonomy-stop[aria-current] .autonomy-tip { display: block; }
-.autonomy-error { flex-basis: 100%; font-size: 11px; line-height: 1.5; color: var(--theme-danger, #9b3028); }
-.autonomy-error:empty { display: none; }
+/* Autonomy: one compact button left of the composer buttons, [icon] name ▾;
+   when the row is too narrow, the composer buttons wrap below it. The button
+   opens the page's Autonomy panel, which looks like the Color theme panel. It is
+   anchored to the open button: above it, or below when it does not fit above.
+   Without anchor positioning it sits where the Color theme panel does. */
+.autonomy { flex: none; max-width: 100%; }
+.autonomy-button { display: inline-flex; align-items: center; max-width: 100%; min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink); cursor: pointer; }
+.autonomy-current { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 8px 2px 3px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 12.5px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
+.autonomy-button:hover .autonomy-current { border-color: var(--accent); }
+.autonomy-button[aria-expanded="true"] .autonomy-current { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
+.autonomy-button:focus-visible { outline: none; }
+.autonomy-button:focus-visible .autonomy-current { outline: 2px solid var(--focus); outline-offset: 2px; }
+.autonomy-button:disabled { cursor: default; }
+.autonomy-name { overflow: hidden; text-overflow: ellipsis; }
+.autonomy-svg { flex: none; width: 24px; height: 24px; color: var(--accent); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.autonomy-chevron { flex: none; width: 12px; height: 12px; margin-left: 2px; stroke: var(--muted); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.autonomy-panel { position: fixed; z-index: 95; top: 70px; right: 12px; width: min(330px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; padding: 8px; }
+@supports (anchor-name: --a) {
+  .autonomy-button[aria-expanded="true"] { anchor-name: --autonomy-button; }
+  .autonomy-panel { position-anchor: --autonomy-button; inset: auto; bottom: anchor(top); left: anchor(left); margin: 2px 0; position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline; }
+}
+.autonomy-panel[hidden] { display: none; }
+.autonomy-heading { margin: 0; padding: 2px 8px 6px; font-size: 12px; font-weight: 700; line-height: 1.5; color: var(--muted); }
+.autonomy-choices { display: grid; gap: 2px; }
+.autonomy-choice { display: grid; grid-template-columns: 34px minmax(0, 1fr) 16px; gap: 8px; align-items: start; width: 100%; padding: 8px; border: 0; border-radius: 8px; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.autonomy-choice:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.autonomy-choice[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 11%, transparent); }
+.autonomy-choice:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.autonomy-choice:disabled { opacity: .55; cursor: wait; }
+.autonomy-choice .autonomy-svg { width: 34px; height: 34px; }
+.autonomy-choice-text b { display: block; font-size: 14px; font-weight: 700; line-height: 1.5; }
+.autonomy-choice-text span { display: block; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.autonomy-check { visibility: hidden; color: var(--accent); font-weight: 700; line-height: 1.5; }
+.autonomy-choice[aria-pressed="true"] .autonomy-check { visibility: visible; }
+.autonomy-message { margin: 6px 8px 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.autonomy-message:empty { display: none; }
+.autonomy-scope { margin: 6px 0 0; padding: 6px 8px 0; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.5; color: var(--muted); }
 .composer-submit svg { width: 14px; height: 14px; }
 .composer-submit:disabled { background: var(--surface); color: var(--muted); opacity: .6; }
 .comment-submit > .image-pick { margin-left: auto; }

@@ -229,86 +229,111 @@ function composerMarkup(id, comment) {
   </fieldset></form>`;
 }
 
-// Autonomy: the level of the Root's agent, the same on every Goal of the tree,
-// on one line: its icon, then the stops: the
-// current one is a pill with its name, the others small numbered dots. The word
-// "Autonomy" is only in the icon's hover text and the slider's accessible name;
-// hovering a stop shows its name and description. A visually hidden range input
-// carries the keyboard and the accessible value; a click on a stop or between
-// two saves the nearest one. A change saves at once, apart from any comment.
+// Autonomy: the level of the Root's agent, the same on every Goal of the tree.
+// The comment row shows it as one button, [icon] name ▾. The button opens the
+// page's one Autonomy panel, built like the Color theme panel (theme-menu.js):
+// the levels with their descriptions. Choosing a row saves at once, apart from
+// any comment, and closes the panel. Levels are stored as numbers, shown by name.
 const autonomySaves = new Map();
-const autonomyName = level => `Lv ${level} ${autonomyLevels[level-1].name}`;
-const autonomyTip = (level, heading = autonomyName(level)) => `<span class="autonomy-tip" aria-hidden="true"><b>${escapeHTML(heading)}</b> ${escapeHTML(autonomyLevels[level-1].tip)}</span>`;
-function autonomyStops(level) {
-  return autonomyLevels.map(l => `${l.level > 1 ? `<span class="autonomy-segment${l.level <= level ? ' is-on' : ''}"></span>` : ''}<span class="autonomy-stop${l.level < level ? ' is-on' : ''}" data-autonomy-level="${l.level}"${l.level === level ? ' aria-current="true"' : ''}>
-      ${l.level === level ? `<span class="autonomy-pill">${escapeHTML(autonomyName(l.level))}</span>` : `<span class="autonomy-dot">${l.level}</span>`}${autonomyTip(l.level)}</span>`).join('');
-}
-const autonomyIconMarkup = level => `${autonomyIcon(level)}${autonomyTip(level, `Autonomy: ${autonomyName(level)}`)}`;
+const autonomyName = level => autonomyLevels[level-1].name;
+const autonomyCurrent = level => `<span class="autonomy-current">${autonomyIcon(level)}<span class="autonomy-name">${escapeHTML(autonomyName(level))}</span><svg class="autonomy-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>`;
 function autonomyMarkup(id) {
   const level = autonomyOf(goalMetadata.get(id));
-  return `<div class="autonomy" data-autonomy data-goal-id="${id}" data-level="${level}">
-    <span class="autonomy-icon" data-autonomy-icon>${autonomyIconMarkup(level)}</span>
-    <div class="autonomy-rail"><input type="range" class="autonomy-range" data-autonomy-range min="1" max="${autonomyLevels.length}" step="1" value="${level}" aria-label="Autonomy: ${escapeHTML(autonomyName(level))}" aria-valuetext="${escapeHTML(`${autonomyName(level)}. ${autonomyLevels[level-1].tip}`)}">
-      <span class="autonomy-stops" data-autonomy-stops>${autonomyStops(level)}</span></div>
-    <span class="autonomy-error" role="status" data-autonomy-error></span></div>`;
+  return `<div class="autonomy" data-autonomy data-goal-id="${id}" data-level="${level}"><button type="button" class="autonomy-button" data-autonomy-button aria-haspopup="dialog" aria-expanded="false" aria-controls="autonomy-panel" aria-label="Autonomy: ${escapeHTML(autonomyName(level))}">${autonomyCurrent(level)}</button></div>`;
 }
-// Show a level in the slider without rendering the composer again.
-function showAutonomy(id, level = autonomyOf(goalMetadata.get(id)), error = '') {
-  const box = main.querySelector(`[data-autonomy][data-goal-id="${id}"]`);
-  if (!box) return;
-  const range = box.querySelector('[data-autonomy-range]');
-  range.value = String(level);
-  range.setAttribute('aria-label', `Autonomy: ${autonomyName(level)}`);
-  range.setAttribute('aria-valuetext', `${autonomyName(level)}. ${autonomyLevels[level-1].tip}`);
-  if (box.dataset.level !== String(level)) {
+// The panel lives in the body, so the conversation column's scroll box cannot
+// clip it; CSS anchors it to the open button (styles.css).
+const autonomyPanel = document.createElement('section');
+autonomyPanel.id = 'autonomy-panel';
+autonomyPanel.className = 'autonomy-panel';
+autonomyPanel.hidden = true;
+autonomyPanel.setAttribute('role', 'dialog');
+autonomyPanel.setAttribute('aria-label', 'Autonomy');
+autonomyPanel.innerHTML = `<h2 class="autonomy-heading">Autonomy</h2>
+  <div class="autonomy-choices">${autonomyLevels.map(l => `<button type="button" class="autonomy-choice" data-autonomy-level="${l.level}" aria-pressed="false">${autonomyIcon(l.level)}<span class="autonomy-choice-text"><b>${escapeHTML(l.name)}</b><span>${escapeHTML(l.description)}</span></span><span class="autonomy-check" aria-hidden="true">✓</span></button>`).join('')}</div>
+  <p class="autonomy-message" role="status"></p>
+  <p class="autonomy-scope">For the agent on this Root.</p>`;
+document.body.append(autonomyPanel);
+const autonomyMessage = autonomyPanel.querySelector('.autonomy-message');
+const autonomyChoices = () => [...autonomyPanel.querySelectorAll('[data-autonomy-level]')];
+let autonomyTrigger = null;
+const autonomyBox = () => autonomyTrigger?.closest('[data-autonomy]');
+const markAutonomy = level => { for (const choice of autonomyChoices()) choice.setAttribute('aria-pressed', String(Number(choice.dataset.autonomyLevel) === level)); };
+// Show a level in every comment box of the Root without rendering them again.
+function showAutonomy(id, level = autonomyOf(goalMetadata.get(id))) {
+  const rootId = rootGoalId(id);
+  for (const box of main.querySelectorAll('[data-autonomy]')) {
+    if ((box.dataset.goalId !== id && rootGoalId(box.dataset.goalId) !== rootId) || box.dataset.level === String(level)) continue;
     box.dataset.level = String(level);
-    box.querySelector('[data-autonomy-icon]').innerHTML = autonomyIconMarkup(level);
-    box.querySelector('[data-autonomy-stops]').innerHTML = autonomyStops(level);
+    const button = box.querySelector('[data-autonomy-button]');
+    button.innerHTML = autonomyCurrent(level);
+    button.setAttribute('aria-label', `Autonomy: ${autonomyName(level)}`);
   }
-  box.querySelector('[data-autonomy-error]').textContent = error;
+  if (autonomyBox()) markAutonomy(Number(autonomyBox().dataset.level));
 }
-async function saveAutonomy(id, level) {
-  const previous = autonomyOf(goalMetadata.get(id));
-  showAutonomy(id, level);
-  if (level === previous && !autonomySaves.has(id)) return;
+function closeAutonomy(restore = false) {
+  if (autonomyPanel.hidden) return;
+  autonomyPanel.hidden = true;
+  const button = autonomyTrigger;
+  autonomyTrigger = null;
+  button.setAttribute('aria-expanded', 'false');
+  if (restore && button.isConnected) button.focus();
+}
+function openAutonomy(button) {
+  closeAutonomy();
+  autonomyTrigger = button;
+  markAutonomy(Number(autonomyBox().dataset.level));
+  autonomyMessage.textContent = '';
+  autonomyPanel.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  autonomyPanel.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});
+}
+async function saveAutonomy(choice) {
+  const box = autonomyBox(), id = box.dataset.goalId, level = Number(choice.dataset.autonomyLevel);
+  if (level === autonomyOf(goalMetadata.get(id))) { closeAutonomy(true); return; }
   const request = {};
   autonomySaves.set(id, request);
-  // The level belongs to the Root's agent, so every Goal of the tree shows it.
-  const tree = autonomy => { const rootId = rootGoalId(id); for (const goal of goalMetadata.values()) if (goal.id === id || rootGoalId(goal.id) === rootId) goalMetadata.set(goal.id, {...goal, autonomy}); };
-  tree(level);
+  autonomyMessage.textContent = 'Saving…';
+  for (const c of autonomyChoices()) c.disabled = true;
   try {
     const response = await fetch(`/api/goals/${id}/autonomy`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level}), signal:AbortSignal.timeout(15000)});
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || 'Could not save Autonomy.');
-    if (autonomySaves.get(id) === request) { tree(result.autonomy); showAutonomy(id, result.autonomy); }
+    if (!response.ok) throw new Error(result.error);
+    // The level belongs to the Root's agent, so every Goal of the tree shows it.
+    const rootId = rootGoalId(id);
+    for (const goal of goalMetadata.values()) if (goal.id === id || rootGoalId(goal.id) === rootId) goalMetadata.set(goal.id, {...goal, autonomy:result.autonomy});
+    showAutonomy(id, result.autonomy);
+    autonomyMessage.textContent = '';
+    if (autonomyBox() === box) closeAutonomy(true);
   } catch (error) {
-    if (autonomySaves.get(id) !== request) return;
-    tree(previous);
-    showAutonomy(id, previous, error.name === 'TimeoutError' ? 'Save unconfirmed. Reload to check.' : error.message);
+    autonomyMessage.textContent = error.name === 'TimeoutError' ? 'Save unconfirmed. Reload to check.' : 'Could not save. Autonomy is unchanged.';
   } finally {
+    for (const c of autonomyChoices()) c.disabled = false;
+    if (!autonomyPanel.hidden && !autonomyPanel.contains(document.activeElement)) choice.focus({preventScroll:true});
     if (autonomySaves.get(id) === request) autonomySaves.delete(id);
   }
 }
-main.addEventListener('input', event => {
-  const range = event.target.closest?.('[data-autonomy-range]');
-  if (range) showAutonomy(range.closest('[data-autonomy]').dataset.goalId, Number(range.value));
-});
-main.addEventListener('change', event => {
-  const range = event.target.closest?.('[data-autonomy-range]');
-  if (range) void saveAutonomy(range.closest('[data-autonomy]').dataset.goalId, Number(range.value));
-});
 main.addEventListener('click', event => {
-  const rail = event.target.closest?.('.autonomy-rail');
-  if (!rail) return;
-  const box = rail.closest('[data-autonomy]'), range = box.querySelector('[data-autonomy-range]');
-  if (range.disabled) return;
-  // The stop under the pointer, or the nearest one when between two.
-  const stops = [...rail.querySelectorAll('[data-autonomy-level]')];
-  const centre = stop => { const rect = stop.getBoundingClientRect(); return rect.left + rect.width / 2; };
-  const stop = event.target.closest('[data-autonomy-level]') || stops.reduce((near, next) => Math.abs(centre(next) - event.clientX) < Math.abs(centre(near) - event.clientX) ? next : near);
-  void saveAutonomy(box.dataset.goalId, Number(stop.dataset.autonomyLevel));
-  range.focus({preventScroll:true});
+  const button = event.target.closest?.('[data-autonomy-button]');
+  if (!button) return;
+  if (autonomyTrigger === button) closeAutonomy(); else openAutonomy(button);
 });
+autonomyPanel.addEventListener('click', event => {
+  const choice = event.target.closest('[data-autonomy-level]');
+  if (choice && autonomyBox()?.isConnected && !autonomySaves.has(autonomyBox().dataset.goalId)) void saveAutonomy(choice);
+});
+document.addEventListener('pointerdown', event => {
+  if (!autonomyPanel.hidden && !autonomyPanel.contains(event.target) && !autonomyTrigger.contains(event.target)) closeAutonomy();
+});
+document.addEventListener('keydown', event => {
+  if (autonomyPanel.hidden) return;
+  const items = autonomyChoices().filter(b => !b.disabled), at = items.indexOf(document.activeElement);
+  if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); closeAutonomy(true); }
+  else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && items.length) { event.preventDefault(); items[(at + (event.key === 'ArrowDown' ? 1 : items.length - 1 + (at < 0 ? 1 : 0))) % items.length].focus(); }
+  else if (event.key === 'Tab' && items.length && (event.shiftKey ? at <= 0 : at === items.length - 1)) { event.preventDefault(); items[event.shiftKey ? items.length - 1 : 0].focus(); }
+}, true);
+// A new page renders new comment boxes; the panel does not stay with an old one.
+window.addEventListener('hashchange', () => closeAutonomy());
 
 const commentMarks = new Map();
 const activityControls=createActivityControls({main,getGoalId:()=>activeGoalId,onChange:()=>{

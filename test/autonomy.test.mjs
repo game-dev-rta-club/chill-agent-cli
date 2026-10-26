@@ -19,7 +19,7 @@ const at=(goals,levels)=>Object.entries(levels).map(([id,level])=>({root:goals.f
 
 test('the three levels go by name, with their descriptions',()=>{
   assert.deepEqual(autonomyLevels.map(l=>[l.level,l.name]),[[1,'Normal'],[2,'Auto Continue'],[3,'Ultra Continue']]);
-  assert.deepEqual(autonomyLevels.map(l=>l.tip),[
+  assert.deepEqual(autonomyLevels.map(l=>l.description),[
     'Does what each comment asks, then waits for you.',
     'Keeps working on what you\'ve agreed, across the whole Root Goal. Questions come as Letters. No tool prompts.',
     'Plans its own way to the Root Goal\'s success criteria and moves every Goal under it forward. Letters only for your decisions. No tool prompts.',

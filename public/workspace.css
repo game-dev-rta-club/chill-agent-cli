@@ -301,7 +301,9 @@ a.status.interrupted:hover {text-decoration:underline;}
 
 /* A common, quiet panel for optional extension controls. */
 .extension-control:has([aria-expanded="true"]) .extension-tooltip { display:none; }
-.extension-panel { position:fixed; z-index:95; top:70px; right:22px; width:min(340px,calc(100vw - 24px)); max-height:calc(100dvh - 90px); overflow:auto; padding:18px; border:1px solid var(--theme-line,#d9ded8); border-radius:14px; background:var(--theme-surface,#fffdf9); color:var(--theme-ink,#34483e); box-shadow:0 10px 32px #243f3026; font-size:13px; box-sizing:border-box; }
+.extension-panel { position:fixed; z-index:95; top:70px; right:22px; width:min(340px,calc(100vw - 24px)); max-height:calc(100dvh - 90px); overflow:auto; padding:18px; }
+/* The comment box's Autonomy panel shares this look and places itself (styles.css). */
+.extension-panel, .autonomy-panel { border:1px solid var(--theme-line,#d9ded8); border-radius:14px; background:var(--theme-surface,#fffdf9); color:var(--theme-ink,#34483e); box-shadow:0 10px 32px #243f3026; font-size:13px; box-sizing:border-box; }
 .extension-panel[hidden] { display:none; }
 .extension-panel-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
 .extension-panel-heading h2 { margin:0; font-size:15px; font-weight:650; }
