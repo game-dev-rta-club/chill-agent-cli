@@ -30,9 +30,15 @@ test('Activity shows what a waiting agent waits for and when it checks again',()
  const base={goalId:'2',rootId:'1',connected:true,agent:{name:'Claude Code'},capabilities:{},extensions:[]};
  const at=new Date(Date.now()+10*60000).toISOString();
  const html=agentMarkup({...base,work:{status:'idle',goalId:null,wake:{at,reason:'CI on <PR>'}}});
- assert.match(html,/Waiting<\/span><p class="agent-wait">CI on &lt;PR&gt;<\/p><p class="agent-muted">Checks again · <time datetime="/);
+ assert.match(html,/Waiting<\/span><ul class="wait-list"><li><span class="wait-kind">Check<\/span><span class="wait-text">CI on &lt;PR&gt;<\/span><span class="wait-when">at \d{1,2}:\d{2} [AP]M<\/span><\/li><\/ul>/);
  assert.doesNotMatch(html,/>Idle</);
  const late=agentMarkup({...base,work:{status:'idle',goalId:null,wake:{at:new Date(Date.now()-10*60000).toISOString(),reason:''}}});
- assert.match(late,/Check overdue<\/span><p class="agent-wait">No reason given\.<\/p><p class="agent-muted">The check was due ·/);
+ assert.match(late,/Check overdue<\/span><ul class="wait-list"><li data-overdue><span class="wait-kind">Check<\/span><span class="wait-text">No reason given<\/span><span class="wait-when">was due /);
  assert.match(agentMarkup({...base,work:{status:'working',goalId:null,wake:{at,reason:'x'}}}),/Running/,'a running agent is not waiting');
+ // Its own work ended while a subagent it started runs on: it waits on it, and on its checks.
+ const since=new Date(Date.now()-5*60000).toISOString(),reason='Goal #104: count. Then add it.';
+ const sub=agentMarkup({...base,work:{status:'working',goalId:null,background:[{id:'a1',type:'subagent',description:'Implement --ask',since}],wake:{at,reason},wakes:[{at,reason}]}});
+ assert.match(sub,/Waiting · 2<\/span><ul class="wait-list"><li><span class="wait-kind">Subagent<\/span><span class="wait-text">Implement --ask<\/span><span class="wait-when">since /);
+ assert.match(sub,/<span class="wait-text">Goal #104: count\.<\/span>.*<details class="wait-detail"><summary>Details<\/summary><p>Goal #104: count\. Then add it\.<\/p>/);
+ assert.doesNotMatch(sub,/>Running</);
 });

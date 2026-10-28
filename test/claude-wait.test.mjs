@@ -231,14 +231,14 @@ test('a Goal whose ended response scheduled a check shows Waiting, and Check ove
  const activity=await agent.activity(f.root.id);
  assert.deepEqual(activity.wake,{at:wake.at,reason:'CI of PR #91'});
  const shown=activityDisplay(activity,Date.parse(wake.at)-60000);
- assert.equal(shown.state,'waiting');assert.equal(shown.label,'Waiting');assert.match(shown.description,/^CI of PR #91\. Checks again at \d{1,2}:\d{2} [AP]M\.$/);
+ assert.equal(shown.state,'waiting');assert.equal(shown.label,'Waiting');assert.equal(shown.items.length,1);assert.equal(shown.items[0].text,'CI of PR #91');assert.match(shown.items[0].when,/^at \d{1,2}:\d{2} [AP]M$/);
  assert.equal(activityDisplay(activity,Date.parse(wake.at)+10*60000).label,'Check overdue');
  // The tab icon reads the same check from presence: yellow until it is overdue.
  const presence=await agent.presence();assert.deepEqual(presence.wake,{at:wake.at,reason:'CI of PR #91'});
  assert.equal(isWaitingOnCheck(presence.wake,Date.parse(wake.at)-60000),true);assert.equal(isWaitingOnCheck(presence.wake,Date.parse(wake.at)+10*60000),false);
 });
 
-test('with several checks scheduled, the Web shows the next one due',async t=>{
+test('with several checks scheduled, the Web lists them all, the next one due first',async t=>{
  const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
  const {claudeAgent}=await import('../lib/agents/claude.mjs');
  const {activityDisplay,isWaitingOnCheck}=await import('../public/work-ui.js');
@@ -250,7 +250,9 @@ test('with several checks scheduled, the Web shows the next one due',async t=>{
  await scheduleClaudeWake({minutes:60,reason:'Deploy',env:f.env()});
  const activity=await agent.activity(f.root.id),presence=await agent.presence();
  assert.deepEqual(activity.wake,{at:wake.at,reason:'CI of PR #91'});assert.deepEqual(presence.wake,{at:wake.at,reason:'CI of PR #91'});
- assert.match(activityDisplay(activity,Date.parse(wake.at)-60000).description,/^CI of PR #91\. Checks again at /);
+ // Every check is listed, earliest first.
+ const shown=activityDisplay(activity,Date.parse(wake.at)-60000);
+ assert.equal(shown.label,'Waiting · 3');assert.deepEqual(shown.items.map(i=>i.text),['CI of PR #91','Deploy','Recount']);
  assert.equal(isWaitingOnCheck(presence.wake,Date.parse(wake.at)-60000),true,'the tab icon shows the yellow sun');
 });
 

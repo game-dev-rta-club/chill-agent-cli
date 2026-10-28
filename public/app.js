@@ -4,7 +4,7 @@ import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
-import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, thinkView, workDisclosure } from './work-ui.js';
+import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, thinkView, waitListMarkup, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
 import { briefBody } from './brief-body.js';
@@ -111,7 +111,7 @@ const agentButton=document.getElementById('agent-button');
 agentButton.innerHTML=agentAvatar(true);
 const tabIcon=createTabIcon(undefined,undefined,document.querySelector('.brand-mark img'));
 window.addEventListener('chill-agent-appearance',event=>tabIcon.use(event.detail.tabIcon));
-window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)?'working':isWaitingOnCheck(wake)?'waiting':null);});
+window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake,background}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)&&!background?.length?'working':background?.length||isWaitingOnCheck(wake)?'waiting':null);});
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
 const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel'),readReplies});
@@ -380,7 +380,7 @@ function activityMarkup(id) {
   return `<li class="timeline-event activity-event" id="goal-activity">
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
     <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><strong>${escapeHTML(shown.label)}</strong>${activityControls.controls()}</div>
-      <p>${escapeHTML(shown.description)}</p>
+      ${shown.description ? `<p>${escapeHTML(shown.description)}</p>` : ''}${waitListMarkup(shown.items || [])}
       ${workMarkup(`goal:${id}:${activity.work?.startedAt || ''}`, activity.work, shown.live)}
     </div></li>`;
 }
