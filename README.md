@@ -80,8 +80,8 @@ Continue with the stable command prefix returned by setup. See
 and a server restart adopt a new version without moving the workspace.
 
 To open the workspace from a phone or another computer, turn on **More → Public
-link** in Web. A device connects once with the access code shown on the computer;
-see [the public link guide](docs/using/public-link.md).
+link** in Web. A device connects once with the access code shown on the computer,
+or printed for your agent by `chill settings access-code`; see [the public link guide](docs/using/public-link.md).
 
 ## Integrating an execution policy
 

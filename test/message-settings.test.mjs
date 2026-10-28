@@ -65,6 +65,26 @@ test('notification preparation uses only a live configured URL and failures leav
   assert.equal(await readFile(join(root,'workspace/events/1.json'),'utf8'),saved);
 });
 
+test('settings access-code prints the panel\'s code only while the public link runs',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'chill-access-code-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
+  const env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'4173'};
+  const run=args=>execute(process.execPath,[fileURLToPath(new URL('../bin/chill-settings.mjs',import.meta.url)),...args],{env});
+  await assert.rejects(run(['access-code']),/Public link is not running/);
+  await saveMessageSetting('remote',{mode:'quick'},root);
+  await mkdir(join(root,'runtime/web-4173'),{recursive:true});
+  await writeFile(join(root,'runtime/web-4173/tunnel.json'),JSON.stringify({pid:process.pid,url:'https://quiet-river.trycloudflare.com'}));
+  const first=JSON.parse((await run(['access-code'])).stdout);
+  assert.match(first.code,/^[0-9]{6}$/);
+  assert.equal(first.link,'https://quiet-river.trycloudflare.com/');
+  assert.ok(Date.parse(first.expiresAt)>Date.now());
+  const saved=JSON.parse(await readFile(join(root,'workspace/public-access/1.json'),'utf8'));
+  assert.equal(saved.code.value,first.code,'the Web panel reads the same stored code');
+  assert.deepEqual(JSON.parse((await run(['access-code'])).stdout),first,'asking again does not change it');
+  await mkdir(join(root,'workspace/public-link'),{recursive:true});
+  await writeFile(join(root,'workspace/public-link/1.json'),JSON.stringify({enabled:false}));
+  await assert.rejects(run(['access-code']),/Public link is not running/,'a link turned Off gives no code');
+});
+
 test('reminders respect selected occasions without depending on remote settings or sending tools', async t => {
   const root=await mkdtemp(join(tmpdir(),'chill-reminder-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   assert.equal(await notificationReminder({directory:root}), '');
