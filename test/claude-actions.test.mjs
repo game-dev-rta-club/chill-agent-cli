@@ -352,3 +352,22 @@ test('one reply answers the Goal, whichever of its comments it answers',async t=
   const commentId=Number(/comment (\d+)/.exec(output)[1]);
   assert.equal((await readEvent(commentId)).text,'Done both');assert.equal(await readEvent(commentId+1),null,'the reply is posted once');
 });
+
+test('the Goal the agent writes on stays its work Goal, also across compaction, so the Web does not fall back to the Root',async t=>{
+  const f=await fixture(t),s=await f.start(),g=await root(s);
+  const asked=await createGoal({title:'Asked',parentId:g.id}),other=await createGoal({title:'Other',parentId:g.id}),letter=await createGoal({title:'Letter',parentId:g.id});
+  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs'),{readJson}=await import('../lib/storage.mjs'),{noteAgentComment}=await import('../lib/agents/index.mjs');
+  const work=async()=>(await readJson(claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId).record)).agentWork;
+  await appendFeedback({goalId:asked.id,text:'Please look'});
+  await s.act('inbox',{});
+  assert.equal((await work()).lastGoal,asked.id);
+  await s.act('reply',{goalId:other.id,text:'Answered here'});
+  assert.equal((await work()).lastGoal,other.id,'a reply marks its Goal');
+  await noteAgentComment(await readGoal(g.id),letter.id,s.env);
+  assert.equal((await work()).lastGoal,letter.id,'a Letter or progress Comment marks its Goal');
+  await noteAgentComment(await readGoal(g.id),asked.id,{CLAUDE_CODE_SESSION_ID:'someone-else'}).catch(()=>{});
+  assert.equal((await work()).lastGoal,letter.id,'another conversation does not move it');
+  await f.start(s.record.sessionId,'compact');
+  const kept=await work();
+  assert.equal(kept.lastGoal,letter.id,'compaction keeps it');assert.equal(kept.phase,'idle');
+});
