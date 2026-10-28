@@ -20,9 +20,11 @@ await writeFile(brief,'## Current explanation\n\nOlder discussion stays availabl
 const closed=await appendAgentComment({goalId:'1',type:'letter',title:'An earlier question',text:'Which direction would you like?'});
 await appendFeedback({goalId:'1',text:'Answered earlier',annotations:[{kind:'letter',source:{kind:'comment',eventId:closed.id},text:'This direction'}]});
 const source=await appendAgentComment({goalId:'1',type:'comment',text:'Original context to annotate.'});
+for(let i=1;i<=5;i++)await appendAgentComment({goalId:'1',type:'comment',text:`Earlier note ${i}.`});
+await appendFeedback({goalId:'1',text:'A recent comment about earlier context.',annotations:[{id:'context-note',kind:'text',text:'Keep this context',source:{kind:'comment',eventId:source.id},anchor:{start:0,end:8,quote:'Original'}}]});
+// Asked after the user's last comment, which would otherwise have answered it.
 const pending=await appendAgentComment({goalId:'1',type:'letter',title:'No rush — a choice for later',text:'Which version feels more comfortable?'});
 for(let i=1;i<=40;i++)await appendAgentComment({goalId:'1',type:'comment',text:`Progress update ${i}: a small improvement is ready.`});
-await appendFeedback({goalId:'1',text:'A recent comment about earlier context.',annotations:[{id:'context-note',kind:'text',text:'Keep this context',source:{kind:'comment',eventId:source.id},anchor:{start:0,end:8,quote:'Original'}}]});
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
 const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});
 let browser;
@@ -48,7 +50,7 @@ try {
   const earlier=gap().getByRole('button',{name:'Show 3 earlier comments',exact:true});
   assert.equal(await earlier.count(),1);
   assert.equal(await gap().getByRole('button',{name:'Show 3 later comments',exact:true}).count(),1);
-  assert.equal(await gap().locator('.conversation-gap-summary').innerText(),'38 more comments');
+  assert.equal(await gap().locator('.conversation-gap-summary').innerText(),'37 more comments');
   assert.equal(await earlier.innerText(),'');
   await earlier.scrollIntoViewIfNeeded();
   assert.equal(await earlier.evaluate(e=>getComputedStyle(e,'::after').visibility),'hidden');
@@ -63,13 +65,13 @@ try {
   await gap().locator('[data-side="bottom"]').scrollIntoViewIfNeeded();
   const before=await gap().boundingBox();
   await gap().locator('[data-side="bottom"]').click();
-  assert.equal(await cards().count(),7);assert.equal(await page.locator('#event-40').count(),1);
-  const shift=(await page.locator('#event-40').boundingBox()).y-(before.y+before.height);
+  assert.equal(await cards().count(),7);assert.equal(await page.locator('#event-46').count(),1);
+  const shift=(await page.locator('#event-46').boundingBox()).y-(before.y+before.height);
   assert.ok(Math.abs(shift)<3,`later expansion starts at the first revealed comment (shift ${shift}px)`);
   const earlierEdge=(await gap().boundingBox()).y;
   await gap().locator('[data-side="top"]').click();
-  assert.equal(await cards().count(),10);assert.equal(await page.locator('#event-5').count(),1);
-  assert.ok(Math.abs((await page.locator('#event-5').boundingBox()).y-earlierEdge)<3,'earlier expansion starts at the first revealed comment');
+  assert.equal(await cards().count(),10);assert.equal(await page.locator('#event-12').count(),1);
+  assert.ok(Math.abs((await page.locator('#event-12').boundingBox()).y-earlierEdge)<3,'earlier expansion starts at the first revealed comment');
   assert.equal(await main().locator('textarea').inputValue(),'Keep this draft while I read.');
   assert.equal(await page.locator('.version-pager').isVisible(),true);
   assert.equal(await page.locator('.version-dots, .version-tooltip, .brief-history').count(),0);
@@ -85,9 +87,12 @@ try {
   await page.locator(`#event-${arrival.id}`).waitFor();assert.equal(await cards().count(),11);
   await page.locator('[data-action="collapse-conversation"]').click();
   assert.equal(await cards().count(),4);assert.equal(await page.locator(`#event-${pending.id}`).count(),1);
+  // The user's comment is older than the pending Letter, in the first gap: reveal it, then locate its note.
+  await page.locator(`#event-${pending.id}`).locator('xpath=preceding-sibling::*[contains(@class,"conversation-gap")][1]').getByRole('button',{name:'Show 3 later comments',exact:true}).click();
+  assert.equal(await cards().count(),7);
   await page.locator('[data-action="locate-note"]').click();
   await page.locator(`#event-${source.id} .annotation-mark`).waitFor();
-  assert.equal(await cards().count(),5);
+  assert.equal(await cards().count(),8);
   await page.evaluate(()=>location.hash='#/goal/1/letter/1');
   await page.locator(`#event-${closed.id}`).waitFor();
   assert.equal(await main().locator('textarea').inputValue(),'Keep this draft while I read.');
@@ -111,10 +116,10 @@ try {
   // All hidden ranges can be read to the end; no messages disappear or repeat.
   await loadHistory();
   while(await page.locator('.conversation-gap').count())await page.locator('.conversation-gap').first().locator('[data-side="top"]').click();
-  assert.equal(await cards().count(),46);
+  assert.equal(await cards().count(),51);
   // Multiple older unanswered Letters stay visible on entry, reload and collapse.
   const open=[];
-  for(let i=0;i<3;i++)open.push(await run('letter','--id','1','--title',`Pending choice ${i}`,'--text','A question for later.'));
+  for(let i=0;i<3;i++)open.push(await run('comment','--id','1','--ask',`Pending choice ${i}`,'--text','A question for later.'));
   for(let i=0;i<10;i++)await run('comment','--id','1','--text',`Later discussion ${i}`);
   await page.goto(`${url}/#/goal/1`);await page.reload();await main().waitFor();await loadHistory();
   for(const letter of open)assert.equal(await page.locator(`#event-${letter.id}`).count(),1);
@@ -125,12 +130,13 @@ try {
   for(const letter of open)assert.equal(await page.locator(`#event-${letter.id}`).count(),1);
   assert.equal(await cards().count(),7);
   await run('close-letter','--id','1','--event',String(open[0].id));
+  await page.reload();await main().waitFor();await loadHistory();
+  assert.equal(await page.locator(`#event-${open[0].id}`).count(),0,'a withdrawn Letter is no longer kept in view');
+  for(const letter of [open[1],open[2],pending])assert.equal(await page.locator(`#event-${letter.id}`).count(),1);
+  // The user's comment answers every open Letter of the Goal.
   await appendFeedback({goalId:'1',annotations:[{kind:'letter',source:{kind:'comment',eventId:open[1].id},text:'Settled'}]});
   await page.reload();await main().waitFor();await loadHistory();
-  assert.equal(await page.locator(`#event-${open[0].id}`).count(),0);
-  assert.equal(await page.locator(`#event-${open[1].id}`).count(),0);
-  assert.equal(await page.locator(`#event-${open[2].id}`).count(),1);
-  assert.equal(await page.locator(`#event-${pending.id}`).count(),1);
+  for(const letter of [open[1],open[2],pending])assert.equal(await page.locator(`#event-${letter.id}`).count(),0);
   assert.deepEqual(errors,[]);
   console.log(JSON.stringify({result:'passed',screenshots:root,checks:['latest three','pending Letter visible','vertical controls on the icon line','hover and keyboard labels','small gap keeps both directions','three from either end','first revealed comment stays at the opened edge','draft and History preserved','new arrivals','hidden annotation and Letter references','collapse again','all messages reachable','desktop and mobile']}));
 } finally {

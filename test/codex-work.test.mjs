@@ -40,14 +40,14 @@ test('an idle chat is sent waiting comments as one message, quoting the user as 
   assert.deepEqual(ids(text),[first]);
   assert.deepEqual(await f.queue(),[],'Codex runs it as a turn at once');
   assert.match(text,/"text":"Please start"/);assert.match(text,new RegExp(`show --id ${f.root.id} --since ${first-1} --format text`));
-  assert.match(text,/Reply on the Goal \(this answers it\): .* comment --id <goalId> --text/);assert.doesNotMatch(text,/activity --event|--state/);
+  assert.match(text,/Reply on the Goal \(this answers it\): .* comment --id <goalId> --text '<reply>'\nIf your message asks the user to decide or approve something, add --ask '<what to decide>'; it then appears as a Letter\./);assert.doesNotMatch(text,/activity --event|--state/);
   await f.endTurn();
   const letter=await appendAgentComment({goalId:child.id,type:'letter',title:'Which one?',text:'A or B?'});
   await appendAgentComment({goalId:child.id,type:'letter',title:'Still open?',text:'And this?'});
   const second=await appendFeedback({goalId:child.id,text:'And the child',annotations:[{kind:'letter',source:{kind:'comment',eventId:letter.changeId},text:'A'}]});await deliverFeedback(second.changeId);
   const sent=await f.sent();
   assert.equal(JSON.parse(sent[1].split('\n')[2])[0].notes[0].source.eventId,letter.changeId,'notes keep their source');
-  assert.match(sent[1],/Open Letters[\s\S]*Letter \d+ \(\d+\) "Still open\?"/);
+  assert.doesNotMatch(sent[1],/Open Letters|close-letter/,'the comment closed the Goal\'s Letters, so none is listed to close');
   assert.deepEqual(sent.map(ids),[[first],[second.changeId]]);
   await f.endTurn();
   assert.equal((await handIdleCodex(f.thread)).length,0,'nothing is sent twice');

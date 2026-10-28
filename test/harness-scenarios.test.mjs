@@ -57,6 +57,22 @@ scenario('the agent\'s reply clears the marks at once, while its work still runs
   assert.equal(await s.shown(first),null);
 });
 
+// A reply that asks the user to decide is marked --ask and becomes a Letter; the user's next comment on its Goal closes it.
+scenario('a reply that asks the user to decide is a Letter until the user comments on its Goal',async s=>{
+  const event=await s.saveFeedback('Which export should stay?');
+  await s.agentTakesFeedback(event);
+  assert.match(s.feedbackText(),/If your message asks the user to decide or approve something, add --ask '<what to decide>'; it then appears as a Letter\./);
+  assert.doesNotMatch(s.feedbackText(),/close-letter|stands on its own/);
+  await s.agentAsks('Drop the old export?','The new export covers everything. Shall I drop the old one?');
+  assert.equal(await s.shown(event),null,'the Letter is the reply');
+  assert.deepEqual(await s.letters(),['Drop the old export?']);
+  await s.agentAsks('Rename the command?','While here: shall I rename it?');
+  assert.deepEqual(await s.letters(),['Drop the old export?','Rename the command?'],'a question found while working needs no comment to answer');
+  await s.agentEndsResponse();
+  await s.saveFeedback('Drop it; keep the name.');
+  assert.deepEqual(await s.letters(),[],'the user\'s comment answers the Goal\'s Letters');
+});
+
 scenario('the end of the work without a reply leaves the comment marked, awaiting one',async s=>{
   const event=await s.saveFeedback('Just do it');
   await s.agentTakesFeedback(event);

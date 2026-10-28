@@ -3,7 +3,8 @@ keyPoints: >-
   The Deliverable holds only a Goal's final output; progress and questions go to Conversation.
   Edit its source and publish a snapshot; comments preserve discussion.
   Static HTML works in Messages; HTML Deliverable images and SVG diagrams support notes.
-  Letters distinguish questions from reply-free outcomes; neither answers nor viewing complete or unblock work.
+  A reply that asks the user to decide is marked --ask and becomes a Letter; the user's next comment on the Goal closes it.
+  Neither answers nor viewing complete or unblock work.
 ---
 
 # Keep the final output and the discussion apart
@@ -52,14 +53,17 @@ an overlaid annotation control.
 
 ## Comments and Letters
 
-Use `goal comment --id 1 --text-file result.txt` for results, completion reports or routine progress. Use
-`goal letter --id 1 --title "Choose a direction" --text-file question.txt` only when a user reply, choice or permission is needed. Files preserve multiline text without shell escaping.
-
-Users answer a Letter with an ordinary Comment; there is no separate Answer
-button. Do not create a Letter just
-to ask the user to acknowledge a report. Pending replies block only the actions
-that actually depend on them; continue independent authorized work. The old
-`--no-reply` option is compatibility-only; historical records stay out of pending
+The agent posts every message with one command: `goal comment --id 1 --text-file reply.txt`,
+or `connection reply --goal 1 --text-file reply.txt` in a Claude conversation. Files
+preserve multiline text without shell escaping. If the message asks the user to
+decide or approve something, the agent adds `--ask '<what to decide>'`; the
+message is then a Letter titled with that line, shown and counted in the Letters
+menu and notified as a Letter. It still answers the comments the agent was
+handed, and works when none arrived. Without `--ask` the message is an ordinary
+Comment. Do not create a Letter just to ask the user to acknowledge a report.
+Pending replies block only the actions that actually depend on them; continue
+independent authorized work. Letters saved by the earlier `goal letter` command
+still show as they were, and its historical no-reply records stay out of pending
 counts, so updating does not turn old results into new unanswered questions.
 
 Message bodies already accept static HTML such as paragraphs, lists, tables,
@@ -74,12 +78,14 @@ Conversation shows "Mentioned in #M" in its own Conversation, once per Goal, at
 the first Comment that named it. chill never writes Comment or Letter numbers with
 `#`; it writes `comment 1006` or `Letter 868`.
 
-When a delivered Comment answers a Letter, the agent records it before other
-work with `goal close-letter --id 1 --event <LETTER_ID> --answer <COMMENT_ID>`,
-and the Letter shows as Replied. Each delivery lists the open Letters with that
-command as a reminder. An unrelated comment leaves the Letter open. If a
-question no longer needs an answer, use `close-letter` without `--answer`. The question and discussion remain
-saved. Answered or received Letters do not appear in the unanswered list.
+Users answer a Letter with an ordinary Comment on its Goal, or an annotation on
+the Letter; there is no separate Answer button. Any user comment on the Goal
+closes the Goal's open Letters and records that comment as the answer, even when
+it is about something else: once the user speaks it is the agent's turn, and it
+asks again with `--ask` if the question still stands. If a question no longer
+needs an answer before the user replies, the agent withdraws it with
+`goal close-letter --id 1 --event <LETTER_ID>`. The question and discussion remain
+saved. Answered or withdrawn Letters do not appear in the unanswered list.
 
 An agent Comment or Letter posted by mistake, for example to the wrong Goal or
 project, can be deleted with `goal delete-comment --id <goal> --event <id>`. Its

@@ -21,7 +21,7 @@ try {
  for(let i=0;i<6;i++)await run('comment','--id','1','--text',`Earlier comment ${i}`);
  const feedbackFile=join(root,'feedback.json');await writeFile(feedbackFile,JSON.stringify({text:'Earlier user message',requestId:'letter-navigation-delivery'}));
  const {feedback}=JSON.parse((await execute(process.execPath,[cli,'feedback','--id','1','--input-file',feedbackFile],{env})).stdout.trim().split('\n')[0]);
- const letter=await run('letter','--id','1','--title','Read this Letter','--text','Can you reach the whole page?');
+ const letter=await run('comment','--id','1','--ask','Read this Letter','--text','Can you reach the whole page?');
  for(let i=0;i<6;i++)await run('comment','--id','1','--text',`Later comment ${i}`);
  server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});

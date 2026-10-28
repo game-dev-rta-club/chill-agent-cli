@@ -16,7 +16,9 @@ for(const backend of ['json','sqlite'])test(`${backend} pages are bounded, scope
  await s.appendAgentComment({goalId:'2',type:'comment',text:'Other'});
  const answer=await s.appendFeedback({goalId:'1',text:'Answer',annotations:[{kind:'letter',source:{kind:'comment',eventId:letter.id},text:'Yes'}]});
  const first=await s.readConversationPage('1',{limit:4});
- assert.equal(first.events.length,4);assert.equal(first.events.at(-1).id,answer.id);assert.equal(first.answerTargets[0].id,letter.id);assert.equal(first.hasMore,true);
+ assert.equal(first.events.length,4);
+ // The answer closed the Letter, a later change of it: the newest page shows both.
+ assert.deepEqual(first.events.slice(-2).map(e=>e.id),[answer.id,letter.id]);assert.equal(first.answerTargets[0].id,letter.id);assert.equal(first.hasMore,true);
  const ids=first.events.map(e=>e.id);let page=first;
  while(page.hasMore){page=await s.readConversationPage('1',{limit:4,before:page.nextBefore});ids.push(...page.events.map(e=>e.id));}
  assert.equal(ids.length,14);assert.equal(new Set(ids).size,14);assert.equal(page.nextBefore,null);

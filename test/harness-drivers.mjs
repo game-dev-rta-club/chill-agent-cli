@@ -14,6 +14,7 @@
 //                                   feedback, which starts its response. Resolves to the feedback IDs that reached it.
 //   strangerAnswers(eventId)        a conversation the Goal is not assigned to tries to answer the feedback
 //   agentReplies(eventId, text)     the agent's reply on the feedback's Goal
+//   agentAsks(ask, text)            the agent's reply marked --ask: a Letter titled `ask`, with or without feedback
 //   agentSelectsWork()              `goal work` on the Root Goal for the current response
 //   agentComments(text)             a progress `goal comment` on the Root Goal
 //   saveFeedback(text)              the user posts feedback in the Web; resolves to its event ID
@@ -29,6 +30,7 @@
 //   permissionPrompt()              a tool permission prompt in the agent's app: 'allow' when chill answers it, else
 //                                   null. Only where a hook can answer prompts (capabilities.approvals)
 //   comments()                      the agent's comments on the Goal
+//   letters()                       the titles of the Goal's open Letters, as the Letters menu lists them
 // A capability the harness lacks is declared in `capabilities` and the scenario asserts the interface says so.
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
@@ -36,7 +38,7 @@ import {appendFile,mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {appendFeedback,createGoal,listGoals,readFeedback} from '../lib/goal-store.mjs';
+import {appendFeedback,createGoal,listGoals,readFeedback,readOpenLetters} from '../lib/goal-store.mjs';
 import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {agentExecutions,assignGoal,goalCommentMarks,selectAgentWork} from '../lib/agents/index.mjs';
@@ -107,6 +109,7 @@ function userSide(goalId,beforeRead=()=>{}) {
     async comments() {
       return (await readFeedback()).filter(event=>event.goalId===goalId&&event.author==='agent').map(event=>event.text);
     },
+    async letters() {return (await readOpenLetters(goalId)).map(letter=>letter.title);},
   };
 }
 
@@ -180,6 +183,7 @@ async function codexSession(t) {
     // Another chat in the same project replies on the Goal.
     strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
     agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    agentAsks:(ask,text)=>runWith(cli,['comment','--id',root.id,'--ask',ask,'--text',text],{env}),
     agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
@@ -277,6 +281,7 @@ async function codexAppSession(t,codexPath) {
     },
     strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
     agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    agentAsks:(ask,text)=>runWith(cli,['comment','--id',root.id,'--ask',ask,'--text',text],{env}),
     agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
@@ -348,6 +353,7 @@ async function claudeSession(t) {
       await runWith(connectionCli,['reply','--goal',root.id,'--text','Not mine'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other},cwd});
     },
     async agentReplies(eventId,text) {await connection(['reply','--goal',root.id,'--text',text]);},
+    async agentAsks(ask,text) {await connection(['reply','--goal',root.id,'--ask',ask,'--text',text]);},
     async permissionPrompt() {return (await hook('PermissionRequest',{tool_name:'Bash',tool_input:{command:'ls'}}))?.hookSpecificOutput?.decision?.behavior??null;},
     agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env:agentEnv}),

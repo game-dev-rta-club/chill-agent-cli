@@ -53,7 +53,7 @@ hooks refuse each step that would, and tell the agent what to do instead:
 
 | Step Claude would take | What the agent does instead |
 | --- | --- |
-| Ask a question (AskUserQuestion) | Sends it as a Letter and continues work that does not depend on the answer |
+| Ask a question (AskUserQuestion) | Sends it as a Letter (a reply with `--ask`) and continues work that does not depend on the answer |
 | End a response with a question or choice buttons in the Desktop next-step box (wrap_up) | Sends it as a Letter; a closing recap without a question still shows |
 | Suggest a separate task (the Desktop task chip) | Does the work itself, or creates a Split Goal |
 | Ask you to approve a plan (ExitPlanMode) | Sends the plan as a Letter; after you reply on the Web, it leaves plan mode without another prompt |
