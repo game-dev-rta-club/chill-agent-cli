@@ -67,10 +67,10 @@ stay Running. Without a reported transcript the state is unknown.
 The running Goal is the one whose feedback that response received. Activity
 links to that feedback, and feedback received within one response shares one
 Think, which opens while the response runs and closes when it stops. A response
-that received no Web feedback shows Running without a Goal.
-After the work stops, Activity keeps a link to the last Goal: for Claude, the
-Goal whose feedback the conversation last received; for Codex, the last
-selected Goal.
+that received no Web feedback shows Running on the last Goal.
+The last Goal is, for Claude, the Goal where the conversation last received
+feedback or wrote a reply, Comment or Letter, kept across compaction and resume;
+for Codex, the last selected Goal. Activity keeps a link to it after the work stops.
 
 ## Pause, Resume and Queue
 
