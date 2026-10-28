@@ -53,18 +53,20 @@ test('annotations reference exact replies; duplicates stay idempotent after a De
  assert.equal((await f.post({text:'',annotations:[]})).status,400);
  assert.equal((await f.post({text:'Old protocol',decision:'accept'})).status,400);
 });
-test('pending Letter counts survive restart and close only on explicit answers',async t=>{
- const f=await fixture(t),letter=await f.run('letter','--id','1','--title','Choice','--text','Which?');
- await f.post({text:'Ordinary comment'});await f.stop();await f.start();
+test('pending Letter counts survive restart and close on the user\'s next comment from the Web',async t=>{
+ const f=await fixture(t);await f.post({text:'Earlier comment'});
+ const letter=await f.run('comment','--id','1','--ask','Choice','--text','Which?');
+ await f.stop();await f.start();
  const view=async()=>{const [goal]=await(await f.get('/api/goals')).json();return createGoalView({'1':{...goal,children:[]}},'1',new Set());};
- assert.equal((await view()).letterCount('1'),1);
- await f.post({annotations:[{kind:'letter',source:{kind:'comment',eventId:letter.id},text:'A'}]});assert.equal((await view()).letterCount('1'),0);
+ assert.equal((await view()).letterCount('1'),1,'a comment before the Letter leaves it open');
+ const answer=(await(await f.post({text:'Ordinary comment'})).json()).feedback;assert.equal((await view()).letterCount('1'),0);
+ const [goal]=await(await f.get('/api/goals')).json();assert.equal(goal.conversation.find(e=>e.id===letter.id).answeredBy,answer.id);
 });
-test('Agent receipt is exposed in the Web tree and event delta, and survives restart',async t=>{
- const f=await fixture(t),letter=await f.run('letter','--id','1','--title','Settled choice','--text','Which?');
- const feedback=await(await f.post({text:'The discussion is sufficient.'})).json();
- const received=await f.run('close-letter','--id','1','--event',String(letter.id));
- const delta=await(await f.get(`/api/events?since=${feedback.feedback.changeId}`)).json();
+test('a withdrawn Letter is exposed in the Web tree and event delta, and survives restart',async t=>{
+ const f=await fixture(t),letter=await f.run('comment','--id','1','--ask','Settled choice','--text','Which?');
+ const comment=await f.run('comment','--id','1','--text','The question settled itself.');
+ const received=await f.run('close-letter','--id','1','--event',String(letter.id));assert.equal(received.status,'received');
+ const delta=await(await f.get(`/api/events?since=${comment.changeId}`)).json();
  assert.equal(delta.cursor,received.changeId);assert.equal(delta.events.length,1);assert.equal(delta.events[0].id,letter.id);
  const view=async()=>{const [goal]=await(await f.get('/api/goals')).json();return createGoalView({'1':{...goal,children:[]}},'1',new Set());};
  assert.equal((await view()).letterCount('1'),0);
@@ -104,7 +106,7 @@ test('Markdown annotations validate rendered text and API deltas render both aut
 
 test('compact Web snapshot keeps current content and Letters; older Deliverables load separately',async t=>{
  const f=await fixture(t);await f.note();await f.note();
- const letter=await f.run('letter','--id','1','--title','Question','--text','Choose **one**.');
+ const letter=await f.run('comment','--id','1','--ask','Question','--text','Choose **one**.');
  let [goal]=await(await f.get('/api/goals?view=web')).json();
  assert.equal(goal.briefs.length,2);assert.equal(goal.briefs[0].html,undefined);
  assert.equal(goal.briefs[1].body,undefined);assert.match(goal.briefs[1].html,/本文と注釈 2/);
@@ -121,15 +123,15 @@ test('compact Web snapshot keeps current content and Letters; older Deliverables
 
 test('tab count follows the current Root, including child Letters, answers and reparenting',async t=>{
  const f=await fixture(t),b=await f.run('create','--title','Other root'),child=await f.run('create','--title','Child','--parent','1');
- const aLetter=await f.run('letter','--id','1','--title','A','--text','Root question');
- const childLetter=await f.run('letter','--id',child.id,'--title','Child','--text','Child question');
- await f.run('letter','--id',b.id,'--title','B','--text','Other root question');
+ const aLetter=await f.run('comment','--id','1','--ask','A','--text','Root question');
+ const childLetter=await f.run('comment','--id',child.id,'--ask','Child','--text','Child question');
+ await f.run('comment','--id',b.id,'--ask','B','--text','Other root question');
  const count=async id=>(await(await f.get(`/api/goals/${id}/letters/count`)).json());
  assert.deepEqual(await count(child.id),{rootId:'1',title:'Goal',count:2});
  assert.deepEqual(await count(b.id),{rootId:b.id,title:'Other root',count:1});
- await f.post({text:'An unrelated reply'});assert.equal((await count('1')).count,2);
- await f.post({annotations:[{kind:'letter',source:{kind:'comment',eventId:aLetter.id},text:'Answered'}]});
- assert.equal((await count(child.id)).count,1);
+ await f.post({text:'An unrelated reply'});
+ assert.equal((await count(child.id)).count,1,'a comment on the Root answers its Letter, not the child\'s');
+ assert.equal((await f.run('show','--id','1')).conversation.find(e=>e.id===aLetter.id).answeredBy>aLetter.id,true);
  await f.run('close-letter','--id',child.id,'--event',String(childLetter.id));assert.equal((await count('1')).count,0);
  const patch=join(f.root,'reparent.json');await writeFile(patch,JSON.stringify({parentId:b.id}));
  await f.run('update','--id',child.id,'--input-file',patch);assert.equal((await count(child.id)).rootId,b.id);
@@ -143,7 +145,7 @@ test('tab count adds unread notified replies to unanswered Letters; showing a Go
  const read=(id,through,origin=f.url())=>fetch(f.url()+`/api/goals/${id}/read`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({through})});
  assert.equal(await count('1'),0,'replies from before the first read are read');
  const result=await f.run('comment','--id','1','--text','Result'),quiet=await f.run('comment','--id',child.id,'--text','Not notified');
- const letter=await f.run('letter','--id',child.id,'--title','Q','--text','Which one?');
+ const letter=await f.run('comment','--id',child.id,'--ask','Q','--text','Which one?');
  await f.post({text:'My own comment'});
  assert.equal(await count(child.id),1,'a reply nobody was notified of does not count');
  const claims=Object.fromEntries([before,result,letter].map(e=>[e.id,{at:Date.now(),rootId:'1',reply:true}]));

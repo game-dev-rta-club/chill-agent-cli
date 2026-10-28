@@ -48,8 +48,10 @@ The comments before it go too, so the cursor keeps the order.
 A Goal waits for a reply while the user commented after the agent's last Comment
 or Letter on it. The agent answers by commenting on the Goal; one Comment answers
 all of the user's comments before it. No comment ID and no receipt is needed, and
-a progress Comment answers the Goal as well. A Comment from another agent
-conversation is refused.
+a progress Comment answers the Goal as well. A reply that asks the user to
+decide or approve something carries `--ask '<what to decide>'` and is saved as
+a Letter; it answers the Goal the same way. The user's next comment on that Goal
+closes its open Letters. A Comment from another agent conversation is refused.
 
 ## When the agent stops
 

@@ -4,7 +4,7 @@ import {workspacePort} from '../lib/project-workspace.mjs';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
 
-import { appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
+import { agentMessageType, appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
 import { deliverFeedback, sendFeedbackNow } from '../lib/delivery.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
 import {assignGoal} from '../lib/agents/index.mjs';
@@ -32,6 +32,7 @@ async function main() {
   if(showHelp('goal',args.length?args:['--help'])) return;
   const [command,...rest]=args;
   if(command==='brief')throw Error('goal brief was renamed to goal deliverable.');
+  if(command==='letter')throw Error("goal letter was removed. To ask the user to decide or approve something, reply with --ask '<what to decide>' (goal comment, or connection reply in a Claude conversation); it then appears as a Letter.");
   const subcommand=command==='deliverable'?rest.shift():null;
   const v=parseOptions(`goal ${command}${subcommand?` ${subcommand}`:''}`,rest);
   await initializeStore();
@@ -46,7 +47,7 @@ async function main() {
     const {path}=await readGoalContext(id);
     return output({...goal,nextActions:{message:'Review parent and ancestor success criteria. Mark only achieved Goals Done; otherwise leave them Open. This reminder does not require changing their state.',ancestors:path.slice(0,-1).reverse().map(({id,title,criteria,state})=>({id,title,criteria,state}))}});
   }
-  if(command==='close-letter')return output(await closeLetter(id,Number(v['--event']),v['--reason'],v['--answer']===undefined?null:Number(v['--answer'])));
+  if(command==='close-letter')return output(await closeLetter(id,Number(v['--event']),v['--reason']));
   if(command==='delete-comment')return output(await deleteAgentComment(id,Number(v['--event'])));
   if(command==='deliverable') {
     const result=subcommand==='path'?await briefSource(id,v['--format']):await updateBrief(id,v['--format']);
@@ -70,12 +71,12 @@ async function main() {
     const page=await readGoalPage(id,{version:v['--version']===undefined?undefined:Number(v['--version']),since:Number(v['--since']??0),before:v['--before']===undefined?undefined:Number(v['--before']),limit});
     return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--deliverable-offset']??0)})):output(page);
   }
-  if(command==='comment'||command==='letter') {
+  if(command==='comment') {
     const {root}=await readGoalContext(id);
     await assertAnswerer(root);
-    const event=await appendAgentComment({goalId:id,type:command,...(command==='letter'?{title:v['--title'],...(v['--no-reply']?{replyRequired:false}:{})}:{ }),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
+    const event=await appendAgentComment({goalId:id,...agentMessageType(v['--ask']),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
     await noteAgentComment(root,id);
-    return output({...event,url:command==='letter'?`${url(id)}/letter/${event.id}`:url(id)});
+    return output({...event,url:event.type==='letter'?`${url(id)}/letter/${event.id}`:url(id)});
   }
   if(command==='check') return output(await checkFeedback({goalId:id,since:Number(v['--since']??0)}));
   if(command==='feedback') {

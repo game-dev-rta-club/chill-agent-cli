@@ -35,7 +35,8 @@ A Goal is read when its Conversation is shown in a visible tab; replies that
 arrive while it is shown are read too. A Goal open in a hidden tab stays unread.
 The read mark is saved in the workspace, so reading on the phone also lowers the
 count on the computer. Replies saved before this mark first existed count as
-read. Answers and explicit receipts remove a Letter; ordinary comments do not.
+read. Your next comment on a Letter's Goal answers it and removes it from the
+count, as does the agent withdrawing it.
 When nothing needs you, the count prefix disappears. A failed count request keeps
 the last known value; returning to the tab refreshes the workspace immediately.
 

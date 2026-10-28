@@ -10,8 +10,9 @@ keyPoints: >-
 
 Open a Goal and choose **More → Notifications**. The panel has two switches:
 
-- **Letters**: questions that need your answer. A Claude conversation that owns
-  a Goal asks every question as a Letter, never in its own app.
+- **Letters**: questions that need your decision. The agent marks a reply that
+  asks you to decide or approve something, and it arrives as a Letter. A Claude
+  conversation that owns a Goal never asks in its own app.
 - **Replies**: other replies from the agent, such as results and Claude
   conversation replies.
 
@@ -84,8 +85,8 @@ message-setup skill. Once Web notifications are chosen for a Root, turning its
 last device Off does not fall back to an external profile. The standalone CLI
 has no Web Push policy; chill-agent's extensions supply it.
 
-Letters have one presentation; users answer them with a Comment. Use them only when a reply,
-choice or permission is needed. Results and progress belong in Comments and
+Letters have one presentation; users answer them with a Comment on the Goal, which
+closes its open Letters. Agents use them only when a reply, choice or permission is needed. Results and progress belong in Comments and
 remain silent under the Letter-only preference. Historical no-reply Letters
 retain their original pending-count behavior. An unanswered Letter blocks only
 the work that depends on its answer, not other agreed actions.

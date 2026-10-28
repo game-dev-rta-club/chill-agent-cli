@@ -18,7 +18,7 @@ for(const storage of ['sqlite','json']){
   await run('create','--title','One');await run('create','--title','Two');
   const a=await run('comment','--id','1','--text','first');
   await run('comment','--id','2','--text','other Goal');
-  const letter=await run('letter','--id','1','--title','Ask','--text','Question');
+  const letter=await run('comment','--id','1','--ask','Ask','--text','Question');
   const gone=await run('comment','--id','1','--text','to delete');
   await run('delete-comment','--id','1','--event',String(gone.id));
   const last=await run('comment','--id','1','--text','after the deletion');

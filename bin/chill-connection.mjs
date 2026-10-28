@@ -59,7 +59,7 @@ async function main() {
   if(['create-goal','adopt','inbox','reply'].includes(action)) {
     const payload=action==='create-goal'?{title:values['--title'],scope:values['--scope']||'',criteria:values['--criteria']||''}:
       action==='adopt'?{goalId:values['--goal']}:
-      action==='reply'?{goalId:values['--goal'],text:values['--text']??await readFile(values['--text-file'],'utf8')}:{};
+      action==='reply'?{goalId:values['--goal'],text:values['--text']??await readFile(values['--text-file'],'utf8'),...(values['--ask']!==undefined?{ask:values['--ask']}:{})}:{};
     console.log((await runClaudeAction(action,payload)).text);
     return;
   }

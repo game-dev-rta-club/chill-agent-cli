@@ -208,13 +208,15 @@ test('Autonomy answers permission prompts when every Root the conversation owns 
  await setClaudePause(f.connection,true);assert.equal(await prompt(),null,'a paused conversation is not answered');
 });
 
-test('Claude feedback lists open Letters with their close command, as Codex delivery does',async t=>{
- const {appendAgentComment}=await import('../lib/goal-store.mjs');
+test('Claude feedback names --ask for decisions; the comment has already closed its Goal\'s Letter, so no close command is listed',async t=>{
+ const {appendAgentComment,readOpenLetters}=await import('../lib/goal-store.mjs');
  const f=await fixture(t);
- const letter=await appendAgentComment({goalId:f.root.id,type:'letter',title:'Pick one',text:'A or B?'});
+ await appendAgentComment({goalId:f.root.id,type:'letter',title:'Pick one',text:'A or B?'});
  await appendFeedback({goalId:f.root.id,text:'B, thanks'});
+ assert.deepEqual(await readOpenLetters(f.root.id),[]);
  const text=context(await f.action('inbox'));
- assert.match(text,/Open Letters/);assert.match(text,new RegExp(`goal close-letter --id ${f.root.id} --event ${letter.id}`));
+ assert.match(text,/connection reply --goal <goalId> --text '<reply>'\nIf your message asks the user to decide or approve something, add --ask '<what to decide>'; it then appears as a Letter\./);
+ assert.doesNotMatch(text,/Open Letters|close-letter|goal letter|stands on its own/);
 });
 
 test('a Goal whose ended response scheduled a check shows Waiting, and Check overdue long past it',async t=>{
