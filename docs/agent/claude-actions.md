@@ -47,9 +47,9 @@ Native tool permissions remain with Claude. No permission mode is changed.
 ## Preserve ownership
 
 A new Root stores `connection: {harnessId, sessionId, contextId}` and no Codex
-`threadId`. A child inherits its Root. Native-owned trees cannot be moved to
-another Root. Resume and compact retain the context ID; startup, clear and fork
-replace it.
+`threadId`. A child inherits its Root, so Goals moved into another Root, even a
+whole Root, belong to that Root's owner (see [Move Goals between Roots](../workspace/goals.md#move-goals-between-roots)).
+Resume and compact retain the context ID; startup, clear and fork replace it.
 
 When Claude continues a conversation in a new session, for example after its
 context limit, the new session owns nothing. If the user asks it to continue a

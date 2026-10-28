@@ -11,6 +11,11 @@ import {projectRoot,sameProject} from '../lib/project-root.mjs';
 import {projectDirectory} from '../lib/project-workspace.mjs';
 import {configureClaudeHooks} from '../lib/claude-setup.mjs';
 import {claudeHook} from './claude-fixtures.mjs';
+import {setRootAutonomy,rootAutonomy} from '../lib/root-autonomy.mjs';
+import {readWorkspaceTheme,saveWorkspaceTheme} from '../lib/workspace-theme.mjs';
+import {storage} from '../lib/extension-api.mjs';
+import {themes} from '../public/theme-catalog.js';
+const readWorkspaceThemeChoice=themes.find(t=>t.id!=='gradient-mint').id;
 
 async function fixture(t) {
   const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-claude-join-')));
@@ -107,6 +112,72 @@ test('taking over works while the earlier owner still watches, and is refused fo
   await assert.rejects(act('adopt',{goalId:'x'},after),/Invalid Goal ID/);
 });
 
+test('a Root moves under another conversation\'s Goal: its Goals follow that Root, and comments not handed yet go to its agent',async t=>{
+  const f=await fixture(t);
+  const connect=async sessionId=>{const env={CLAUDE_CODE_SESSION_ID:sessionId};await f.join(env);return env;};
+  const mover=await connect('mover'),host=await connect('host');
+  await act('create-goal',{title:'Host',scope:'',criteria:''},host);
+  await act('create-goal',{title:'Moving',scope:'',criteria:''},mover);
+  const goals=await listGoals(),hostRoot=goals.find(g=>g.title==='Host'),root=goals.find(g=>g.title==='Moving');
+  const child=await createGoal({title:'Its child',parentId:root.id});
+  const handed=await appendFeedback({goalId:child.id,text:'Handed to the mover'});
+  assert.match(await act('inbox',{},mover),new RegExp(`"eventId":${handed.changeId}`));
+  const hostHanded=await appendFeedback({goalId:hostRoot.id,text:'Handed to the host'});
+  const waiting=await appendFeedback({goalId:child.id,text:'Not handed yet'});
+  assert.match(await act('inbox',{},host),new RegExp(`"eventId":${hostHanded.changeId}`));
+  await setRootAutonomy(root.id,2);
+  await saveWorkspaceTheme({rootId:root.id,theme:readWorkspaceThemeChoice});
+  const notices=storage('web-notifications');await notices.write('1',{version:2,keys:null,devices:{},roots:{[root.id]:{devices:{}}},jobs:{},claims:{}});
+  const place=await createGoal({title:'Place',parentId:hostRoot.id});
+  await updateGoal(place.id,{state:'done'});
+  await updateGoal(root.id,{parentId:place.id});
+  const moved=await readGoal(root.id);
+  assert.equal(moved.parentId,place.id);assert.equal(moved.connection,undefined,'its Goals follow the destination Root\'s agent');
+  assert.equal((await readGoal(place.id)).state,'idle','a Done parent reopens');
+  const inbox=await act('inbox',{},host);
+  assert.match(inbox,new RegExp(`"eventId":${waiting.changeId}`),'a comment its earlier agent never received reaches the new one');
+  const [fresh,earlier]=inbox.split('Handed to you earlier and still awaiting your reply:');
+  assert.doesNotMatch(fresh,new RegExp(`"eventId":(${handed.changeId}|${hostHanded.changeId})\\b`),'what either agent already received is not handed again');
+  assert.match(earlier,new RegExp(`"eventId":${handed.changeId}\\b`),'what the earlier agent received but did not answer is listed as earlier');
+  assert.match(await act('inbox',{},mover),/Nothing awaits a reply/);
+  await assert.rejects(act('reply',{goalId:child.id,text:'Still mine?'},mover),/belongs to another conversation/);
+  const data=join(process.env.CHILL_AGENT_DATA_DIR,'workspace');
+  for(const folder of ['hand-off','continuation'])assert.equal(await readJson(join(data,folder,`${root.id}.json`)),null,`${folder} is dropped`);
+  assert.equal((await readWorkspaceTheme()).roots[root.id],undefined,'its own look is dropped');
+  assert.equal((await notices.read('1')).roots[root.id],undefined,'its notifications are dropped');
+  await updateGoal(root.id,{parentId:null});
+  const again=await readGoal(root.id);
+  assert.equal(again.connection.sessionId,'host','leaving again, it stays with the agent it moved to');
+  assert.equal(await rootAutonomy(again),1,'Autonomy starts from Normal');
+});
+
+test('a comment the earlier agent never received is not skipped when it is older than the new agent\'s cursor',async t=>{
+  const f=await fixture(t);
+  const connect=async sessionId=>{const env={CLAUDE_CODE_SESSION_ID:sessionId};await f.join(env);return env;};
+  const mover=await connect('mover'),host=await connect('host');
+  await act('create-goal',{title:'Host',scope:'',criteria:''},host);
+  await act('create-goal',{title:'Moving',scope:'',criteria:''},mover);
+  const goals=await listGoals(),hostRoot=goals.find(g=>g.title==='Host'),root=goals.find(g=>g.title==='Moving');
+  await act('inbox',{},mover);await act('inbox',{},host);
+  const older=await appendFeedback({goalId:root.id,text:'Saved while the mover was away'});
+  const newer=await appendFeedback({goalId:hostRoot.id,text:'Handed to the host'});
+  assert.match(await act('inbox',{},host),new RegExp(`"eventId":${newer.changeId}`));
+  await updateGoal(root.id,{parentId:hostRoot.id});
+  const [fresh]=(await act('inbox',{},host)).split('Handed to you earlier');
+  assert.match(fresh,new RegExp(`"eventId":${older.changeId}\\b`));
+});
+
+test('an archived Root is restored before it moves; a Root with a chat leaves the chat behind',async t=>{
+  await fixture(t);
+  const target=await createGoal({title:'Target'}),archived=await createGoal({title:'Archived'});
+  await updateGoal(archived.id,{archived:true});
+  await assert.rejects(updateGoal(archived.id,{parentId:target.id}),/Restore the archived Root before moving it/);
+  const chat=await createGoal({title:'Chat'});
+  await updateGoal(chat.id,{threadId:'00000000-0000-4000-8000-000000000001'});
+  await updateGoal(chat.id,{parentId:target.id});
+  assert.equal((await readGoal(chat.id)).threadId,null);
+});
+
 test('a Split Goal leaves its Root with its history and another conversation takes it over',async t=>{
   const f=await fixture(t);
   const connect=async sessionId=>{const env={CLAUDE_CODE_SESSION_ID:sessionId};await f.join(env);return env;};
@@ -117,7 +188,6 @@ test('a Split Goal leaves its Root with its history and another conversation tak
   const handed=await appendFeedback({goalId:request.id,text:'Already handed'});
   assert.match(await act('inbox',{},owner),new RegExp(`"eventId":${handed.changeId}`));
   const ask=await createGoal({title:'Ask',parentId:web.id}),waiting=await appendFeedback({goalId:ask.id,text:'Not handed yet'});
-  await assert.rejects(updateGoal(web.id,{parentId:(await createGoal({title:'Elsewhere'})).id}),/Cannot move Goals between native conversations/);
   await updateGoal(web.id,{parentId:null});
   const detached=await readGoal(web.id);
   assert.equal(detached.parentId,null);assert.equal(detached.connection.sessionId,'owner','it stays with the same conversation');

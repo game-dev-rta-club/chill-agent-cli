@@ -1,6 +1,7 @@
 ---
 keyPoints: >-
   A Goal records an outcome and its criteria; children inherit the root's chat.
+  Goals moved into another Root, a whole Root too, follow that Root's agent and settings.
   Done requires every descendant to be Done, while progress counts completed leaves.
   Autonomy is set per agent (per Root): Normal, Auto Continue or Ultra Continue, from any Goal's comment box.
 ---
@@ -31,6 +32,22 @@ The store rejects Done while any descendant is unfinished. Completing children
 does not complete their parent: check the parent's own criteria, record the
 result, then mark it Done. A new child, a move under a Done ancestor, or reopening
 a Done child reopens Done ancestors.
+
+## Move Goals between Roots
+
+`goal update` with a `parentId` moves a Goal, with its Split Goals, under any
+Goal, also one in another Root and also when the moved Goal is a Root itself.
+The moved Goals then follow the destination Root: its agent receives and answers
+their comments, and its Autonomy, notifications and look apply. A comment the
+earlier agent was never handed goes to the new one once; one it was handed and
+did not answer is listed to the new one as earlier. The earlier agent can no
+longer reply there.
+
+A Root that moves drops what it kept as a Root: its conversation or chat, its
+Autonomy, notification choice and look. If it becomes a Root again
+(`{"parentId":null}`), it stays with the agent it moved to and starts from the
+defaults. Restore an archived Root before moving it. IDs, Conversation and
+Deliverables stay. The Web has no move control; ask the agent.
 
 Progress counts leaf Goals equally. Two Done leaves out of three contribute 67%,
 regardless of how deeply they are nested. An unfinished Goal is capped at 99%:

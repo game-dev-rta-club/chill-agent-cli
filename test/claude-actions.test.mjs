@@ -82,8 +82,9 @@ test('Root creation stays single when retried with the same ID',async t=>{
   await assert.rejects(updateGoal(first.id,{threadId:randomUUID()}),/reassigned/);
   await assert.rejects(assignGoal(first.id,null),/Reassignment/);
   const other=await createGoal({title:'Other'}),child=await createGoal({title:'Child',parentId:first.id});
-  await assert.rejects(updateGoal(first.id,{parentId:other.id}),/reassigned/);
-  await assert.rejects(updateGoal(child.id,{parentId:other.id}),/between native/);
+  await updateGoal(child.id,{parentId:other.id});
+  await updateGoal(first.id,{parentId:other.id});
+  assert.equal((await readGoal(first.id)).connection,undefined,'a Root moved under another Goal follows that Root');
 });
 
 test('two Roots and a child hand their comments to the same conversation, and only a reply answers them',async t=>{
