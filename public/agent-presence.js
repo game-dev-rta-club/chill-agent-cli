@@ -1,9 +1,11 @@
 import {isRunning} from './goal-state.js';
-const labels={working:'Running',idle:'Idle',paused:'Paused',interrupted:'Interrupted',unknown:'Status unavailable',unlinked:'Not connected'};
-const displayState=status=>isRunning(status)?'working':status;
-export const presenceLabel=status=>labels[displayState(status)]||labels.unknown;
-export function presenceMark(status){
- status=displayState(status);
+const labels={working:'Running',waiting:'Waiting',idle:'Idle',paused:'Paused',interrupted:'Interrupted',unknown:'Status unavailable',unlinked:'Not connected'};
+// Its own work ended while subagents it started run on, or it waits for a check
+// it scheduled: Waiting, as both wake it later.
+const displayState=(status,data)=>isRunning(status)?(data?.background?.length?'waiting':'working'):status==='idle'&&data?.wake?'waiting':status;
+export const presenceLabel=(status,data)=>labels[displayState(status,data)]||labels.unknown;
+export function presenceMark(status,data){
+ status=displayState(status,data);
  const state=Object.hasOwn(labels,status)?status:'unknown';
  const shape=state==='paused'?'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 4v8m6-8v8"/></svg>':state==='unknown'?'<span aria-hidden="true">?</span>':'<span class="dot" aria-hidden="true"></span>';
  return `<span class="status ${state}" aria-hidden="true">${shape}</span>`;
@@ -13,7 +15,7 @@ export function createAgentPresence({button,getGoalId}){
  let request=0,controller=null,busy=false,routeGoalId=null,checkedAt=0;
  const tooltip=document.getElementById('agent-tooltip');
  function render(data){
-  const status=displayState(data.status)||'unknown';button.dataset.state=status;button.removeAttribute('title');
+  const status=displayState(data.status,data)||'unknown';button.dataset.state=status;button.removeAttribute('title');
   if(tooltip){tooltip.replaceChildren(document.createTextNode(`Agent · ${presenceLabel(status)}`));const hint=document.createElement('small');hint.textContent='Activity, settings, and usage.';tooltip.append(hint);}
   window.dispatchEvent(new CustomEvent('chill-agent-presence',{detail:{routeGoalId:getGoalId(),...data}}));
  }

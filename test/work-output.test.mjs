@@ -101,8 +101,8 @@ test('a comment shows a mark only until its Goal has a reply, and the agent show
   assert.equal(activityDisplay({status:'idle',work:{messages:[]}}),null,'nothing to show where the agent did nothing');
   assert.equal(activityDisplay({status:'running',work:{live:true,messages:[]}}).live,true);
   const background=activityDisplay({status:'running',background:[{id:'a1',type:'subagent',name:'general-purpose',description:'Review',activeAt:'2026-10-19T10:47:00Z'},{id:'m1',type:'monitor',name:'ci watch',description:null,activeAt:null}],work:{live:true,messages:[]}},Date.parse('2026-10-19T10:50:00Z'));
-  assert.equal(background.label,'Background','a response that ended with background tasks is not shown as Running');
-  assert.equal(background.description,'The response ended. Still running: subagent (general-purpose): Review, active 3 min ago; monitor (ci watch).');
+  assert.equal(background.label,'Waiting · 2','a response that ended with background tasks waits on them, not Running');
+  assert.deepEqual(background.items,[{kind:'Subagent',text:'Review',when:'active 3 min ago'},{kind:'Monitor',text:'ci watch',when:''}]);
   assert.equal(background.live,false);
 });
 

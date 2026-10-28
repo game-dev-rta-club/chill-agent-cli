@@ -24,25 +24,37 @@ const activityDescriptions = {
   interrupted: 'Stopped in the agent’s own app. It runs again with its next work.',
   unknown: 'Could not read the agent.',
 };
-// A check the agent scheduled turns Ended into Waiting; one long past its time
-// means nothing is left to wake the agent.
+// What the agent waits on once its own work has ended: the subagents it left
+// running, and the checks it scheduled (connection wake), earliest first. Each
+// shows one line; a check's full reason folds under it.
 const overdueMs = 5 * 60 * 1000;
 export const isWaitingOnCheck = (wake, now = Date.now()) => Boolean(wake) && now - Date.parse(wake.at) <= overdueMs;
-function waitingDisplay({at, reason}, now) {
-  const due = Date.parse(at), time = new Date(due).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
-  if (!isWaitingOnCheck({at}, now)) return {state: 'unknown', label: 'Check overdue', description: `${reason ? `${reason}. ` : ''}The check was due at ${time}.`, live: false};
-  return {state: 'waiting', label: 'Waiting', description: `${reason ? `${reason}. ` : ''}Checks again at ${time}.`, live: false};
+const clockTime = at => new Date(Date.parse(at)).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
+// The first sentence or line of a reason, which the agent writes for itself.
+export const firstLine = text => String(text || '').trim().split(/\n|(?<=。)|(?<=\.)\s/)[0].trim();
+// The list itself, shared by the Goal page and the Agent menu.
+const escapeText = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+export const waitListMarkup = items => items.length ? `<ul class="wait-list">${items.map(item => `<li${item.overdue ? ' data-overdue' : ''}><span class="wait-kind">${escapeText(item.kind)}</span><span class="wait-text">${escapeText(item.text)}</span><span class="wait-when">${escapeText(item.when)}</span>${item.detail ? `<details class="wait-detail"><summary>Details</summary><p>${escapeText(item.detail)}</p></details>` : ''}</li>`).join('')}</ul>` : '';
+export function waitItems(activity, now = Date.now()) {
+  const ago = at => { const ms = now - Date.parse(at); return ms < 60000 ? 'just now' : `${Math.round(ms / 60000)} min ago`; };
+  const kind = type => /agent/i.test(type || '') ? 'Subagent' : type ? type[0].toUpperCase() + type.slice(1) : 'Task';
+  const tasks = (activity?.background || []).map(task => ({kind: kind(task.type), text: task.description || task.name || task.type || 'Background task',
+    when: task.since ? `since ${clockTime(task.since)}` : task.activeAt ? `active ${ago(task.activeAt)}` : ''}));
+  const wakes = (activity?.wakes || (activity?.wake ? [activity.wake] : [])).map(wake => {
+    const line = firstLine(wake.reason), overdue = !isWaitingOnCheck(wake, now);
+    return {kind: 'Check', text: line || 'No reason given', when: `${overdue ? 'was due' : 'at'} ${clockTime(wake.at)}`, detail: wake.reason && wake.reason.trim() !== line ? wake.reason.trim() : '', overdue};
+  });
+  return [...tasks, ...wakes];
 }
-// A response that ended while its background tasks run on: each task as the
-// agent's app names it, and when a subagent last wrote.
-const ago = ms => ms < 60000 ? 'just now' : `${Math.round(ms / 60000)} min ago`;
-function backgroundDisplay(tasks, now) {
-  const items = tasks.map(task => `${task.type}${task.name ? ` (${task.name})` : ''}${task.description ? `: ${task.description}` : ''}${task.activeAt ? `, active ${ago(now - Date.parse(task.activeAt))}` : ''}`);
-  return {state: 'background', label: 'Background', description: `The response ended. Still running: ${items.join('; ')}.`, live: false};
+function waitingDisplay(activity, now) {
+  const items = waitItems(activity, now);
+  // Only checks, and the earliest long past its time: nothing is left to wake the agent.
+  if (!activity.background?.length && items[0]?.overdue) return {state: 'unknown', label: 'Check overdue', description: 'The check was due, and nothing has woken the agent.', items, live: false};
+  return {state: 'waiting', label: items.length > 1 ? `Waiting · ${items.length}` : 'Waiting', description: '', items, live: false};
 }
 export function activityDisplay(activity, now = Date.now()) {
-  if (activity?.status === 'idle' && activity.wake) return waitingDisplay(activity.wake, now);
-  if (activity?.status === 'running' && activity.background?.length) return backgroundDisplay(activity.background, now);
+  // Its own work ended and it waits on checks or on subagents it left running.
+  if (activity?.status === 'idle' && activity.wake || activity?.status === 'running' && activity.background?.length) return waitingDisplay(activity, now);
   if (!activity || activity.status === 'idle' && !activity.work?.messages?.length) return null;
   return {state: activity.status, label: activityLabels[activity.status] || activityLabels.unknown, description: activityDescriptions[activity.status] || '',
     live: activity.status === 'running' && activity.work?.live !== false};
