@@ -21,6 +21,7 @@ unread replies that were notified; on the Goals index it includes all Roots. Eac
 entry opens its message. **Mark all read** reads the listed Replies; Letters stay
 until answered. The envelope shows a muted zero when empty and a highlighted count
 of both when anything waits. Goals navigation lives inside More, even without extensions.
+The Goals index lists Root Goals newest first.
 
 The browser tab shows the current Root's title and how many messages need you,
 including all descendants: `(2) Root title · chill`. The count adds unread replies
