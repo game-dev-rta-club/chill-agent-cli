@@ -9,6 +9,8 @@ test('a code connects one device once; the panel shows the same code until it is
  const code=await access.code();
  assert.match(code,/^[0-9]{6}$/);
  assert.equal(await access.code(),code);
+ const issued=await access.issued();
+ assert.equal(issued.code,code);assert.ok(Date.parse(issued.expiresAt)>Date.now());
  const session=await access.connect(`${code.slice(0,3)} ${code.slice(3)}`,{device:'iPhone · Safari'});
  assert.ok(session);
  assert.equal(await access.connected(session),true);

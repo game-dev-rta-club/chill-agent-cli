@@ -2,7 +2,8 @@
 keyPoints: >-
   More → Public link opens access controls and a QR. The QR opens the link; the device
   connects once with the panel's 6-digit access code, hidden until Show, which the
-  computer and connected devices show. Every open page announces a new connection
+  computer and connected devices show; an agent prints the same code with
+  chill settings access-code. Every open page announces a new connection
   at once. Connected devices are listed; only the computer disconnects them. Fixed URLs and Access are prepared in the
   user's own Cloudflare CLI.
 ---
@@ -21,11 +22,26 @@ A device already connected shows the same panel and code, so it can let in
 another device away from the computer. Turning the link On or Off and
 disconnecting devices stay on the computer.
 
+## Ask your agent for the code
+
+Away from the computer, ask your agent for the access code. It runs:
+
+```sh
+chill settings access-code
+```
+
+and passes on the code and the link. This is the code the panel shows, with the
+time it ends (`expiresAt`). While the link is Off or its tunnel is not running
+the command fails instead of making a code; turning the link On stays with you,
+on the computer. Anyone who has the code and the link can connect, so the agent
+gives it only to you, through the conversation you asked in.
+
 ## Who can open it
 
 A device opens the workspace only after it connects with the access code. The
 code has six digits, like the one-time codes of two-step sign-in, and exists
-only while a panel shows it, on the computer or a connected device. It works once, changes after 10
+only while a panel shows it, on the computer or a connected device, or an agent
+asks for it. It works once, changes after 10
 minutes, stops working after five wrong tries and ends when you turn the link On or Off; opening the panel then shows a new one. No account is
 created: the device keeps a cookie, and the panel lists it under **Connected
 devices** with its system, browser and time of connection. When a device
