@@ -15,10 +15,10 @@ function settingsMarkup(data){
 function timeMarkup(at,seconds=false){
  const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString('en-US'))}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}))}</time>`;
 }
-// A response that ended while it waits on subagents it left running or on
-// checks it scheduled (agent wake) lists each, as the Goal page does.
+// An idle agent waiting on checks it scheduled (agent wake), and a running one
+// with subagents it left running, list each, as the Goal page does.
 const clock='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/></svg>';
-const waitsOn=work=>work?.status==='idle'&&work.wake||isRunning(work?.status)&&work?.background?.length;
+const waitsOn=work=>work?.status==='idle'&&work.wake;
 function waitMarkup(work){
  const items=waitItems(work),overdue=!work.background?.length&&!isWaitingOnCheck(work.wake);
  return `<span class="agent-run-state"><span class="status ${overdue?'unknown':'waiting'}" aria-hidden="true">${clock}</span>${overdue?'Check overdue':items.length>1?`Waiting · ${items.length}`:'Waiting'}</span>${waitListMarkup(items)}`;
@@ -26,7 +26,7 @@ function waitMarkup(work){
 function workMarkup(work,root={}){
  const active=isRunning(work?.status)||work?.status==='paused';
  const id=work?.goalId||root.rootId,title=work?.goalId?work.title:root.rootTitle;
- return `${waitsOn(work)?waitMarkup(work):`<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>`}${!active&&!root.recent?.length&&work?.last?.goalId?`<a class="agent-work-link" href="#/goal/${esc(work.last.goalId)}${work.last.eventId?`/activity/${esc(work.last.eventId)}`:''}">Last · #${esc(work.last.goalId)} ${esc(work.last.title||'Goal')} →</a>`:''}${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}${work?.goalId&&work.eventId?`/activity/${esc(work.eventId)}`:''}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
+ return `${waitsOn(work)?waitMarkup(work):`<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${isRunning(work?.status)&&work?.background?.length?waitListMarkup(waitItems(work)):''}`}${!active&&!root.recent?.length&&work?.last?.goalId?`<a class="agent-work-link" href="#/goal/${esc(work.last.goalId)}${work.last.eventId?`/activity/${esc(work.last.eventId)}`:''}">Last · #${esc(work.last.goalId)} ${esc(work.last.title||'Goal')} →</a>`:''}${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}${work?.goalId&&work.eventId?`/activity/${esc(work.eventId)}`:''}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
 }
 function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div class="agent-auto-meta">${timeMarkup(entry.at)}<span>${esc(entry.result?.label||entry.status)}</span></div><p>${esc(entry.summary)}</p>${entry.detail?`<p class="agent-muted">${esc(entry.detail)}</p>`:''}${entry.message?`<details data-agent-detail="${esc(id)}"><summary>View message</summary><pre class="agent-auto-message">${esc(entry.message)}</pre></details>`:'<p class="agent-muted">Message not saved.</p>'}</article>`;}
 export function runActivityMarkup(controls){

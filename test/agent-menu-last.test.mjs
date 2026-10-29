@@ -35,10 +35,10 @@ test('Activity shows what a waiting agent waits for and when it checks again',()
  const late=agentMarkup({...base,work:{status:'idle',goalId:null,wake:{at:new Date(Date.now()-10*60000).toISOString(),reason:''}}});
  assert.match(late,/Check overdue<\/span><ul class="wait-list"><li data-overdue><span class="wait-kind">Check<\/span><span class="wait-text">No reason given<\/span><span class="wait-when">was due /);
  assert.match(agentMarkup({...base,work:{status:'working',goalId:null,wake:{at,reason:'x'}}}),/Running/,'a running agent is not waiting');
- // Its own work ended while a subagent it started runs on: it waits on it, and on its checks.
+ // Its own work ended while a subagent it started runs on: still Running, with it and its checks listed.
  const since=new Date(Date.now()-5*60000).toISOString(),reason='Goal #104: count. Then add it.';
  const sub=agentMarkup({...base,work:{status:'working',goalId:null,background:[{id:'a1',type:'subagent',description:'Implement --ask',since}],wake:{at,reason},wakes:[{at,reason}]}});
- assert.match(sub,/Waiting · 2<\/span><ul class="wait-list"><li><span class="wait-kind">Subagent<\/span><span class="wait-text">Implement --ask<\/span><span class="wait-when">since /);
+ assert.match(sub,/Running<\/span><ul class="wait-list"><li><span class="wait-kind">Subagent<\/span><span class="wait-text">Implement --ask<\/span><span class="wait-when">since /);
  assert.match(sub,/<span class="wait-text">Goal #104: count\.<\/span>.*<details class="wait-detail"><summary>Details<\/summary><p>Goal #104: count\. Then add it\.<\/p>/);
- assert.doesNotMatch(sub,/>Running</);
+ assert.doesNotMatch(sub,/Waiting/);
 });
