@@ -119,8 +119,8 @@ try {
   assert.equal(await cards().count(),51);
   // Multiple older unanswered Letters stay visible on entry, reload and collapse.
   const open=[];
-  for(let i=0;i<3;i++)open.push(await run('comment','--id','1','--ask',`Pending choice ${i}`,'--text','A question for later.'));
-  for(let i=0;i<10;i++)await run('comment','--id','1','--text',`Later discussion ${i}`);
+  for(let i=0;i<3;i++)open.push(await run('reply','--id','1','--ask',`Pending choice ${i}`,'--text','A question for later.'));
+  for(let i=0;i<10;i++)await run('reply','--id','1','--text',`Later discussion ${i}`);
   await page.goto(`${url}/#/goal/1`);await page.reload();await main().waitFor();await loadHistory();
   for(const letter of open)assert.equal(await page.locator(`#event-${letter.id}`).count(),1);
   assert.equal(await cards().count(),7,'latest three plus every unanswered Letter');

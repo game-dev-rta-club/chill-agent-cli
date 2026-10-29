@@ -16,7 +16,7 @@ function timeMarkup(at,seconds=false){
  const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString('en-US'))}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}))}</time>`;
 }
 // A response that ended while it waits on subagents it left running or on
-// checks it scheduled (connection wake) lists each, as the Goal page does.
+// checks it scheduled (agent wake) lists each, as the Goal page does.
 const clock='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/></svg>';
 const waitsOn=work=>work?.status==='idle'&&work.wake||isRunning(work?.status)&&work?.background?.length;
 function waitMarkup(work){

@@ -39,7 +39,7 @@ test('review CLI returns an index, not Deliverable or conversation bodies, with 
  await run('create','--title','Unrelated');
  const brief=JSON.parse(await run('deliverable','path','--id',leaf.id));
  await writeFile(brief.path,'Unique leaf Deliverable');await run('deliverable','update','--id',leaf.id);
- await run('comment','--id',child.id,'--ask','Question title','--text','Question detail');
+ await run('reply','--id',child.id,'--ask','Question title','--text','Question detail');
  const patch=join(dir,'patch.json');await writeFile(patch,JSON.stringify({state:'done'}));await run('update','--id',leaf.id,'--input-file',patch);
  const text=await run('review','--id',root.id);
  assert.deepEqual([...text.matchAll(/^\s*#(\d+) \[/gm)].map(m=>m[1]),[root.id,child.id,leaf.id]);
@@ -56,7 +56,7 @@ test('show CLI defaults to five messages only in ordinary text browsing; since a
  const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
  const run=async(...args)=>(await exec(process.execPath,[cli,...args],{env})).stdout;
  await run('create','--title','Root');
- for(let i=0;i<8;i++)await run('comment','--id','1','--text',`Item ${i}`);
+ for(let i=0;i<8;i++)await run('reply','--id','1','--text',`Item ${i}`);
  assert.equal((await run('show','--id','1','--format','text')).match(/^comment \d+ \(\d+\) · agent/gm).length,5);
  assert.equal((await run('show','--id','1','--format','text','--since','0')).match(/^comment \d+ \(\d+\) · agent/gm).length,8);
  assert.equal((await run('show','--id','1','--format','text','--full')).match(/^comment \d+ \(\d+\) · agent/gm).length,8);

@@ -40,7 +40,9 @@ async function fixture(t, duration = '800ms', extra = {}, args = [], remote) {
   });
   t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM'); await exited; });
   const url = await ready;
-  const run = args => execute(process.execPath, [cli, ...args], {env});
+  // The CLI runs as the user's shell unless a test names the chat.
+  const {CODEX_THREAD_ID:_chat,...shell}=env;
+  const run = (args,extra={}) => execute(process.execPath, [cli, ...args], {env:{...shell,...extra}});
   return { root, child, url, env, exited, run, output: () => output };
 }
 
@@ -217,7 +219,7 @@ test('opening the page, interaction and CLI mutations renew the idle deadline; C
     () => fetch(f.url + '/api/activity', {method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'}),
     () => f.run(['create','--title','TTL']),
     () => f.run(['deliverable','update','--id','1']),
-    () => f.run(['comment','--id','1','--text','Still working']),
+    () => f.run(['reply','--id','1','--text','Still working']),
   ]) {
     await delay(50); // distinct file times
     await action();
@@ -266,7 +268,7 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   await usedChat(f.root,{turns:[{id:'00000000-0000-0000-0000-000000000077',status:'inProgress',completedAt:null}]});
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>Pending delivery</p>');
-  await f.run(['create','--title','Pending delivery','--thread-id',threadId]);
+  await f.run(['create','--title','Pending delivery'],{CODEX_THREAD_ID:threadId});
   await f.run(['deliverable','update','--id','1']);
   const response = await fetch(f.url + '/api/goals/1/feedback', {method:'POST',
     headers:{Origin:f.url,'Content-Type':'application/json'},

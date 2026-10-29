@@ -25,7 +25,7 @@ test('empty Goals accept Conversation; stable Markdown updates only publish chan
  const f=await fixture(t),goal=await f.run('create','--title','Stable Goal');
  assert.equal(await readFile(goal.deliverablePath,'utf8'),'');
  assert.equal((await f.run('show','--id','1')).deliverable,null);
- await f.run('comment','--id','1','--text','Before Deliverable');
+ await f.run('reply','--id','1','--text','Before Deliverable');
  const first=await f.brief('1','# Plan\n\nOriginal'),path=join(f.root,'workspace/goals/1/briefs/v1.json'),bytes=await readFile(path,'utf8');
  assert.equal(first.changed,true);
  await assert.rejects(f.invoke('deliverable','update','--id','1'),error=>/Not published: .*deliverable\.html is the same as v1\./.test(error.stderr)&&error.code===1,'an unchanged file fails so a failed edit is noticed');
@@ -33,7 +33,7 @@ test('empty Goals accept Conversation; stable Markdown updates only publish chan
  await writeFile(goal.deliverablePath,'# Plan\n\nEdited');
  assert.equal((await f.run('show','--id','1')).deliverable.body,'# Plan\n\nOriginal','unpublished edits stay local');
  await f.run('deliverable','update','--id','1');
- await f.run('comment','--id','1','--text','After update');
+ await f.run('reply','--id','1','--text','After update');
  const past=await f.run('show','--id','1','--version','1');
  assert.equal(past.goal.title,'Stable Goal');assert.equal(past.deliverable.body,first.body);
  assert.equal(past.conversation.length,2);assert.equal(past.latestVersion,2);
@@ -52,16 +52,16 @@ test('publishing a Deliverable without layout succeeds with a one-line visual-fi
   assert.equal((await publish(body,'html')).hint,undefined,body);
  assert.equal((await publish('','html')).hint,undefined,'clearing the Deliverable needs no hint');
 });
-test('a Letter is a comment with --ask; goal letter is gone and names its replacement',async t=>{
+test('a Letter is a reply with --ask; the old comment, letter and assign commands are gone',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');
- await assert.rejects(f.invoke('letter','--id','1','--title','Which way?','--text','A question'),error=>/goal letter was removed[\s\S]*--ask/.test(error.stderr));
- await assert.rejects(f.run('comment','--id','1','--title','title','--text','x'),/Unknown option/);
- await assert.rejects(f.run('comment','--id','1','--ask',' ','--text','x'),/Letter title must be nonempty/);
- await assert.rejects(f.run('comment','--id','1','--ask','Which\nway?','--text','x'),/one line/);
- for(const command of ['note','reply','reopen'])await assert.rejects(f.run(command,'--id','1'),/Unknown command/);
- const letter=await f.run('comment','--id','1','--ask','Which way?','--text','Would you prefer A or B?');
+ await assert.rejects(f.invoke('letter','--id','1','--title','Which way?','--text','A question'),error=>/Unknown command: goal letter/.test(error.stderr));
+ await assert.rejects(f.run('reply','--id','1','--title','title','--text','x'),/Unknown option/);
+ await assert.rejects(f.run('reply','--id','1','--ask',' ','--text','x'),/Letter title must be nonempty/);
+ await assert.rejects(f.run('reply','--id','1','--ask','Which\nway?','--text','x'),/one line/);
+ for(const command of ['note','comment','assign','reopen'])await assert.rejects(f.run(command,'--id','1'),/Unknown command/);
+ const letter=await f.run('reply','--id','1','--ask','Which way?','--text','Would you prefer A or B?');
  assert.equal(letter.type,'letter');assert.equal(letter.title,'Which way?');assert.match(letter.url,new RegExp(`/goal/1/letter/${letter.id}$`));
- const plain=await f.run('comment','--id','1','--text','Progress');assert.equal(plain.type,'comment');assert.equal(plain.title,undefined);assert.doesNotMatch(plain.url,/letter/);
+ const plain=await f.run('reply','--id','1','--text','Progress');assert.equal(plain.type,'comment');assert.equal(plain.title,undefined);assert.doesNotMatch(plain.url,/letter/);
  const page=await f.run('show','--id','1');assert.deepEqual(page.letters.map(l=>l.id),[letter.id]);assert.equal(page.deliverable,null);
  assert.equal(page.conversation[0].type,'letter');assert.equal(page.conversation[0].version,undefined);
  assert.equal((await f.run('tree'))[0].letterCount,1);
@@ -69,9 +69,9 @@ test('a Letter is a comment with --ask; goal letter is gone and names its replac
 for(const storage of ['json','sqlite'])test(`${storage}: a user comment on the Goal closes its open Letters, whatever it says; nothing else does`,async t=>{
  const {unanswered}=await import('../lib/agent-rules.mjs');
  const f=await fixture(t,storage);await f.run('create','--title','Root');await f.run('create','--title','Child','--parent','1');
- const a=await f.run('comment','--id','1','--ask','A','--text','A?'),b=await f.run('comment','--id','1','--ask','B','--text','B?');
- const child=await f.run('comment','--id','2','--ask','Child','--text','Child?');
- await f.brief('1','Plan');await f.run('comment','--id','1','--text','Progress');
+ const a=await f.run('reply','--id','1','--ask','A','--text','A?'),b=await f.run('reply','--id','1','--ask','B','--text','B?');
+ const child=await f.run('reply','--id','2','--ask','Child','--text','Child?');
+ await f.brief('1','Plan');await f.run('reply','--id','1','--text','Progress');
  assert.equal((await f.run('tree'))[0].letterCount,3,'Deliverable updates and agent Comments leave Letters open');
  const answer=await f.feedback('1',{text:'About something else',requestId:'answer-request-01'});
  let page=await f.run('show','--id','1');
@@ -80,11 +80,11 @@ for(const storage of ['json','sqlite'])test(`${storage}: a user comment on the G
  assert.deepEqual(unanswered(page.conversation).map(e=>e.id),[answer.id],'closing the Letters does not reply to the comment');
  assert.equal((await f.feedback('1',{text:'About something else',requestId:'answer-request-01'})).id,answer.id,'a retried comment is saved once');
  const delta=await f.run('show','--id','1','--since',String(answer.id));assert.deepEqual(delta.conversation.map(e=>e.id).sort(),[a.id,b.id].sort(),'readers learn of the closed Letters');
- const followup=await f.run('comment','--id','1','--ask','One more','--text','Another choice?');
+ const followup=await f.run('reply','--id','1','--ask','One more','--text','Another choice?');
  assert.deepEqual((await f.run('show','--id','1')).letters.map(l=>l.id),[followup.id,child.id],'a comment before a Letter does not close it');
  const annotated=await f.feedback('1',{annotations:[{kind:'text',source:{kind:'comment',eventId:followup.id},anchor:{start:0,end:7,quote:'Another'},text:'A note about the wording'}]});
  assert.equal((await f.run('show','--id','1')).conversation.find(e=>e.id===followup.id).answeredBy,annotated.id,'an annotation on the Letter is a comment on its Goal');
- const last=await f.run('comment','--id','1','--ask','Last','--text','Last choice?');
+ const last=await f.run('reply','--id','1','--ask','Last','--text','Last choice?');
  const reply=await f.feedback('1',{text:'Last answer',annotations:[{kind:'letter',source:{kind:'comment',eventId:last.id},text:'This one'}]});
  page=await f.run('show','--id','1');assert.equal(page.conversation.find(e=>e.id===last.id).answeredBy,reply.id);
  assert.equal((await f.run('tree'))[0].letterCount,1);
@@ -94,7 +94,7 @@ for(const storage of ['json','sqlite'])test(`${storage}: a user comment on the G
  await assert.rejects(f.feedback('1',{annotations:[{kind:'letter',source:{kind:'comment',eventId:a.id},text:'One'},{kind:'letter',source:{kind:'comment',eventId:a.id},text:'Two'}]}),/once per comment/);
  await assert.rejects(f.feedback('1',{answers:[{letterId:a.id,text:'Old format'}]}),/Unknown Conversation field/);
  await assert.rejects(f.feedback('1',{annotations:[{kind:'letter',source:{kind:'brief',eventId:a.id},text:'Wrong source'}]}),/Agent Letter/);
- const normal=await f.run('comment','--id','1','--text','Ordinary message');
+ const normal=await f.run('reply','--id','1','--text','Ordinary message');
  await assert.rejects(f.feedback('1',{annotations:[{kind:'letter',source:{kind:'comment',eventId:normal.id},text:'Not a Letter'}]}),/Letter not found/);
 });
 test('parent edits reject missing parents and cycles, including simultaneous reparenting',async t=>{
@@ -107,13 +107,13 @@ test('parent edits reject missing parents and cycles, including simultaneous rep
 });
 test('Letter titles accept exact text annotations with a distinct source field',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');await f.run('create','--title','Other');
- const letter=await f.run('comment','--id','1','--ask','Title question','--text','Message question');
+ const letter=await f.run('reply','--id','1','--ask','Title question','--text','Message question');
  const note={kind:'text',source:{kind:'comment',eventId:letter.id,field:'title'},anchor:{start:0,end:5,quote:'Title'},text:'About the title'};
  const saved=await f.feedback('1',{annotations:[note]});
  assert.deepEqual(saved.annotations[0].source,note.source);
  assert.equal((await f.run('show','--id','1')).letters.length,0,'a title annotation is a comment on the Goal, so it answers the Letter');
  assert.match((await f.invoke('show','--id','1','--format','text')).stdout,/Annotation · Letter title/);
- const ordinary=await f.run('comment','--id','1','--text','Title question');
+ const ordinary=await f.run('reply','--id','1','--text','Title question');
  for(const source of [{...note.source,eventId:ordinary.id},{...note.source,field:'other'}])
   await assert.rejects(f.feedback('1',{annotations:[{...note,source}]}),/Annotation/);
  await assert.rejects(f.feedback('2',{annotations:[note]}),/Annotation/);
@@ -125,9 +125,9 @@ test('Letter titles accept exact text annotations with a distinct source field',
 test('the agent withdraws a Letter no longer needed; the Letter stays, and counts and cursors update without a user answer',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');await f.run('create','--title','Child','--parent','1');
  await f.update('2',{state:'waiting',waitReason:'Independent prerequisite'});
- const a=await f.run('comment','--id','1','--ask','Choice','--text','Which option?');
- const child=await f.run('comment','--id','2','--ask','Child choice','--text','Which child option?');
- const comment=await f.run('comment','--id','1','--text','The choice is settled in this discussion.');
+ const a=await f.run('reply','--id','1','--ask','Choice','--text','Which option?');
+ const child=await f.run('reply','--id','2','--ask','Child choice','--text','Which child option?');
+ const comment=await f.run('reply','--id','1','--text','The choice is settled in this discussion.');
  assert.equal((await f.run('tree'))[0].letterCount,2);
  for(const id of ['0','1.5','9007199254740992'])await assert.rejects(f.run('close-letter','--id','1','--event',id),/positive integer/);
  await assert.rejects(f.run('close-letter','--id','1','--event',String(child.id)),/Letter not found/);
@@ -141,7 +141,7 @@ test('the agent withdraws a Letter no longer needed; the Letter stays, and count
  assert.deepEqual(page.letters.map(l=>l.id),[child.id]);assert.equal(page.conversation[0].receiveReason,'No further answer or visibility is needed.');
  assert.equal((await f.run('tree'))[0].children[0].state,'waiting');
  assert.equal((await f.run('check','--since',String(comment.id))).count,0);
- const next=await f.run('comment','--id','1','--text','Receipt recorded.');assert.equal(next.id,received.changeId+1);
+ const next=await f.run('reply','--id','1','--text','Receipt recorded.');assert.equal(next.id,received.changeId+1);
  const annotation={kind:'text',source:{kind:'comment',eventId:a.id},anchor:{start:0,end:5,quote:'Which'},text:'Still the same question'};
  await f.feedback('1',{annotations:[annotation]});
  page=await f.run('show','--id','1');assert.equal(page.conversation.filter(e=>e.id===a.id).length,1);
@@ -167,7 +167,7 @@ test('completed leaf count is independent of Deliverable, comments and Letter an
  const f=await fixture(t);await f.run('create','--title','Root');
  for(const title of ['Done','Started','Waiting'])await f.run('create','--title',title,'--parent','1');
  await f.update('2',{state:'done'});await f.update('3',{started:true});await f.update('4',{state:'waiting',waitReason:'Input'});
- const letter=await f.run('comment','--id','4','--ask','Choice','--text','Which one?');await f.brief('3','Progress');
+ const letter=await f.run('reply','--id','4','--ask','Choice','--text','Which one?');await f.brief('3','Progress');
  assert.equal((await f.run('tree'))[0].progress,33);
  await f.feedback('4',{annotations:[{kind:'letter',source:{kind:'comment',eventId:letter.id},text:'A'}]});
  let tree=(await f.run('tree'))[0];assert.equal(tree.progress,33);assert.equal(tree.children[2].state,'waiting');
@@ -215,7 +215,7 @@ test('runtime rejects obsolete schemas without modifying data',async t=>{
 
 test('legacy no-reply Letters preserve counts without exposing a separate message kind',async t=>{
  const f=await fixture(t);await f.run('create','--title','Outcomes');
- const question=await f.run('comment','--id','1','--ask','Choose','--text','A or B?');
+ const question=await f.run('reply','--id','1','--ask','Choose','--text','A or B?');
  const notice=await f.legacy({goalId:'1',type:'letter',replyRequired:false,title:'Ready',text:'Open the artifact.'});
  assert.equal(notice.replyRequired,false);
  assert.deepEqual((await f.run('show','--id','1')).letters.map(e=>e.id),[question.id]);
@@ -226,7 +226,7 @@ test('legacy no-reply Letters preserve counts without exposing a separate messag
  assert.deepEqual(page.letters,[],'the comment answers the open question');
  const kept=page.conversation.find(e=>e.id===notice.id);assert.equal(kept.receivedAt,undefined);assert.equal(kept.changeId,notice.changeId,'a notice is never closed');
  assert.equal((await f.run('close-letter','--id','1','--event',String(notice.id))).changed,false);
- await assert.rejects(f.run('comment','--id','1','--no-reply','--text','x'),/Unknown option/);
+ await assert.rejects(f.run('reply','--id','1','--no-reply','--text','x'),/Unknown option/);
  await assert.rejects(f.feedback('1',{type:'letter',replyRequired:false,title:'x',text:'x'}),/replyRequired/);
 });
 test('editable sources from before the Deliverable rename move to their new names once',async t=>{
@@ -246,9 +246,9 @@ test('editable sources from before the Deliverable rename move to their new name
 
 test('an agent Comment or Letter posted by mistake can be deleted; user comments cannot',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');
- const kept=await f.run('comment','--id','1','--text','Keep this');
- const wrong=await f.run('comment','--id','1','--text','Posted to the wrong project');
- const letter=await f.run('comment','--id','1','--ask','Wrong question','--text','Which one?');
+ const kept=await f.run('reply','--id','1','--text','Keep this');
+ const wrong=await f.run('reply','--id','1','--text','Posted to the wrong project');
+ const letter=await f.run('reply','--id','1','--ask','Wrong question','--text','Which one?');
  const user=await f.feedback('1',{text:'A user comment'});
  const deleted=await f.run('delete-comment','--id','1','--event',String(wrong.id));assert.equal(deleted.changed,true);
  await f.run('delete-comment','--id','1','--event',String(letter.id));
@@ -268,7 +268,7 @@ test('large titles and feedback are accepted instead of hitting small caps',asyn
 test('a user comment after a Letter answers it and shows it as Replied; one before it does not',async t=>{
  const f=await fixture(t);await f.run('create','--title','Root');
  await f.feedback('1',{text:'Earlier note'});
- const letter=await f.run('comment','--id','1','--ask','Go ahead?','--text','May I proceed?');
+ const letter=await f.run('reply','--id','1','--ask','Go ahead?','--text','May I proceed?');
  assert.deepEqual((await f.run('show','--id','1')).letters.map(l=>l.id),[letter.id]);
  const reply=await f.feedback('1',{text:'Yes, go ahead.'});
  const page=await f.run('show','--id','1');assert.equal(page.letters.length,0);
@@ -276,4 +276,16 @@ test('a user comment after a Letter answers it and shows it as Replied; one befo
  const {letterState}=await import('../public/letter-state.js');
  assert.deepEqual(letterState(closed,[]),{status:'answered',lastAnswerId:reply.id});
  const again=await f.run('close-letter','--id','1','--event',String(letter.id));assert.equal(again.changed,false);assert.equal(again.status,'answered');
+});
+
+for(const storage of ['json','sqlite'])test(`${storage}: owner fields from before {owner} stay stored but are not shown, so a Root they named reads as unowned`,async t=>{
+ const f=await fixture(t,storage);await f.run('create','--title','Earlier Root');await f.run('reply','--id','1','--text','Earlier reply');
+ const goalFile=join(f.root,'workspace/goals/1/goal.json'),goal=JSON.parse(await readFile(goalFile,'utf8'));
+ const legacy={connection:{harnessId:'claude-code',sessionId:'s',contextId:'00000000-0000-4000-8000-000000000001'},previousConnections:[],threadId:'t',creationHash:'h',creationRequestId:'r'};
+ await writeFile(goalFile,JSON.stringify({...goal,...legacy}));
+ const eventFile=join(f.root,'workspace/events/1.json'),event=JSON.parse(await readFile(eventFile,'utf8'));
+ await writeFile(eventFile,JSON.stringify({...event,connection:legacy.connection,threadId:'t'}));
+ const shown=await f.run('show','--id','1'),text=JSON.stringify(shown);
+ for(const field of Object.keys(legacy))assert.equal(text.includes(`"${field}"`),false,field);
+ assert.equal(shown.root.owner,null);assert.equal(shown.conversation[0].text,'Earlier reply');
 });

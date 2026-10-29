@@ -19,7 +19,7 @@ test('Claude and Codex show the same feedback text, with the recorded guide and 
   assert.doesNotMatch(text,/posted|final reply|current Goal|Skills named/);
  }
  // Only the commands differ.
- assert.equal(claude.replaceAll(`${command()} connection reply --goal <goalId>`,'REPLY').replaceAll(`${command()} goal`,'CLI'),codex.replaceAll(`${codexCommand()} comment --id <goalId>`,'REPLY').replaceAll(codexCommand(),'CLI'));
+ assert.equal(claude.replaceAll(`${command()} goal reply --id <goalId>`,'REPLY').replaceAll(`${command()} goal`,'CLI'),codex.replaceAll(`${codexCommand()} reply --id <goalId>`,'REPLY').replaceAll(codexCommand(),'CLI'));
  assert.ok(claude.includes(`${command()} goal show --id 1 --since 2 --format text --section context`));
  // Skills named in the feedback come with the file to read.
  const skill=join(process.env.HOME,'.claude','skills','grilling','SKILL.md');

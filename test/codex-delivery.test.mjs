@@ -35,9 +35,12 @@ async function fixture() {
   const env = { ...process.env, CHILL_AGENT_DATA_DIR: root, CHILL_AGENT_CODEX_PATH: fake, CODEX_THREAD_ID: thread };
   const run = (args, extra = {}) => execute(process.execPath, [cli, ...args], { env: { ...env, ...extra } });
   const json = async path => JSON.parse(await readFile(join(root, path), 'utf8'));
-  const assign=async chat=>{const file=join(root,'owner.json');await writeFile(file,JSON.stringify({threadId:chat}));await run(['update','--id','1','--input-file',file]);};
+  // A chat adopts the Root from its own shell, which asks Codex about the chat.
+  // The fake Codex cannot run on Windows, so there the owner is written directly.
+  const owner=chat=>execute(process.execPath,['--input-type=module','-e',`import {setRootOwner} from ${JSON.stringify(new URL('../lib/goal-store.mjs',import.meta.url).href)};await setRootOwner('1',${JSON.stringify(chat?{agent:'codex',id:chat}:null)});`],{env});
+  const assign=chat=>!chat?run(['release','--id','1']):process.platform==='win32'?owner(chat):run(['adopt','--id','1'],{CODEX_THREAD_ID:chat});
   const body = join(root, 'workspace/goals/1/deliverable.md');
-  await run(['create', '--title', 'Delivery','--thread-id',thread]);
+  await run(['create', '--title', 'Delivery'],{CODEX_THREAD_ID:''});
   let updates=0;
   const publish = async (chat = thread) => {await assign(chat);await writeFile(body,`通知テスト ${++updates}`);return run(['deliverable','update','--id','1']);};
   await publish();
@@ -59,12 +62,12 @@ test('root chat owns Goal conversation before and after Deliverable edits',async
   if(process.platform==='win32')expectHidden(t,'codex-work.observe');
   const f=await fixture();await f.publish();
   const [{feedback},{comment}]=await f.feedback();
-  assert.equal(feedback.threadId,thread);assert.equal(comment.mark,process.platform==='win32'?'saved':'handed','on Windows the fake Codex cannot run, so the comment stays saved');
+  assert.equal(comment.mark,process.platform==='win32'?'saved':'handed','on Windows the fake Codex cannot run, so the comment stays saved');
   assert.equal(feedback.version,undefined);
   await assert.rejects(f.feedback({version:1}),/Unknown Conversation field/);
   await assert.rejects(f.feedback({threadId:other}),/Unknown Conversation field/);
 });
-test('unassigned Goals save locally without enqueueing',async()=>{
+test('a released Root saves comments locally without enqueueing',async()=>{
   const f=await fixture();await f.assign(null);
   const [,{comment}]=await f.feedback();assert.equal(comment.mark,'saved');assert.equal(comment.unassigned,true);
   await assert.rejects(readFile(join(f.root,'fake-queue.json')),{code:'ENOENT'});
@@ -113,7 +116,7 @@ test('saved notification preferences reach a new chat in its message, and are re
   // current preferences instead of freezing a recipient in the chat.
   await saveMessageSetting('notifications', {enabled:true,tool:'changed-tool',destination:'new-recipient',on:['comment']}, f.root);
   const settingsCLI = fileURLToPath(new URL('../bin/chill-settings.mjs',import.meta.url));
-  await f.run(['comment','--id','1','--text','Finished'],{CODEX_THREAD_ID:other});
+  await f.run(['reply','--id','1','--text','Finished'],{CODEX_THREAD_ID:other});
   const noticeArgs = ['notice','--id','1','--event','2'];
   const current = JSON.parse((await execute(process.execPath,[settingsCLI,...noticeArgs],{env:f.env})).stdout);
   assert.equal(current.destination, 'new-recipient');
@@ -133,4 +136,11 @@ test('invalid optional notification settings do not block publishing or receivin
   const queued = (await sentTo(f.root, thread))[0];
   assert.match(queued, /"eventId":1,/);
   assert.match(queued, /Could not read saved user notification preferences/);
+});
+test('a chat Codex does not show to chill cannot own a Root, and is told why',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
+  const f=await fixture();
+  // The fixture's chat is the one Codex shows; this one it does not.
+  const hidden='00000000-0000-4000-8000-999999999999';
+  await assert.rejects(f.run(['create','--title','Hidden'],{CODEX_THREAD_ID:hidden}),error=>/chill cannot see this Codex chat[\s\S]*quit it fully and open it again/.test(error.stderr));
+  await assert.rejects(f.run(['adopt','--id','1'],{CODEX_THREAD_ID:hidden}),error=>/chill cannot see this Codex chat/.test(error.stderr));
 });

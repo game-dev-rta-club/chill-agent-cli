@@ -4,11 +4,11 @@ import {workspacePort} from '../lib/project-workspace.mjs';
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
 
-import { agentMessageType, appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
+import { appendFeedback, closeLetter, deleteAgentComment, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
 import { deliverFeedback, sendFeedbackNow } from '../lib/delivery.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
-import {assignGoal} from '../lib/agents/index.mjs';
-import {assertAnswerer,noteAgentComment,selectAgentWork} from '../lib/agents/index.mjs';
+import {selectAgentWork} from '../lib/agents/index.mjs';
+import {adoptRoot,createRootOrGoal,readInbox,releaseRoot,replyOnGoal} from '../lib/agent-actions.mjs';
 import {readConnectedTree,readGoalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
 import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
@@ -32,14 +32,13 @@ async function main() {
   if(showHelp('goal',args.length?args:['--help'])) return;
   const [command,...rest]=args;
   if(command==='brief')throw Error('goal brief was renamed to goal deliverable.');
-  if(command==='letter')throw Error("goal letter was removed. To ask the user to decide or approve something, reply with --ask '<what to decide>' (goal comment, or connection reply in a Claude conversation); it then appears as a Letter.");
   const subcommand=command==='deliverable'?rest.shift():null;
   const v=parseOptions(`goal ${command}${subcommand?` ${subcommand}`:''}`,rest);
   await initializeStore();
   const id=v['--id'];
   if(command==='create') {
-    const goal=await createGoal({title:v['--title'],parentId:v['--parent'],scope:v['--scope'],criteria:v['--criteria'],threadId:v['--thread-id']});
-    return output({...goal,url:url(goal.id)});
+    const {goal,text}=await createRootOrGoal({title:v['--title'],parentId:v['--parent'],scope:v['--scope'],criteria:v['--criteria']});
+    return output({...goal,url:url(goal.id),...(text?{message:text}:{})});
   }
   if(command==='update') {
     const patch=await input(v['--input-file']),goal=await updateGoal(id,patch);
@@ -56,7 +55,9 @@ async function main() {
     const hint=subcommand==='update'&&briefLayoutHint(result.body,result.format);
     return output({...result,url:url(id,result.version),...(hint?{hint}:{})});
   }
-  if(command==='assign') return output(await assignGoal(id,v['--off']?null:v['--thread-id']));
+  if(command==='adopt') return output(await adoptRoot(id));
+  if(command==='release') return output(await releaseRoot(id));
+  if(command==='inbox') return console.log(await readInbox());
   if(command==='work') return output(await selectAgentWork(id,{stop:Boolean(v['--stop'])}));
   if(command==='tree') return output(await readConnectedTree(id));
   if(command==='review') {
@@ -71,12 +72,9 @@ async function main() {
     const page=await readGoalPage(id,{version:v['--version']===undefined?undefined:Number(v['--version']),since:Number(v['--since']??0),before:v['--before']===undefined?undefined:Number(v['--before']),limit});
     return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--deliverable-offset']??0)})):output(page);
   }
-  if(command==='comment') {
-    const {root}=await readGoalContext(id);
-    await assertAnswerer(root);
-    const event=await appendAgentComment({goalId:id,...agentMessageType(v['--ask']),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
-    await noteAgentComment(root,id);
-    return output({...event,url:event.type==='letter'?`${url(id)}/letter/${event.id}`:url(id)});
+  if(command==='reply') {
+    const {comment:event,text}=await replyOnGoal({goalId:id,ask:v['--ask'],text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
+    return output({...event,url:event.type==='letter'?`${url(id)}/letter/${event.id}`:url(id),message:text});
   }
   if(command==='check') return output(await checkFeedback({goalId:id,since:Number(v['--since']??0)}));
   if(command==='feedback') {

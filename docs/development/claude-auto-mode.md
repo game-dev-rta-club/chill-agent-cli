@@ -33,7 +33,7 @@ Root at the highest level keeps the attempt in its journal
 (`workspace/continuation/<root>.json`), which holds the Root agent's level,
 attempts, history and the revision.
 
-When a continued conversation takes a Root over with `connection adopt`, it
+When a continued conversation takes a Root over with `goal adopt`, it
 keeps the journal and its level; a request the earlier conversation never
 answered is closed as Agent changed and never resent. The Root's owner is part
 of the revision, so the new conversation receives its own single check, as a
@@ -56,7 +56,7 @@ conversations work on (Ultra Continue).
 It lists what the record already says (unfinished Goals, feedback still awaiting
 a reply, open Letters) and names no command, so a turn with nothing left ends in
 a single response. Codex receives the same text; only a conversation that can
-schedule its own wake-up also hears about `connection wake`.
+schedule its own wake-up also hears about `agent wake`.
 
 The request goes out as Stop output, so the next main Stop means the response
 that received it has ended. That Stop ends the attempt and records its result:

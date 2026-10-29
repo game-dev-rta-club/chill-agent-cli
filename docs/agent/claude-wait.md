@@ -1,12 +1,12 @@
 ---
 keyPoints: >-
-  The watcher hook (connection claude-watch, asyncRewake on SessionStart and
+  The watcher hook (agent hook claude-watch, asyncRewake on SessionStart and
   Stop) waits in the background while a Claude conversation owns Goals. When Web
   feedback is saved it claims it and exits 2, so Claude Code wakes the model with
-  the feedback; a due connection wake check wakes it the same way. The agent
+  the feedback; a due agent wake check wakes it the same way. The agent
   never starts, reads or restarts it. Claude Desktop pauses idle conversations
   under memory pressure but not one running a background task, so there the
-  agent also runs connection wait as a task that only holds the conversation;
+  agent also runs agent wait as a task that only holds the conversation;
   the hook still hands the feedback. The hook is the only delivery path: hooks
   set up before it are told to rerun setup and restart the conversation.
 ---
@@ -17,7 +17,7 @@ chill installs a second command on the SessionStart and Stop hooks:
 
 ```text
 response ends (Stop) or a session starts (SessionStart)
-        ↓ Claude Code runs `chill connection claude-watch` in the background
+        ↓ Claude Code runs `chill agent hook claude-watch` in the background
           (asyncRewake); nothing is sent to the model while it waits
 user saves feedback on the Web
         ↓
@@ -25,7 +25,7 @@ watcher claims it, as a tool hook would, and exits 2 with the feedback text
         ↓
 Claude Code wakes the model with that text
         ↓
-agent works and answers with `connection reply`; the response's Stop starts
+agent works and answers with `goal reply`; the response's Stop starts
 the next watcher
 ```
 
@@ -41,8 +41,8 @@ the terminal when the watcher wakes the conversation.
   example after it creates a Goal.
 - Feedback is claimed through the same inbox as tool hooks, so holds, a Web
   pause, ownership checks and Resume behave as in any other delivery.
-- Each `connection wake` adds a check to the conversation's list; none replaces
-  another, compact and resume keep it, and `connection show` lists those still
+- Each `agent wake` adds a check to the conversation's list; none replaces
+  another, compact and resume keep it, and `agent show` lists those still
   to come. A due check wakes
   the conversation with its reason and is removed, so it wakes once. One wake
   carries one check, the earliest due first; the response it wakes starts the
@@ -72,8 +72,8 @@ background task running (Bash run_in_background, Monitor, subagents), and it
 does not count hooks as such tasks.
 
 So when `CLAUDE_CODE_ENTRYPOINT` is `claude-desktop`, chill asks the agent to
-start `connection wait` in the background (SessionStart after a resume, the
-next action of `connection` commands, and once per Stop), and stops asking
+start `agent wait` in the background (SessionStart after a resume, the
+next action of `agent` and `goal` commands, and once per Stop), and stops asking
 while one runs. Outside Desktop it never asks. The task only holds the
 conversation: it records itself as the conversation's `hold`, refreshes it, and
 neither claims feedback nor ends for it. The watcher hook watches as anywhere
@@ -92,6 +92,6 @@ every runtime update install it with the other hooks. A conversation whose
 project hooks still lack it, at SessionStart while it owns Goals, gets one line
 asking the user to rerun setup and restart the conversation; there is no second
 delivery path. Until then, tool hooks still offer feedback while it works, and
-`connection inbox` reads it by hand.
+`goal inbox` reads it by hand.
 
 Implementation: [watcher](../../lib/claude-wait.mjs), [hooks](../../lib/claude-setup.mjs), [scheduled checks](../../lib/claude-wake.mjs), [entry record](../../lib/claude-entry.mjs).

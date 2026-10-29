@@ -12,7 +12,7 @@ const { values } = parseArgs({ options: {
   help: { type: 'boolean', default: false },
 } });
 if (values.help) {
-  console.log('Usage: node scripts/probe-claude-entry.mjs [--claude /path/to/claude] [--handshake]\nRuns two isolated --init-only invocations and prints a JSON report. --handshake also qualifies the environment handoff into connection show. Never starts a conversation.');
+  console.log('Usage: node scripts/probe-claude-entry.mjs [--claude /path/to/claude] [--handshake]\nRuns two isolated --init-only invocations and prints a JSON report. --handshake also qualifies the environment handoff into agent show. Never starts a conversation.');
   process.exit(0);
 }
 
@@ -65,10 +65,10 @@ const snapshot = {
   cwdMatches: typeof input.cwd === 'string' && realpathSync(input.cwd) === realpathSync(process.cwd()),
 };
 if (${values.handshake} && input.hook_event_name === 'SessionStart') {
-  execFileSync(process.execPath, [${JSON.stringify(new URL('../bin/chill-connection.mjs', import.meta.url).pathname)}, 'claude-hook'],
+  execFileSync(process.execPath, [${JSON.stringify(new URL('../bin/chill-conversation.mjs', import.meta.url).pathname)}, 'hook', 'claude'],
     { input:JSON.stringify(input), encoding:'utf8', timeout:5000 });
   const result = JSON.parse(execFileSync('/bin/sh', ['-c', '. "$1"; exec "$2" "$3" show', 'chill-entry-probe',
-    process.env.CLAUDE_ENV_FILE, process.execPath, ${JSON.stringify(new URL('../bin/chill-connection.mjs', import.meta.url).pathname)}], { encoding:'utf8', timeout:5000 }));
+    process.env.CLAUDE_ENV_FILE, process.execPath, ${JSON.stringify(new URL('../bin/chill-conversation.mjs', import.meta.url).pathname)}], { encoding:'utf8', timeout:5000 }));
   snapshot.handshake = { sameSession:result.identity.sessionId === input.session_id,
     generationVerified:typeof result.identity.generation === 'string' && result.identity.generation.length === 36,
     entryOnly:result.stage === 'entry-only' && Object.values(result.capabilities).every(value => value === false) };

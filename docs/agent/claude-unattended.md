@@ -12,7 +12,7 @@ keyPoints: >-
 Use this after [project setup](claude-setup.md), in the same conversation that
 owns the Goal. Web replies reach it through the [watcher hook](claude-wait.md),
 which runs as long as that Claude process does; in Claude Desktop a
-`connection wait` task also keeps Desktop from pausing the conversation. Keep
+`agent wait` task also keeps Desktop from pausing the conversation. Keep
 Claude and the computer running while you are away.
 
 ## Understand what remains running
@@ -22,7 +22,7 @@ integration does not start a closed Claude automatically. Use one live process
 for one conversation: opening another copy with `--resume` is not an attachment
 to the existing process. To reopen after exit, resume the same project and
 session. The watcher hook starts again with it; in Claude Desktop its
-SessionStart context asks the agent to start the `connection wait` task again.
+SessionStart context asks the agent to start the `agent wait` task again.
 
 ## Decide what to delegate
 
@@ -78,9 +78,9 @@ place: the affected action may wait while independent work continues.
 | What you see | Next action |
 | --- | --- |
 | A native approval prompt | Review it in the original Claude conversation, or raise the Autonomy of the conversation's Roots to Auto Continue; a prompt Claude Code never lets a hook approve still asks |
-| No watcher is running | Ask that same conversation to check `connection inbox`; its next Stop starts the watcher again, and in Claude Desktop the result names the task to start |
+| No watcher is running | Ask that same conversation to check `goal inbox`; its next Stop starts the watcher again, and in Claude Desktop the result names the task to start |
 | Claude closed | Resume the same native session |
-| A delivery is uncertain | Read `connection inbox` in the same conversation; do not create a replacement Root or resend the message |
+| A delivery is uncertain | Read `goal inbox` in the same conversation; do not create a replacement Root or resend the message |
 | A manual hold | Preserve it until the user resumes that work |
 
 The [connection status](claude-status.md) reports recorded evidence, not

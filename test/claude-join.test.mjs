@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {captureClaudeEntry,claudeEntryPaths,identifyClaudeCaller} from '../lib/claude-entry.mjs';
 import {joinClaudeConversation,runClaudeAction,hasSavedClaudeFeedback} from '../lib/claude-actions.mjs';
-import {appendFeedback,createGoal,listGoals,listStoredGoals,readGoal,updateGoal} from '../lib/goal-store.mjs';
+import {appendFeedback,createGoal,setRootOwner,listGoals,listStoredGoals,readGoal,updateGoal} from '../lib/goal-store.mjs';
 import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 import {projectRoot,sameProject} from '../lib/project-root.mjs';
 import {projectDirectory} from '../lib/project-workspace.mjs';
@@ -15,6 +15,8 @@ import {setRootAutonomy,rootAutonomy} from '../lib/root-autonomy.mjs';
 import {readWorkspaceTheme,saveWorkspaceTheme} from '../lib/workspace-theme.mjs';
 import {storage} from '../lib/extension-api.mjs';
 import {themes} from '../public/theme-catalog.js';
+import {agentAction} from './agent-action.mjs';
+import {claudeConnection} from '../lib/agents/owners.mjs';
 const readWorkspaceThemeChoice=themes.find(t=>t.id!=='gradient-mint').id;
 
 async function fixture(t) {
@@ -34,11 +36,11 @@ async function repository(dir) {
   await writeFile(join(worktree,'.git'),`gitdir: ${admin}\n`);
   return {main,worktree};
 }
-const act=async(action,payload,env)=>(await runClaudeAction(action,payload,{env})).text;
+const act=(action,payload,env)=>agentAction(action,payload,env);
 
 test('a running conversation joins from its shell, then creates a Goal without SessionStart',async t=>{
   const f=await fixture(t),env={CLAUDE_CODE_SESSION_ID:'native-session'};
-  await assert.rejects(identifyClaudeCaller({env}),/not connected yet.*connection join/);
+  await assert.rejects(identifyClaudeCaller({env}),/not connected yet.*agent join/);
   assert.match(await f.join(env),/Connected this Claude conversation/);
   const caller=await identifyClaudeCaller({env});
   assert.equal(caller.identity.sessionId,'native-session');assert.equal(caller.source,'join');
@@ -47,7 +49,7 @@ test('a running conversation joins from its shell, then creates a Goal without S
   assert.equal((await identifyClaudeCaller({env})).identity.generation,caller.identity.generation);
   assert.match(await act('create-goal',{title:'Joined mid-conversation',scope:'',criteria:''},env),/Created Goal/);
   const [goal]=await listGoals();
-  assert.equal(goal.connection.sessionId,'native-session');assert.equal(goal.connection.contextId,caller.contextId);
+  assert.equal(goal.owner.id,'native-session');assert.equal(goal.owner.context,caller.contextId);
 });
 
 test('join needs the session Claude names in the shell and keeps a SessionStart connection',async t=>{
@@ -87,17 +89,17 @@ test('a continued conversation takes over a Root and receives earlier saved feed
   const waiting=await appendFeedback({goalId:root.id,text:'Still waiting for a reply'});
   assert.match(await act('adopt',{goalId:child.id},after),/now owns Goal #1/);
   const moved=await readGoal(root.id);
-  assert.equal(moved.connection.sessionId,'continued');assert.equal(moved.previousConnections[0].sessionId,'earlier');
+  assert.equal(moved.owner.id,'continued');assert.equal(moved.previousOwners[0].id,'earlier');
   // Taking over writes nothing in Web, so the Root still awaits its reply.
   assert.deepEqual((await listStoredGoals()).find(g=>g.id===root.id).conversation.map(e=>e.id),[waiting.id]);
   // The feedback saved for the earlier owner now reaches the new one, and not the earlier one.
-  assert.equal(await hasSavedClaudeFeedback(moved.connection),true);
+  assert.equal(await hasSavedClaudeFeedback(claudeConnection(moved)),true);
   assert.match(await act('inbox',{},after),new RegExp(`"eventId":${saved.changeId}`));
   assert.match(await act('inbox',{},before),/Nothing awaits a reply/);
   assert.match(await act('adopt',{goalId:root.id},after),/already owns Goal #1/);
 });
 
-test('taking over works while the earlier owner still watches, and is refused for Goals without a Claude owner',async t=>{
+test('taking over works while the earlier owner still watches, and from a Root with no owner',async t=>{
   const f=await fixture(t);
   const connect=async sessionId=>{const env={CLAUDE_CODE_SESSION_ID:sessionId};await f.join(env);return env;};
   const before=await connect('owner'),after=await connect('other');
@@ -106,10 +108,11 @@ test('taking over works while the earlier owner still watches, and is refused fo
   const record=claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,'owner').record,current=await readJson(record);
   await writeJsonAtomically(record,{...current,waiter:{contextId:current.contextId,checkedAt:new Date().toISOString()}});
   assert.match(await act('adopt',{goalId:root.id},after),/now owns Goal/);
-  assert.equal((await readGoal(root.id)).connection.sessionId,'other');
+  assert.equal((await readGoal(root.id)).owner.id,'other');
   const plain=await createGoal({title:'Local only'});
-  await assert.rejects(act('adopt',{goalId:plain.id},after),/Only a Goal owned by a Claude conversation/);
-  await assert.rejects(act('adopt',{goalId:'x'},after),/Invalid Goal ID/);
+  assert.match(await act('adopt',{goalId:plain.id},after),/now owns Goal/);
+  assert.equal((await readGoal(plain.id)).owner.id,'other');
+  await assert.rejects(act('adopt',{goalId:'x'},after),/Goal ID must be a positive integer/);
 });
 
 test('a Root moves under another conversation\'s Goal: its Goals follow that Root, and comments not handed yet go to its agent',async t=>{
@@ -132,7 +135,7 @@ test('a Root moves under another conversation\'s Goal: its Goals follow that Roo
   await updateGoal(place.id,{state:'done'});
   await updateGoal(root.id,{parentId:place.id});
   const moved=await readGoal(root.id);
-  assert.equal(moved.parentId,place.id);assert.equal(moved.connection,undefined,'its Goals follow the destination Root\'s agent');
+  assert.equal(moved.parentId,place.id);assert.equal(moved.owner,undefined,'its Goals follow the destination Root\'s agent');
   assert.equal((await readGoal(place.id)).state,'idle','a Done parent reopens');
   const inbox=await act('inbox',{},host);
   assert.match(inbox,new RegExp(`"eventId":${waiting.changeId}`),'a comment its earlier agent never received reaches the new one');
@@ -147,7 +150,7 @@ test('a Root moves under another conversation\'s Goal: its Goals follow that Roo
   assert.equal((await notices.read('1')).roots[root.id],undefined,'its notifications are dropped');
   await updateGoal(root.id,{parentId:null});
   const again=await readGoal(root.id);
-  assert.equal(again.connection.sessionId,'host','leaving again, it stays with the agent it moved to');
+  assert.equal(again.owner.id,'host','leaving again, it stays with the agent it moved to');
   assert.equal(await rootAutonomy(again),1,'Autonomy starts from Normal');
 });
 
@@ -167,15 +170,15 @@ test('a comment the earlier agent never received is not skipped when it is older
   assert.match(fresh,new RegExp(`"eventId":${older.changeId}\\b`));
 });
 
-test('an archived Root is restored before it moves; a Root with a chat leaves the chat behind',async t=>{
+test('an archived Root is restored before it moves; a moved Root leaves its owner behind',async t=>{
   await fixture(t);
   const target=await createGoal({title:'Target'}),archived=await createGoal({title:'Archived'});
   await updateGoal(archived.id,{archived:true});
   await assert.rejects(updateGoal(archived.id,{parentId:target.id}),/Restore the archived Root before moving it/);
   const chat=await createGoal({title:'Chat'});
-  await updateGoal(chat.id,{threadId:'00000000-0000-4000-8000-000000000001'});
+  await setRootOwner(chat.id,{agent:'codex',id:'00000000-0000-4000-8000-000000000001'});
   await updateGoal(chat.id,{parentId:target.id});
-  assert.equal((await readGoal(chat.id)).threadId,null);
+  assert.equal((await readGoal(chat.id)).owner,undefined);
 });
 
 test('a Split Goal leaves its Root with its history and another conversation takes it over',async t=>{
@@ -190,9 +193,9 @@ test('a Split Goal leaves its Root with its history and another conversation tak
   const ask=await createGoal({title:'Ask',parentId:web.id}),waiting=await appendFeedback({goalId:ask.id,text:'Not handed yet'});
   await updateGoal(web.id,{parentId:null});
   const detached=await readGoal(web.id);
-  assert.equal(detached.parentId,null);assert.equal(detached.connection.sessionId,'owner','it stays with the same conversation');
+  assert.equal(detached.parentId,null);assert.equal(detached.owner.id,'owner','it stays with the same conversation');
   assert.match(await act('adopt',{goalId:request.id},other),new RegExp(`now owns Goal #${web.id}`));
-  assert.equal((await readGoal(root.id)).connection.sessionId,'owner');
+  assert.equal((await readGoal(root.id)).owner.id,'owner');
   assert.equal((await readGoal(request.id)).parentId,web.id,'its Split Goals and their history go with it');
   const inbox=await act('inbox',{},other);
   assert.match(inbox,new RegExp(`"eventId":${waiting.changeId}`));

@@ -53,8 +53,8 @@ an overlaid annotation control.
 
 ## Comments and Letters
 
-The agent posts every message with one command: `goal comment --id 1 --text-file reply.txt`,
-or `connection reply --goal 1 --text-file reply.txt` in a Claude conversation. Files
+The agent posts every message with one command, the same in every agent
+conversation: `goal reply --id 1 --text-file reply.txt`. Files
 preserve multiline text without shell escaping. If the message asks the user to
 decide or approve something, the agent adds `--ask '<what to decide>'`; the
 message is then a Letter titled with that line, shown and counted in the Letters
@@ -62,7 +62,7 @@ menu and notified as a Letter. It still answers the comments the agent was
 handed, and works when none arrived. Without `--ask` the message is an ordinary
 Comment. Do not create a Letter just to ask the user to acknowledge a report.
 Pending replies block only the actions that actually depend on them; continue
-independent authorized work. Letters saved by the earlier `goal letter` command
+independent authorized work. Letters saved by the removed `goal letter` command
 still show as they were, and its historical no-reply records stay out of pending
 counts, so updating does not turn old results into new unanswered questions.
 

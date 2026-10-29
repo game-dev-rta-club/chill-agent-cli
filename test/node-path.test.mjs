@@ -27,7 +27,7 @@ test('the Windows command entry runs the launcher from cmd, including Japanese a
  const prepared=await prepareRuntime(root,join(dir,"data ' 日本語 store"));
  const command=join(prepared.dataDirectory,'runtime','chill.cmd'),env={...process.env};delete env.CHILL_AGENT_DATA_DIR;
  const run=args=>execFileSync('cmd.exe',['/d','/s','/c',`""${command}" ${args}"`],{env,encoding:'utf8',stdio:'pipe',windowsVerbatimArguments:true});
- assert.match(run('connection --help'),/Connect a Claude conversation/);
+ assert.match(run('agent --help'),/How an agent conversation connects/);
  assert.throws(()=>run('nosuch'),error=>error.status===1&&/Unknown command/.test(error.stderr));
 });
 
@@ -39,10 +39,10 @@ test('the short chill entry runs the launcher and falls back to Node on PATH',as
  const bash=process.platform==='win32'?findGitBash():null;
  const env=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^(path|chill_agent_data_dir)$/i.test(key)));
  env.PATH=bash?[dirname(process.execPath),join(dirname(dirname(bash)),'usr','bin')].join(';'):`${dirname(process.execPath)}:/usr/bin:/bin`;
- const run=()=>bash?execFileSync(bash,['-c',`'${prepared.entry.replaceAll("'","'\\''")}' connection --help`],{env,encoding:'utf8'}):execFileSync(prepared.entry,['connection','--help'],{env,encoding:'utf8'});
- assert.match(run(),/Watch a Claude conversation/);
+ const run=()=>bash?execFileSync(bash,['-c',`'${prepared.entry.replaceAll("'","'\\''")}' agent --help`],{env,encoding:'utf8'}):execFileSync(prepared.entry,['agent','--help'],{env,encoding:'utf8'});
+ assert.match(run(),/How an agent conversation connects/);
  // Simulate an upgrade that removed the recorded binary.
  const script=await readFile(prepared.entry,'utf8');
  await writeFile(prepared.entry,script.replace(/^node=.*$/m,bash?"node='C:\\missing\\node.exe'":"node='/missing/bin/node'"),{mode:0o700});
- assert.match(run(),/Watch a Claude conversation/);
+ assert.match(run(),/How an agent conversation connects/);
 });

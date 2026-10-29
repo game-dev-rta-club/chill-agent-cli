@@ -37,8 +37,8 @@ try {
  const path=join(root,'workspace/goals/1/deliverable.md');
  await writeFile(path,'## Current plan\n\nKeep this explanation current.\n\n<script>window.badBrief=true</script>\n<img src="https://example.com/tracker" onerror="window.badBrief=true">');
  await run('deliverable','update','--id','1');
- const a=await run('comment','--id','1','--ask','First choice','--text','Which direction should we take?');
- const b=await run('comment','--id','1','--ask','Second choice','--text','Which color would you like?');
+ const a=await run('reply','--id','1','--ask','First choice','--text','Which direction should we take?');
+ const b=await run('reply','--id','1','--ask','Second choice','--text','Which color would you like?');
  await go();assert.equal(await page.evaluate(()=>window.badBrief),undefined);assert.equal(await page.locator('.brief-body img').count(),0);
  const editor=()=>page.locator('.annotation-form');
  const select=(selector,start,end)=>page.evaluate(([selector,start,end])=>{
@@ -59,7 +59,7 @@ try {
  await answered(a);await answered(b);
  assert.equal((await pending()).length,0);assert.equal(await main().locator('.draft-note').count(),0);
  // A failed Comment stays in its form; a retry saves it once.
- const c=await run('comment','--id','1','--ask','Retry choice','--text','Can this answer survive a failure?');
+ const c=await run('reply','--id','1','--ask','Retry choice','--text','Can this answer survive a failure?');
  await go();await main().locator('textarea').fill('Try again');
  await page.route('**/api/goals/1/feedback',r=>r.fulfill({status:400,contentType:'application/json',body:'{"error":"Trial failure"}'}));
  await main().getByRole('button',{name:'Comment',exact:true}).click();await main().locator('.save-error').waitFor();
@@ -86,7 +86,7 @@ try {
  await annotate('.brief-body p',22,29,'Keep this context');
  await send(main());const last=(await data()).conversation.at(-1);assert.deepEqual(last.annotations[0].source,{kind:'brief',version:1});
  await go();await page.locator('.brief-body h2').waitFor();assert.match(await page.locator('.brief-body').innerText(),/Result/);
- const pendingLetter=await run('comment','--id','1','--ask','手紙アイコンと長めのタイトルで、返信の使い心地を確かめてみましょう','--text','今のカードと、注釈と同じ返信欄はいかがですか？');
+ const pendingLetter=await run('reply','--id','1','--ask','手紙アイコンと長めのタイトルで、返信の使い心地を確かめてみましょう','--text','今のカードと、注釈と同じ返信欄はいかがですか？');
  await go();const pendingCard=page.locator(`#event-${pendingLetter.id}`);
  assert.equal(await pendingCard.locator('.letter-comment-title svg').count(),1);
  assert.equal(await pendingCard.locator('.event-meta').count(),0);
@@ -124,7 +124,7 @@ try {
    await page.screenshot({path:join(root,`view-${width}.png`)});
  }
  // A Comment that answers a Letter can attach an image.
- const imageLetter=await run('comment','--id','1','--ask','画像で答えられますか','--text','画像を添えて答えてください。');await go();
+ const imageLetter=await run('reply','--id','1','--ask','画像で答えられますか','--text','画像を添えて答えてください。');await go();
  await main().locator('textarea').fill('画像でも回答できます');
  await main().locator('input[type="file"]').setInputFiles({name:'reply.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6N1cAAAAASUVORK5CYII=','base64')});
  await send(main());const pictured=(await data()).conversation.at(-1);
@@ -140,8 +140,8 @@ try {
  await send(main());const imageNote=(await data()).conversation.at(-1).annotations[0];
  assert.deepEqual([imageNote.kind,imageNote.imageId,imageNote.text],['image',attached.attachmentIds[0],'この画像について']);
  // Agent receipt updates an existing card in place; drafts and annotation IDs stay stable.
- const receiptLetter=await run('comment','--id','1','--ask','Receipt test','--text','Receipt keeps this explanation.');
- for(let i=0;i<5;i++)await run('comment','--id','1','--text',`Later update ${i}`);
+ const receiptLetter=await run('reply','--id','1','--ask','Receipt test','--text','Receipt keeps this explanation.');
+ for(let i=0;i<5;i++)await run('reply','--id','1','--text',`Later update ${i}`);
  await go();const receiptCard=page.locator(`#event-${receiptLetter.id}`);await readCard(receiptCard);
  await main().locator('textarea').fill('Keep this draft during receipt');
  await page.evaluate(id=>{const p=document.querySelector(`#event-${id} .event-text p`),r=document.createRange();r.setStart(p.firstChild,0);r.setEnd(p.firstChild,7);window.getSelection().removeAllRanges();window.getSelection().addRange(r);document.dispatchEvent(new Event('selectionchange'));},receiptLetter.id);

@@ -24,7 +24,7 @@ async function fixture(t) {
 test('every command help works without data, valid settings, Codex, or server startup', async t => {
   const f=await fixture(t);
   const entries={monitor:'bin/chill-monitor.mjs',goal:'bin/chill-agent.mjs',settings:'bin/chill-settings.mjs',setup:'bin/chill-setup.mjs',
-    server:'bin/chill-server.mjs',hook:'bin/chill-hook.mjs',connection:'bin/chill-connection.mjs',session:'bin/chill-session.mjs',foreground:'server.mjs',link:'bin/chill-link.mjs'};
+    server:'bin/chill-server.mjs',agent:'bin/chill-conversation.mjs',session:'bin/chill-session.mjs',foreground:'server.mjs',link:'bin/chill-link.mjs'};
   for(const path of Object.keys(commands)) {
     if(!path)continue;
     const [group,...parts]=path.split(' ');
@@ -51,7 +51,7 @@ test('invalid option contracts fail before initializing the store or saving sett
   const f=await fixture(t);
   for(const args of [
     ['create','--title','x','--title','y'], ['create','--unknown','x'], ['note','--id','1'],
-    ['note','--id','1','--title','Delivery','--type','report'], ['comment','--id','1','--text','hello','--text-file','x'],
+    ['note','--id','1','--title','Delivery','--type','report'], ['reply','--id','1','--text','hello','--text-file','x'],
   ]) await assert.rejects(f.run(join(root,'bin/chill-agent.mjs'),args));
   for(const args of [
     ['notifications','--off','--file','x'],['remote','--off','--off'],
@@ -71,11 +71,11 @@ test('help-guided operations work and settings flags are order independent',asyn
   assert.match(created.stdout,/"id": "1"/);
   const body=join(f.data,'workspace/goals/1/deliverable.md'); await writeFile(body,'A clear goal');
   await plan(['deliverable','update','--id','1']);
-  await plan(['comment','--id','1','--text','We can proceed.']);
+  await plan(['reply','--id','1','--text','We can proceed.']);
   assert.match((await plan(['show','--id','1'])).stdout,/A clear goal[\s\S]*We can proceed/);
   await writeFile(body,'A clear goal, updated');
   await plan(['deliverable','update','--id','1']);
-  await plan(['comment','--id','1','--text','Historical']);
+  await plan(['reply','--id','1','--text','Historical']);
   const settings=args=>f.run(join(root,'bin/chill-settings.mjs'),args);
   assert.deepEqual(JSON.parse((await settings(['notice','--event','2','--id','1'])).stdout),{enabled:false});
   const config=join(f.directory,'notification.json');

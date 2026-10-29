@@ -18,7 +18,7 @@ try {
  await run('create','--title','成果と活動を見分ける');
  for(const title of ['表示の細部を整える','返信の流れをつなぐ','HTMLの注釈を安定させる','全体の使い心地を確かめる'])await run('create','--title',title,'--parent','1');
  await update('3',{state:'waiting',waitReason:'Choose the display'});await update('4',{state:'done'});
- await run('comment','--id','3','--ask','表示の確認','--text','How does it look?');
+ await run('reply','--id','3','--ask','表示の確認','--text','How does it look?');
  await run('assign','--id','1','--thread-id',thread);await run('work','--id','5');
  server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(Error(`Server exit ${c}`)));});

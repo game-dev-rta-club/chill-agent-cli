@@ -10,15 +10,15 @@ import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {recordClaudeWork,reportClaudeHook} from '../lib/claude-agent-work.mjs';
 import {runClaudeAction,handleClaudeToolHook,claimClaudeFeedbackForWatcher} from '../lib/claude-actions.mjs';
-import {createGoal,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
-import {createClaudeRoot} from '../lib/claude-roots.mjs';
-import {assignGoal} from '../lib/agents/codex-execution.mjs';
+import {createGoal,createOwnedRoot,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
+import {claudeOwner} from '../lib/agents/owners.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
 import {goalCommentMarks} from '../lib/agents/index.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
 import {fileURLToPath} from 'node:url';
 import {claudeHook,hookFor} from './claude-fixtures.mjs';
+import {agentAction} from './agent-action.mjs';
 
 async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-claude-actions-'));
@@ -30,7 +30,7 @@ async function fixture(t) {
     const envFile=join(dir,randomUUID());await writeFile(envFile,'');
     const record=await captureClaudeEntry(claudeHook('SessionStart',{session_id:sessionId,source,cwd}), {cwd,env:{CLAUDE_ENV_FILE:envFile}});
     const env={CHILL_AGENT_HARNESS:record.harnessId,CHILL_AGENT_SESSION_ID:sessionId,CLAUDE_CODE_SESSION_ID:sessionId};
-    const act=async(action,payload,options={})=>(await runClaudeAction(action,payload,{env,...options})).text;
+    const act=async(action,payload,options={})=>action==='extension'?(await runClaudeAction(action,payload,{env,...options})).text:agentAction(action,payload,env);
     const event=hookFor({session_id:sessionId,cwd}),hook=patch=>event('PostToolUse',patch);
     return {record,env,envFile,act,event,hook};
   }
@@ -54,11 +54,11 @@ test('connection extension actions run at once in the calling conversation',asyn
 test('create-goal binds a Root to the calling conversation at once',async t=>{
   const f=await fixture(t),s=await f.start();
   assert.match(await s.act('create-goal',goalInput),/Created Goal #1/);
-  const g=(await listGoals())[0];assert.equal(g.threadId,null);assert.deepEqual(g.connection,{harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId});
+  const g=(await listGoals())[0];assert.deepEqual(g.owner,{agent:'claude-code',id:s.record.sessionId,context:s.record.contextId});
   const status=await readAgentStatus(g.id);assert.equal(status.connected,true);assert.equal(status.agent.name,'Claude Code');
   assert.deepEqual(status.capabilities,{settings:false,stop:false,resume:false});
   assert.match(agentMarkup(status),/Claude Code/);assert.doesNotMatch(agentMarkup(status),/Codex account|data-agent-settings/);
-  await assert.rejects(s.act('create-goal',{...goalInput,title:' '}),/Invalid title/);
+  await assert.rejects(s.act('create-goal',{...goalInput,title:' '}),/Goal title must be nonempty/);
 });
 
 test('a command acts for the current context: clear starts a context that owns nothing',async t=>{
@@ -67,30 +67,25 @@ test('a command acts for the current context: clear starts a context that owns n
   const cleared=await f.start(first.record.sessionId,'clear');assert.notEqual(cleared.record.contextId,first.record.contextId);
   await first.act('create-goal',goalInput);
   const [a,b]=await listGoals();
-  assert.equal(a.connection.contextId,first.record.contextId);assert.equal(b.connection.contextId,cleared.record.contextId);
+  assert.equal(a.owner.context,first.record.contextId);assert.equal(b.owner.context,cleared.record.contextId);
   await assert.rejects(runClaudeAction('inbox',{},{env:{CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:'never-started'}}),/not connected/);
 });
 
-test('Root creation stays single when retried with the same ID',async t=>{
-  const f=await fixture(t),s=await f.start(),id=randomUUID();
-  const connection={harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId};
-  const first=await createClaudeRoot(goalInput,connection,id);
-  await rm(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/goals',first.id,'deliverable.html'));
-  await createClaudeRoot(goalInput,connection,id);
-  assert.equal((await listGoals()).length,1);assert.equal(await readFile(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/goals/1/deliverable.html'),'utf8'),'');
-  await assert.rejects(createClaudeRoot({...goalInput,title:'changed'},connection,id),/changed/);
-  await assert.rejects(updateGoal(first.id,{threadId:randomUUID()}),/reassigned/);
-  await assert.rejects(assignGoal(first.id,null),/Reassignment/);
+test('a Root an agent owns changes owner only by adopt and release, and a moved Root leaves its owner',async t=>{
+  const f=await fixture(t),s=await f.start();
+  const first=await createOwnedRoot(goalInput,claudeOwner({sessionId:s.record.sessionId,contextId:s.record.contextId}));
+  await assert.rejects(updateGoal(first.id,{threadId:randomUUID()}),/Unknown Goal field/);
+  await assert.rejects(updateGoal(first.id,{owner:{agent:'codex',id:randomUUID()}}),/Unknown Goal field/);
   const other=await createGoal({title:'Other'}),child=await createGoal({title:'Child',parentId:first.id});
   await updateGoal(child.id,{parentId:other.id});
   await updateGoal(first.id,{parentId:other.id});
-  assert.equal((await readGoal(first.id)).connection,undefined,'a Root moved under another Goal follows that Root');
+  assert.equal((await readGoal(first.id)).owner,undefined,'a Root moved under another Goal follows that Root');
 });
 
 test('two Roots and a child hand their comments to the same conversation, and only a reply answers them',async t=>{
   const f=await fixture(t),s=await f.start(),g=await root(s),g2=await root(s),child=await createGoal({title:'Child',parentId:g.id});
   const e1=await appendFeedback({goalId:child.id,text:'first'}),e2=await appendFeedback({goalId:g2.id,text:'second'});
-  assert.deepEqual(e1.connection,g.connection);
+  assert.equal(e1.connection,undefined);
   assert.equal((await deliverFeedback(e1.changeId)).mark,'saved');
   const output=await s.act('inbox');
   assert.match(output,/first/);assert.match(output,/second/);
@@ -102,8 +97,8 @@ test('two Roots and a child hand their comments to the same conversation, and on
   assert.doesNotMatch(again,/"text":"first"/);assert.match(again,/second/);
   assert.equal((await deliverFeedback(e1.changeId)).mark,null);
   assert.equal((await readGoal(g.id)).state,'idle');
-  await assert.rejects(s.act('reply',{goalId:g.id,text:' '}),/Invalid reply/);
-  await assert.rejects(s.act('reply',{text:'no Goal'}),/--goal/);
+  await assert.rejects(s.act('reply',{goalId:g.id,text:' '}),/Comment must contain text/);
+  await assert.rejects(s.act('reply',{text:'no Goal'}),/Goal ID/);
 });
 
 test('separate, resumed and cleared contexts cannot take or answer another conversation\'s comments',async t=>{
@@ -116,20 +111,20 @@ test('separate, resumed and cleared contexts cannot take or answer another conve
   await assert.rejects(clear.act('reply',{goalId:g.id,text:'Not mine'}),/another conversation/);
 });
 
-test('the connection CLI acts at once and prints its result; piping the output changes nothing',{skip:process.platform==='win32'&&'runs through POSIX /bin/sh'},async t=>{
+test('the goal and agent CLIs act at once and print their result; piping the output changes nothing',{skip:process.platform==='win32'&&'runs through POSIX /bin/sh'},async t=>{
   const f=await fixture(t),s=await f.start();
-  const execute=promisify(execFile),entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
-  const {stdout,stderr}=await execute('/bin/sh',['-c','"$1" "$2" create-goal --title "CLI outcome" | head -1','probe',process.execPath,entry],{cwd:f.cwd,env:{...process.env,...s.env}});
-  assert.equal(stderr,'');assert.match(stdout,/^Created Goal #1/);assert.equal((await listGoals()).length,1);
+  const execute=promisify(execFile),entry=fileURLToPath(new URL('../bin/chill-conversation.mjs',import.meta.url)),goal=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
+  const {stdout,stderr}=await execute('/bin/sh',['-c','"$1" "$2" create --title "CLI outcome" | cat','probe',process.execPath,goal],{cwd:f.cwd,env:{...process.env,...s.env}});
+  assert.equal(stderr,'');assert.match(JSON.parse(stdout).message,/^Created Goal #1, owned by this conversation/);assert.equal((await listGoals()).length,1);
   // Sent now, so the running work's tool hook hands it over.
   const event=await appendFeedback({goalId:'1',text:'CLI feedback'});await sendFeedbackNow(event.changeId);
   const path=join(f.dir,'hook.json');await writeFile(path,JSON.stringify(s.hook({agent_id:'child'})));
-  const run=()=>execute('/bin/sh',['-c','exec "$1" "$2" claude-hook < "$3"','probe',process.execPath,entry,path],{cwd:f.cwd,env:process.env});
+  const run=()=>execute('/bin/sh',['-c','exec "$1" "$2" hook claude < "$3"','probe',process.execPath,entry,path],{cwd:f.cwd,env:process.env});
   assert.equal((await run()).stdout,'','a subagent hook never receives Web input');
   // A hook input of any size is read; a large tool result never stops delivery.
   await writeFile(path,JSON.stringify(s.hook({tool_name:'mcp__screenshot',tool_response:{image:'x'.repeat(2_000_000)}})));
   assert.match(context(JSON.parse((await run()).stdout)),/CLI feedback/);
-  const reply=await execute('/bin/sh',['-c','"$1" "$2" reply --goal 1 --text done | grep -c Replied','probe',process.execPath,entry],{cwd:f.cwd,env:{...process.env,...s.env}});
+  const reply=await execute('/bin/sh',['-c','"$1" "$2" reply --id 1 --text done | grep -c Replied','probe',process.execPath,goal],{cwd:f.cwd,env:{...process.env,...s.env}});
   assert.equal(reply.stdout.trim(),'1');assert.equal((await deliverFeedback(event.changeId)).mark,null);
 });
 
@@ -370,7 +365,7 @@ test('a reply with --ask is a Letter: it answers the Goal\'s comments, also work
   const answer=await appendFeedback({goalId:goal.id,text:'Yes to both.'});
   assert.deepEqual(await readOpenLetters(goal.id),[],'the user\'s comment closes the Goal\'s open Letters');
   assert.equal((await readEvent(letterId)).answeredBy,answer.changeId);
-  await assert.rejects(s.act('reply',{goalId:goal.id,ask:' ',text:'x'}),/--ask/);
+  await assert.rejects(s.act('reply',{goalId:goal.id,ask:' ',text:'x'}),/Letter title must be nonempty/);
   await assert.rejects(s.act('reply',{goalId:goal.id,ask:'Two\nlines',text:'x'}),/one line/);
   const plain=await s.act('reply',{goalId:goal.id,text:'Removed it.'});
   assert.match(plain,/^Replied on Goal #\d+ \(comment \d+\)/);

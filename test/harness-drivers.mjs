@@ -16,7 +16,7 @@
 //   agentReplies(eventId, text)     the agent's reply on the feedback's Goal
 //   agentAsks(ask, text)            the agent's reply marked --ask: a Letter titled `ask`, with or without feedback
 //   agentSelectsWork()              `goal work` on the Root Goal for the current response
-//   agentComments(text)             a progress `goal comment` on the Root Goal
+//   agentComments(text)             a progress `goal reply` on the Root Goal
 //   saveFeedback(text)              the user posts feedback in the Web; resolves to its event ID
 //   sendNow(eventId)                the user's Send now
 //   shown(eventId)                  the small mark under the feedback (saved, waiting, paused, handed, interrupted),
@@ -38,10 +38,10 @@ import {appendFile,mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {appendFeedback,createGoal,listGoals,readFeedback,readOpenLetters} from '../lib/goal-store.mjs';
+import {appendFeedback,createGoal,listGoals,readFeedback,readOpenLetters,setRootOwner} from '../lib/goal-store.mjs';
 import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
-import {agentExecutions,assignGoal,goalCommentMarks,selectAgentWork} from '../lib/agents/index.mjs';
+import {agentExecutions,goalCommentMarks,selectAgentWork} from '../lib/agents/index.mjs';
 import {controlAgent,readGoalActivity,readAgentStatus} from '../lib/agent-status.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
@@ -59,7 +59,7 @@ let skew=0;
 Date.now=()=>realNow()+skew;
 const passTime=()=>{skew+=6000;};
 const bin=name=>fileURLToPath(new URL(`../bin/${name}`,import.meta.url));
-const cli=bin('chill-agent.mjs'),connectionCli=bin('chill-connection.mjs'),codexHook=bin('chill-hook.mjs');
+const cli=bin('chill-agent.mjs'),connectionCli=bin('chill-conversation.mjs'),codexHook=bin('chill-hook.mjs');
 const fakeCodex=fileURLToPath(new URL('./fake-codex.mjs',import.meta.url));
 
 async function runWith(file,args,{env,cwd,input}={}) {
@@ -150,7 +150,7 @@ async function codexSession(t) {
   let continuing=false,handoff=[];
   const read=new Set();
   const root=await createGoal({title:'A useful outcome'});
-  await assignGoal(root.id,thread);
+  await setRootOwner(root.id,{agent:'codex',id:thread});
   const session={
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
     async agentStartsResponse() {await chat.startTurn();await tool();},
@@ -181,10 +181,10 @@ async function codexSession(t) {
       return ids;
     },
     // Another chat in the same project replies on the Goal.
-    strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
-    agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
-    agentAsks:(ask,text)=>runWith(cli,['comment','--id',root.id,'--ask',ask,'--text',text],{env}),
-    agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    strangerAnswers:()=>runWith(cli,['reply','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
+    agentReplies:(eventId,text)=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
+    agentAsks:(ask,text)=>runWith(cli,['reply','--id',root.id,'--ask',ask,'--text',text],{env}),
+    agentComments:text=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
   return session;
@@ -255,7 +255,7 @@ async function codexAppSession(t,codexPath) {
   await call('thread/queue/add',{threadId:thread,...message('Start')});await take();await answer([kit.textItem('Ready.')]);
   const env={...process.env,CODEX_THREAD_ID:thread};
   const root=await createGoal({title:'A useful outcome'});
-  await assignGoal(root.id,thread);
+  await setRootOwner(root.id,{agent:'codex',id:thread});
   return {
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
     async agentStartsResponse() {await call('thread/queue/add',{threadId:thread,...message('Work')});await take();await tool();},
@@ -279,10 +279,10 @@ async function codexAppSession(t,codexPath) {
       const ids=handoff;handoff=[];
       return ids;
     },
-    strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
-    agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
-    agentAsks:(ask,text)=>runWith(cli,['comment','--id',root.id,'--ask',ask,'--text',text],{env}),
-    agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    strangerAnswers:()=>runWith(cli,['reply','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
+    agentReplies:(eventId,text)=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
+    agentAsks:(ask,text)=>runWith(cli,['reply','--id',root.id,'--ask',ask,'--text',text],{env}),
+    agentComments:text=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
 }
@@ -299,12 +299,12 @@ async function claudeSession(t) {
   const agentEnv={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CLAUDE_CODE_SESSION_ID:sessionId};
   const env={...process.env,...agentEnv};
   const hook=async(name,patch)=>{
-    const output=await runWith(connectionCli,['claude-hook'],{env,cwd,input:event(name,patch)});
+    const output=await runWith(connectionCli,['hook','claude'],{env,cwd,input:event(name,patch)});
     return output.trim()?JSON.parse(output):null;
   };
-  const connection=args=>runWith(connectionCli,args,{env,cwd});
+  const goalCommand=args=>runWith(cli,args,{env,cwd});
   const append=entries=>appendFile(transcript,entries.map(claudeLine).join(''));
-  await connection(['create-goal','--title','A useful outcome']);
+  await goalCommand(['create','--title','A useful outcome']);
   const [root]=await listGoals();
   let responding=false,handoff=null,continuing=false;
   const startResponse=async()=>{
@@ -350,12 +350,12 @@ async function claudeSession(t) {
     async strangerAnswers() {
       const other=randomUUID();
       await captureClaudeEntry(hookFor({session_id:other,cwd,transcript_path:transcript})('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:join(dir,'other-env')}});
-      await runWith(connectionCli,['reply','--goal',root.id,'--text','Not mine'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other},cwd});
+      await runWith(cli,['reply','--id',root.id,'--text','Not mine'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other},cwd});
     },
-    async agentReplies(eventId,text) {await connection(['reply','--goal',root.id,'--text',text]);},
-    async agentAsks(ask,text) {await connection(['reply','--goal',root.id,'--ask',ask,'--text',text]);},
+    async agentReplies(eventId,text) {await goalCommand(['reply','--id',root.id,'--text',text]);},
+    async agentAsks(ask,text) {await goalCommand(['reply','--id',root.id,'--ask',ask,'--text',text]);},
     async permissionPrompt() {return (await hook('PermissionRequest',{tool_name:'Bash',tool_input:{command:'ls'}}))?.hookSpecificOutput?.decision?.behavior??null;},
-    agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    agentComments:text=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env:agentEnv}),
   };
   return session;

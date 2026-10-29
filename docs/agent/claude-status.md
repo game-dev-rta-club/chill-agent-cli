@@ -1,6 +1,6 @@
 ---
 keyPoints: >-
-  The Claude Agent menu and connection show report whether a watcher is
+  The Claude Agent menu and agent show report whether a watcher is
   recorded as running, the last hook and session exit. Reads never start a
   watcher or resend feedback; recovery stays in the original conversation.
 ---
@@ -8,7 +8,7 @@ keyPoints: >-
 # Know whether Claude is waiting for Web replies
 
 Open the Agent menu on a Claude-owned Goal to see the last recorded connection
-evidence. `connection show` exposes the same status from the conversation's
+evidence. `agent show` exposes the same status from the conversation's
 exported shell environment. Child Goals use their Root's original connection.
 The connection status explains a missing reply; whether Claude is responding
 right now comes from its transcript (below).

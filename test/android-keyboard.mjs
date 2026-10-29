@@ -27,7 +27,7 @@ const cli = (...args) => exec(process.execPath,[cliFile,...args],{env});
 await cli('create','--title','会話から次の一歩を決める');
 await writeFile(join(root,'data/workspace/goals/1/deliverable.md'),await readFile(body,'utf8'));
 await cli('deliverable','update','--id','1');
-await cli('comment','--id','1','--text','返信の説明です。気になるところに注釈を付けてください。');
+await cli('reply','--id','1','--text','返信の説明です。気になるところに注釈を付けてください。');
 await cli('create','--title','別の計画');
 await writeFile(join(root,'data/workspace/goals/2/deliverable.md'),await readFile(body,'utf8'));
 await cli('deliverable','update','--id','2');

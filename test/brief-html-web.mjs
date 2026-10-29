@@ -14,7 +14,7 @@ await run('create','--title','Goal・Plan・Letterとバージョンの役割を
 await writeFile(join(root,'workspace/goals/1/deliverable.md'),'# Markdown remains\n\nOriginal explanation');await run('deliverable','update','--id','1');
 const source=await readFile(new URL('./fixtures/goal-7-deliverable.html',import.meta.url),'utf8');
 const path=await run('deliverable','path','--id','1','--format','html');await writeFile(path.path,source);await run('deliverable','update','--id','1','--format','html');
-await run('comment','--id','1','--text','Agent explanation of the page layout');
+await run('reply','--id','1','--text','Agent explanation of the page layout');
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
 const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});
 let browser;

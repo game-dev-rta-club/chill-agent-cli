@@ -49,7 +49,7 @@ test('notification preparation uses only a live configured URL and failures leav
   const env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'4173',CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url))};
   const run=(name,args)=>execute(process.execPath,[fileURLToPath(new URL(`../bin/${name}.mjs`,import.meta.url)),...args],{env});
   await run('chill-agent',['create','--title','Saved result']);
-  await run('chill-agent',['comment','--id','1','--text','Done']);
+  await run('chill-agent',['reply','--id','1','--text','Done']);
   const args=['notice','--id','1','--event','1'];
   assert.deepEqual(JSON.parse((await run('chill-settings',args)).stdout),{enabled:false});
   await saveMessageSetting('notifications',notifications,root);

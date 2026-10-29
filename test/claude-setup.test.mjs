@@ -37,7 +37,7 @@ test('edited and foreign chill hooks are replaced, a person\'s hook in their gro
  assert.equal((await claudeSetupStatus(f.project,f.options)).configured,false);
  const fixed=await configureClaudeHooks(f.project,f.options);assert(fixed.configured&&fixed.changed);
  const stop=(await f.read()).hooks.Stop;
- assert.deepEqual(stop.flatMap(g=>g.hooks).filter(h=>/claude-hook$/.test(h.command)).map(h=>h.timeout),[15],'the edited chill hook is put back');
+ assert.deepEqual(stop.flatMap(g=>g.hooks).filter(h=>/ agent hook claude$/.test(h.command)).map(h=>h.timeout),[15],'the edited chill hook is put back');
  assert.equal(stop.flatMap(g=>g.hooks).filter(h=>h.command==='echo mine').length,1,'the person\'s hook stays');
  await configureClaudeHooks(f.project,{...f.options,remove:true});
  assert.deepEqual((await f.read()).hooks.Stop,[{hooks:[{type:'command',command:'echo mine'}]}],'remove takes only chill\'s hooks');
@@ -69,7 +69,7 @@ test('CLI prepares native hooks with no Codex executable, and status never claim
     return (await execute(process.execPath,['--input-type=module','-e',code],{env:{...env,CHILL_AGENT_DATA_DIR:directory},timeout:10000})).stdout;
   };
   const firstContext=await readContext(prepared.root,prepared.dataDirectory);
-  assert(firstContext.includes(prepared.command+' connection reply --goal <goalId>'));
+  assert(firstContext.includes(prepared.command+' goal reply --id <goalId>'));
   assert(firstContext.includes("add --ask '<what to decide>'; it then appears as a Letter."));
   assert.equal(prepared.command,`'${prepared.entry.replaceAll("'","'\\''")}'`,'installed hooks and agents use the short entry');
   assert(!firstContext.includes('/packages/'));
@@ -82,8 +82,8 @@ test('CLI prepares native hooks with no Codex executable, and status never claim
   const foreign=await readContext(prepared.root,join(f.dir,'different-store'));
   assert.match(foreign,/[\\/]bin[\\/]chill-entry\.mjs/);assert.doesNotMatch(foreign,/[\\/]runtime[\\/]chill\.mjs/);
   // The exact quoted prefix is executable, including a path containing an apostrophe.
-  const help=execFileSync(posixShell(),['-c',prepared.command+' connection --help'],{encoding:'utf8',env:{...env,CHILL_AGENT_DATA_DIR:prepared.dataDirectory}});
-  assert.match(help,/connection/);
+  const help=execFileSync(posixShell(),['-c',prepared.command+' agent --help'],{encoding:'utf8',env:{...env,CHILL_AGENT_DATA_DIR:prepared.dataDirectory}});
+  assert.match(help,/agent conversation connects/);
  const envFile=join(f.dir,'native-env');await writeFile(envFile,'');const hook=(await f.read()).hooks.SessionStart[0].hooks[0];
  const options={cwd:f.project,env:{...env,CLAUDE_ENV_FILE:envFile},input:JSON.stringify(claudeHook('SessionStart',{source:'resume',session_id:'native-test',cwd:f.project})),encoding:'utf8'};
  execFileSync(posixShell(),['-c',hook.command],options);
@@ -102,13 +102,13 @@ test('an exec-form hook from an earlier Windows setup is replaced by the shell f
  await writeFile(f.path,JSON.stringify(config));await writeFile(record,JSON.stringify(old));
  assert.equal((await configureClaudeHooks(f.project,f.options)).configured,true);
  const hooks=Object.values((await f.read()).hooks).flat().flatMap(g=>g.hooks);
- assert.equal(hooks.filter(h=>h.args).length,0);assert.equal(hooks.filter(h=>/ connection claude-hook$/.test(h.command)).length,10);
+ assert.equal(hooks.filter(h=>h.args).length,0);assert.equal(hooks.filter(h=>/ agent hook claude$/.test(h.command)).length,10);
  // The watcher runs in the background from SessionStart and Stop and wakes the model itself.
- const watchers=Object.entries((await f.read()).hooks).flatMap(([event,groups])=>groups.flatMap(g=>g.hooks.filter(h=>/ connection claude-watch$/.test(h.command)).map(h=>({event,...h}))));
+ const watchers=Object.entries((await f.read()).hooks).flatMap(([event,groups])=>groups.flatMap(g=>g.hooks.filter(h=>/ agent hook claude-watch$/.test(h.command)).map(h=>({event,...h}))));
  assert.deepEqual(watchers.map(h=>[h.event,h.asyncRewake,h.timeout]),[['SessionStart',true,604800],['Stop',true,604800]]);
  assert.equal(await claudeWatcherInstalled(f.project),true);
  // An unrecorded exec-form chill hook is replaced too.
- const foreign=await f.read();foreign.hooks.Stop.push(exec(foreign.hooks.Stop.find(g=>/claude-hook/.test(g.hooks[0].command))));await writeFile(f.path,JSON.stringify(foreign));
+ const foreign=await f.read();foreign.hooks.Stop.push(exec(foreign.hooks.Stop.find(g=>/ agent hook claude$/.test(g.hooks[0].command))));await writeFile(f.path,JSON.stringify(foreign));
  assert.equal((await claudeSetupStatus(f.project,f.options)).configured,false);
  await configureClaudeHooks(f.project,f.options);assert.equal((await f.read()).hooks.Stop.length,1);
 });

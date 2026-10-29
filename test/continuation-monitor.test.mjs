@@ -7,7 +7,7 @@ import {continuationEligibility} from '../lib/continuation-eligibility.mjs';
 import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {createGoal,updateGoal,updateBrief,appendFeedback,readFeedback} from '../lib/goal-store.mjs';
+import {createGoal,createOwnedRoot,updateGoal,updateBrief,appendFeedback,readFeedback} from '../lib/goal-store.mjs';
 import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {mkdir} from 'node:fs/promises';
 import {recordVersionSource} from '../lib/version-source.mjs';
@@ -26,7 +26,7 @@ async function installedSkill(t){
 }
 const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootState:'idle',revision:'r1',progress:'p1',candidates:[{id:'2',title:'Work'}],lastUserEvent:1,paused:false,pendingFeedback:[],queue:[],stable:true,harnessState:'notLoaded',heartbeatFresh:false,turn:{id:'turn',status:'completed',completedAt:1}});
 // The chat's Autonomy plan: its Root at Auto Continue, its revision following the facts'.
-const planFor=f=>({rootId:'1',threadId:'t',level:2,goalId:'1',goalTitle:'Root',revision:f.revision,roots:[{id:'1',title:'Root',level:2}]});
+const planFor=f=>({rootId:'1',threadId:'t',owner:{agent:'codex',id:'t'},level:2,goalId:'1',goalTitle:'Root',revision:f.revision,roots:[{id:'1',title:'Root',level:2}]});
 function fixture(){
  let saved=null,time=1000,f=idle(),sent=[],failure=false,observations=0,mutate=()=>{};
  const deps={plan:async()=>deps.planned===undefined?planFor(f):deps.planned,read:async()=>structuredClone(saved),write:async(_id,s)=>{saved=structuredClone(s);},observe:async()=>{mutate(++observations);return structuredClone(f);},lock:async(_id,fn)=>fn(),now:()=>time,send:async(_f,text,id)=>{sent.push({text,id});if(failure)throw Error('timeout');return {queuedSubmission:{id:'q'}};}};
@@ -38,7 +38,7 @@ for(const [name,patch] of Object.entries({queued:{queue:[{id:'other-goal'}]},sen
 
 test('idle gets one readable nudge immediately; queue blocks followups',async()=>{
  const x=fixture();await x.run();assert.equal(x.sent.length,1);
- assert.match(x.sent[0].text,/carry on with anything/);assert.doesNotMatch(x.sent[0].text,/```|monitor result|chill goal|connection wake/);
+ assert.match(x.sent[0].text,/carry on with anything/);assert.doesNotMatch(x.sent[0].text,/```|monitor result|chill goal|agent wake/);
  assert.doesNotMatch(x.sent[0].text,/queueCount|latestTurn/);
  assert.equal(x.state.attempts[0].message,x.sent[0].text,'saved text is exactly what is sent');
  assert.ok(x.state.attempts[0].summary);
@@ -63,15 +63,15 @@ test('a level change is a new revision',async()=>{
  await x.run();assert.equal(x.sent.length,2);assert.match(x.sent[1].text,/Root Goal #1 “Root”, Ultra Continue: Root Goal #1 is delegated to you/);
  assert.match(x.sent[1].text,/Unfinished in that tree: #2 “Work”\./);
 });
-test('a reassigned Root starts over for its new chat, without the earlier level; the earlier request is closed, never resent',async t=>{
+test('an adopted Root keeps its level for its new chat; the earlier request is closed, never resent',async t=>{
  expectHidden(t,'continuation-monitor.send');
  const x=fixture();x.fail();await x.run();await x.deps.write('1',{...x.state,autonomy:3});
- x.deps.planned={...planFor(x.f),threadId:'u'};x.f.threadId='u';
- await x.run();assert.equal(x.state.history[0].phase,'assignment-changed');assert.equal(x.state.threadId,'u');assert.equal('autonomy' in x.state,false);
+ x.deps.planned={...planFor(x.f),threadId:'u',owner:{agent:'codex',id:'u'}};x.f.threadId='u';
+ await x.run();assert.equal(x.state.history[0].phase,'assignment-changed');assert.deepEqual(x.state.owner,{agent:'codex',id:'u'});assert.equal(x.state.autonomy,3);
 });
 test('a record written before any chat worked on the Root is taken over with its level',async()=>{
  const x=fixture();await x.deps.write('1',{rootId:'1',attempts:[],autonomy:2});
- await x.run();assert.equal(x.sent.length,1);assert.equal(x.state.threadId,'t');assert.equal(x.state.autonomy,2);assert.equal(x.state.status,'queued');
+ await x.run();assert.equal(x.sent.length,1);assert.deepEqual(x.state.owner,{agent:'codex',id:'t'});assert.equal(x.state.autonomy,2);assert.equal(x.state.status,'queued');
 });
 test('Done and no candidates do not suppress monitoring',async()=>{
  const x=fixture();x.f.rootState='done';x.f.candidates=[];await x.run();assert.equal(x.sent.length,1);
@@ -98,7 +98,7 @@ test('no turn does not establish idle; active thread blocks even with old comple
 test('adapter paginates native queue and detects turns changing during observation',async()=>{
  const old=process.env.CHILL_AGENT_DATA_DIR,dir=await mkdtemp(join(tmpdir(),'chill-monitor-'));process.env.CHILL_AGENT_DATA_DIR=dir;
  try{
-  const root=await createGoal({title:'root',threadId:'00000000-0000-0000-0000-000000000001'});let turns=0;
+  const root=await createOwnedRoot({title:'root'},{agent:'codex',id:'00000000-0000-0000-0000-000000000001'});let turns=0;
   const facts=await continuationObservation(root.id,null,{connect:fn=>fn(contractStub(async(method,p)=>{
    if(method==='thread/read')return {thread:codexThread({id:p.threadId})};
    if(method==='thread/turns/list')return {data:[{id:++turns===1?'a':'b',completedAt:1,status:'completed',items:[]}]};
@@ -112,7 +112,7 @@ test('adapter paginates native queue and detects turns changing during observati
 test('adapter treats interrupted without an end timestamp as running',async()=>{
  const old=process.env.CHILL_AGENT_DATA_DIR,dir=await mkdtemp(join(tmpdir(),'chill-live-monitor-'));process.env.CHILL_AGENT_DATA_DIR=dir;
  try{
-  const root=await createGoal({title:'root',threadId:'00000000-0000-0000-0000-000000000002'});
+  const root=await createOwnedRoot({title:'root'},{agent:'codex',id:'00000000-0000-0000-0000-000000000002'});
   const facts=await continuationObservation(root.id,null,{connect:fn=>fn(contractStub(async(method,p)=>{
    if(method==='thread/read')return {thread:codexThread({id:p.threadId})};
    if(method==='thread/turns/list')return {data:[{id:'live',completedAt:null,status:'interrupted',items:[]}]};
@@ -132,7 +132,7 @@ test('real store: content revisions stay separate from agent Web events',async()
   if(method==='thread/queue/list')return {data:[]};throw Error(method);
  }));
  try{
-  const root=await createGoal({title:'root',threadId});
+  const root=await createOwnedRoot({title:'root'},{agent:'codex',id:threadId});
   const observe=()=>continuationObservation(root.id,null,{connect});
   let facts=await observe();const original=facts.revision;
   await updateGoal(root.id,{started:true});assert.equal((await observe()).revision,original);
@@ -185,7 +185,7 @@ test('both harnesses get one light request; only a conversation that can wake it
   assert.match(text,/ask yourself once/);assert.match(text,/Run no commands and write no turn summary; chill records this check by itself/);
   assert.doesNotMatch(text,/```|monitor result|--attempt|goal review|goal tree|goal show/);
  }
- assert.doesNotMatch(codex,/connection wake/);assert.match(claude,/connection wake --in <minutes>/);
+ assert.doesNotMatch(codex,/agent wake/);assert.match(claude,/agent wake --in <minutes>/);
  assert.equal(claude.replace(/^Waiting on CI.*\n/m,''),codex,'the wake line is the only difference');
 });
 

@@ -14,7 +14,7 @@ const report={checkedAt:new Date().toISOString(),scope:'Native plugin discovery 
 const env={};for(const k of ['PATH','HOME','TMPDIR','USER','LOGNAME','SHELL','LANG','LC_ALL',...(values['auth-settings']?[]:authNames)])if(process.env[k]!==undefined)env[k]=process.env[k];
 Object.assign(env,{CLAUDE_CONFIG_DIR:config,CHILL_AGENT_DATA_DIR:data,CHILL_AGENT_CODEX_PATH:'/never/call/codex',CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:'1',CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL:'1'});
 const execute=promisify(execFile),calls=[],results=[],reads=[],skills=[],discovered=[],readEvidence=[],toolNames=new Set(),toolsById=new Map(),guideBodies=[];let child,timer,phase='prepare',stream='',stderrBytes=0,exit;
-const safeCommand=command=>({usesPreparedLauncher:typeof command==='string'&&command.includes(join(data,'runtime/chill.mjs')),action:['connection create-goal','goal create','goal assign','goal work','goal comment','connection show','setup prepare','server start'].find(a=>command?.includes(a))||null});
+const safeCommand=command=>({usesPreparedLauncher:typeof command==='string'&&command.includes(join(data,'runtime/chill.mjs')),action:['connection create-goal','goal create','goal assign','goal work','goal comment','agent show','setup prepare','server start'].find(a=>command?.includes(a))||null});
 try{
  const auth=values['auth-settings']?await probeAuthSettings(values['auth-settings']):null;if(auth)Object.assign(env,auth.env);
  await mkdir(cwd);await mkdir(config);

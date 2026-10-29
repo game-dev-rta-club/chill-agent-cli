@@ -15,7 +15,7 @@ test('two live project Web servers keep Goals and URLs separate and preserve a r
  async function start(name){
   const project=join(base,name);await mkdir(project);const directory=await prepareProject(project,{base,extensions:[]});
   const env={...process.env,CHILL_AGENT_DATA_DIR:directory,CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url)),CODEX_THREAD_ID:'00000000-0000-0000-0000-000000000001'};delete env.PORT;
-  await execute(process.execPath,[fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url)),'create','--title',name],{env});
+  await execute(process.execPath,[fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url)),'create','--title',name],{env:{...env,CODEX_THREAD_ID:''}});
   const child=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--idle-timeout','1m'],{env,stdio:['ignore','pipe','pipe']});const exit=once(child,'exit');children.push({child,exit});
   const url=await new Promise((resolve,reject)=>{let output='';child.stdout.on('data',chunk=>{output+=chunk;const match=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(match)resolve(match[0]);});child.stderr.on('data',c=>{output+=c;});child.once('error',reject);child.once('exit',()=>reject(Error(output)));});
   return {project,directory,url};

@@ -40,8 +40,11 @@ export async function installHook(projectDirectory = process.cwd(), options = {}
       continue;
     }
     // Replace only commands emitted by this installer, preserving other hooks.
-    const owned = value => typeof value === 'string' && value.startsWith('CHILL_AGENT_DATA_DIR=')
-      && (/ '\S[^\n]*\/bin\/chill-hook\.mjs'$/.test(value) || / '\S[^\n]*\/runtime\/chill\.mjs' hook$/.test(value));
+    // Setup writes the runtime entry (`<data>/runtime/chill' agent hook codex`, or
+    // `hook` before); hooks:install writes Node and this file.
+    const owned = value => typeof value === 'string' && (value.startsWith('CHILL_AGENT_DATA_DIR=')
+      && (/ '\S[^\n]*\/bin\/chill-hook\.mjs'$/.test(value) || / '\S[^\n]*\/runtime\/chill\.mjs' hook$/.test(value))
+      || /^'\S[^\n]*\/runtime\/chill' (?:hook|agent hook codex)$/.test(value));
     config.hooks[event] = groups.flatMap(group => {
       if (!Array.isArray(group.hooks)) return [group];
       const remaining = group.hooks.filter(hook => !owned(hook.command));
@@ -69,8 +72,8 @@ export async function hookOutput(input, assignedThreadId = process.env.CODEX_THR
     if (!stop?.quiet) return null;
     const command = codexCommand();
     return { decision: 'block', reason: quietGoalsReason(stop.quiet, {
-      reply: `${command} comment --id <goalId> --text '<reply>'`,
-      progress: `${command} comment --id <goalId> --text '<progress>'`,
+      reply: `${command} reply --id <goalId> --text '<reply>'`,
+      progress: `${command} reply --id <goalId> --text '<progress>'`,
     }) };
   }
   await recordWorkHeartbeat({threadId, turnId: input.turn_id});
@@ -79,8 +82,8 @@ export async function hookOutput(input, assignedThreadId = process.env.CODEX_THR
 }
 
 async function main() {
-  if (showHelp('hook', process.argv.slice(2))) return;
-  const values = parseOptions('hook', process.argv.slice(2));
+  if (showHelp('agent hook codex', process.argv.slice(2))) return;
+  const values = parseOptions('agent hook codex', process.argv.slice(2));
   if (values['--install']) {
     console.log(`Installed: ${await installHook()}\nReview and trust the new hooks (PostToolUse and Stop) in Codex /hooks before use.`);
     return;

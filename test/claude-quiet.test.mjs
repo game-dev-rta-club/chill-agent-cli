@@ -8,12 +8,12 @@ import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
-import {runClaudeAction} from '../lib/claude-actions.mjs';
 import {claudeQuietPath,quietClaudeHook} from '../lib/claude-quiet.mjs';
 import {prepareRuntime} from '../lib/runtime-package.mjs';
 import {listGoals} from '../lib/goal-store.mjs';
 import {readJson} from '../lib/storage.mjs';
 import {hookFor} from './claude-fixtures.mjs';
+import {agentAction} from './agent-action.mjs';
 
 async function store(t) {
   const dir=await mkdtemp(join(tmpdir(),'claude-quiet-test-')),data=join(dir,'data'),cwd=join(dir,'project');await mkdir(cwd);
@@ -23,7 +23,7 @@ async function store(t) {
     const sessionId=randomUUID(),event=hookFor({session_id:sessionId,prompt_id:randomUUID(),cwd}),envFile=join(dir,`${sessionId}.env`);await writeFile(envFile,'');
     const record=await captureClaudeEntry(event('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});
     const env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CHILL_AGENT_CONNECTION_GENERATION:record.generation};
-    return {sessionId,event,hook:(name,patch)=>quietClaudeHook(event(name,patch)),act:(action,payload)=>runClaudeAction(action,payload,{env}),
+    return {sessionId,event,hook:(name,patch)=>quietClaudeHook(event(name,patch)),act:(action,payload)=>agentAction(action,payload,env),
       quiet:()=>existsSync(claudeQuietPath(data,sessionId)),record:()=>readJson(claudeEntryPaths(data,sessionId).record)};
   };
   return {dir,data,conversation};
@@ -64,7 +64,7 @@ test('the launcher ends a quiet conversation\'s hooks before Node starts and pas
   const prepared=await prepareRuntime(root,s.data);
   const sessionId=randomUUID(),input=JSON.stringify({session_id:sessionId,transcript_path:'/example/session.jsonl',cwd:s.dir,hook_event_name:'PreToolUse',tool_name:'Bash',tool_input:{command:'echo "$HOME" `id` \\ CHILL_HOOK_INPUT'}});
   const env=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^chill_agent_data_dir$/i.test(key)));
-  const run=(text,extra={})=>execFileSync(prepared.entry,['connection','claude-hook'],{input:text,env:{...env,...extra},encoding:'utf8'});
+  const run=(text,extra={})=>execFileSync(prepared.entry,['agent','hook','claude'],{input:text,env:{...env,...extra},encoding:'utf8'});
   // Node gets the hook: it finds a conversation that owns nothing and marks it.
   run(input);
   assert.equal(existsSync(claudeQuietPath(s.data,sessionId)),true,'Node read the input and marked the conversation quiet');
