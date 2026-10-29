@@ -71,6 +71,10 @@ links and disclosures, alongside Markdown. Both authors use the same sanitizer;
 scripts, forms, custom styles and remote images are removed. Use a standalone
 HTML Deliverable when the explanation needs its own layout or styling.
 
+Each code block in a message or Deliverable has a Copy button at its top right,
+always shown so a phone can press it; it copies the block's text and shows
+Copied for a moment.
+
 `#N` in a message or a Markdown Deliverable always names Goal N, as on GitHub. It
 links to that Goal unless it is inside code or a link, glued to a word or path
 (`abc#1`, `/#1`), or no such Goal exists. A Goal named from another Goal's
