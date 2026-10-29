@@ -277,3 +277,15 @@ test('a user comment after a Letter answers it and shows it as Replied; one befo
  assert.deepEqual(letterState(closed,[]),{status:'answered',lastAnswerId:reply.id});
  const again=await f.run('close-letter','--id','1','--event',String(letter.id));assert.equal(again.changed,false);assert.equal(again.status,'answered');
 });
+
+for(const storage of ['json','sqlite'])test(`${storage}: owner fields from before {owner} stay stored but are not shown, so a Root they named reads as unowned`,async t=>{
+ const f=await fixture(t,storage);await f.run('create','--title','Earlier Root');await f.run('reply','--id','1','--text','Earlier reply');
+ const goalFile=join(f.root,'workspace/goals/1/goal.json'),goal=JSON.parse(await readFile(goalFile,'utf8'));
+ const legacy={connection:{harnessId:'claude-code',sessionId:'s',contextId:'00000000-0000-4000-8000-000000000001'},previousConnections:[],threadId:'t',creationHash:'h',creationRequestId:'r'};
+ await writeFile(goalFile,JSON.stringify({...goal,...legacy}));
+ const eventFile=join(f.root,'workspace/events/1.json'),event=JSON.parse(await readFile(eventFile,'utf8'));
+ await writeFile(eventFile,JSON.stringify({...event,connection:legacy.connection,threadId:'t'}));
+ const shown=await f.run('show','--id','1'),text=JSON.stringify(shown);
+ for(const field of Object.keys(legacy))assert.equal(text.includes(`"${field}"`),false,field);
+ assert.equal(shown.root.owner,null);assert.equal(shown.conversation[0].text,'Earlier reply');
+});

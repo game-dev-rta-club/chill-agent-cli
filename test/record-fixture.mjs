@@ -19,8 +19,9 @@ export async function readFile(path,encoding){
 }
 export async function writeFile(path,body,...options){
  const t=target(path);if(!t)return fs.writeFile(path,body,...options);
- if(t.table!=='goals')throw Error('Only Goal fixture mutation is supported.');
- const goal=JSON.parse(body),db=new DatabaseSync(t.database);try{
-  db.prepare('UPDATE goals SET parent_id=?,body=? WHERE id=?').run(goal.parentId===null?null:Number(goal.parentId),String(body),t.id);
+ if(t.table==='briefs')throw Error('Only Goal and event fixture mutation is supported.');
+ const record=JSON.parse(body),db=new DatabaseSync(t.database);try{
+  if(t.table==='events')db.prepare('UPDATE events SET body=? WHERE id=?').run(String(body),t.id);
+  else db.prepare('UPDATE goals SET parent_id=?,body=? WHERE id=?').run(record.parentId===null?null:Number(record.parentId),String(body),t.id);
  }finally{db.close();}
 }
