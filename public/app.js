@@ -7,7 +7,7 @@ import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
 import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, thinkView, waitListMarkup, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
-import { briefBody } from './brief-body.js';
+import { briefBody, addCodeCopy, copyCode } from './brief-body.js';
 import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-view.js';
 import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversation-window.js';
 import { createReadingPane } from './reading-pane.js';
@@ -368,8 +368,11 @@ function activityEnd(id) {
   if (!shown || activity.goalId !== id || liveActivity.has(shown.state)) return Infinity;
   return Math.max(Date.parse(activity.work?.startedAt) || 0, ...(activity.work?.messages || []).map(message => Number(message.at) || 0)) || Infinity;
 }
+// Goals whose Waiting list the user closed, while this page stays open, as Think.
+const closedWaits = new Set();
 function activityMarkup(id) {
   const activity = activityControls.current(), shown = activityDisplay(activity);
+  const waits = shown?.items || [], waitsClosed = closedWaits.has(id);
   if (!shown || activity.goalId !== id) return '';
   if (activity.in) {
     const title = goalMetadata.get(activity.in)?.title;
@@ -379,8 +382,8 @@ function activityMarkup(id) {
   }
   return `<li class="timeline-event activity-event" id="goal-activity">
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
-    <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><strong>${escapeHTML(shown.label)}</strong>${activityControls.controls()}</div>
-      ${shown.description ? `<p>${escapeHTML(shown.description)}</p>` : ''}${waitListMarkup(shown.items || [])}
+    <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span>${waits.length ? `<button type="button" class="wait-toggle" data-action="toggle-waits" aria-expanded="${!waitsClosed}"><span class="wait-chevron">${icon('arrow')}</span><strong>${escapeHTML(/·/.test(shown.label) ? shown.label : `${shown.label} · ${waits.length}`)}</strong></button>` : `<strong>${escapeHTML(shown.label)}</strong>`}${activityControls.controls()}</div>
+      ${shown.description ? `<p>${escapeHTML(shown.description)}</p>` : ''}${waitsClosed ? '' : waitListMarkup(waits)}
       ${workMarkup(`goal:${id}:${activity.work?.startedAt || ''}`, activity.work, shown.live)}
     </div></li>`;
 }
@@ -575,7 +578,9 @@ function mountHTMLBrief(id,version) {
     doc.addEventListener('pointerup',updateSelectionAction);
     doc.addEventListener('keyup',updateSelectionAction);
     doc.addEventListener('toggle',()=>renderAnnotations(),true);
+    addCodeCopy(body);
     doc.addEventListener('click',event=>{
+      const copy=event.target.closest('[data-action="copy-code"]');if(copy){event.preventDefault();void copyCode(copy);return;}
       const mark=event.target.closest('.annotation-mark, .image-note-box');
       if(mark){event.preventDefault();openNoteReference(mark.dataset.noteRef);return;}
       const image=event.target.closest('[data-action="annotate-image"]');if(image){event.preventDefault();openImageSelection(image.dataset.imageId,image.dataset.svgIndex);return;}
@@ -1357,6 +1362,11 @@ main.addEventListener('click', async event => {
     if(button.matches('p')&&!window.getSelection()?.isCollapsed)return;
     const view=workViews.get(button.dataset.workId);if(!view)return;
     view.all=button.dataset.action==='expand-work';updateTimeline(activeGoalId);renderAnnotations();return;
+  }
+  if(button.dataset.action==='copy-code'){void copyCode(button);return;}
+  if(button.dataset.action==='toggle-waits'){
+    if(!closedWaits.delete(activeGoalId))closedWaits.add(activeGoalId);
+    updateTimeline(activeGoalId);renderAnnotations();return;
   }
   if(button.dataset.action==='load-older-conversation'){
     const id=activeGoalId,state=historyPages.get(id);if(!state?.hasMore||state.loading)return;

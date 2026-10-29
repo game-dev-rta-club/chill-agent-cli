@@ -86,6 +86,11 @@
 .activity-entry { min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 12px; }
 .activity-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-height: 24px; }
 .activity-heading strong { font-size: 12px; }
+.wait-toggle { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; margin: -4px 0 -4px -6px; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.wait-toggle:hover { background: var(--theme-soft,#f2f5f1); }
+.wait-chevron { display: grid; color: var(--muted); transition: transform .15s; }
+.wait-chevron svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2.4; }
+.wait-toggle[aria-expanded="true"] .wait-chevron { transform: rotate(90deg); }
 .activity-entry p { margin: 3px 0; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
 .wait-list { list-style: none; margin: 6px 0 2px; padding: 0; display: grid; gap: 4px; }
 .wait-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-size: 12px; color: var(--ink, inherit); }
@@ -273,6 +278,8 @@
 .markdown-body li > p {margin-bottom:6px;}
 .markdown-body blockquote {margin:14px 0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);}
 .markdown-body pre {max-width:100%;overflow:auto;padding:12px;background:var(--surface-soft);border-radius:6px;font-size:12px;white-space:pre;}
+/* A Copy button at the top right of each code block; see brief-body.js. */
+.code-block{position:relative}.code-block>pre{padding-right:52px}.code-copy{position:absolute;top:4px;right:4px;min-width:36px;height:36px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid #d3dbd4;border-radius:6px;background:#fffffff0;color:#4a5a4f;font:600 12px system-ui,-apple-system,sans-serif;cursor:pointer}.code-copy:hover{background:#f2f5f1}.code-copy svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.code-copy[data-copied] svg{display:none}.code-copy[data-copied=done]{color:#267653;border-color:#b3d9b8}.code-copy[data-copied=done]::after{content:"\2713  Copied"}.code-copy[data-copied=failed]{color:#ae6128}.code-copy[data-copied=failed]::after{content:"Copy failed"}
 .markdown-body code {font-family:ui-monospace,SFMono-Regular,Consolas,monospace;}
 .markdown-body :not(pre) > code {background:var(--surface-soft);padding:1px 4px;border-radius:3px;}
 .markdown-body table {display:block;max-width:100%;overflow:auto;border-collapse:collapse;margin:14px 0;}

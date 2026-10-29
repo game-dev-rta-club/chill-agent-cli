@@ -46,6 +46,13 @@ try {
  const [codeBox,wideAction]=await Promise.all([brief.locator('pre').first().boundingBox(),page.locator('.annotation-action').boundingBox()]);
  assert.ok(wideAction.x+wideAction.width<=codeBox.x+codeBox.width,'the button stays inside a code block that scrolls sideways');
  await page.evaluate(()=>window.getSelection().removeAllRanges());
+ // Its Copy button, at the block's top right, copies the code and says so.
+ await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+ const copy=brief.locator('.code-block').first().locator('.code-copy');
+ const [copyBox,blockBox]=await Promise.all([copy.boundingBox(),brief.locator('.code-block').first().boundingBox()]);
+ assert.ok(copyBox.x+copyBox.width<=blockBox.x+blockBox.width&&copyBox.y-blockBox.y<10,'the Copy button sits at the top right of the code block');
+ await copy.click();await page.locator('.brief-body .code-copy[data-copied="done"]').waitFor();
+ assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),await brief.locator('pre').first().textContent());
  async function annotate(selector,quote,reply) {
   await page.locator(selector).scrollIntoViewIfNeeded();
   await page.evaluate(({selector,quote})=>{const el=document.querySelector(selector),node=el.firstChild;const r=document.createRange();r.setStart(node,node.textContent.indexOf(quote));r.setEnd(node,node.textContent.indexOf(quote)+quote.length);const s=window.getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));},{selector,quote});
