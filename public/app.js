@@ -368,11 +368,12 @@ function activityEnd(id) {
   if (!shown || activity.goalId !== id || liveActivity.has(shown.state)) return Infinity;
   return Math.max(Date.parse(activity.work?.startedAt) || 0, ...(activity.work?.messages || []).map(message => Number(message.at) || 0)) || Infinity;
 }
-// Goals whose Waiting list the user closed, while this page stays open, as Think.
-const closedWaits = new Set();
+// The Waiting list starts closed, its count in view, so it does not push the
+// rest down. Goals whose list the user opened stay open while this page does.
+const openWaits = new Set();
 function activityMarkup(id) {
   const activity = activityControls.current(), shown = activityDisplay(activity);
-  const waits = shown?.items || [], waitsClosed = closedWaits.has(id);
+  const waits = shown?.items || [], waitsClosed = !openWaits.has(id);
   if (!shown || activity.goalId !== id) return '';
   if (activity.in) {
     const title = goalMetadata.get(activity.in)?.title;
@@ -382,8 +383,8 @@ function activityMarkup(id) {
   }
   return `<li class="timeline-event activity-event" id="goal-activity">
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
-    <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span>${waits.length ? `<button type="button" class="wait-toggle" data-action="toggle-waits" aria-expanded="${!waitsClosed}"><span class="wait-chevron">${icon('arrow')}</span><strong>${escapeHTML(/·/.test(shown.label) ? shown.label : `${shown.label} · ${waits.length}`)}</strong></button>` : `<strong>${escapeHTML(shown.label)}</strong>`}${activityControls.controls()}</div>
-      ${shown.description ? `<p>${escapeHTML(shown.description)}</p>` : ''}${waitsClosed ? '' : waitListMarkup(waits)}
+    <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><strong>${escapeHTML(shown.label)}</strong>${activityControls.controls()}</div>
+      ${shown.description ? `<p>${escapeHTML(shown.description)}</p>` : ''}${waits.length ? `<details class="work-progress wait-box" data-wait-goal="${escapeHTML(id)}" ${waitsClosed ? '' : 'open'}><summary>Waiting · ${waits.length}</summary><div class="work-output">${waitListMarkup(waits)}</div></details>` : ''}
       ${workMarkup(`goal:${id}:${activity.work?.startedAt || ''}`, activity.work, shown.live)}
     </div></li>`;
 }
@@ -1251,6 +1252,11 @@ main.addEventListener('toggle', event => {
     if (detail.open) openReplies.add(detail.dataset.replyDetail); else openReplies.delete(detail.dataset.replyDetail);
     return;
   }
+  if (detail.matches?.('.wait-box')) {
+    if (!detail.isConnected) return;
+    if (detail.open) openWaits.add(detail.dataset.waitGoal); else openWaits.delete(detail.dataset.waitGoal);
+    return;
+  }
   if (detail.matches?.('.work-progress')) {
     if (!detail.isConnected) return;
     const view = workViews.get(detail.dataset.workId);
@@ -1364,10 +1370,6 @@ main.addEventListener('click', async event => {
     view.all=button.dataset.action==='expand-work';updateTimeline(activeGoalId);renderAnnotations();return;
   }
   if(button.dataset.action==='copy-code'){void copyCode(button);return;}
-  if(button.dataset.action==='toggle-waits'){
-    if(!closedWaits.delete(activeGoalId))closedWaits.add(activeGoalId);
-    updateTimeline(activeGoalId);renderAnnotations();return;
-  }
   if(button.dataset.action==='load-older-conversation'){
     const id=activeGoalId,state=historyPages.get(id);if(!state?.hasMore||state.loading)return;
     state.loading=true;button.disabled=true;
