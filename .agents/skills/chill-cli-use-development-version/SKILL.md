@@ -1,6 +1,6 @@
 ---
 name: chill-cli-use-development-version
-description: Use when trying an unreleased chill-agent-cli commit in another project (for example superhookgirl) or sharing it with that project's team without a release. Covers pushing, npm run use-in and committing the project's cli.json.
+description: Use when trying an unreleased chill-agent-cli commit in another project (for example superhookgirl) or sharing it with that project's team without a release. Covers pushing, npm run use-in and committing the project's chill-agent.json.
 ---
 
 # Use a development version in another project

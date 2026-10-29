@@ -8,7 +8,7 @@ test('Claude and Codex show the same feedback text, with the recorded guide and 
  const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-guide-')));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const guide=join(dir,'SKILL.md');await writeFile(guide,'# Guide');
  await mkdir(join(dir,'data','runtime'),{recursive:true});
- await writeFile(join(dir,'data','runtime','version-source.json'),JSON.stringify({version:1,versionFile:join(dir,'cli.json'),agentGuide:guide}));
+ await writeFile(join(dir,'data','runtime','version-source.json'),JSON.stringify({version:1,versionFile:join(dir,'chill-agent.json'),agentGuide:guide}));
  const previous=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');t.after(()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;});
  const {claudeFeedbackText}=await import('../lib/claude-actions.mjs'),{codexFeedbackText,codexCommand}=await import('../lib/agents/codex-work.mjs'),{command}=await import('../lib/chill-command.mjs');
  const event={id:3,goalId:'1',text:'Plain'},claude=await claudeFeedbackText([event]),codex=await codexFeedbackText([event]);

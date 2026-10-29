@@ -19,9 +19,9 @@ async function installedSkill(t){
  const dir=await mkdtemp(join(tmpdir(),'chill-guide-')),skill=join(dir,'skill'),old=process.env.CHILL_AGENT_DATA_DIR;
  await mkdir(join(skill,'references/auto-mode'),{recursive:true});
  await writeFile(join(skill,'SKILL.md'),'# Guide\n');await writeFile(join(skill,'references/auto-mode/continue.md'),'# Continue\n');
- await writeFile(join(skill,'cli.json'),JSON.stringify({package:'example'}));
+ await writeFile(join(skill,'chill-agent.json'),JSON.stringify({package:'example'}));
  process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');
- await recordVersionSource(process.env.CHILL_AGENT_DATA_DIR,{versionFile:join(skill,'cli.json'),agentGuide:join(skill,'SKILL.md')});
+ await recordVersionSource(process.env.CHILL_AGENT_DATA_DIR,{versionFile:join(skill,'chill-agent.json'),agentGuide:join(skill,'SKILL.md')});
  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
 }
 const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootState:'idle',revision:'r1',progress:'p1',candidates:[{id:'2',title:'Work'}],lastUserEvent:1,paused:false,pendingFeedback:[],queue:[],stable:true,harnessState:'notLoaded',heartbeatFresh:false,turn:{id:'turn',status:'completed',completedAt:1}});
