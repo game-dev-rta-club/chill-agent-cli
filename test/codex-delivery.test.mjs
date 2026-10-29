@@ -35,9 +35,12 @@ async function fixture() {
   const env = { ...process.env, CHILL_AGENT_DATA_DIR: root, CHILL_AGENT_CODEX_PATH: fake, CODEX_THREAD_ID: thread };
   const run = (args, extra = {}) => execute(process.execPath, [cli, ...args], { env: { ...env, ...extra } });
   const json = async path => JSON.parse(await readFile(join(root, path), 'utf8'));
-  const assign=chat=>chat?run(['adopt','--id','1'],{CODEX_THREAD_ID:chat}):run(['release','--id','1']);
+  // A chat adopts the Root from its own shell, which asks Codex about the chat.
+  // The fake Codex cannot run on Windows, so there the owner is written directly.
+  const owner=chat=>execute(process.execPath,['--input-type=module','-e',`import {setRootOwner} from ${JSON.stringify(new URL('../lib/goal-store.mjs',import.meta.url).href)};await setRootOwner('1',${JSON.stringify(chat?{agent:'codex',id:chat}:null)});`],{env});
+  const assign=chat=>!chat?run(['release','--id','1']):process.platform==='win32'?owner(chat):run(['adopt','--id','1'],{CODEX_THREAD_ID:chat});
   const body = join(root, 'workspace/goals/1/deliverable.md');
-  await run(['create', '--title', 'Delivery']);
+  await run(['create', '--title', 'Delivery'],{CODEX_THREAD_ID:''});
   let updates=0;
   const publish = async (chat = thread) => {await assign(chat);await writeFile(body,`通知テスト ${++updates}`);return run(['deliverable','update','--id','1']);};
   await publish();
