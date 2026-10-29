@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {mkdtemp,mkdir,writeFile,readFile,rm,realpath} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,rm,realpath,rename} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
-import {readPackageSpec,packageKey,readVersionSource,snapshotPackage,prepareSelectedPackage,acquirePackage,npmCommand} from '../lib/version-source.mjs';
+import {readPackageSpec,packageKey,readVersionSource,recordVersionSource,snapshotPackage,prepareSelectedPackage,acquirePackage,npmCommand} from '../lib/version-source.mjs';
 import {createRuntimeUpdates} from '../lib/runtime-update-provider.mjs';
 import {agentGuide} from '../lib/agent-guidance.mjs';
 
@@ -16,7 +16,7 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 async function fixture(t,spec='github:example/chill#aaaa'){
  const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-version-'))),skill=join(dir,'skill'),project=join(dir,'project'),data=join(dir,'data');
  await mkdir(skill);await mkdir(project);
- const versionFile=join(skill,'cli.json'),guide=join(skill,'SKILL.md');
+ const versionFile=join(skill,'chill-agent.json'),guide=join(skill,'SKILL.md');
  await writeFile(versionFile,JSON.stringify({package:spec}));await writeFile(guide,'# Guide\n');
  const old=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=data;
  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
@@ -33,7 +33,17 @@ test('a version file holds exactly one npm package spec',async t=>{
   await writeFile(f.versionFile,JSON.stringify(value));
   await assert.rejects(readPackageSpec(f.versionFile),/only \{"package"/);
  }
- await assert.rejects(readPackageSpec('relative/cli.json'),/absolute/);
+ await assert.rejects(readPackageSpec('relative/chill-agent.json'),/absolute/);
+});
+
+test('a project set up when the file was cli.json reads chill-agent.json once the skill holds only that',async t=>{
+ const f=await fixture(t),old=join(f.skill,'cli.json');
+ await rename(f.versionFile,old);await recordVersionSource(f.data,{versionFile:old});
+ assert.equal((await readVersionSource(f.data)).versionFile,old,'the recorded file is read while it exists');
+ await rename(old,f.versionFile);
+ assert.equal((await readVersionSource(f.data)).versionFile,f.versionFile);
+ await rm(f.versionFile);
+ assert.equal((await readVersionSource(f.data)).versionFile,old,'with neither file, the record is unchanged and the Web keeps its version');
 });
 
 test('setup records the version file, its package and the agent guide, then names the session command',async t=>{

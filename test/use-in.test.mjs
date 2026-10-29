@@ -21,7 +21,7 @@ test('use-in writes the pushed commit to the recorded version file and refuses u
  git(dir,'init','-q','--bare',remote);await mkdir(repo);git(repo,'init','-q');
  git(repo,'-c','user.name=t','-c','user.email=t@example.invalid','commit','-q','--allow-empty','-m','one');
  git(repo,'remote','add','origin',remote);git(repo,'push','-q','origin','HEAD:refs/heads/main');
- await mkdir(join(project,'skill'),{recursive:true});const versionFile=join(project,'skill/cli.json');
+ await mkdir(join(project,'skill'),{recursive:true});const versionFile=join(project,'skill/chill-agent.json');
  await writeFile(versionFile,JSON.stringify({package:'old'}));
  await assert.rejects(useIn({project,repo,base}),/has not recorded a version file/);
  await recordVersionSource(await projectDirectory(project,base),{versionFile});

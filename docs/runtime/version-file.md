@@ -9,7 +9,7 @@ keyPoints: >-
 # Select the CLI with a version file
 
 An application such as the chill-agent skill does not bundle the CLI. It keeps
-one small file, conventionally `cli.json`, that names the CLI to use:
+one small file, conventionally `chill-agent.json`, that names the CLI to use:
 
 ```json
 { "package": "https://github.com/game-dev-rta-club/chill-agent-cli/releases/download/v0.5.0/game-dev-rta-club-chill-agent-cli-0.5.0.tgz" }
@@ -24,9 +24,13 @@ the spec, so it does not know or care how it was installed.
 
 An application relies on exactly two things:
 
-1. It runs `npx -y <package> setup prepare … --version-file <absolute cli.json>`.
+1. It runs `npx -y <package> setup prepare … --version-file <absolute chill-agent.json>`.
    It may add `--agent-guide <absolute SKILL.md>` for its agent guide.
 2. The file contains only the `package` field above.
+
+Earlier skills named the file `cli.json`. A project set up with one keeps that
+path in its record; when the file is gone and `chill-agent.json` sits beside it,
+the CLI reads that instead, so reinstalling the skill needs no new setup.
 
 Setup prepares the runtime as usual and records the version file's location,
 the package each prepared snapshot came from and the agent guide. When a

@@ -2,7 +2,7 @@
 keyPoints: >-
   Try an unreleased CLI commit in another project and share it with that team:
   push the commit, run npm run use-in -- --project <dir>, commit the project's
-  cli.json. Starting Web or the update button then switches. No release, tag or
+  chill-agent.json. Starting Web or the update button then switches. No release, tag or
   version change; npm builds the commit on first install.
 ---
 
@@ -10,7 +10,7 @@ keyPoints: >-
 
 Use this to run a CLI commit in a real project, such as one that installs the
 chill-agent skill, before any release. The whole team of that project gets the
-same commit once its `cli.json` is committed. See the
+same commit once its `chill-agent.json` is committed. See the
 [version file contract](../runtime/version-file.md) for how the switch works.
 
 1. Commit and push the CLI change. A topic branch is enough; the commit must be
@@ -25,7 +25,7 @@ same commit once its `cli.json` is committed. See the
    `{"package": "github:game-dev-rta-club/chill-agent-cli#<SHA>"}` to the version
    file that the project's setup recorded, and prints the previous value. Before
    the project has run setup with a version file, add
-   `--version-file /path/to/project/.agents/skills/chill-agent/cli.json` once.
+   `--version-file /path/to/project/.agents/skills/chill-agent/chill-agent.json` once.
 3. Commit that file in the project, following the project's own rules.
 4. In the project, start Web or press the update button in an open Web. npm
    fetches and builds the commit on first install, which takes about a minute.
