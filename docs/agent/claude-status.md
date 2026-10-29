@@ -42,7 +42,7 @@ a running conversation's model from outside it.
 ## See the plan's usage
 
 Usage shows the 5-hour and weekly windows as percent left with their reset
-times, as Codex's does, and when they were read. [Cache Keep](cache-keep.md)
+times, as Codex's does, and when they were read. [The usage mod](claude-usage.md)
 records them from the last Claude Code response, so they update only while a
 chill conversation runs; one file serves every project. A window past its reset
 is dropped, and with none left, or off a Pro or Max plan, Usage is unavailable.

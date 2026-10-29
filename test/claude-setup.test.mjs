@@ -46,7 +46,7 @@ test('edited and foreign chill hooks are replaced, a person\'s hook in their gro
 });
 test('concurrent prepares do not duplicate; malformed settings do not overwrite files',async t=>{
  const f=await fixture(t);const both=await Promise.all([configureClaudeHooks(f.project,f.options),configureClaudeHooks(f.project,f.options)]);assert.equal((await f.read()).hooks.Stop.length,1);
- assert.deepEqual(both.map(s=>s.cacheKeep.error),[undefined,undefined],'both place Cache Keep');
+ assert.deepEqual(both.map(s=>s.usageMod.error),[undefined,undefined],'both place the usage mod');
  await writeFile(f.path,'{"hooks":{"Stop":"invalid"}}');await assert.rejects(configureClaudeHooks(f.project,f.options),/Invalid Claude hook groups/);
  assert.equal(await readFile(f.path,'utf8'),'{"hooks":{"Stop":"invalid"}}');
 });
@@ -148,7 +148,7 @@ test('an update brings recorded hooks up to the new version, puts back edited on
 });
 
 test('hooks rewritten with their keys in another order still count as chill\'s and are refreshed',async t=>{
- const {refreshRecordedClaudeHooks,cacheKeepPlugin}=await import('../lib/claude-setup.mjs');
+ const {refreshRecordedClaudeHooks,usagePlugin}=await import('../lib/claude-setup.mjs');
  const f=await fixture(t);
  await configureClaudeHooks(f.project,f.options);
  const reverse=v=>Array.isArray(v)?v.map(reverse):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).reverse().map(k=>[k,reverse(v[k])])):v;
@@ -156,41 +156,53 @@ test('hooks rewritten with their keys in another order still count as chill\'s a
  assert.equal((await claudeSetupStatus(f.project,{directory:f.data})).configured,true);
  const [result]=await refreshRecordedClaudeHooks(f.options);
  assert.equal(result.error,undefined);
- assert.equal((await f.read()).enabledPlugins?.[cacheKeepPlugin],true,'the update turns Cache Keep on again');
+ assert.equal((await f.read()).enabledPlugins?.[usagePlugin],true,'the update turns the usage mod on again');
 });
 
-test('setup places Cache Keep for the user, off there and on in the project; remove takes back only its on',async t=>{
- const {cacheKeepPlugin}=await import('../lib/claude-setup.mjs');
+test('setup places the usage mod for the user, off there and on in the project; remove takes back only its on',async t=>{
+ const {usagePlugin}=await import('../lib/claude-setup.mjs');
  const f=await fixture(t),claude=join(f.dir,'claude'),options={...f.options,claude};
  const user=async()=>JSON.parse(await readFile(join(claude,'settings.json'),'utf8'));
  await mkdir(claude);await writeFile(join(claude,'settings.json'),JSON.stringify({theme:'dark'}));
  const first=await configureClaudeHooks(f.project,options);
- assert.equal(first.cacheKeep.enabled,true);
- assert.deepEqual(await user(),{theme:'dark',enabledPlugins:{[cacheKeepPlugin]:false}},'off for the user, other settings kept');
- const mod=join(claude,'skills','chill-agent-cache-keep');
- assert.equal(JSON.parse(await readFile(join(mod,'.claude-plugin/plugin.json'),'utf8')).name,'chill-agent-cache-keep');
+ assert.equal(first.usageMod.enabled,true);
+ assert.deepEqual(await user(),{theme:'dark',enabledPlugins:{[usagePlugin]:false}},'off for the user, other settings kept');
+ const mod=join(claude,'skills','chill-agent-usage');
+ assert.equal(JSON.parse(await readFile(join(mod,'.claude-plugin/plugin.json'),'utf8')).name,'chill-agent-usage');
  assert.deepEqual((await readdir(join(mod,'hooks'))).sort(),['hooks.json','register.ts'],'the tests stay in the repository');
- assert.deepEqual((await readdir(join(claude,'skills'))),['chill-agent-cache-keep'],'no staging folder is left');
- assert.equal((await f.read()).enabledPlugins[cacheKeepPlugin],true,'on in the project');
+ assert.deepEqual((await readdir(join(claude,'skills'))),['chill-agent-usage'],'no staging folder is left');
+ assert.equal((await f.read()).enabledPlugins[usagePlugin],true,'on in the project');
  // The person's own choice for the user stays, and an update replaces the mod.
- await writeFile(join(claude,'settings.json'),JSON.stringify({enabledPlugins:{[cacheKeepPlugin]:true}}));
+ await writeFile(join(claude,'settings.json'),JSON.stringify({enabledPlugins:{[usagePlugin]:true}}));
  await writeFile(join(mod,'hooks/register.ts'),'stale');
  assert.equal((await configureClaudeHooks(f.project,options)).changed,false);
- assert.deepEqual(await user(),{enabledPlugins:{[cacheKeepPlugin]:true}});
+ assert.deepEqual(await user(),{enabledPlugins:{[usagePlugin]:true}});
  assert.notEqual(await readFile(join(mod,'hooks/register.ts'),'utf8'),'stale');
  await configureClaudeHooks(f.project,{...options,remove:true});
  assert.deepEqual(await f.read(),f.config,'removing chill takes back its on');
  // An off the person set in the project is kept through setup and removal.
- const off={...f.config,enabledPlugins:{[cacheKeepPlugin]:false}};await writeFile(f.path,JSON.stringify(off));
- await configureClaudeHooks(f.project,options);assert.equal((await f.read()).enabledPlugins[cacheKeepPlugin],false);
+ const off={...f.config,enabledPlugins:{[usagePlugin]:false}};await writeFile(f.path,JSON.stringify(off));
+ await configureClaudeHooks(f.project,options);assert.equal((await f.read()).enabledPlugins[usagePlugin],false);
  await configureClaudeHooks(f.project,{...options,remove:true});assert.deepEqual(await f.read(),off);
 });
 
-test('unreadable user settings leave Cache Keep off and the hooks set up',async t=>{
+test('setup deletes the Cache Keep mod chill shipped before, and leaves its settings keys',async t=>{
+ const f=await fixture(t),claude=join(f.dir,'claude'),options={...f.options,claude};
+ const oldMod=join(claude,'skills','chill-agent-cache-keep'),oldData=join(claude,'chill-agent-cache-keep');
+ await mkdir(join(oldMod,'hooks'),{recursive:true});await writeFile(join(oldMod,'hooks','register.ts'),'old');
+ await mkdir(oldData,{recursive:true});await writeFile(join(oldData,'usage.json'),'{}');
+ const old={enabledPlugins:{'chill-agent-cache-keep@skills-dir':false}};await writeFile(join(claude,'settings.json'),JSON.stringify(old));
+ await configureClaudeHooks(f.project,options);
+ assert.deepEqual(await readdir(join(claude,'skills')),['chill-agent-usage']);
+ await assert.rejects(readdir(oldData),{code:'ENOENT'});
+ assert.equal(JSON.parse(await readFile(join(claude,'settings.json'),'utf8')).enabledPlugins['chill-agent-cache-keep@skills-dir'],false);
+});
+
+test('unreadable user settings leave the usage mod off and the hooks set up',async t=>{
  const f=await fixture(t),claude=join(f.dir,'claude');
  await mkdir(claude);await writeFile(join(claude,'settings.json'),'{not json');
  const status=await configureClaudeHooks(f.project,{...f.options,claude});
- assert(status.configured);assert.equal(status.cacheKeep.enabled,false);assert.match(status.cacheKeep.error,/JSON/);
+ assert(status.configured);assert.equal(status.usageMod.enabled,false);assert.match(status.usageMod.error,/JSON/);
  assert.equal((await f.read()).enabledPlugins,undefined);
  assert.equal(await readFile(join(claude,'settings.json'),'utf8'),'{not json');
  await assert.rejects(readdir(join(claude,'skills')),{code:'ENOENT'},'the mod is not placed without the user off');

@@ -81,11 +81,11 @@ test('installing a new package with its own installer also brings recorded Claud
  const path=join(project,'.claude','settings.local.json'),settings=JSON.parse(await readFile(path,'utf8'));delete settings.hooks.Stop;await writeFile(path,JSON.stringify(settings));
  const {createHash}=await import('node:crypto');const {realpath}=await import('node:fs/promises');const root=await realpath(project);
  await writeFile(join(data,'settings/claude-projects',`${createHash('sha256').update(root).digest('hex')}.json`),JSON.stringify({project:root,owned:claudeHookGroups({entry}).filter(e=>e.event!=='Stop'),pending:false}));
- // An update also puts Cache Keep back in place for the user.
- const {claudeDirectory}=await import('../lib/claude-setup.mjs');const mod=join(claudeDirectory(),'skills','chill-agent-cache-keep');
+ // An update also puts the usage mod back in place for the user.
+ const {claudeDirectory}=await import('../lib/claude-setup.mjs');const mod=join(claudeDirectory(),'skills','chill-agent-usage');
  await rm(mod,{recursive:true,force:true,maxRetries:10,retryDelay:100});
  const result=await prepareWithOwnInstaller(repo,data);
  assert.deepEqual(result.hooks,[{project:root,changed:true}]);
  assert.equal(JSON.parse(await readFile(path,'utf8')).hooks.Stop.length,1);
- assert.equal(JSON.parse(await readFile(join(mod,'.claude-plugin','plugin.json'),'utf8')).name,'chill-agent-cache-keep');
+ assert.equal(JSON.parse(await readFile(join(mod,'.claude-plugin','plugin.json'),'utf8')).name,'chill-agent-usage');
 });

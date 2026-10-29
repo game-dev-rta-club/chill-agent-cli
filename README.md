@@ -54,9 +54,10 @@ agent delivery and extension contracts. To inspect a project,
 [start with a one-line Goal index](docs/workspace/reading-goals.md), filter by
 state, then open the relevant Deliverable and recent conversation.
 
-[Cache Keep](docs/agent/cache-keep.md) keeps an idle chill conversation's
-Claude Code prompt cache alive and compacts it when it stays idle. Claude setup
-and every update put it in place and turn it on for chill's projects only.
+To keep an idle conversation's Claude Code prompt cache, install
+[Cache Keep](https://github.com/game-dev-rta-club/cache-keep) for your user. chill
+no longer ships it; Claude setup places only a small mod that
+[records the plan's usage](docs/agent/claude-usage.md).
 
 ## Command reference
 
