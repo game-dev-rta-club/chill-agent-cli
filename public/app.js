@@ -384,7 +384,7 @@ function activityMarkup(id) {
   return `<li class="timeline-event activity-event" id="goal-activity">
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
     <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><strong>${escapeHTML(shown.label)}</strong>${activityControls.controls()}</div>
-      ${shown.description ? `<p>${escapeHTML(shown.description)}</p>` : ''}${waits.length ? `<details class="work-progress wait-box" data-wait-goal="${escapeHTML(id)}" ${waitsClosed ? '' : 'open'}><summary>Waiting · ${waits.length}</summary><div class="work-output">${waitListMarkup(waits)}</div></details>` : ''}
+      ${shown.description ? `<p>${escapeHTML(shown.description)}</p>` : ''}${waits.length ? `<details class="work-progress wait-box" data-wait-goal="${escapeHTML(id)}" ${waitsClosed ? '' : 'open'}><summary>Wait · ${waits.length}</summary><div class="work-output">${waitListMarkup(waits)}</div></details>` : ''}
       ${workMarkup(`goal:${id}:${activity.work?.startedAt || ''}`, activity.work, shown.live)}
     </div></li>`;
 }

@@ -50,7 +50,8 @@ function waitingDisplay(activity, now) {
   const items = waitItems(activity, now);
   // Only checks, and the earliest long past its time: nothing is left to wake the agent.
   if (!activity.background?.length && items[0]?.overdue) return {state: 'unknown', label: 'Check overdue', description: 'The check was due, and nothing has woken the agent.', items, live: false};
-  return {state: 'waiting', label: items.length > 1 ? `Waiting · ${items.length}` : 'Waiting', description: '', items, live: false};
+  // The count shows on the list's own box (Wait · N) on the Goal page, not here.
+  return {state: 'waiting', label: 'Waiting', description: '', items, live: false};
 }
 export function activityDisplay(activity, now = Date.now()) {
   // Its own work ended and it waits on the checks it scheduled.
