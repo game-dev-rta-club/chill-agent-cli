@@ -25,7 +25,7 @@ const activityDescriptions = {
   unknown: 'Could not read the agent.',
 };
 // What the agent waits on once its own work has ended: the subagents it left
-// running, and the checks it scheduled (connection wake), earliest first. Each
+// running, and the checks it scheduled (agent wake), earliest first. Each
 // shows one line; a check's full reason folds under it.
 const overdueMs = 5 * 60 * 1000;
 export const isWaitingOnCheck = (wake, now = Date.now()) => Boolean(wake) && now - Date.parse(wake.at) <= overdueMs;
