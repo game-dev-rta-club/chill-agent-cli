@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,readFile,writeFile,readdir,symlink,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {dirname,join} from 'node:path';
 import {execFile,execFileSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {pathToFileURL,fileURLToPath} from 'node:url';
@@ -186,16 +186,22 @@ test('setup places the usage mod for the user, off there and on in the project; 
  await configureClaudeHooks(f.project,{...options,remove:true});assert.deepEqual(await f.read(),off);
 });
 
-test('setup deletes the Cache Keep mod chill shipped before, and leaves its settings keys',async t=>{
+test('setup deletes the Cache Keep mod chill shipped before, with the settings chill set for it',async t=>{
  const f=await fixture(t),claude=join(f.dir,'claude'),options={...f.options,claude};
- const oldMod=join(claude,'skills','chill-agent-cache-keep'),oldData=join(claude,'chill-agent-cache-keep');
+ const oldMod=join(claude,'skills','chill-agent-cache-keep'),oldData=join(claude,'chill-agent-cache-keep'),oldKey='chill-agent-cache-keep@skills-dir';
  await mkdir(join(oldMod,'hooks'),{recursive:true});await writeFile(join(oldMod,'hooks','register.ts'),'old');
  await mkdir(oldData,{recursive:true});await writeFile(join(oldData,'usage.json'),'{}');
- const old={enabledPlugins:{'chill-agent-cache-keep@skills-dir':false}};await writeFile(join(claude,'settings.json'),JSON.stringify(old));
+ await writeFile(join(claude,'settings.json'),JSON.stringify({enabledPlugins:{[oldKey]:false}}));
+ await mkdir(dirname(f.path),{recursive:true});await writeFile(f.path,JSON.stringify({enabledPlugins:{[oldKey]:true}}));
  await configureClaudeHooks(f.project,options);
  assert.deepEqual(await readdir(join(claude,'skills')),['chill-agent-usage']);
  await assert.rejects(readdir(oldData),{code:'ENOENT'});
- assert.equal(JSON.parse(await readFile(join(claude,'settings.json'),'utf8')).enabledPlugins['chill-agent-cache-keep@skills-dir'],false);
+ assert.equal(JSON.parse(await readFile(join(claude,'settings.json'),'utf8')).enabledPlugins[oldKey],undefined,'chill\'s off for the user goes');
+ assert.equal((await f.read()).enabledPlugins[oldKey],undefined,'chill\'s on in the project goes');
+ // A value the person chose stays.
+ await writeFile(join(claude,'settings.json'),JSON.stringify({enabledPlugins:{[oldKey]:true}}));
+ await configureClaudeHooks(f.project,options);
+ assert.equal(JSON.parse(await readFile(join(claude,'settings.json'),'utf8')).enabledPlugins[oldKey],true);
 });
 
 test('unreadable user settings leave the usage mod off and the hooks set up',async t=>{

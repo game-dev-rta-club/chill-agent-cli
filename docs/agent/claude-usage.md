@@ -47,8 +47,9 @@ as this mod. It is now the standalone plugin
 which each person installs once for their user. Until 2026-12-01, setup and
 updates delete the old mod (`<Claude folder>/skills/chill-agent-cache-keep`)
 and its folder (`<Claude folder>/chill-agent-cache-keep`), so it does not ping
-beside the standalone one. Its `chill-agent-cache-keep@skills-dir` settings
-keys stay; nothing loads them.
+beside the standalone one. They also delete the
+`chill-agent-cache-keep@skills-dir` values chill set: `false` in the user's
+settings and `true` in the project's. A value the person set stays.
 
 ## Test
 
