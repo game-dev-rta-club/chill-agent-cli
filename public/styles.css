@@ -86,11 +86,9 @@
 .activity-entry { min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 12px; }
 .activity-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-height: 24px; }
 .activity-heading strong { font-size: 12px; }
-.wait-toggle { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; margin: -4px 0 -4px -6px; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
-.wait-toggle:hover { background: var(--theme-soft,#f2f5f1); }
-.wait-chevron { display: grid; color: var(--muted); transition: transform .15s; }
-.wait-chevron svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2.4; }
-.wait-toggle[aria-expanded="true"] .wait-chevron { transform: rotate(90deg); }
+/* The Waiting list folds in a box like Think below it. */
+.wait-box .work-output { padding-bottom: 9px; }
+.wait-box .wait-list { margin: 0; }
 .activity-entry p { margin: 3px 0; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
 .wait-list { list-style: none; margin: 6px 0 2px; padding: 0; display: grid; gap: 4px; }
 .wait-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 2px 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-size: 12px; color: var(--ink, inherit); }
