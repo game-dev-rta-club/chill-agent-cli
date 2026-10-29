@@ -111,7 +111,7 @@ const agentButton=document.getElementById('agent-button');
 agentButton.innerHTML=agentAvatar(true);
 const tabIcon=createTabIcon(undefined,undefined,document.querySelector('.brand-mark img'));
 window.addEventListener('chill-agent-appearance',event=>tabIcon.use(event.detail.tabIcon));
-window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake,background}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)&&!background?.length?'working':background?.length||isWaitingOnCheck(wake)?'waiting':null);});
+window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)?'working':isWaitingOnCheck(wake)?'waiting':null);});
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
 const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel'),readReplies});

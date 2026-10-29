@@ -53,8 +53,11 @@ function waitingDisplay(activity, now) {
   return {state: 'waiting', label: items.length > 1 ? `Waiting · ${items.length}` : 'Waiting', description: '', items, live: false};
 }
 export function activityDisplay(activity, now = Date.now()) {
-  // Its own work ended and it waits on checks or on subagents it left running.
-  if (activity?.status === 'idle' && activity.wake || activity?.status === 'running' && activity.background?.length) return waitingDisplay(activity, now);
+  // Its own work ended and it waits on the checks it scheduled.
+  if (activity?.status === 'idle' && activity.wake) return waitingDisplay(activity, now);
+  // Its own response ended while subagents it started run on: still Running, so
+  // the user waits as for any work, with each subagent listed.
+  if (activity?.status === 'running' && activity.background?.length) return {state: 'running', label: 'Running', description: '', items: waitItems(activity, now), live: false};
   if (!activity || activity.status === 'idle' && !activity.work?.messages?.length) return null;
   return {state: activity.status, label: activityLabels[activity.status] || activityLabels.unknown, description: activityDescriptions[activity.status] || '',
     live: activity.status === 'running' && activity.work?.live !== false};

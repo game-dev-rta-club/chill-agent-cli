@@ -1,8 +1,8 @@
 import {isRunning} from './goal-state.js';
 const labels={working:'Running',waiting:'Waiting',idle:'Idle',paused:'Paused',interrupted:'Interrupted',unknown:'Status unavailable',unlinked:'Not connected'};
-// Its own work ended while subagents it started run on, or it waits for a check
-// it scheduled: Waiting, as both wake it later.
-const displayState=(status,data)=>isRunning(status)?(data?.background?.length?'waiting':'working'):status==='idle'&&data?.wake?'waiting':status;
+// Subagents it started still run: Running, so the user waits as for any work.
+// Idle with a check it scheduled: Waiting, as the check wakes it later.
+const displayState=(status,data)=>isRunning(status)?'working':status==='idle'&&data?.wake?'waiting':status;
 export const presenceLabel=(status,data)=>labels[displayState(status,data)]||labels.unknown;
 export function presenceMark(status,data){
  status=displayState(status,data);
