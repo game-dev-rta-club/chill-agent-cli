@@ -65,7 +65,7 @@ It checks, as named lines:
   `bin/chill-hook.mjs` reads.
 - Stop hook: with feedback the chat took and said nothing about, chill's real Stop hook answers `{decision:"block",reason}`,
   Codex continues the turn and sends the reason to the model, and the next Stop carries `stop_hook_active: true` and ends.
-- `verifyThread`, which `goal assign` uses, on a used chat and on one that is not a saved chat.
+- `verifyThread`, which `goal adopt` uses, on a used chat and on one that is not a saved chat.
 - Schema: every request chill sends and every answer it gets for a method in
   `test/fixtures/codex-app-server-schema.json` is validated, so a drifted field shows up as a failing `schema:` line.
 
@@ -118,7 +118,7 @@ The flow, each step a named check:
 
 1. chill creates a Goal and installs its hook in a disposable project (the data directory lives inside the project, so the
    workspace-write sandbox can write it). The probe trusts the hook as above.
-2. The long-lived app-server starts a chat on the real model and answers its first message. `goal assign` accepts it.
+2. The long-lived app-server starts a chat on the real model and answers its first message. `goal adopt` from that chat accepts it.
 3. `goal feedback` saves a short, explicit message and sends it to the idle chat as one Queue message, which starts a turn.
 4. The turn's first command is `pwd`. The PostToolUse hook runs and hands nothing more: the comment was already handed.
 5. The model replies on the Goal with one `comment`.
@@ -163,7 +163,7 @@ These were observed on `0.163.0-alpha.10.2` and are asserted on every run.
 | A queued input drains into a turn when the chat is idle, even when it was queued from another process | feedback delivery |
 | `thread/turns/list` without `itemsView` returns `summary`: the first user message and the last agent message | callers always pass `itemsView` |
 | Another process reports a live turn as `interrupted` with `completedAt` null | Progress closes a turn only on `completedAt` |
-| A chat is invisible to other processes until its first message, and `thread/turns/list` fails with "not materialized" | `goal assign` needs a chat that has been used |
+| A chat is invisible to other processes until its first message, and `thread/turns/list` fails with "not materialized" | `goal adopt` needs a chat that has been used |
 | `thread/read` with `includeTurns` lists turns oldest first, while `thread/turns/list` lists newest first | `reconcile` and `workReader` |
 | A hook runs only in chats started after it was trusted | the manual checklist starts a new chat |
 | A Stop hook's `{decision:"block",reason}` continues the turn with the reason as model input; the run reports `blocked`, and the continued turn's next Stop has `stop_hook_active: true` | the quiet-stop hold |
@@ -185,9 +185,8 @@ Prepare once:
 2. Open the scratch folder in Codex Desktop. In `/hooks`, review and trust both chill-agent hooks, PostToolUse
    ("Check Web feedback") and Stop ("Check the user has heard back"). Start a new chat,
    because a chat that was open before the hook was trusted does not run it.
-3. In that chat, send `Run echo $CODEX_THREAD_ID and reply with the id`. Copy the id.
-4. Run `chill goal create --title "Desktop check"`, then `chill goal assign --id 1 --thread-id <id>`, then
-   `chill server start --local`. Open the printed URL and open Goal 1.
+3. In that chat, send `Run chill goal create --title "Desktop check"`. The new Root belongs to that chat.
+4. Run `chill server start --local`. Open the printed URL and open Goal 1.
 
 Check:
 

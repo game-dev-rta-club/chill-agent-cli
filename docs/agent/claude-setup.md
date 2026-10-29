@@ -4,7 +4,7 @@ keyPoints: >-
   other hooks. Every preparation and update replaces chill's own hooks with the
   current version's, so a rewritten or deleted settings file heals; status reports
   configuration, not live activation. A conversation that was already running
-  connects with connection join, without resuming. A Git worktree shares its
+  connects with agent join, without resuming. A Git worktree shares its
   main checkout's project; native tool permissions are answered only by Autonomy Auto Continue or Ultra Continue.
 ---
 
@@ -43,7 +43,7 @@ setup are replaced on the next prepare. PowerShell and cmd can use
 `runtime\chill.cmd`, which runs the Node on PATH.
 
 The installer preserves other settings and hooks. chill's own hooks, those
-that run `connection claude-hook` or `claude-watch`, are replaced with the
+that run `agent hook claude` or `claude-watch`, are replaced with the
 current version's every time, whatever they look like now, so repeating setup
 does not add duplicates. Claude Code rewrites this file, in its own key order,
 when it saves its own settings there; a hand edit of a chill hook is put back,
@@ -63,7 +63,7 @@ excludes, user settings or managed policy.
 
 Review the configured hooks when Claude asks. A conversation started after setup
 receives its identity at SessionStart. A conversation that was already running
-connects with `connection join`: Claude names its session in every shell.
+connects with `agent join`: Claude names its session in every shell.
 Claude loads hooks written during a conversation for its next
 tool call, so no resume is needed. Do not clear, fork or launch a concurrent copy
 as a connection repair.
@@ -71,9 +71,9 @@ as a connection repair.
 Use the exact command prefix printed by setup for these main Bash calls:
 
 ```sh
-chill connection show
-chill connection join        # only when show reports no connection
-chill connection create-goal --title 'The agreed outcome'
+chill agent show
+chill agent join        # only when show reports no connection
+chill goal create --title 'The agreed outcome'
 ```
 
 `show` verifies only the current native identity handoff; `create-goal` creates
@@ -111,7 +111,7 @@ are distinct choices. Setup does not grant tools or change native permission mod
 
 Setup installs only the conversation hooks. Replies after Claude goes idle wake
 it through the [watcher hook](claude-wait.md) among them; there is nothing to
-configure here. In Claude Desktop the agent also starts `connection wait` as a
+configure here. In Claude Desktop the agent also starts `agent wait` as a
 background task when a chill result asks for it, only so that Desktop does not
 pause the conversation.
 

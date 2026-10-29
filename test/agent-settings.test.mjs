@@ -25,9 +25,9 @@ function fixture(harnessId='test-harness') {
 const input=()=>({model:'provider/second',effort:'deep',expected:{model:'provider/first',effort:'deliberate'}});
 const current={assertCurrent:async()=>{}};
 
-test('legacy Roots resolve only to their current Codex connection, not from a model name',()=>{
+test('a Root resolves only to its owner, not from a model name',()=>{
   assert.equal(resolveAgentConnection({model:'claude-opus'}),null);
-  const connection=resolveAgentConnection({threadId:'native-thread',model:'claude-opus'});
+  const connection=resolveAgentConnection({owner:{agent:'codex',id:'native-thread'},model:'claude-opus'});
   assert.equal(connection.harnessId,'codex-desktop');assert.equal(connection.sessionId,'native-thread');
   assert.notEqual(connectionKey({harnessId:'a:b',sessionId:'c'}),connectionKey({harnessId:'a',sessionId:'b:c'}));
 });

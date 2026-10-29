@@ -7,8 +7,7 @@ import {deepStrictEqual} from 'node:assert/strict';
 import {withCodex, verifyThread} from '../lib/codex-client.mjs';
 import {readTurnSettings} from '../lib/agents/codex-turn-settings.mjs';
 import {installHook} from '../bin/chill-hook.mjs';
-import {assignGoal} from '../lib/agents/index.mjs';
-import {appendFeedback, createGoal} from '../lib/goal-store.mjs';
+import {appendFeedback, createGoal, setRootOwner} from '../lib/goal-store.mjs';
 import {withHandOff} from '../lib/hand-off.mjs';
 import {contractMethods, requestViolations, responseViolations, schema} from '../test/codex-contract.mjs';
 import {AppServer, fakeModel, hookTap, makeDir, makeHome, removeMade, shapeDiff, shapeOf, shellCall, sleep, textItem, uuid} from './probe-codex-kit.mjs';
@@ -236,7 +235,7 @@ export async function runProtocol({codex, log}) {
       check('chill\'s Stop hook prints nothing for a chat without handed feedback', first[0]?.code === 0 && first[0].output === '', JSON.stringify(first[0] && {code: first[0].code, output: first[0].output}));
       // Handed feedback is recorded directly: sending it would start a turn of its own.
       const root = await createGoal({title: 'Stop probe'});
-      await assignGoal(root.id, stopThread);
+      await setRootOwner(root.id,{agent:'codex',id:stopThread});
       const event = await appendFeedback({goalId: root.id, text: 'Fix the build'});
       await withHandOff(root.id, state => ({...state, cursor: event.changeId}));
       const requests = model.requests.length, mark = A.notes.length;

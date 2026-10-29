@@ -14,7 +14,7 @@ if(values.help||!values.run){console.log('Usage: node scripts/probe-claude-round
 const execute=promisify(execFile),base=await mkdtemp(join(tmpdir(),'chill-claude-roundtrip-'));
 const cwd=join(base,'project'),config=join(base,'config'),data=join(base,'data');
 const runner=join(base,'runner.mjs'),hook=join(base,'hook.mjs'),trace=join(base,'trace.jsonl'),settings=join(base,'settings.json');
-const entry=new URL('../bin/chill-connection.mjs',import.meta.url).pathname;
+const entry=new URL('../bin/chill-conversation.mjs',import.meta.url).pathname;
 const store=new URL('../lib/goal-store.mjs',import.meta.url).href;
 const feedbackToken=randomUUID(),memoryToken=randomUUID();
 const env={};for(const key of ['PATH','HOME','TMPDIR','USER','LOGNAME','SHELL','LANG','LC_ALL',...(values['auth-settings']?[]:authNames)])if(process.env[key]!==undefined)env[key]=process.env[key];
@@ -49,7 +49,7 @@ import {appendFileSync} from 'node:fs';
 const chunks=[];for await(const c of process.stdin)chunks.push(c);
 const input=Buffer.concat(chunks).toString('utf8'),event=JSON.parse(input);
 let output='',failed=false;
-try{output=execFileSync(process.execPath,[${JSON.stringify(entry)},'claude-hook'],{input,encoding:'utf8',timeout:10000});}
+try{output=execFileSync(process.execPath,[${JSON.stringify(entry)},'hook','claude'],{input,encoding:'utf8',timeout:10000});}
 catch{failed=true;}
 appendFileSync(${JSON.stringify(trace)},JSON.stringify({event:event.hook_event_name,sessionId:event.session_id,promptId:event.prompt_id||null,main:event.agent_id==null,tool:event.tool_name||null,context:output.length>0,failed})+'\\n',{mode:0o600});
 if(failed)process.exitCode=1;else process.stdout.write(output);

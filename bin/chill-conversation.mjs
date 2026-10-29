@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import '../lib/quiet-sqlite-warning.mjs';
-import {readFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
 import {existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {listGoals,workspaceDirectory} from '../lib/goal-store.mjs';
@@ -16,21 +16,36 @@ import {reportClaudeHook} from '../lib/claude-agent-work.mjs';
 import {claudeAskGuard,claudePlanApproval} from '../lib/claude-asks.mjs';
 import {quietClaudeHook} from '../lib/claude-quiet.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
-import {runClaudeAction,joinClaudeConversation,handleClaudeToolHook,claudeSessionStartContext} from '../lib/claude-actions.mjs';
+import {joinClaudeConversation,handleClaudeToolHook,claudeSessionStartContext} from '../lib/claude-actions.mjs';
+import {callingAgent,namedCaller} from '../lib/agents/index.mjs';
+import {sameOwner} from '../lib/owner.mjs';
+
+// What only some apps have; another app is told so instead of guessing a route.
+const linked=(caller,what)=>{if(!caller?.link[what])throw Error(caller?`agent ${what} is not needed in this app; it wakes the conversation itself.`:`agent ${what} runs in an agent conversation.`);};
 
 async function main() {
   const args = process.argv.slice(2);
-  if (showHelp('connection', args)) return;
+  if (showHelp('agent', args)) return;
   const [action, ...options] = args;
-  const values=parseOptions(`connection ${action}`, options);
+  // App hooks are installed by setup: agent hook claude|claude-watch|codex.
+  if(action==='hook'){
+    const [app,...rest]=options;
+    if(app==='codex'){process.argv=[process.argv[0],fileURLToPath(new URL('chill-hook.mjs',import.meta.url)),...rest];await import('./chill-hook.mjs');return;}
+    if(!['claude','claude-watch'].includes(app))throw Error('Usage: agent hook claude|claude-watch|codex');
+    return claudeHook(app);
+  }
+  const values=parseOptions(`agent ${action}`, options);
+  const caller=action==='join'?null:await callingAgent();
   if (action === 'show') {
+    if(!caller)throw Error('agent show runs in an agent conversation.');
+    const owned=(existsSync(join(workspaceDirectory(),'workspace.sqlite'))?await listGoals():[]).filter(g=>!g.parentId&&sameOwner(g.owner,caller.owner)).map(({id,title,state})=>({id,title,state}));
+    if(!caller.link.join){console.log(JSON.stringify({agent:caller.agent,id:caller.owner.id,roots:owned},null,2));return;}
     const {identity,contextId,observedAt,source}=await identifyClaudeCaller();
     const status=await readClaudeConnectionStatus({...identity,contextId});
     // Several conversations can share one project; name the Roots this one owns.
     // Read-only: a project without saved Goals is not created here.
-    const roots=(existsSync(join(workspaceDirectory(),'workspace.sqlite'))?await listGoals():[]).filter(g=>!g.parentId&&g.connection?.sessionId===identity.sessionId&&g.connection.contextId===contextId)
-      .map(({id,title,state})=>({id,title,state}));
-    // The checks this conversation scheduled (connection wake), earliest first.
+    const roots=owned;
+    // The checks this conversation scheduled (agent wake), earliest first.
     const {pendingWakes}=await import('../lib/claude-wake.mjs');
     const record=await readJson(claudeEntryPaths(dataDirectory(),identity.sessionId).record);
     const wakes=record?.contextId===contextId?pendingWakes(record):[];
@@ -38,15 +53,19 @@ async function main() {
     return;
   }
   if(action==='join') {
+    const named=namedCaller();
+    if(named&&!named.link.join){console.log('This conversation is connected by its hooks; it needs no join.');return;}
     console.log(await joinClaudeConversation());
     return;
   }
   if(action==='wake') {
+    linked(caller,'wake');
     const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
     console.log(JSON.stringify(await scheduleClaudeWake({minutes:values['--in']===undefined?undefined:Number(values['--in']),reason:values['--reason']||''}),null,2));
     return;
   }
   if(action==='wait') {
+    linked(caller,'wait');
     // A stopped background task releases its hold, so a new one starts at once.
     const controller=new AbortController();
     for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
@@ -56,13 +75,9 @@ async function main() {
     console.log(text);
     return;
   }
-  if(['create-goal','adopt','inbox','reply'].includes(action)) {
-    const payload=action==='create-goal'?{title:values['--title'],scope:values['--scope']||'',criteria:values['--criteria']||''}:
-      action==='adopt'?{goalId:values['--goal']}:
-      action==='reply'?{goalId:values['--goal'],text:values['--text']??await readFile(values['--text-file'],'utf8'),...(values['--ask']!==undefined?{ask:values['--ask']}:{})}:{};
-    console.log((await runClaudeAction(action,payload)).text);
-    return;
-  }
+  throw Error('Unknown agent command. Use agent --help.');
+}
+async function claudeHook(action) {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
   let input;
@@ -98,4 +113,4 @@ async function main() {
     if(output)console.log(JSON.stringify(output));
   }
 }
-main().catch(error => { console.error(`chill connection: ${error.message}`); process.exitCode = 1; });
+main().catch(error => { console.error(`chill agent: ${error.message}`); process.exitCode = 1; });

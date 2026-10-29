@@ -39,7 +39,7 @@ test('Web accepts empty Goal conversation, serves Markdown Deliverable and persi
  assert.equal((await f.get('/note-body.js')).status,404);assert.equal((await f.get('/brief-body.js')).status,200);
 });
 test('annotations reference exact replies; duplicates stay idempotent after a Deliverable update',async t=>{
- const f=await fixture(t);await f.note();await f.run('comment','--id','1','--text','返信の説明です');
+ const f=await fixture(t);await f.note();await f.run('reply','--id','1','--text','返信の説明です');
  const annotation={kind:'text',source:{kind:'comment',eventId:1},anchor:{start:0,end:2,quote:'返信'},text:'詳しく'};
  const payload={annotations:[annotation],requestId:'reply-request-001'};
  const replies=await Promise.all([f.post(payload),f.post(payload),f.post(payload)]);
@@ -55,7 +55,7 @@ test('annotations reference exact replies; duplicates stay idempotent after a De
 });
 test('pending Letter counts survive restart and close on the user\'s next comment from the Web',async t=>{
  const f=await fixture(t);await f.post({text:'Earlier comment'});
- const letter=await f.run('comment','--id','1','--ask','Choice','--text','Which?');
+ const letter=await f.run('reply','--id','1','--ask','Choice','--text','Which?');
  await f.stop();await f.start();
  const view=async()=>{const [goal]=await(await f.get('/api/goals')).json();return createGoalView({'1':{...goal,children:[]}},'1',new Set());};
  assert.equal((await view()).letterCount('1'),1,'a comment before the Letter leaves it open');
@@ -63,8 +63,8 @@ test('pending Letter counts survive restart and close on the user\'s next commen
  const [goal]=await(await f.get('/api/goals')).json();assert.equal(goal.conversation.find(e=>e.id===letter.id).answeredBy,answer.id);
 });
 test('a withdrawn Letter is exposed in the Web tree and event delta, and survives restart',async t=>{
- const f=await fixture(t),letter=await f.run('comment','--id','1','--ask','Settled choice','--text','Which?');
- const comment=await f.run('comment','--id','1','--text','The question settled itself.');
+ const f=await fixture(t),letter=await f.run('reply','--id','1','--ask','Settled choice','--text','Which?');
+ const comment=await f.run('reply','--id','1','--text','The question settled itself.');
  const received=await f.run('close-letter','--id','1','--event',String(letter.id));assert.equal(received.status,'received');
  const delta=await(await f.get(`/api/events?since=${comment.changeId}`)).json();
  assert.equal(delta.cursor,received.changeId);assert.equal(delta.events.length,1);assert.equal(delta.events[0].id,letter.id);
@@ -91,7 +91,7 @@ test('multiple images and rectangle annotations persist, reject foreign images a
 test('Markdown annotations validate rendered text and API deltas render both authors',async t=>{
  const f=await fixture(t),source='## Result\n\nA **formatted** result.';
  await writeFile(f.body,source);await f.run('deliverable','update','--id','1');
- const agent=await f.run('comment','--id','1','--text','Choose **this option**.');
+ const agent=await f.run('reply','--id','1','--text','Choose **this option**.');
  const [goal]=await(await f.get('/api/goals')).json();
  assert.match(goal.briefs[0].html,/<details/);assert.match(goal.conversation[0].html,/<strong>this option/);
  const annotations=[{kind:'text',source:{kind:'comment',eventId:agent.id},anchor:{start:7,end:18,quote:'this option'},text:'Selected'},
@@ -106,7 +106,7 @@ test('Markdown annotations validate rendered text and API deltas render both aut
 
 test('compact Web snapshot keeps current content and Letters; older Deliverables load separately',async t=>{
  const f=await fixture(t);await f.note();await f.note();
- const letter=await f.run('comment','--id','1','--ask','Question','--text','Choose **one**.');
+ const letter=await f.run('reply','--id','1','--ask','Question','--text','Choose **one**.');
  let [goal]=await(await f.get('/api/goals?view=web')).json();
  assert.equal(goal.briefs.length,2);assert.equal(goal.briefs[0].html,undefined);
  assert.equal(goal.briefs[1].body,undefined);assert.match(goal.briefs[1].html,/本文と注釈 2/);
@@ -123,9 +123,9 @@ test('compact Web snapshot keeps current content and Letters; older Deliverables
 
 test('tab count follows the current Root, including child Letters, answers and reparenting',async t=>{
  const f=await fixture(t),b=await f.run('create','--title','Other root'),child=await f.run('create','--title','Child','--parent','1');
- const aLetter=await f.run('comment','--id','1','--ask','A','--text','Root question');
- const childLetter=await f.run('comment','--id',child.id,'--ask','Child','--text','Child question');
- await f.run('comment','--id',b.id,'--ask','B','--text','Other root question');
+ const aLetter=await f.run('reply','--id','1','--ask','A','--text','Root question');
+ const childLetter=await f.run('reply','--id',child.id,'--ask','Child','--text','Child question');
+ await f.run('reply','--id',b.id,'--ask','B','--text','Other root question');
  const count=async id=>(await(await f.get(`/api/goals/${id}/letters/count`)).json());
  assert.deepEqual(await count(child.id),{rootId:'1',title:'Goal',count:2});
  assert.deepEqual(await count(b.id),{rootId:b.id,title:'Other root',count:1});
@@ -140,12 +140,12 @@ test('tab count follows the current Root, including child Letters, answers and r
 
 test('tab count adds unread notified replies to unanswered Letters; showing a Goal reads it on every device',async t=>{
  const f=await fixture(t),child=await f.run('create','--title','Child','--parent','1');
- const before=await f.run('comment','--id','1','--text','Saved before anyone read');
+ const before=await f.run('reply','--id','1','--text','Saved before anyone read');
  const count=async id=>(await(await f.get(`/api/goals/${id}/letters/count`)).json()).count;
  const read=(id,through,origin=f.url())=>fetch(f.url()+`/api/goals/${id}/read`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({through})});
  assert.equal(await count('1'),0,'replies from before the first read are read');
- const result=await f.run('comment','--id','1','--text','Result'),quiet=await f.run('comment','--id',child.id,'--text','Not notified');
- const letter=await f.run('comment','--id',child.id,'--ask','Q','--text','Which one?');
+ const result=await f.run('reply','--id','1','--text','Result'),quiet=await f.run('reply','--id',child.id,'--text','Not notified');
+ const letter=await f.run('reply','--id',child.id,'--ask','Q','--text','Which one?');
  await f.post({text:'My own comment'});
  assert.equal(await count(child.id),1,'a reply nobody was notified of does not count');
  const claims=Object.fromEntries([before,result,letter].map(e=>[e.id,{at:Date.now(),rootId:'1',reply:true}]));
@@ -168,7 +168,7 @@ test('tab count adds unread notified replies to unanswered Letters; showing a Go
 
 test('HTML message bodies survive saving and restart, with safe rendering and text annotations',async t=>{
  const f=await fixture(t),source='<p><strong>Readable</strong> message</p><details><summary>Details</summary><p>More</p></details><script>bad()</script><img src="https://example.com/track">';
- const event=await f.run('comment','--id','1','--text',source);
+ const event=await f.run('reply','--id','1','--text',source);
  await f.stop();await f.start();
  const [goal]=await(await f.get('/api/goals?view=web')).json();
  assert.equal(goal.conversation[0].text,source);

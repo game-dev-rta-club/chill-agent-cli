@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {createGoal,updateGoal,appendAgentComment} from '../lib/goal-store.mjs';
+import {createGoal,createOwnedRoot,updateGoal,appendAgentComment} from '../lib/goal-store.mjs';
 import {continuationObservation} from '../lib/agents/codex-continuation-observation.mjs';
 import {codexThread,contractStub} from './codex-contract.mjs';
 test('monitor summary includes the root, derived Waiting and own Letters without changing eligibility',async()=>{
@@ -14,7 +14,7 @@ test('monitor summary includes the root, derived Waiting and own Letters without
   if(method==='thread/queue/list')return {data:[]};throw Error(method);
  }));
  try{
-  const root=await createGoal({title:'Root',threadId:'00000000-0000-0000-0000-000000000001'});
+  const root=await createOwnedRoot({title:'Root'},{agent:'codex',id:'00000000-0000-0000-0000-000000000001'});
   const child=await createGoal({title:'Child',parentId:root.id,state:'waiting',waitReason:'An answer'});
   await appendAgentComment({goalId:child.id,type:'letter',title:'Question?',text:'Details'});
   const observe=async()=>(await continuationObservation(root.id,null,{connect})).context.goals;

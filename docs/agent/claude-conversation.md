@@ -49,9 +49,9 @@ launch flag, which Claude Desktop sessions cannot pass, and they were unavailabl
 in the tested terminal.
 
 Claude Desktop pauses an idle conversation under memory pressure unless a
-background task runs, so there the agent also runs `connection wait` as a task
+background task runs, so there the agent also runs `agent wait` as a task
 that only holds the conversation; the hook still wakes it with the feedback.
-`connection show` says when that task is not running beside a running watcher.
+`agent show` says when that task is not running beside a running watcher.
 On Windows, the task survives a moment when its record cannot be replaced (an
 antivirus or a running update holding the file) and refreshes it on the next
 check. Neither can start a closed conversation. Do not restart a user's
@@ -145,7 +145,7 @@ that those fields are absent from an interactive run.
 
 Consequently, a startup record must tolerate unavailable model/run observations;
 it cannot mark an execution running or authenticate a Root binding merely from
-the directory. Binding uses connection create-goal from that conversation; the init-only and local tests
+the directory. Binding uses goal create from that conversation; the init-only and local tests
 do not establish native model conversation continuity.
 Do not synthesize a Codex turn ID from a Claude session ID.
 

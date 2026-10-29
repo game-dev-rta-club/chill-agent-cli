@@ -35,10 +35,10 @@ try{
  await go();const toggle=page.locator('[data-agent-extension="notifications"]');assert.equal(await toggle.getAttribute('aria-pressed'),'true');
  await toggle.click();await page.waitForFunction(()=>document.querySelector('[data-agent-extension="notifications"]')?.getAttribute('aria-pressed')==='false');
  const off=await run('chill-settings','show','--id','2');assert.equal(off.notifications.destination,'Private reminders');assert.equal(off.notifications.enabled,false);
- const skipped=await run('chill-agent','comment','--id','2','--text','While Off');
+ const skipped=await run('chill-agent','reply','--id','2','--text','While Off');
  await toggle.focus();await page.keyboard.press('Space');await page.waitForFunction(()=>document.querySelector('[data-agent-extension="notifications"]')?.getAttribute('aria-pressed')==='true');
  assert.equal((await run('chill-settings','notice','--id','2','--event',String(skipped.id))).enabled,false);
- const event2=await run('chill-agent','comment','--id','2','--text','A useful result\nReady to review.');
+ const event2=await run('chill-agent','reply','--id','2','--text','A useful result\nReady to review.');
  const prepared=await run('chill-settings','notice','--id','2','--event',String(event2.id));assert.equal(prepared.enabled,true);assert.equal(prepared.url,null);
  assert.equal((await run('chill-settings','notice','--id','2','--event',String(event2.id))).enabled,false);
  await run('chill-settings','notice-result','--id','2','--notice',prepared.noticeId,'--outcome','sent');

@@ -16,12 +16,12 @@ for(const storage of ['sqlite','json']){
   const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex',...(storage==='json'?{CHILL_AGENT_STORAGE:'json'}:{})};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   await run('create','--title','One');await run('create','--title','Two');
-  const a=await run('comment','--id','1','--text','first');
-  await run('comment','--id','2','--text','other Goal');
-  const letter=await run('comment','--id','1','--ask','Ask','--text','Question');
-  const gone=await run('comment','--id','1','--text','to delete');
+  const a=await run('reply','--id','1','--text','first');
+  await run('reply','--id','2','--text','other Goal');
+  const letter=await run('reply','--id','1','--ask','Ask','--text','Question');
+  const gone=await run('reply','--id','1','--text','to delete');
   await run('delete-comment','--id','1','--event',String(gone.id));
-  const last=await run('comment','--id','1','--text','after the deletion');
+  const last=await run('reply','--id','1','--text','after the deletion');
   const saved={...process.env};t.after(()=>{for(const key of ['CHILL_AGENT_DATA_DIR','CHILL_AGENT_STORAGE'])if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];});
   process.env.CHILL_AGENT_DATA_DIR=root;if(storage==='json')process.env.CHILL_AGENT_STORAGE='json';else delete process.env.CHILL_AGENT_STORAGE;
   const events=await readFeedback();

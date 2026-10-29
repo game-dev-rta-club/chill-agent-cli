@@ -25,9 +25,9 @@ entry points and their supported operations are qualified.
 
 A Root owns one binding established from the harness where the user starts the
 work; its descendants inherit it. The proposed identity contains the adapter,
-connection and opaque session ID. A model is an option of that session. Existing
-Roots containing only `threadId` resolve to `codex-desktop` without rewriting
-their history. Provider IDs are namespaced so equal session IDs cannot collide.
+connection and opaque session ID. A model is an option of that session. A Root
+stores it as `owner: {agent, id, context?}`; the old `threadId` and `connection`
+fields are no longer read. Provider IDs are namespaced so equal session IDs cannot collide.
 
 ```text
 Codex Desktop conversation       Claude Code conversation
@@ -88,8 +88,8 @@ The [model-settings boundary](model-settings.md) and [run observation boundary](
 are implemented for the existing Codex Desktop connection. Native model, usage,
 queue and run reads and conditional settings writes live in its adapter. Shared
 validation and caches use the harness and session identity. Other connections do
-not read Codex's persisted control records or heartbeats. Root storage and Web
-settings payloads still use the legacy `threadId`.
+not read Codex's persisted control records or heartbeats. Web settings payloads
+still name the Codex chat as `threadId`.
 That refactor alone does not enable a Claude native return path.
 
 The [Claude entry handshake](claude-entry.md) now passes native session identity

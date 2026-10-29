@@ -12,7 +12,7 @@ import {claudeHook,subagentHook} from './claude-fixtures.mjs';
 const execute = promisify(execFile);
 // The test may itself run inside Claude Code, which names its own session.
 const {CLAUDE_CODE_SESSION_ID:_, ...shellEnv} = process.env;
-const entry = fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
+const entry = fileURLToPath(new URL('../bin/chill-conversation.mjs',import.meta.url));
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'chill-claude-test-'));
   t.after(() => rm(directory, {recursive:true, force:true,maxRetries:10,retryDelay:100}));

@@ -18,11 +18,11 @@ try {
  const file=await run('deliverable','path','--id','1','--format','html');
  await writeFile(file.path,'<!doctype html><html><head><style>body{font:16px sans-serif}.block{height:400px;padding:30px}</style></head><body><h1>Long HTML Deliverable</h1>'+Array.from({length:5},(_,i)=>`<section class="block">Section ${i}</section>`).join('')+'</body></html>');
  await run('deliverable','update','--id','1','--format','html');
- for(let i=0;i<6;i++)await run('comment','--id','1','--text',`Earlier comment ${i}`);
+ for(let i=0;i<6;i++)await run('reply','--id','1','--text',`Earlier comment ${i}`);
  const feedbackFile=join(root,'feedback.json');await writeFile(feedbackFile,JSON.stringify({text:'Earlier user message',requestId:'letter-navigation-delivery'}));
  const {feedback}=JSON.parse((await execute(process.execPath,[cli,'feedback','--id','1','--input-file',feedbackFile],{env})).stdout.trim().split('\n')[0]);
- const letter=await run('comment','--id','1','--ask','Read this Letter','--text','Can you reach the whole page?');
- for(let i=0;i<6;i++)await run('comment','--id','1','--text',`Later comment ${i}`);
+ const letter=await run('reply','--id','1','--ask','Read this Letter','--text','Can you reach the whole page?');
+ for(let i=0;i<6;i++)await run('reply','--id','1','--text',`Later comment ${i}`);
  server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});
  browser=await chromium.launch({headless:true});const page=await browser.newPage(),errors=[];page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));

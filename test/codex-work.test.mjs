@@ -7,8 +7,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {appendAgentComment,appendFeedback,createGoal,listGoals,readFeedback} from '../lib/goal-store.mjs';
-import {agentExecutions,assignGoal} from '../lib/agents/index.mjs';
+import {appendAgentComment,appendFeedback,createGoal,listGoals,readFeedback,setRootOwner} from '../lib/goal-store.mjs';
+import {agentExecutions} from '../lib/agents/index.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {codexFeedbackText,codexSnapshot,codexStop,codexToolHook,handIdleCodex,pauseCodex,readCodexWork,resumeCodex} from '../lib/agents/codex-work.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
@@ -25,7 +25,7 @@ async function fixture(t) {
   t.after(async()=>{for(const [key,value] of Object.entries(previous))value===undefined?delete process.env[key]:process.env[key]=value;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
   const thread=randomUUID(),chat=await desktopChat(dir,thread,()=>invalidateAgentObservation(thread),{codexHome:process.env.CODEX_HOME});
   t.after(chat.close);
-  const root=await createGoal({title:'Outcome'});await assignGoal(root.id,thread);
+  const root=await createGoal({title:'Outcome'});await setRootOwner(root.id,{agent:'codex',id:thread});
   return {dir,thread,root,...chat,
     // Chill knows a turn works from its tool hooks: Codex shows a second process no live turn as running.
     async tool(){const turn=(await chat.running()).id;await hookOutput({hook_event_name:'PostToolUse',session_id:thread,turn_id:turn},thread);return turn;},
@@ -40,7 +40,7 @@ test('an idle chat is sent waiting comments as one message, quoting the user as 
   assert.deepEqual(ids(text),[first]);
   assert.deepEqual(await f.queue(),[],'Codex runs it as a turn at once');
   assert.match(text,/"text":"Please start"/);assert.match(text,new RegExp(`show --id ${f.root.id} --since ${first-1} --format text`));
-  assert.match(text,/Reply on the Goal \(this answers it\): .* comment --id <goalId> --text '<reply>'\nIf your message asks the user to decide or approve something, add --ask '<what to decide>'; it then appears as a Letter\./);assert.doesNotMatch(text,/activity --event|--state/);
+  assert.match(text,/Reply on the Goal \(this answers it\): .* reply --id <goalId> --text '<reply>'\nIf your message asks the user to decide or approve something, add --ask '<what to decide>'; it then appears as a Letter\./);assert.doesNotMatch(text,/activity --event|--state/);
   await f.endTurn();
   const letter=await appendAgentComment({goalId:child.id,type:'letter',title:'Which one?',text:'A or B?'});
   await appendAgentComment({goalId:child.id,type:'letter',title:'Still open?',text:'And this?'});
@@ -138,7 +138,7 @@ test('the Stop is held once while a handed Goal awaits a reply, and a reply on i
   await writeFile(transcript,JSON.stringify({timestamp:new Date().toISOString(),type:'response_item',payload:{type:'message',role:'assistant',content:[{type:'output_text',text:'Fixed it.'}],phase:'final_answer'}})+'\n');
   const held=await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn,last_assistant_message:'Fixed it.',transcript_path:transcript},f.thread);
   assert.deepEqual((await readFeedback()).filter(e=>e.author==='agent'),[],'nothing is posted at Stop');
-  assert.equal(held.decision,'block');assert.match(held.reason,new RegExp(`Goal #${f.root.id}\\b`));assert.match(held.reason,/comment --id <goalId>/);
+  assert.equal(held.decision,'block');assert.match(held.reason,new RegExp(`Goal #${f.root.id}\\b`));assert.match(held.reason,/reply --id <goalId>/);
   assert.equal(await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread),null,'the stop right after a hold ends');
   await appendAgentComment({goalId:f.root.id,type:'comment',text:'Fixed'});
   assert.equal(await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread),null);
@@ -164,7 +164,7 @@ test('Pause stops the turn; a new comment resumes and is sent, and Resume asks t
 test('a reassigned Root keeps its cursor: the new chat receives only what was never handed',async t=>{
   const f=await fixture(t),handed=await f.save('Handed before');
   await f.tool();const waiting=await f.save('Waits for the turn');await f.endTurn();
-  const next=randomUUID();await assignGoal(f.root.id,next);
+  const next=randomUUID();await setRootOwner(f.root.id,{agent:'codex',id:next});
   invalidateAgentObservation(next);
   assert.deepEqual((await handIdleCodex(next)).map(e=>e.id),[waiting]);
   assert.notEqual(handed,waiting);

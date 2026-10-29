@@ -14,7 +14,7 @@ let server,browser,page;
 try{
  await exec(process.execPath,[cli,'create','--title','A calm workspace','--thread-id','00000000-0000-0000-0000-000000000001'],{env});
  await exec(process.execPath,[cli,'create','--title','Another workspace'],{env});
- await exec(process.execPath,[cli,'comment','--id','1','--text','A saved report.'],{env});
+ await exec(process.execPath,[cli,'reply','--id','1','--text','A saved report.'],{env});
  server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(Error(`Server exit ${c}`)));});
  browser=await chromium.launch({headless:true});page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));

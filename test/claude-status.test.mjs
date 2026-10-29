@@ -15,6 +15,8 @@ import {agentMarkup} from '../public/agent-menu.js';
 import {fileURLToPath} from 'node:url';
 import {expectHidden} from './hidden-failures.mjs';
 import {hookFor} from './claude-fixtures.mjs';
+import {agentAction} from './agent-action.mjs';
+import {claudeConnection} from '../lib/agents/owners.mjs';
 const exec=promisify(execFile);
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'claude-status-')),data=join(dir,'data'),cwd=join(dir,'project'),envFile=join(dir,'env');await mkdir(cwd);await writeFile(envFile,'');
@@ -24,9 +26,9 @@ async function fixture(t){
  const event=hookFor({session_id:sessionId,prompt_id:promptId,cwd});
  async function start(source='startup'){const r=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CLAUDE_CODE_SESSION_ID:sessionId};}
  const hook=(name,patch={})=>handleClaudeToolHook(event(name,patch));
- const action=(name,payload)=>runClaudeAction(name,payload,{env});
+ const action=(name,payload)=>agentAction(name,payload,env);
  await start();await action('create-goal',{title:'Private native Goal',scope:'Private scope',criteria:'Same conversation'});const root=(await listGoals())[0];
- const read=()=>readClaudeConnectionStatus(root.connection,{now:()=>clock});
+ const read=()=>readClaudeConnectionStatus(claudeConnection(root),{now:()=>clock});
  const recordPath=claudeEntryPaths(data,sessionId).record;
  return {data,cwd,root,read,hook,start,action,recordPath,tick:value=>{clock=value;},env:()=>env};
 }
@@ -43,9 +45,9 @@ test('status follows the last hook; resume preserves ownership and clear cannot 
 test('child Agent menu and CLI show expose safe evidence without controls or private connection fields',async t=>{
  const f=await fixture(t),child=await createGoal({title:'Child',parentId:f.root.id});await f.hook('SessionEnd');
  const data=await readAgentStatus(child.id);assert.equal(data.rootId,f.root.id);assert.equal(data.agent.status.label,'Session ended');assert.deepEqual(data.capabilities,{settings:false,stop:false,resume:false});
- assert.doesNotMatch(JSON.stringify(data.agent),new RegExp(`${f.root.connection.sessionId}|${f.root.connection.contextId}|Private|transcript|cwd|generation`));
+ assert.doesNotMatch(JSON.stringify(data.agent),new RegExp(`${f.root.owner.id}|${f.root.owner.context}|Private|transcript|cwd|generation`));
  const html=agentMarkup(data);assert.match(html,/Session ended/);assert.doesNotMatch(html,/<select|data-agent-settings|data-agent-extension|<progress/);
- const {stdout}=await exec(process.execPath,[fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url)),'show'],{cwd:f.cwd,env:{...process.env,...f.env()}});assert.equal(JSON.parse(stdout).status.state,'ended');
+ const {stdout}=await exec(process.execPath,[fileURLToPath(new URL('../bin/chill-conversation.mjs',import.meta.url)),'show'],{cwd:f.cwd,env:{...process.env,...f.env()}});assert.equal(JSON.parse(stdout).status.state,'ended');
  const injected=agentMarkup({...data,agent:{...data.agent,status:{label:'<img src=x>',detail:'<script>alert(1)</script>'}}});assert.doesNotMatch(injected,/<img|<script/);
 });
 

@@ -83,9 +83,10 @@ the panel; Escape or a click outside closes it without a change. If the save fai
 
 The level is kept as `autonomy` in the Root's continuation journal record
 (`workspace/continuation/<rootId>.json`), which names the agent it was written
-for. The same conversation, or a continued one that took the Root over (listed in
-the Root's `previousConnections`), keeps the level. Any other conversation taking
-the Root gets a fresh record, so it starts at Normal. A level set on a Root no
+for. The same conversation keeps the level, and so does one that takes the Root
+over with `goal adopt`: the record's owner is then listed in the Root's
+`previousOwners`. A record written for an owner the Root never had starts over,
+at Normal. A level set on a Root no
 conversation works on yet is kept without an owner, and the first agent on the
 Root takes it over. Goals have no level of their own.
 

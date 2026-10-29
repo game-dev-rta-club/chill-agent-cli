@@ -63,7 +63,7 @@ button in the header; "the Goal's activity" is the block after the Goal's conver
    once to tell the user where things stand, and it replies or posts a progress
    comment.
 9. **An idle conversation survives.** Leave the conversation idle with the
-   `connection wait` task that holds it for an hour or more, then post a comment. Expected: it wakes and
+   `agent wait` task that holds it for an hour or more, then post a comment. Expected: it wakes and
    answers without opening the conversation. (Bug 27: Desktop evicted idle
    conversations with their watcher.)
 10. **Think.** While Claude works on a comment, open Think in the Goal's

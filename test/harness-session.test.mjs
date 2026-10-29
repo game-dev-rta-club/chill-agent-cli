@@ -7,8 +7,8 @@ import {harnessGuidance} from '../extensions/harnesses/index.mjs';
 import {startSession} from '../lib/harness-session.mjs';
 test('selected interfaces name their own reply and work commands',()=>{
  const a=harnessGuidance('codex-desktop'),b=harnessGuidance('claude-code');
- assert.equal(a.operations.receipt,undefined);assert.match(a.operations.reply.command,/goal comment --id/);assert(a.operations.selectWork);
- assert.equal(b.operations.receipt,undefined,'a Claude conversation answers a Goal by replying on it');assert.match(b.operations.reply.command,/--goal/);assert.match(b.operations.selectWork.command,/goal work/);
+ assert.equal(a.operations.receipt,undefined);assert.match(a.operations.reply.command,/goal reply --id/);assert(a.operations.selectWork);
+ assert.equal(b.operations.receipt,undefined,'a Claude conversation answers a Goal by replying on it');assert.match(b.operations.reply.command,/goal reply --id/);assert.match(b.operations.selectWork.command,/goal work/);
  assert.match(b.operations.createRoot.confirmation,/at once/);
  a.operations.reply.command='invented';assert.notEqual(harnessGuidance('codex-desktop').operations.reply.command,'invented');
  assert.throws(()=>harnessGuidance('unknown'),/no fallback/);

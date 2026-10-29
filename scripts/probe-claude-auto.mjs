@@ -26,12 +26,12 @@ try {
 const action=process.argv[2];
 // enable stands for the user setting the Root agent's Autonomy to Auto Continue in the Web.
 if(action==='enable'){const {setRootAutonomy}=await import(${JSON.stringify(pathToFileURL(join(runtime.root,'lib','root-autonomy.mjs')).href)});await setRootAutonomy('1',2);console.log('Autonomy Auto Continue');process.exit(0);}
-const args=action==='create'?['connection','create-goal','--title','Disposable Autonomy probe']:null;
+const args=action==='create'?['goal','create','--title','Disposable Autonomy probe']:null;
 if(!args)throw Error('Unknown probe action');
 try{process.stdout.write(execFileSync(process.execPath,[${JSON.stringify(entry)},...args],{encoding:'utf8',timeout:10000}));}catch(error){console.error('Probe action failed:',action);throw error;}\n`);
  await writeFile(hook,`import {execFileSync} from 'node:child_process';import {appendFileSync} from 'node:fs';
 const chunks=[];for await(const c of process.stdin)chunks.push(c);const raw=Buffer.concat(chunks).toString(),input=JSON.parse(raw);let out='',failed=false;
-try{if(!${Boolean(values['setup-resume'])})out=execFileSync(process.execPath,[${JSON.stringify(entry)},'connection','claude-hook'],{input:raw,encoding:'utf8',timeout:10000});}catch{failed=true;}
+try{if(!${Boolean(values['setup-resume'])})out=execFileSync(process.execPath,[${JSON.stringify(entry)},'agent','hook','claude'],{input:raw,encoding:'utf8',timeout:10000});}catch{failed=true;}
 let decision=null;try{decision=JSON.parse(out).decision||null;}catch{}
 appendFileSync(${JSON.stringify(trace)},JSON.stringify({at:Date.now(),event:input.hook_event_name,sessionId:input.session_id,promptId:input.prompt_id||null,main:input.agent_id==null,envFile:!!process.env.CLAUDE_ENV_FILE,decision,context:!!out,failed})+'\\n',{mode:0o600});
 if(failed)process.exitCode=1;else process.stdout.write(out);\n`);

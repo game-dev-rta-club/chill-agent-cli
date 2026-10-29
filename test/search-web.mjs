@@ -12,8 +12,8 @@ const env={...process.env,CHILL_AGENT_DATA_DIR:root,CODEX_HOME:root,PORT:'0',CHI
 const run=async(...args)=>JSON.parse((await promisify(execFile)(process.execPath,[fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url)),...args],{env})).stdout);
 try{
  await run('create','--title','A calmer workspace');
- const old=await run('comment','--id','1','--text','The oldest note mentions a lighthouse…');
- for(let i=0;i<40;i++)await run('comment','--id','1','--text',`Filler ${i}`);
+ const old=await run('reply','--id','1','--text','The oldest note mentions a lighthouse…');
+ for(let i=0;i<40;i++)await run('reply','--id','1','--text',`Filler ${i}`);
  server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(Error(`Server exit ${c}`)));});
  browser=await chromium.launch();const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[],requests=[];

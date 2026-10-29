@@ -5,13 +5,13 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
-import {runClaudeAction} from '../lib/claude-actions.mjs';
 import {recordClaudeWork} from '../lib/claude-agent-work.mjs';
 import {claudeAskGuard,claudePlanApproval} from '../lib/claude-asks.mjs';
 import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
 import {appendAgentComment,appendFeedback,listGoals} from '../lib/goal-store.mjs';
 import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {hookFor} from './claude-fixtures.mjs';
+import {agentAction} from './agent-action.mjs';
 
 async function fixture(t){
   const dir=await mkdtemp(join(tmpdir(),'claude-asks-test-')),data=join(dir,'data'),cwd=join(dir,'project');await mkdir(cwd);
@@ -20,7 +20,7 @@ async function fixture(t){
   const envFile=join(dir,'env');await writeFile(envFile,'');
   const sessionId=randomUUID(),event=hookFor({session_id:sessionId,prompt_id:randomUUID(),cwd});
   const record=await captureClaudeEntry(event('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});
-  await runClaudeAction('create-goal',{title:'Long run',scope:'Test',criteria:'Never waits in the app'},{env:{CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId}});
+  await agentAction('create-goal',{title:'Long run',scope:'Test',criteria:'Never waits in the app'},{CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId});
   const goal=(await listGoals())[0];
   await recordClaudeWork(sessionId,[{type:'started'},{type:'commented',goalId:goal.id}],{directory:data});
   const pre=(tool_name,tool_input={})=>claudeAskGuard(event('PreToolUse',{tool_name,tool_input}));
@@ -31,9 +31,9 @@ const denied=output=>output?.hookSpecificOutput?.permissionDecision==='deny'?out
 test('a question or a task suggestion is refused and sent to the Web instead',async t=>{
   const f=await fixture(t);
   const question=denied(await f.pre('AskUserQuestion',{questions:[{question:'Which?',header:'Pick',options:[{label:'A'},{label:'B'}]}]}));
-  assert.match(question,/nothing was asked[\s\S]*connection reply --goal 1 --ask /,'the question goes to the Goal it works on as a Letter');
+  assert.match(question,/nothing was asked[\s\S]*goal reply --id 1 --ask /,'the question goes to the Goal it works on as a Letter');
   const box=denied(await f.pre('mcp__ccd_turn__wrap_up',{recap:'Done.',ask:'Commit it?',actions:[{label:'Commit',message:'Commit it'}]}));
-  assert.match(box,/nothing was asked[\s\S]*connection reply --goal 1 --ask /,'a closing question in the next-step box goes to a Letter too');
+  assert.match(box,/nothing was asked[\s\S]*goal reply --id 1 --ask /,'a closing question in the next-step box goes to a Letter too');
   assert.ok(denied(await f.pre('mcp__ccd_turn__wrap_up',{recap:'Done.',actions:[{label:'Next',message:'Go on'}]})),'choice buttons alone are a question');
   assert.equal(await f.pre('mcp__ccd_turn__wrap_up',{recap:'Done.'}),null,'a recap alone goes through');
   const chip=denied(await f.pre('mcp__ccd_session__spawn_task',{title:'Fix the flaky test',prompt:'…',tldr:'…'}));

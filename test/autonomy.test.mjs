@@ -27,28 +27,28 @@ test('the three levels go by name, with their descriptions',()=>{
   assert.equal(autonomyOf({}),1,'a record without a level reads as Normal');assert.equal(autonomyOf({autonomy:4}),1,'4 is not a level');
 });
 
-test('the journal record is the Root agent\'s: the same or a continued one keeps it, another starts over, a record with no owner goes to the first',()=>{
-  const claude=id=>({harnessId:'claude-code',sessionId:id,contextId:`c-${id}`});
-  const root={id:'1',connection:claude('a'),previousConnections:[claude('old')]};
+test('the journal record is the Root owner\'s: the same owner or one it took over keeps it, another starts over, a record with no owner goes to the first',()=>{
+  const claude=id=>({agent:'claude-code',id,context:'00000000-0000-4000-8000-00000000000'+id.length});
+  const root={id:'1',owner:claude('a'),previousOwners:[{...claude('old'),until:'t'}]};
   const record=patch=>({rootId:'1',attempts:[{id:'x',at:'t'}],autonomy:3,...patch});
   assert.equal(journalOwnership(root,null),'none');
-  assert.equal(journalOwnership(root,record({connection:claude('a')})),'same');
-  assert.equal(journalOwnership(root,record({connection:claude('old')})),'adopted','a continued session');
-  assert.equal(journalOwnership(root,record({})),'adopted','a record written before any agent');
-  assert.equal(journalOwnership(root,record({connection:claude('b')})),'other');
-  assert.equal(journalOwnership(root,record({threadId:'t'})),'other');
-  assert.deepEqual([claude('a'),claude('old'),undefined,claude('b')].map(connection=>journalAutonomy(root,record(connection?{connection}:{}))),[3,3,3,1]);
-  const codex={id:'1',threadId:'t'};
-  assert.deepEqual([{threadId:'t'},{threadId:'u'},{},{connection:claude('a')}].map(owner=>journalOwnership(codex,record(owner))),['same','other','adopted','other']);
+  assert.equal(journalOwnership(root,record({owner:claude('a')})),'same');
+  assert.equal(journalOwnership(root,record({owner:claude('old')})),'adopted','a previous owner\'s record');
+  assert.equal(journalOwnership(root,record({})),'adopted','a record written before any owner');
+  assert.equal(journalOwnership(root,record({owner:claude('b')})),'other');
+  assert.equal(journalOwnership(root,record({owner:{agent:'codex',id:'a'}})),'other','the same ID from another agent');
+  assert.deepEqual([claude('a'),claude('old'),undefined,claude('b')].map(owner=>journalAutonomy(root,record(owner?{owner}:{}))),[3,3,3,1]);
+  const codex={id:'1',owner:{agent:'codex',id:'t'}};
+  assert.deepEqual([{agent:'codex',id:'t'},{agent:'codex',id:'u'},undefined,claude('a')].map(owner=>journalOwnership(codex,record(owner?{owner}:{}))),['same','other','adopted','other']);
   const unowned={id:'1'};
-  assert.deepEqual([{},{threadId:'t'}].map(owner=>journalAutonomy(unowned,record(owner))),[3,1],'a Root without an agent keeps only a record without one');
+  assert.deepEqual([{},{owner:{agent:'codex',id:'t'}}].map(owner=>journalAutonomy(unowned,record(owner))),[3,1],'a Root without an owner keeps only a record without one');
   // Setting the level.
   assert.deepEqual(withAutonomy(unowned,null,2,'now'),{rootId:'1',attempts:[],autonomy:2,updatedAt:'now'});
-  assert.deepEqual(withAutonomy(codex,null,2,'now'),{rootId:'1',threadId:'t',attempts:[],autonomy:2,updatedAt:'now'});
-  assert.equal(withAutonomy(root,record({connection:claude('a')}),3),null,'unchanged');
-  assert.deepEqual(withAutonomy(root,record({connection:claude('old'),revision:'r'}),2,'now'),record({connection:claude('old'),revision:'r',autonomy:2,updatedAt:'now'}),'a record to take over keeps its owner until the agent writes it');
-  assert.deepEqual(withAutonomy(codex,record({threadId:'u',revision:'r',history:[{id:'h'}]}),2,'now'),
-    {rootId:'1',threadId:'t',history:[{id:'h'},{id:'x',at:'t',phase:'assignment-changed',completedAt:'now'}],attempts:[],autonomy:2,updatedAt:'now'},'another agent\'s record starts over');
+  assert.deepEqual(withAutonomy(codex,null,2,'now'),{rootId:'1',owner:{agent:'codex',id:'t'},attempts:[],autonomy:2,updatedAt:'now'});
+  assert.equal(withAutonomy(root,record({owner:claude('a')}),3),null,'unchanged');
+  assert.deepEqual(withAutonomy(root,record({owner:claude('old'),revision:'r'}),2,'now'),record({owner:claude('old'),revision:'r',autonomy:2,updatedAt:'now'}),'a record to take over keeps its owner until the owner writes it');
+  assert.deepEqual(withAutonomy(codex,record({owner:{agent:'codex',id:'u'},revision:'r',history:[{id:'h'}]}),2,'now'),
+    {rootId:'1',owner:{agent:'codex',id:'t'},history:[{id:'h'},{id:'x',at:'t',phase:'assignment-changed',completedAt:'now'}],attempts:[],autonomy:2,updatedAt:'now'},'another owner\'s record starts over');
   assert.throws(()=>withAutonomy(root,null,4),/Normal, Auto Continue or Ultra Continue/);
 });
 
@@ -158,21 +158,21 @@ for(const storage of ['json','sqlite']){
     assert.deepEqual(JSON.parse(await readFile(w.scale,'utf8')),{levels:3});
   });
 
-  test(`each Root's level moves into its journal for the Root's current agent, and the field leaves every Goal (${storage})`,async t=>{
+  test(`each Root's level moves into its journal for the Root's current owner, and the field leaves every Goal (${storage})`,async t=>{
     // The CLI looks for the Codex chat the second Root names; there is none here.
     expectHidden(t,'codex-work.observe');
     const w=await workspace(t,storage);
     for(const title of ['Claude','Codex','Unowned'])await w.run('create','--title',title);
     await w.run('create','--title','Child','--parent','1');
-    const claude={harnessId:'claude-code',sessionId:'s',contextId:'00000000-0000-4000-8000-000000000001'},threadId='00000000-0000-4000-8000-000000000002';
-    await w.patch({1:{connection:claude,autonomy:2},2:{threadId,autonomy:3},3:{autonomy:2},4:{autonomy:1}});
-    await w.writeJournal('1',{rootId:'1',connection:claude,revision:'r',attempts:[{id:'kept',completedAt:'t'}]});
-    await w.writeJournal('2',{rootId:'2',threadId:'00000000-0000-4000-8000-000000000003',attempts:[{id:'earlier'}]});
+    const claude={agent:'claude-code',id:'s',context:'00000000-0000-4000-8000-000000000001'},codexOwner={agent:'codex',id:'00000000-0000-4000-8000-000000000002'};
+    await w.patch({1:{owner:claude,autonomy:2},2:{owner:codexOwner,autonomy:3},3:{autonomy:2},4:{autonomy:1}});
+    await w.writeJournal('1',{rootId:'1',owner:claude,revision:'r',attempts:[{id:'kept',completedAt:'t'}]});
+    await w.writeJournal('2',{rootId:'2',owner:{agent:'codex',id:'00000000-0000-4000-8000-000000000003'},attempts:[{id:'earlier'}]});
     await w.run('tree','--id','3');
-    assert.deepEqual(w.without(await w.readJournal('1')),{rootId:'1',connection:claude,revision:'r',attempts:[{id:'kept',completedAt:'t'}],autonomy:2},'the same agent keeps its record');
+    assert.deepEqual(w.without(await w.readJournal('1')),{rootId:'1',owner:claude,revision:'r',attempts:[{id:'kept',completedAt:'t'}],autonomy:2},'the same owner keeps its record');
     const codex=await w.readJournal('2');
-    assert.deepEqual([codex.threadId,codex.autonomy,codex.attempts,codex.history.map(a=>[a.id,a.phase])],[threadId,3,[],[['earlier','assignment-changed']]],'another agent\'s record starts over for the current one');
-    assert.deepEqual(w.without(await w.readJournal('3')),{rootId:'3',attempts:[],autonomy:2},'a Root without an agent keeps it for the first one');
+    assert.deepEqual([codex.owner,codex.autonomy,codex.attempts,codex.history.map(a=>[a.id,a.phase])],[codexOwner,3,[],[['earlier','assignment-changed']]],'another owner\'s record starts over for the current one');
+    assert.deepEqual(w.without(await w.readJournal('3')),{rootId:'3',attempts:[],autonomy:2},'a Root without an owner keeps it for the first one');
     assert.deepEqual(await w.stored(),none('1','2','3','4'));
     // A run cut short after the journals were written repeats them unchanged.
     const before=await w.readJournal('1');await w.seed({1:2,4:3});

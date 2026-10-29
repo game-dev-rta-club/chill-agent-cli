@@ -6,14 +6,15 @@ import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {runClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
-import {listGoals,createGoal,appendFeedback,appendAgentComment,updateGoal,readGoal,readFeedback} from '../lib/goal-store.mjs';
+import {listGoals,createGoal,appendFeedback,appendAgentComment,updateGoal,readGoal,readFeedback,setRootOwner} from '../lib/goal-store.mjs';
 import {setRootAutonomy,rootAutonomy} from '../lib/root-autonomy.mjs';
-import {transferClaudeRoot} from '../lib/claude-roots.mjs';
+import {claudeConnection,claudeOwner} from '../lib/agents/owners.mjs';
 import {onStop} from '../lib/claude-continuation.mjs';
 import {recordClaudeWork} from '../lib/claude-agent-work.mjs';
 import {storage} from '../lib/extension-api.mjs';
 import {readMonitor} from '../lib/continuation-monitor.mjs';
 import {hookFor} from './claude-fixtures.mjs';
+import {agentAction} from './agent-action.mjs';
 
 async function fixture(t){
  const dir=await mkdtemp(join(tmpdir(),'claude-auto-')),cwd=join(dir,'project');await mkdir(cwd);
@@ -23,7 +24,7 @@ async function fixture(t){
  const sessionId=randomUUID();let promptId=randomUUID(),env;
  const event=hookFor({session_id:sessionId,prompt_id:promptId,cwd});
  async function start(source='startup'){const r=await captureClaudeEntry(event('SessionStart',{source}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId};}
- async function action(action,payload){const r=await runClaudeAction(action,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
+ async function action(action,payload){const r={text:action==='extension'?(await runClaudeAction(action,payload,{env})).text:await agentAction(action,payload,env)};return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await start();await action('create-goal',{title:'Native Autonomy',scope:'One verified continuation',criteria:'No duplicate or lost input'});const root=(await listGoals())[0];
  // The Web's Autonomy control, on any Goal of the tree, sets the Root agent's level.
  const configure=(level=2)=>setRootAutonomy(root.id,level);
@@ -33,7 +34,7 @@ async function fixture(t){
 test('Stop reserves once; the next Stop ends the request and consumes the revision',async t=>{
  const f=await fixture(t);await f.configure();
  const response=await f.stop();
- assert.equal(response.decision,'block');assert.match(response.reason,/- Root Goal #1 “Native Autonomy”, Auto Continue: After each turn, keep carrying out what you and the user clearly see the same way, in any Goal under Root Goal #1: work they asked for/);assert.doesNotMatch(response.reason,/Lv \d|Autonomy [0-9]/,'levels go by name');assert.match(response.reason,/connection wake --in/);
+ assert.equal(response.decision,'block');assert.match(response.reason,/- Root Goal #1 “Native Autonomy”, Auto Continue: After each turn, keep carrying out what you and the user clearly see the same way, in any Goal under Root Goal #1: work they asked for/);assert.doesNotMatch(response.reason,/Lv \d|Autonomy [0-9]/,'levels go by name');assert.match(response.reason,/agent wake --in/);
  let state=await f.read();assert.equal(state.attempts.length,1);const attempt=state.attempts[0];assert.equal(attempt.message,response.reason);assert.equal(attempt.phase,'uncertain');
  await f.newPrompt();assert.equal((await f.read()).attempts[0].completedAt,undefined,'a new prompt is not native completion');
  assert.equal(await f.stop({prompt_id:randomUUID()}),null);
@@ -112,7 +113,7 @@ test('a level set before any conversation works on the Root goes to the first on
  await storage('continuation').write(f.root.id,{rootId:f.root.id,attempts:[],autonomy:2});
  assert.equal(await rootAutonomy(f.root),2);
  assert.match((await f.stop()).reason,/Auto Continue/);
- const state=await f.read();assert.deepEqual(state.connection,f.root.connection,'the conversation takes the record over');assert.equal(state.autonomy,2);
+ const state=await f.read();assert.deepEqual(state.owner,f.root.owner,'the conversation takes the record over');assert.equal(state.autonomy,2);
  const unowned=await createGoal({title:'Not started'});
  assert.deepEqual(await setRootAutonomy(unowned.id,3),{goalId:unowned.id,rootId:unowned.id,autonomy:3});
  const record=await readMonitor(unowned.id);assert.equal(record.autonomy,3);assert.equal('connection' in record||'threadId' in record,false);
@@ -153,26 +154,26 @@ test('saved Web feedback and the end-of-turn check cannot both claim the same St
 });
 
 test('a continued conversation keeps the Root\'s Autonomy; an unconfirmed request is closed, never resent; another owner starts at Normal',async t=>{
- const f=await fixture(t),earlier=(await readGoal(f.root.id)).connection;
+ const f=await fixture(t),earlier=claudeConnection(await readGoal(f.root.id));
  await f.configure();
  const offered=await f.stop();assert.equal(offered.decision,'block');const first=(await f.read()).attempts[0];
  const continued={harnessId:'claude-code',sessionId:randomUUID(),contextId:randomUUID()};
- await transferClaudeRoot(f.root.id,earlier,continued,randomUUID());
+ await setRootOwner(f.root.id,claudeOwner(continued));
  const stop=connection=>onStop({connection,promptId:randomUUID(),checkpointId:randomUUID(),generation:randomUUID()});
  assert.equal(await stop(earlier),null,'the earlier conversation owns nothing now');
  // The owner is part of the revision: the new conversation gets one check of its own.
  const next=await stop(continued);assert.match(next,/Auto Continue/);
- const state=await f.read();assert.deepEqual(state.connection,continued);
+ const state=await f.read();assert.deepEqual(state.owner,claudeOwner(continued));
  assert.equal(state.history[0].id,first.id,'the closed request is kept as history');assert.equal(state.history[0].phase,'assignment-changed');
  assert.equal(state.attempts.length,1);assert.notEqual(state.attempts[0].id,first.id);
  assert.equal(await stop(continued),null,'awaiting this request, not another one');
  // A record from an owner this Root never had starts over, at Normal, and keeps its history.
  const journal=storage('continuation');
- await journal.write(f.root.id,{rootId:f.root.id,connection:{harnessId:'claude-code',sessionId:'other',contextId:randomUUID()},autonomy:3,attempts:[{id:'foreign',at:new Date().toISOString()}]});
+ await journal.write(f.root.id,{rootId:f.root.id,owner:{agent:'claude-code',id:'other',context:randomUUID()},autonomy:3,attempts:[{id:'foreign',at:new Date().toISOString()}]});
  assert.equal(await rootAutonomy(await readGoal(f.root.id)),1,'another owner\'s level is not this conversation\'s');
  await updateGoal(f.root.id,{scope:'Changed'});
  assert.equal(await stop(continued),null);
- const after=await journal.read(f.root.id);assert.deepEqual(after.connection,continued);assert.equal(after.history.at(-1).id,'foreign');assert.equal('autonomy' in after,false,'the takeover drops it');
+ const after=await journal.read(f.root.id);assert.deepEqual(after.owner,claudeOwner(continued));assert.equal(after.history.at(-1).id,'foreign');assert.equal('autonomy' in after,false,'the takeover drops it');
  await setRootAutonomy(f.root.id,2);assert.match(await stop(continued),/Keep going/);
 });
 
@@ -180,21 +181,21 @@ test('a stop is held while a handed Goal awaits a reply and nothing runs; the ag
  const f=await fixture(t);
  await appendFeedback({goalId:f.root.id,text:'Short work'});
  const handed=(await f.action('inbox',{})).hookSpecificOutput.additionalContext;
- assert.match(handed,/Reply on the Goal \(this answers it\): .* connection reply --goal <goalId> --text '<reply>'/);
+ assert.match(handed,/Reply on the Goal \(this answers it\): .* goal reply --id <goalId> --text '<reply>'/);
  // What the agent wrote is never posted for it: only a reply or Comment answers the Goal.
  const transcript=join(f.dir,'transcript.jsonl');
  await writeFile(transcript,JSON.stringify({type:'assistant',uuid:randomUUID(),message:{model:'claude',content:[{type:'text',text:'Done with the short work.'}]}})+'\n');
  const first=await f.stop({transcript_path:transcript,last_assistant_message:'Done with the short work.'});
  assert.deepEqual((await readFeedback()).filter(e=>e.author==='agent'),[],'nothing is posted at Stop');
  assert.equal(first?.decision,'block');assert.match(first.reason,new RegExp(`Goal #${f.root.id}\\b`));
- assert.match(first.reason,/connection reply --goal <goalId>/);assert.match(first.reason,/goal comment --id <goalId>/);
+ assert.match(first.reason,/goal reply --id <goalId>/);assert.match(first.reason,/goal reply --id <goalId>/);
  assert.equal(await f.stop({stop_hook_active:true}),null,'the stop right after a hold ends');
  await f.newPrompt();
  assert.equal((await f.stop())?.decision,'block','a later stop with still nothing said is held again');
  await f.stop({stop_hook_active:true});
  await f.newPrompt();
  assert.equal(await f.stop({background_tasks:[{id:'a1',type:'subagent',status:'running',description:'Review'}]}),null,'running background work wakes the conversation later');
- const waiter={id:'b1',type:'shell',status:'running',description:'Desktop hold',command:"'/data/runtime/chill' connection wait"};
+ const waiter={id:'b1',type:'shell',status:'running',description:'Desktop hold',command:"'/data/runtime/chill' agent wait"};
  assert.equal((await f.stop({background_tasks:[waiter]}))?.decision,'block','chill\'s own hold task is not work');
  await f.stop({stop_hook_active:true});
  await f.newPrompt();await appendAgentComment({goalId:f.root.id,type:'comment',text:'Waiting for CI; I will check in 10 minutes.'});

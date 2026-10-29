@@ -45,7 +45,7 @@ async function main() {
     const installed={...prepared,root:await realpath(prepared.root),dataDirectory:directory,launcher:join(directory,'runtime/chill.mjs'),entry:join(directory,'runtime/chill')};
     const hook=await configureClaudeHooks(values['--project'],{entry:installed.entry,directory});
     const prefix=quote(installed.entry);
-    console.log(JSON.stringify({...installed,project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,hook,command:prefix,next:'Experimental Claude hooks are written, not yet verified in the conversation. Review them with native /hooks when Claude asks. From its main Bash tool, run <command> connection show; if it reports no connection, run <command> connection join once (no resume needed), then connection create-goal. The installed watcher hook wakes the conversation for Web replies. Setup leaves every Root at Autonomy Normal. Local settings created by hand should be excluded from Git. Native policy and existing permissions still apply.'+sessionNext()},null,2));
+    console.log(JSON.stringify({...installed,project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,hook,command:prefix,next:'Experimental Claude hooks are written, not yet verified in the conversation. Review them with native /hooks when Claude asks. From its main Bash tool, run <command> agent show; if it reports no connection, run <command> agent join once (no resume needed), then <command> goal create. The installed watcher hook wakes the conversation for Web replies. Setup leaves every Root at Autonomy Normal. Local settings created by hand should be excluded from Git. Native policy and existing permissions still apply.'+sessionNext()},null,2));
     return;
   }
   if(command==='remove')throw Error('This option requires --harness claude-code.');
@@ -62,7 +62,7 @@ async function main() {
   const installed = await prepareRuntime(fileURLToPath(new URL('../', import.meta.url)), undefined, { package: version?.spec });
   if (version) await recordVersionSource(installed.dataDirectory, version);
   const prefix = quote(installed.entry);
-  const hook = await installHook(resolve(values['--project']), { command: `${prefix} hook` });
+  const hook = await installHook(resolve(values['--project']), { command: `${prefix} agent hook codex` });
   console.log(JSON.stringify({ ...installed, project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,codex, hook, command: prefix,
     next: 'Review/trust a new or changed hook in Codex /hooks. Start with: <command> server start --configured. Existing servers keep their previous runtime until restarted.' + sessionNext() }, null, 2));
 }

@@ -15,7 +15,7 @@ await run('create','--title','Deliverable and Markdown');
 const source='# What we will realize\n\nA short **shared outcome**.\n\n```\nlong: '+'wide '.repeat(80)+'end\n```\n\n## Behavior\n\n- First option\n- Second option\n\n### Details\n\n| Item | Status |\n| --- | --- |\n| Table value | Ready |\n\n```mermaid\ngraph LR\n A[Question] --> B[Answer]\n```\n\nParagraph **after diagram**.\n\n## Other\n\n```js\nconst html = "<button>";\n```';
 await writeFile(join(root,'workspace/goals/1/deliverable.md'),source);await run('deliverable','update','--id','1');
 const message='**Formatted** opening.\n\n## Supporting information\n\n### Table\n\n| Item | State |\n| --- | --- |\n| Choice | Ready |\n\n```mermaid\ngraph TD\n A --> B\n```\n\nUse [the guide](https://example.com) after this diagram. Back to #1.';
-const comment=await run('comment','--id','1','--ask','Can you read this Letter?','--text',message);
+const comment=await run('reply','--id','1','--ask','Can you read this Letter?','--text',message);
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
 const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});
 let browser;
@@ -69,6 +69,6 @@ try {
  assert.equal(await page.evaluate(()=>document.querySelector('.brief-body').scrollWidth<=document.querySelector('.brief-body').clientWidth+1),true);
  await page.setViewportSize({width:1000,height:850});await page.screenshot({path:'/tmp/chill-brief-desktop.png'});
  // Invalid Mermaid keeps its source readable without breaking the page.
- await run('comment','--id','1','--text','```mermaid\nnot a diagram\n```');await page.reload();await page.locator('.mermaid-diagram[data-rendered="error"]').waitFor();
+ await run('reply','--id','1','--text','```mermaid\nnot a diagram\n```');await page.reload();await page.locator('.mermaid-diagram[data-rendered="error"]').waitFor();
  assert.deepEqual(errors,[]);console.log('passed: nested folds, tables, Mermaid, canonical annotations, saved references, mobile layout, invalid diagram fallback');
 } finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

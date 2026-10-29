@@ -31,7 +31,7 @@ const hookReads = {
   SubagentStart: {session_id: 'string', agent_id: 'string', agent_type: 'string'},
   SubagentStop: {session_id: 'string', agent_id: 'string'},
 };
-const hookFiles = ['lib/claude-entry.mjs', 'lib/claude-actions.mjs', 'lib/claude-pause.mjs', 'lib/claude-permissions.mjs', 'lib/claude-rm-guard.mjs', 'lib/claude-agent-work.mjs', 'bin/chill-connection.mjs'];
+const hookFiles = ['lib/claude-entry.mjs', 'lib/claude-actions.mjs', 'lib/claude-pause.mjs', 'lib/claude-permissions.mjs', 'lib/claude-rm-guard.mjs', 'lib/claude-agent-work.mjs', 'bin/chill-conversation.mjs'];
 
 test('the recorded samples are one Claude Code release and carry nothing private', async () => {
   assert.equal(hookSchema.claudeCodeVersion, version, 'hooks.json and the transcripts come from different releases');

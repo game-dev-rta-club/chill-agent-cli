@@ -19,8 +19,8 @@ test('public Goal commands persist SQLite records, preserve Letter relationships
   await writeFile(goal.deliverablePath,'# Plan\nSQLite content');
   assert.equal((await run('deliverable','update','--id','1')).version,1);
   await assert.rejects(run('deliverable','update','--id','1'),error=>/Not published: .* is the same as v1\./.test(error.stderr));
-  const letter=await run('comment','--id','1','--ask','Ready','--text','Question');
-  await run('comment','--id','2','--text','Other goal');
+  const letter=await run('reply','--id','1','--ask','Ready','--text','Question');
+  await run('reply','--id','2','--text','Other goal');
   const input=join(root,'reply.json');
   await writeFile(input,JSON.stringify({requestId:'sqlite-reply-123',annotations:[{kind:'letter',source:{kind:'comment',eventId:letter.id},text:'Yes'}]}));
   // feedback also prints its transport receipt; inspect the persisted conversation.
@@ -29,7 +29,7 @@ test('public Goal commands persist SQLite records, preserve Letter relationships
   assert.equal(before.letters.length,0);
   await execute(process.execPath,[cli,'feedback','--id','1','--input-file',input],{env});
   assert.equal((await run('show','--id','1')).conversation.length,before.conversation.length);
-  const pending=await run('comment','--id','1','--ask','Notice','--text','Result');
+  const pending=await run('reply','--id','1','--ask','Notice','--text','Result');
   await run('close-letter','--id','1','--event',String(pending.id));
   const shown=await run('show','--id','1');
   assert.equal(shown.deliverable.body,'# Plan\nSQLite content');
@@ -49,7 +49,7 @@ test('isolated SQLite Web accepts a reply and CLI reads it after server shutdown
   const env={...process.env,PORT:'0',CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
   await run('create','--title','Web SQLite');
-  const letter=await run('comment','--id','1','--ask','Choice','--text','Choose');
+  const letter=await run('reply','--id','1','--ask','Choice','--text','Choose');
   const child=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url))],{env,stdio:['ignore','pipe','pipe']});
   const exit=once(child,'exit');
   t.after(async()=>{if(child.exitCode===null&&child.signalCode===null)child.kill('SIGTERM');await exit;await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
@@ -86,7 +86,7 @@ test('existing JSON workspaces remain JSON until an explicit separate migration'
  const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
  await run('create','--title','Legacy');
  delete env.CHILL_AGENT_STORAGE;
- await run('comment','--id','1','--text','Still legacy');
+ await run('reply','--id','1','--text','Still legacy');
  assert.equal(JSON.parse(await readFile(join(root,'workspace/events/1.json'))).text,'Still legacy');
  await assert.rejects(readFile(join(root,'workspace/workspace.sqlite')),{code:'ENOENT'});
  const original=await readFile(join(root,'workspace/goals/1/goal.json'));
