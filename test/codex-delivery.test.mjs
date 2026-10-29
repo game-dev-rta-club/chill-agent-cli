@@ -137,3 +137,10 @@ test('invalid optional notification settings do not block publishing or receivin
   assert.match(queued, /"eventId":1,/);
   assert.match(queued, /Could not read saved user notification preferences/);
 });
+test('a chat Codex does not show to chill cannot own a Root, and is told why',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
+  const f=await fixture();
+  // The fixture's chat is the one Codex shows; this one it does not.
+  const hidden='00000000-0000-4000-8000-999999999999';
+  await assert.rejects(f.run(['create','--title','Hidden'],{CODEX_THREAD_ID:hidden}),error=>/chill cannot see this Codex chat[\s\S]*quit it fully and open it again/.test(error.stderr));
+  await assert.rejects(f.run(['adopt','--id','1'],{CODEX_THREAD_ID:hidden}),error=>/chill cannot see this Codex chat/.test(error.stderr));
+});
