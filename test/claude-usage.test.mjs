@@ -12,7 +12,7 @@ async function recorded(value) {
   return path;
 }
 
-test('Claude usage shows the windows Cache Keep recorded as percent left', async()=>{
+test('Claude usage shows the windows the usage mod recorded as percent left', async()=>{
   const path=await recorded({at:'2026-10-26T07:02:09.390Z',rateLimits:[
     {kind:'five_hour',percentUsed:26,resetsAt:'2026-10-26T08:00:00.000Z'},
     {kind:'seven_day',percentUsed:3,resetsAt:'2026-11-02T05:00:00.000Z'},
