@@ -86,7 +86,8 @@
 .activity-entry { min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 12px; }
 .activity-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-height: 24px; }
 .activity-heading strong { font-size: 12px; }
-.wait-toggle { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; margin: -4px 0 -4px -6px; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
+/* A button like Pause beside it, so the heading reads as something to press. */
+.wait-toggle { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; margin: -4px 0; padding: 4px 10px 4px 8px; border: 1px solid var(--theme-line,#bdc8bf); border-radius: 7px; background: var(--theme-surface,#fff); color: inherit; font: inherit; cursor: pointer; }
 .wait-toggle:hover { background: var(--theme-soft,#f2f5f1); }
 .wait-chevron { display: grid; color: var(--muted); transition: transform .15s; }
 .wait-chevron svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2.4; }
