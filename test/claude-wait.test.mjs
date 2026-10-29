@@ -253,7 +253,7 @@ test('with several checks scheduled, the Web lists them all, the next one due fi
  assert.deepEqual(activity.wake,{at:wake.at,reason:'CI of PR #91'});assert.deepEqual(presence.wake,{at:wake.at,reason:'CI of PR #91'});
  // Every check is listed, earliest first.
  const shown=activityDisplay(activity,Date.parse(wake.at)-60000);
- assert.equal(shown.label,'Waiting · 3');assert.deepEqual(shown.items.map(i=>i.text),['CI of PR #91','Deploy','Recount']);
+ assert.equal(shown.label,'Waiting','the count shows on the list box, not the heading');assert.deepEqual(shown.items.map(i=>i.text),['CI of PR #91','Deploy','Recount']);
  assert.equal(isWaitingOnCheck(presence.wake,Date.parse(wake.at)-60000),true,'the tab icon shows the yellow sun');
 });
 
