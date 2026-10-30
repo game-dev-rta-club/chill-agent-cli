@@ -1407,18 +1407,21 @@ main.addEventListener('click', async event => {
   if (button.dataset.action === 'expand-conversation' || button.dataset.action === 'collapse-conversation') {
     if (annotationOpen || submitting.size) return;
     const messages=conversationFor(activeGoalId),side=button.dataset.side;
-    const gap=button.closest('.conversation-gap'),edge=gap?.getBoundingClientRect()[side==='top'?'top':'bottom'];
+    const gap=button.closest('.conversation-gap'),edge=gap?.getBoundingClientRect()[side==='top'?'top':'bottom'],buttonTop=button.getBoundingClientRect().top;
     let added=[];
     if(gap)added=conversationWindow.expand(activeGoalId,messages,Number(button.dataset.firstId),Number(button.dataset.lastId),side);
     else conversationWindow.collapse(activeGoalId,messages);
     updateTimeline(activeGoalId);renderAnnotations();
     if(added.length) {
       const target=document.getElementById(`event-${added[0].id}`);
-      // Start reading at the first revealed comment in either direction.
-      readingPane.align(target,edge);
       const next=[...main.querySelectorAll('.conversation-gap')].find(item=>side==='top'
         ?Number(item.dataset.gapLast)===Number(button.dataset.lastId):Number(item.dataset.gapFirst)===Number(button.dataset.firstId));
-      const focus=next?.querySelector(`[data-side="${side}"]`)||target?.querySelector('article');
+      const again=next?.querySelector(`[data-side="${side}"]`);
+      // Later comments open below the gap: while some remain, the same button
+      // stays under the pointer so it can be pressed again. Otherwise reading
+      // starts at the first revealed comment.
+      if(side==='bottom'&&again)readingPane.align(again,buttonTop);else readingPane.align(target,edge);
+      const focus=again||target?.querySelector('article');
       if(focus){if(focus.tagName==='ARTICLE')focus.tabIndex=-1;focus.focus({preventScroll:true});}
       announcement.textContent=`Showing ${added.length} ${side==='top'?'earlier':'later'} ${added.length===1?'comment':'comments'}.`;
     } else {
