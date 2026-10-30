@@ -101,8 +101,12 @@ try {
    r.setStart(title.firstChild,0);r.setEnd(title.firstChild,2);
    window.getSelection().removeAllRanges();window.getSelection().addRange(r);document.dispatchEvent(new Event('selectionchange'));
  },pendingLetter.id);
- await page.locator('.annotation-action').click();
+ // Hovering the button names its key, and E opens the annotation like a click.
+ const action=page.locator('.annotation-action');await action.waitFor();await action.hover();
+ await action.locator('.annotation-key-hint').waitFor({state:'visible'});assert.equal(await action.getAttribute('aria-keyshortcuts'),'E');
+ await page.mouse.move(0,0);await page.keyboard.press('e');
  await pendingCard.locator('[data-reply-field="title"] .annotation-mark.is-editing').waitFor();
+ await editor().locator('textarea').press('e');assert.equal(await editor().locator('textarea').inputValue(),'e','E types in the annotation');await editor().locator('textarea').fill('');
  assert.equal(await pendingCard.locator('.event-text .annotation-mark').count(),0,'title offsets never mark the body');
  await editor().locator('textarea').fill('タイトルの注釈を試しています');
  await editor().getByRole('button',{name:'Save',exact:true}).click();
@@ -157,6 +161,23 @@ try {
  await send(main());assert.equal((await data()).conversation.at(-1).annotations[0].source.eventId,receiptLetter.id);
  await go(`/letter/${receiptLetter.id}`);await receiptCard.getByText('Received',{exact:true}).waitFor();
 
+ // The user marks a Letter Done from its heading, without a Comment.
+ const doneLetter=await run('reply','--id','1','--ask','Done test','--text','The user may close this.');
+ await go();const doneCard=page.locator(`#event-${doneLetter.id}`);await readCard(doneCard);
+ const eventsBefore=(await data()).conversation.length;
+ await doneCard.getByRole('button',{name:'Done',exact:true}).click();
+ // Shown from the response, before the next poll.
+ await doneCard.locator('.letter-done-button.is-done').waitFor({timeout:1500});
+ assert.equal(await doneCard.locator('.event-text').innerText(),'The user may close this.','The text stays after Done');assert.equal(await doneCard.locator('.is-answered').count(),1);
+ assert.equal((await pending()).length,0);assert.equal((await data()).conversation.length,eventsBefore,'Done adds no Comment');
+ assert.equal((await data()).conversation.find(e=>e.id===doneLetter.id).receivedBy,'user');
+ // Pressing the check again takes the Done back: the Letter is open and counted again.
+ await doneCard.locator('.letter-done-button.is-done').click();
+ await doneCard.locator('.letter-done-button:not(.is-done)').waitFor({timeout:1500});
+ assert.equal(await doneCard.locator('.is-answered').count(),0);assert.equal(await doneCard.locator('.event-text').innerText(),'The user may close this.');
+ assert.equal((await pending()).length,1);assert.equal((await data()).conversation.find(e=>e.id===doneLetter.id).receivedBy,undefined);
+ await doneCard.locator('.letter-done-button').click();await doneCard.locator('.letter-done-button.is-done').waitFor({timeout:1500});assert.equal((await pending()).length,0);
+
  const notice=await legacy({goalId:'1',type:'letter',replyRequired:false,title:'Your result is ready',text:'Open the result when convenient.'});
  for(const viewport of [{width:1200,height:900},{width:390,height:844}]){
   await page.setViewportSize(viewport);await go(`/letter/${notice.id}`);
@@ -168,5 +189,5 @@ try {
   assert.equal(await page.locator('.letter-title').count(),0);
   await page.screenshot({path:join(root,`notice-${viewport.width}.png`)});
  }
- assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','no Answer button','Comment answers the Letters','failure retry','bundled annotations','Deliverable history','annotation source','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','no Answer button','Comment answers the Letters','failure retry','bundled annotations','Deliverable history','annotation source','E annotates','user Done and undo','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
 } finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
