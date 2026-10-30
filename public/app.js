@@ -573,12 +573,21 @@ const scrollInReadingPane = readingPane.reveal;
 function mountHTMLBrief(id,version) {
   const frame=document.createElement('iframe');frame.className='html-brief-frame';frame.title='HTML Canvas';
   frame.setAttribute('sandbox','allow-same-origin');frame.src=`/api/goals/${id}/briefs/${version}/document`;
-  let ready;const loaded=new Promise(resolve=>{ready=resolve;});
-  frame.addEventListener('load',async()=>{
+  let ready,started=false;const loaded=new Promise(resolve=>{ready=resolve;});
+  let size=()=>{};
+  // Set up as soon as the document is parsed: its load waits for every image,
+  // and the frame would stay short until then.
+  const early=()=>{if(started||!frame.isConnected)return;const doc=frame.contentDocument;if(doc?.readyState!=='loading'&&doc?.querySelector('.brief-body'))void start();else requestAnimationFrame(early);};
+  requestAnimationFrame(early);
+  frame.addEventListener('load',()=>{if(started)size();else void start();});
+  const start=async()=>{
+    started=true;
     if(!frame.isConnected){ready();return;}
     const doc=frame.contentDocument,body=doc?.querySelector('.brief-body');if(!body){ready();return;}
+    for(const type of ['load','error'])doc.addEventListener(type,imageArrived,true);
+    body.querySelectorAll('img[data-image-placeholder]').forEach(img=>{if(img.complete)img.removeAttribute('data-image-placeholder');});
     body.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
-    const size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(doc.body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
+    size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(doc.body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
     const observer=new ResizeObserver(size);observer.observe(body);
     for(const type of ['wheel','touchmove','keydown'])doc.addEventListener(type,briefScrollIntent,{passive:true});
     doc.addEventListener('selectionchange',updateSelectionAction);
@@ -610,7 +619,7 @@ function mountHTMLBrief(id,version) {
     const cleanup=new MutationObserver(()=>{if(!frame.isConnected){observer.disconnect();cleanup.disconnect();}});
     cleanup.observe(main,{childList:true,subtree:true});
     await doc.fonts.ready;size();ready();
-  });
+  };
   main.querySelector('.html-brief').append(frame);
   return loaded;
 }
@@ -969,6 +978,43 @@ function imageIdFromSource(source) {
   try { return /^\/api\/images\/([0-9a-f-]{36})$/.exec(new URL(source, location.origin).pathname)?.[1] || null; }
   catch { return null; }
 }
+// Reserve each saved image's box from its size and show a placeholder until
+// the image arrives, so slow images do not hold up or shift the page.
+const imageSizes = new Map(), sizeWaiting = new Set();
+let sizeRequest = null;
+function reserveImage(img) {
+  const id = imageIdFromSource(img.getAttribute('src'));
+  if (!id || img.complete || img.hasAttribute('data-image-placeholder')) return;
+  if (!imageSizes.has(id)) { sizeWaiting.add(img); requestImageSizes(); return; }
+  const size = imageSizes.get(id);
+  if (!size) return;
+  // A thumbnail keeps its fixed box; others take the image's shape within their maximum height.
+  if (!img.classList.contains('note-thumbnail') && !img.getAttribute('width') && !img.getAttribute('height')) {
+    const scale = Math.min(1, parseFloat(getComputedStyle(img).maxHeight) / size.height || 1);
+    img.width = Math.round(size.width * scale); img.height = Math.round(size.height * scale);
+    img.setAttribute('data-image-reserved', '');
+  }
+  img.setAttribute('data-image-placeholder', '');
+}
+function requestImageSizes() {
+  if (sizeRequest) return;
+  sizeRequest = Promise.resolve().then(async () => {
+    const waiting = [...sizeWaiting], ids = [...new Set(waiting.map(img => imageIdFromSource(img.getAttribute('src'))))].filter(id => !imageSizes.has(id));
+    sizeWaiting.clear();
+    let sizes = {};
+    try { if (ids.length) sizes = (await (await fetch(`/api/image-sizes?ids=${ids.join(',')}`)).json()).sizes || {}; } catch { /* Show the image without a placeholder. */ }
+    ids.forEach(id => imageSizes.set(id, sizes[id] || null));
+    sizeRequest = null;
+    waiting.forEach(img => { if (img.isConnected) reserveImage(img); });
+    if (sizeWaiting.size) requestImageSizes();
+  });
+}
+// The Canvas frame's images come from another document, so match by selector, not by class.
+const imageArrived = event => { if (event.target?.matches?.('img[data-image-placeholder]')) event.target.removeAttribute('data-image-placeholder'); };
+for (const type of ['load', 'error']) document.addEventListener(type, imageArrived, true);
+const reserveImagesIn = node => { if (node.nodeType !== 1) return; if (node.matches('img')) reserveImage(node); else node.querySelectorAll('img').forEach(reserveImage); };
+new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(reserveImagesIn))).observe(document.body, {childList: true, subtree: true});
+reserveImagesIn(document.body);
 function noteEntries() {
   const saved = events.filter(event => event.goalId === activeGoalId).flatMap(event => [
     ...(event.annotations || []).map((note, index) => ({ref: `event-${event.id}-${index}`, note, event})),
