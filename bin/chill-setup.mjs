@@ -26,8 +26,8 @@ async function main() {
   if(command!=='status'&&Number(process.versions.node.split('.')[0])<20)throw Error('Node.js 20 or later is required.');
   // The application's version file selects this CLI; recording it lets Web
   // startup and the update button follow that file later.
-  if(values['--agent-guide']!==undefined&&values['--version-file']===undefined)throw Error('--agent-guide requires --version-file.');
-  const version=command==='prepare'&&values['--version-file']!==undefined?{versionFile:resolve(values['--version-file']),...(values['--agent-guide']===undefined?{}:{agentGuide:resolve(values['--agent-guide'])})}:null;
+  // --agent-guide is accepted and ignored: older skill copies still pass it.
+  const version=command==='prepare'&&values['--version-file']!==undefined?{versionFile:resolve(values['--version-file'])}:null;
   if(version)version.spec=await readPackageSpec(version.versionFile);
   const sessionNext=()=>version?` Then run <command> session start --harness ${values['--harness']||'codex-desktop'} --project ${quote(resolve(values['--project']))} to start Web and prepare the first Goal.`:'';
   if(values['--harness']==='claude-code'){

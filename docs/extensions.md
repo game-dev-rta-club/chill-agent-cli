@@ -24,4 +24,3 @@ request wording and its journal. The CLI's own end-of-turn check follows each Go
 The current source of the public exports is [extension-api.mjs](../lib/extension-api.mjs).
 Check the version you package: optional capabilities can be added within protocol v1.
 
-For a packaged agent-policy entry point in handoffs, see [agent guidance](extensions/agent-guidance.md).
