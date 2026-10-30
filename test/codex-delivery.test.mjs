@@ -42,7 +42,7 @@ async function fixture() {
   const body = join(root, 'workspace/goals/1/deliverable.md');
   await run(['create', '--title', 'Delivery'],{CODEX_THREAD_ID:''});
   let updates=0;
-  const publish = async (chat = thread) => {await assign(chat);await writeFile(body,`通知テスト ${++updates}`);return run(['deliverable','update','--id','1']);};
+  const publish = async (chat = thread) => {await assign(chat);await writeFile(body,`通知テスト ${++updates}`);return run(['canvas','update','--id','1']);};
   await publish();
   const select=async(goalId='1',turnId=turn,chatId=thread,stoppedAt=null)=>{
     await mkdir(join(root,'workspace/executions'),{recursive:true});

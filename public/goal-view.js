@@ -38,7 +38,7 @@ function status(id){
 function progress(id){
   const scores=descendants(id).filter(n=>!goals[n].children.length).map(n=>ownGoalProgress(goals[n]));
   const percent=progressPercent(scores,goals[id]);
-  const description=`${percent}% · ${scores.filter(score=>score===1).length}/${scores.length} leaf Goals done · Open is capped at 99% · Deliverable and replies do not affect progress`;
+  const description=`${percent}% · ${scores.filter(score=>score===1).length}/${scores.length} leaf Goals done · Open is capped at 99% · Canvas and replies do not affect progress`;
   return `<span class="goal-progress" role="progressbar" aria-label="Progress of Goal ${id}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" aria-valuetext="${escapeHTML(description)}" title="${escapeHTML(description)}"><svg class="progress-track" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="progress-fill" width="${percent}" height="10"/></svg><span class="progress-value" aria-hidden="true">${percent}%</span></span>`;
 }
 function pendingLetters(id){return goals[id].conversation.filter(e=>letterState(e,goals[id].conversation)?.status==='open');}
@@ -74,11 +74,11 @@ function splitGoals(id){
 function pager(id,version){
   const step=(direction,target)=>{
     const previous=direction==='previous',available=target>=1&&target<=latestVersion(id);
-    const label=previous?'Previous Deliverable':'Next Deliverable';
+    const label=previous?'Previous Canvas':'Next Canvas';
     const arrow=`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${previous?'M11 3 4 8l7 5Z':'M5 3l7 5-7 5Z'}"/></svg>`;
     return available?`<a class="version-step" data-version-step="${direction}" href="${href(id,target)}" aria-label="${label} · v${target}" title="${label} · v${target}">${arrow}</a>`:`<span class="version-step" role="link" aria-disabled="true" aria-label="${label}">${arrow}</span>`;
   };
-  return `<nav class="version-pager" aria-label="Deliverable history"><span class="history-label">History</span>${step('previous',version-1)}<span class="version-label" aria-label="Version ${version}">v${version}</span>${step('next',version+1)}</nav>`;
+  return `<nav class="version-pager" aria-label="Canvas history"><span class="history-label">History</span>${step('previous',version-1)}<span class="version-label" aria-label="Version ${version}">v${version}</span>${step('next',version+1)}</nav>`;
 }
 function brief(id){return `${breadcrumb(id)}<section class="surface goal-brief" aria-labelledby="goal-title"><header class="goal-heading"><h1 id="goal-title"><span class="goal-number">#${escapeHTML(id)}</span> ${escapeHTML(goals[id].title)}</h1><div class="goal-topline">${progress(id)}<div class="goal-topline-status">${status(id)}</div></div></header>${splitGoals(id)}</section>`;}
 // Newest Root first: IDs grow as Goals are created.

@@ -357,26 +357,26 @@ const server = createServer(async (request, response) => {
     try{
       const brief=await readBrief(briefSVGPath[1],Number(briefSVGPath[2]));
       const svg=brief?.format==='html'?briefSVG(brief.body,Number(briefSVGPath[3])):null;
-      if(!svg)return sendJson(response,404,{error:'Deliverable image not found.'});
+      if(!svg)return sendJson(response,404,{error:'Canvas image not found.'});
       response.setHeader('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; sandbox");
       response.writeHead(200,{'Content-Type':'image/svg+xml; charset=utf-8'});
       return response.end(svg);
-    }catch{return sendJson(response,500,{error:'Could not load Deliverable image.'});}
+    }catch{return sendJson(response,500,{error:'Could not load Canvas image.'});}
   }
   const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)$/.exec(path);
   if(briefDataPath&&request.method==='GET'){
-    try{const brief=await readBrief(briefDataPath[1],Number(briefDataPath[2]));return sendJson(response,brief?200:404,brief?webBrief(brief):{error:'Deliverable not found.'});}
-    catch{return sendJson(response,500,{error:'Could not load Deliverable.'});}
+    try{const brief=await readBrief(briefDataPath[1],Number(briefDataPath[2]));return sendJson(response,brief?200:404,brief?webBrief(brief):{error:'Canvas not found.'});}
+    catch{return sendJson(response,500,{error:'Could not load Canvas.'});}
   }
   const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/document$/.exec(path);
   if(briefDocumentPath&&request.method==='GET') {
     try {
       const brief=await readBrief(briefDocumentPath[1],Number(briefDocumentPath[2]));
-      if(!brief||brief.format!=='html')return sendJson(response,404,{error:'HTML Deliverable not found.'});
+      if(!brief||brief.format!=='html')return sendJson(response,404,{error:'HTML Canvas not found.'});
       response.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'; sandbox allow-same-origin");
       response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
       return response.end(briefDocument(brief.body));
-    } catch {return sendJson(response,500,{error:'Could not load HTML Deliverable.'});}
+    } catch {return sendJson(response,500,{error:'Could not load HTML Canvas.'});}
   }
   const feedbackPath = /^\/api\/goals\/([1-9][0-9]*)\/feedback$/.exec(path);
   const marksPath = /^\/api\/goals\/([1-9][0-9]*)\/comment-marks$/.exec(path);

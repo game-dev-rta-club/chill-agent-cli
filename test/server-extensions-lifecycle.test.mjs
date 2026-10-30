@@ -99,7 +99,7 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   const body = join(f.root,'workspace/goals/1/deliverable.md');
   await f.run(['create','--title','Phone']);
   await writeFile(body,'<p>Phone</p>');
-  await f.run(['deliverable','update','--id','1']);
+  await f.run(['canvas','update','--id','1']);
   const saved = await fetch(f.url+'/api/goals/1/feedback',{method:'POST',headers,body:JSON.stringify({text:'Phone comment',attachmentIds:[attachment.id],annotations:[{kind:'text',text:'Phone note',anchor:{start:0,end:5,quote:'Phone'},source:{kind:'brief',version:1}}]})});
   assert.equal(saved.status,201);
   assert.equal((await saved.json()).feedback.text,'Phone comment');
@@ -218,7 +218,7 @@ test('opening the page, interaction and CLI mutations renew the idle deadline; C
     () => fetch(f.url),
     () => fetch(f.url + '/api/activity', {method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'}),
     () => f.run(['create','--title','TTL']),
-    () => f.run(['deliverable','update','--id','1']),
+    () => f.run(['canvas','update','--id','1']),
     () => f.run(['reply','--id','1','--text','Still working']),
   ]) {
     await delay(50); // distinct file times
@@ -269,7 +269,7 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>Pending delivery</p>');
   await f.run(['create','--title','Pending delivery'],{CODEX_THREAD_ID:threadId});
-  await f.run(['deliverable','update','--id','1']);
+  await f.run(['canvas','update','--id','1']);
   const response = await fetch(f.url + '/api/goals/1/feedback', {method:'POST',
     headers:{Origin:f.url,'Content-Type':'application/json'},
     body:JSON.stringify({text:'Do not interrupt this notification'}),

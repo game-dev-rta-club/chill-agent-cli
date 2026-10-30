@@ -2,10 +2,10 @@
 // short pause, and a newer query cancels the one still on its way, so fast
 // typing sends a few requests instead of one per key.
 const pause=250;
-const kinds={goal:'Goal',deliverable:'Deliverable',comment:'Comment',letter:'Letter'};
+const kinds={goal:'Goal',deliverable:'Canvas',comment:'Comment',letter:'Letter'};
 export function createSearchDialog() {
  const dialog=document.createElement('dialog');dialog.className='search-dialog';dialog.setAttribute('aria-labelledby','search-title');
- dialog.innerHTML='<div class="extension-panel-heading"><h2 id="search-title">Search</h2><button type="button" aria-label="Close search">×</button></div><input type="search" class="search-input" placeholder="Goals, Comments, Letters, Deliverables" aria-label="Search text" autocomplete="off" spellcheck="false"><p class="search-status agent-muted" role="status"></p><ol class="search-results"></ol>';
+ dialog.innerHTML='<div class="extension-panel-heading"><h2 id="search-title">Search</h2><button type="button" aria-label="Close search">×</button></div><input type="search" class="search-input" placeholder="Goals, Comments, Letters, Canvases" aria-label="Search text" autocomplete="off" spellcheck="false"><p class="search-status agent-muted" role="status"></p><ol class="search-results"></ol>';
  document.body.append(dialog);
  const input=dialog.querySelector('input'),status=dialog.querySelector('[role=status]'),list=dialog.querySelector('ol');
  let timer=0,controller=null,shown='';
@@ -33,7 +33,7 @@ export function createSearchDialog() {
   list.replaceChildren(...results.map(item=>{
    const row=document.createElement('li'),a=document.createElement('a');a.href=link(item);a.className='search-result';
    const where=document.createElement('span');where.className='search-where';
-   const label=item.kind==='comment'||item.kind==='letter'?`${kinds[item.kind]}${item.number?` ${item.number}`:''} · ${item.author==='user'?'You':'Agent'}`:item.kind==='deliverable'?`Deliverable v${item.version}`:kinds.goal;
+   const label=item.kind==='comment'||item.kind==='letter'?`${kinds[item.kind]}${item.number?` ${item.number}`:''} · ${item.author==='user'?'You':'Agent'}`:item.kind==='deliverable'?`Canvas v${item.version}`:kinds.goal;
    const date=item.updatedAt?new Date(item.updatedAt).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
    where.textContent=`#${item.goalId} ${item.goalTitle} · ${label}${date?` · ${date}`:''}`;
    const text=document.createElement('span');text.className='search-snippet';text.append(marked(item.snippet,terms));

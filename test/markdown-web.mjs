@@ -13,7 +13,7 @@ const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.me
 const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
 await run('create','--title','Deliverable and Markdown');
 const source='# What we will realize\n\nA short **shared outcome**.\n\n```\nlong: '+'wide '.repeat(80)+'end\n```\n\n## Behavior\n\n- First option\n- Second option\n\n### Details\n\n| Item | Status |\n| --- | --- |\n| Table value | Ready |\n\n```mermaid\ngraph LR\n A[Question] --> B[Answer]\n```\n\nParagraph **after diagram**.\n\n## Other\n\n```js\nconst html = "<button>";\n```';
-await writeFile(join(root,'workspace/goals/1/deliverable.md'),source);await run('deliverable','update','--id','1');
+await writeFile(join(root,'workspace/goals/1/deliverable.md'),source);await run('canvas','update','--id','1');
 const message='**Formatted** opening.\n\n## Supporting information\n\n### Table\n\n| Item | State |\n| --- | --- |\n| Choice | Ready |\n\n```mermaid\ngraph TD\n A --> B\n```\n\nUse [the guide](https://example.com) after this diagram. Back to #1.';
 const comment=await run('reply','--id','1','--ask','Can you read this Letter?','--text',message);
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});

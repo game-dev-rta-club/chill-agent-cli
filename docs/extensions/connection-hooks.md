@@ -60,7 +60,7 @@ must observe that pending delivery and abstain. There is no second transport fal
 Agent process.
 
 Use `connectionPolicyLock(connection, run)` to serialize a native policy journal.
-`continuationWorkspace(rootId)` supplies saved Goal, Deliverable and user-input revisions,
+`continuationWorkspace(rootId)` supplies saved Goal, Canvas and user-input revisions,
 not live execution facts. Do not call entry-locking native actions
 from inside these callbacks. Native queue state, permissions and interruption
 remain Claude's responsibility; a Stop is not a general live-status signal.

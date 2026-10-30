@@ -11,9 +11,9 @@ const root=await mkdtemp(join(tmpdir(),'chill-html-web-')),env={...process.env,C
 const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
 const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
 await run('create','--title','Goal・Plan・Letterとバージョンの役割を整理する');
-await writeFile(join(root,'workspace/goals/1/deliverable.md'),'# Markdown remains\n\nOriginal explanation');await run('deliverable','update','--id','1');
+await writeFile(join(root,'workspace/goals/1/deliverable.md'),'# Markdown remains\n\nOriginal explanation');await run('canvas','update','--id','1');
 const source=await readFile(new URL('./fixtures/goal-7-deliverable.html',import.meta.url),'utf8');
-const path=await run('deliverable','path','--id','1','--format','html');await writeFile(path.path,source);await run('deliverable','update','--id','1','--format','html');
+const path=await run('canvas','path','--id','1','--format','html');await writeFile(path.path,source);await run('canvas','update','--id','1','--format','html');
 await run('reply','--id','1','--text','Agent explanation of the page layout');
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
 const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});
@@ -86,6 +86,6 @@ try {
  await page.getByRole('button',{name:'Annotate selected text',exact:true}).click();
  await page.locator('.annotation-form').waitFor({state:'visible'});
  await page.getByRole('button',{name:'Close annotation',exact:true}).click();
- await run('deliverable','update','--id','1','--format','markdown');await page.goto(url+'/#/goal/1');await page.getByRole('heading',{name:'Markdown remains'}).waitFor();assert.equal(await page.locator('.html-brief-frame').count(),0);
+ await run('canvas','update','--id','1','--format','markdown');await page.goto(url+'/#/goal/1');await page.getByRole('heading',{name:'Markdown remains'}).waitFor();assert.equal(await page.locator('.html-brief-frame').count(),0);
  assert.deepEqual(errors,[]);console.log('passed: isolated HTML, annotation with delayed selectionchange, scroll positioning, canonical annotations, saved note preview, responsive layout, disclosures and mixed-format history');
 } finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

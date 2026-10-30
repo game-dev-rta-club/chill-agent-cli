@@ -34,13 +34,13 @@ test('every command help works without data, valid settings, Codex, or server st
     assert.match(stdout,/Usage:/,path); assert.equal(stderr,'',path);
     assert.ok(stdout.includes(commands[path].summary),path);
   }
-  const update=(await f.run(join(root,entries.goal),['help','deliverable','update'])).stdout;
+  const update=(await f.run(join(root,entries.goal),['help','canvas','update'])).stdout;
   assert.match(update,/one clear idea\s+and one meaningful relationship per screen, with only enough text to connect them/);
   assert.match(update,/Values: html, markdown\./,'html is listed before markdown');
-  assert.match(update,/Existing Markdown Deliverables still work/);
+  assert.match(update,/Existing Markdown Canvases still work/);
   assert.doesNotMatch(update,/Mermaid|headings, lists|!\[Description\]/,'Markdown features are no longer advertised');
-  assert.match((await f.run(join(root,entries.goal),['help','deliverable'])).stdout,/one clear idea and one meaningful relationship per screen, with only enough text to connect them/);
-  assert.match((await f.run(join(root,entries.goal),['image','--help'])).stdout,/Deliverable HTML \(img\)/);
+  assert.match((await f.run(join(root,entries.goal),['help','canvas'])).stdout,/one clear idea and one meaningful relationship per screen, with only enough text to connect them/);
+  assert.match((await f.run(join(root,entries.goal),['image','--help'])).stdout,/Canvas HTML \(img\)/);
   assert.match((await f.run(join(root,entries.setup),['-h'])).stdout,/prepare/);
   assert.match((await f.run(join(root,entries.link),['settings','remote','--help'])).stdout,/accessAud/);
   assert.deepEqual(await readdir(f.directory),[], 'help must not migrate/create store, install a hook, or write runtime files');
@@ -70,11 +70,11 @@ test('help-guided operations work and settings flags are order independent',asyn
   const created=await plan(['create','--title','Help-guided Plan']);
   assert.match(created.stdout,/"id": "1"/);
   const body=join(f.data,'workspace/goals/1/deliverable.md'); await writeFile(body,'A clear goal');
-  await plan(['deliverable','update','--id','1']);
+  await plan(['canvas','update','--id','1']);
   await plan(['reply','--id','1','--text','We can proceed.']);
   assert.match((await plan(['show','--id','1'])).stdout,/A clear goal[\s\S]*We can proceed/);
   await writeFile(body,'A clear goal, updated');
-  await plan(['deliverable','update','--id','1']);
+  await plan(['canvas','update','--id','1']);
   await plan(['reply','--id','1','--text','Historical']);
   const settings=args=>f.run(join(root,'bin/chill-settings.mjs'),args);
   assert.deepEqual(JSON.parse((await settings(['notice','--event','2','--id','1'])).stdout),{enabled:false});

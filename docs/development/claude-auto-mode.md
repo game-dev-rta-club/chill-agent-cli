@@ -61,11 +61,11 @@ schedule its own wake-up also hears about `agent wake`.
 The request goes out as Stop output, so the next main Stop means the response
 that received it has ended. That Stop ends the attempt and records its result:
 `worked` when the agent left something on the Web since the request (a comment,
-a Letter, or a Goal or Deliverable change), otherwise `no-work`. The agent
+a Letter, or a Goal or Canvas change), otherwise `no-work`. The agent
 reports nothing. A Codex run is recorded the same way when chill sees the turn
 that received the request end. One check consumes the allowance for that
 revision, so the same revision is never continued twice; comments and results do
-not create another allowance. Substantive Goal, Deliverable, user-input or
+not create another allowance. Substantive Goal, Canvas, user-input or
 Autonomy changes create the next one. One Stop sends at most one request for the
 conversation.
 

@@ -63,7 +63,7 @@ Native permission prompts are not among these; review them as described above.
 ## Try the work you will actually leave running
 
 Check that the Agent menu shows **Receives Web replies**. Then send one small
-Web request, for example: “Read the current Deliverable and report one next action; do
+Web request, for example: “Read the current Canvas and report one next action; do
 not change files.” Check that Claude wakes and replies on
 the Web. If Claude asks for a permission, review the actual operation there. Do
 not send the Web request again to clear a permission prompt.

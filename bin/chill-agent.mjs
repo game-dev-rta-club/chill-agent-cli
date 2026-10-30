@@ -15,9 +15,9 @@ import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
 import {largeSize} from '../lib/limits.mjs';
 import {briefLayoutHint} from '../lib/brief.mjs';
 
-// Agents see the Deliverable by that name; stored records keep their internal names.
-const agentNames={brief:'deliverable',briefs:'deliverables',briefPath:'deliverablePath'};
-const forAgents=value=>Array.isArray(value)?value.map(forAgents):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([key,item])=>[agentNames[key]||key,key==='kind'&&item==='brief'?'deliverable':forAgents(item)])):value;
+// Agents see the Canvas by that name; stored records keep their internal names.
+const agentNames={brief:'canvas',briefs:'canvases',briefPath:'canvasPath'};
+const forAgents=value=>Array.isArray(value)?value.map(forAgents):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([key,item])=>[agentNames[key]||key,key==='kind'&&item==='brief'?'canvas':forAgents(item)])):value;
 const output=value=>console.log(JSON.stringify(forAgents(value),null,2));
 const url=(id,version)=>`http://127.0.0.1:${workspacePort()}/#/goal/${id}${version?`/v${version}`:''}`;
 async function input(path) {
@@ -27,12 +27,17 @@ async function input(path) {
   if(raw.length>largeSize) throw new Error('Request is too large.');
   return JSON.parse(raw);
 }
+// The Canvas was called the Deliverable; its old command and options still work.
+const currentNames=args=>{
+  const first=args.findIndex(arg=>arg.startsWith('-'));
+  return args.map((arg,i)=>(first<0||i<first)&&arg==='deliverable'?'canvas':arg==='--deliverable-offset'?'--canvas-offset':arg==='deliverable'&&args[i-1]==='--section'?'canvas':arg);
+};
 async function main() {
-  const args=process.argv.slice(2);
+  const args=currentNames(process.argv.slice(2));
   if(showHelp('goal',args.length?args:['--help'])) return;
   const [command,...rest]=args;
-  if(command==='brief')throw Error('goal brief was renamed to goal deliverable.');
-  const subcommand=command==='deliverable'?rest.shift():null;
+  if(command==='brief')throw Error('goal brief was renamed to goal canvas.');
+  const subcommand=command==='canvas'?rest.shift():null;
   const v=parseOptions(`goal ${command}${subcommand?` ${subcommand}`:''}`,rest);
   await initializeStore();
   const id=v['--id'];
@@ -48,10 +53,10 @@ async function main() {
   }
   if(command==='close-letter')return output(await closeLetter(id,Number(v['--event']),v['--reason']));
   if(command==='delete-comment')return output(await deleteAgentComment(id,Number(v['--event'])));
-  if(command==='deliverable') {
+  if(command==='canvas') {
     const result=subcommand==='path'?await briefSource(id,v['--format']):await updateBrief(id,v['--format']);
     // An unchanged file usually means the edit never reached it, so say so as a failure.
-    if(result.changed===false)throw Error(`Not published: ${result.path} is the same as v${result.version}. Check that the edit was saved, then run deliverable update again.`);
+    if(result.changed===false)throw Error(`Not published: ${result.path} is the same as v${result.version}. Check that the edit was saved, then run canvas update again.`);
     const hint=subcommand==='update'&&briefLayoutHint(result.body,result.format);
     return output({...result,url:url(id,result.version),...(hint?{hint}:{})});
   }
@@ -66,11 +71,11 @@ async function main() {
   if(command==='show') {
     const text=v['--format']==='text',full=Boolean(v['--full']);
     if(full&&v['--limit']!==undefined)throw Error('Use --full or --limit, not both.');
-    if(!text&&(v['--section']||v['--deliverable-offset']))throw Error('--section and --deliverable-offset require --format text.');
+    if(!text&&(v['--section']||v['--canvas-offset']))throw Error('--section and --canvas-offset require --format text.');
     // Explicit --since is the feedback delivery boundary: do not silently drop newer instructions.
     const limit=v['--limit']!==undefined?Number(v['--limit']):text&&!full&&v['--since']===undefined?5:undefined;
     const page=await readGoalPage(id,{version:v['--version']===undefined?undefined:Number(v['--version']),since:Number(v['--since']??0),before:v['--before']===undefined?undefined:Number(v['--before']),limit});
-    return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--deliverable-offset']??0)})):output(page);
+    return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--canvas-offset']??0)})):output(page);
   }
   if(command==='reply') {
     const {comment:event,text}=await replyOnGoal({goalId:id,ask:v['--ask'],text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});

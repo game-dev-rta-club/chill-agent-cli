@@ -157,7 +157,7 @@ function noteLabel(note) {
   return note.kind === 'text' ? note.anchor.quote : note.imageName || imageNames.get(note.imageId) || 'Image';
 }
 const selectedNotes = (id = activeGoalId) => notesFor(id).filter(note => note.selected !== false);
-const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Deliverable v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent comment'} ${note.source?.eventId} · ` : '';
+const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Canvas v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent comment'} ${note.source?.eventId} · ` : '';
 function noteImageMarkup(note, preview = false) {
   const images=attachmentIdsFor(note).map(id=>`/api/images/${escapeHTML(id)}`);
   if(note.kind==='image'&&note.source?.kind==='brief')images.unshift(`/api/goals/${activeGoalId}/briefs/${Number(note.source.version)}/svg/${Number(note.source.svgIndex)}`);
@@ -525,10 +525,10 @@ function renderGoal(id,version) {
   updateTabTitle();
   // On a wide screen the Conversation becomes its own scrolling column beside the rest.
   main.innerHTML=`<div class="goal-layout"><div class="goal-primary"><div id="goal-frame">${view.brief(id)}</div><div class="history-grid">
-    <section class="document-section"><div class="section-heading document-heading"><h2>Deliverable</h2>${brief?view.pager(id,version):''}</div>
-      <article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable">
-        <div class="brief-body markdown-body" ${isHTML?'hidden':''}>${body||'<p class="empty-state">No Deliverable yet. You can start the conversation below.</p>'}</div>
-      </article>${brief&&version<latestVersion(id)?`<div class="history-notice"><span>Earlier Deliverable</span><a href="${versionRoute(id,latestVersion(id))}">View current →</a></div>`:''}
+    <section class="document-section"><div class="section-heading document-heading"><h2>Canvas</h2>${brief?view.pager(id,version):''}</div>
+      <article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Canvas">
+        <div class="brief-body markdown-body" ${isHTML?'hidden':''}>${body||'<p class="empty-state">No Canvas yet. You can start the conversation below.</p>'}</div>
+      </article>${brief&&version<latestVersion(id)?`<div class="history-notice"><span>Earlier Canvas</span><a href="${versionRoute(id,latestVersion(id))}">View current →</a></div>`:''}
     </section>
     <form class="annotation-form" data-form="annotation" data-goal-id="${id}" data-version="${version}" hidden><fieldset>
       <div class="annotation-heading"><strong data-editor-heading>Annotation</strong><button type="button" class="text-button" data-action="close-annotation" aria-label="Close annotation">✕</button></div><blockquote class="annotation-quote"></blockquote>
@@ -561,7 +561,7 @@ function viewportRect(element) {
 }
 const scrollInReadingPane = readingPane.reveal;
 function mountHTMLBrief(id,version) {
-  const frame=document.createElement('iframe');frame.className='html-brief-frame';frame.title='HTML Deliverable';
+  const frame=document.createElement('iframe');frame.className='html-brief-frame';frame.title='HTML Canvas';
   frame.setAttribute('sandbox','allow-same-origin');frame.src=`/api/goals/${id}/briefs/${version}/document`;
   let ready;const loaded=new Promise(resolve=>{ready=resolve;});
   frame.addEventListener('load',async()=>{
@@ -572,10 +572,10 @@ function mountHTMLBrief(id,version) {
     const observer=new ResizeObserver(size);observer.observe(body);
     for(const type of ['wheel','touchmove','keydown'])doc.addEventListener(type,briefScrollIntent,{passive:true});
     doc.addEventListener('selectionchange',updateSelectionAction);
-    // The Deliverable and the page each keep a selection; only the one the user is making counts.
+    // The Canvas and the page each keep a selection; only the one the user is making counts.
     doc.addEventListener('pointerdown',()=>window.getSelection()?.removeAllRanges());
     // Do not rely only on selectionchange timing across frame focus changes.
-    // Read the completed selection as well, without moving focus out of the Deliverable.
+    // Read the completed selection as well, without moving focus out of the Canvas.
     doc.addEventListener('pointerup',updateSelectionAction);
     doc.addEventListener('keyup',updateSelectionAction);
     doc.addEventListener('toggle',()=>renderAnnotations(),true);
@@ -1206,14 +1206,14 @@ function renderRoute() {
     }else ready=routeReady=renderGoal(activeGoalId,activeVersion||0);
     main.querySelectorAll('.brief-detail[data-detail-id]').forEach(detail=>{detail.open=openDetails.has(`${activeGoalId}:v${activeVersion}:${detail.dataset.detailId}`);});
   } else if(currentRoute==='#/goals')renderIndex();
-  else {main.innerHTML='<div class="not-found"><h1>Goal or Deliverable not found</h1><a href="#/goals">Back to Goals</a></div>';}
+  else {main.innerHTML='<div class="not-found"><h1>Goal or Canvas not found</h1><a href="#/goals">Back to Goals</a></div>';}
   readingPane.setTop(beforeId===activeGoalId&&(match?.[2]||match?.[3])?top:0);
   if(activeGoalId&&beforeId!==activeGoalId&&!match?.[3])readingPane.showLatest();
   activityControls.routeChanged();
   void refreshCommentMarks().catch(()=>{});
   if(match?.[3]) {
     const routeFrame=main.firstElementChild,generation=navigationGeneration,interaction=readingPane.interaction;
-    // Wait for the Deliverable, but don't gate navigation on Activity network traffic.
+    // Wait for the Canvas, but don't gate navigation on Activity network traffic.
     // Later Activity/diagram changes preserve the visible target themselves.
     Promise.resolve(ready).then(()=>requestAnimationFrame(()=>{
       if(main.firstElementChild===routeFrame&&navigationGeneration===generation&&readingPane.interaction===interaction)scrollInReadingPane(document.getElementById(`event-${match[3]}`));
@@ -1627,15 +1627,15 @@ async function navigate({refresh=true}={}){
   const generation=++navigationGeneration,target=location.hash;
   const match=/^#\/goal\/([1-9][0-9]*)(?:\/v([1-9][0-9]*))?/.exec(target);
   try{
-    // The latest Deliverables and tree are already in memory. Never put a network
+    // The latest Canvases and tree are already in memory. Never put a network
     // round trip in front of a normal move through the workspace.
     if(match&&!goalMetadata.has(match[1]))await loadStoredGoals();
     if(match?.[2]){
       const brief=briefAt(match[1],Number(match[2]));
       if(brief&&brief.html===undefined){
-        announcement.textContent='Loading earlier Deliverable…';
+        announcement.textContent='Loading earlier Canvas…';
         const response=await fetch(`/api/goals/${match[1]}/briefs/${match[2]}`,{signal:AbortSignal.timeout(12000)});
-        if(!response.ok)throw Error('Could not load this Deliverable. Your draft is kept.');
+        if(!response.ok)throw Error('Could not load this Canvas. Your draft is kept.');
         const loaded=await response.json();
         Object.assign(briefAt(match[1],Number(match[2]))||brief,loaded);
       }
@@ -1683,7 +1683,7 @@ function loadStoredGoals() {
       for(const status of letterStates||[]){letterStatuses.set(status.id,status);const cached=events.find(e=>e.id===status.id);if(cached)cached.letterStatus=status;}
       const previous=briefsByGoal.get(id)||[];
       goalMetadata.set(id,{id,...metadata});
-      // Published versions are immutable. Keep older Deliverables once opened.
+      // Published versions are immutable. Keep older Canvases once opened.
       briefsByGoal.set(id,briefs.map(brief=>brief.html===undefined?{...previous.find(b=>b.version===brief.version),...brief}:brief));
       conversation.forEach(addEvent);
     }
@@ -1697,7 +1697,7 @@ async function updateCurrentBrief(version) {
   const restore=readingPane.capture();
   const brief=briefAt(id,version),isHTML=brief?.format==='html',height=section.offsetHeight;
   document.body.append(annotationAction);hideAnnotationAction();hideAnnotationPreview();pendingAnchor=null;
-  // Only replace the Deliverable; keep the composer, active annotation editor and drafts.
+  // Only replace the Canvas; keep the composer, active annotation editor and drafts.
   section.style.minHeight=`${height}px`;
   activeVersion=version;
   // A diagram selection belongs to the version actually shown in its editor.
@@ -1705,7 +1705,7 @@ async function updateCurrentBrief(version) {
   if(/\/v[1-9][0-9]*$/.test(currentRoute)){
     currentRoute=versionRoute(id,version);history.replaceState(null,'',currentRoute);
   }
-  section.innerHTML=`<div class="section-heading document-heading"><h2>Deliverable</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable"><div class="brief-body markdown-body" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal})}</div></article>`;
+  section.innerHTML=`<div class="section-heading document-heading"><h2>Canvas</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Canvas"><div class="brief-body markdown-body" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal})}</div></article>`;
   imageNames.clear();
   section.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
   main.querySelector('.annotation-form').dataset.version=String(version);
@@ -1725,7 +1725,7 @@ async function refreshGoals(){
     refreshGoalFrame();updateTimeline(activeGoalId);renderAnnotations();updateNoticeForRoute();
     if(!autonomySaves.has(activeGoalId))showAutonomy(activeGoalId);
     const heading=main.querySelector('.document-heading');
-    if(heading&&!main.querySelector('.version-pager:focus-within'))heading.innerHTML=`<h2>Deliverable</h2>${briefAt(activeGoalId,activeVersion)?goalView().pager(activeGoalId,activeVersion):''}`;
+    if(heading&&!main.querySelector('.version-pager:focus-within'))heading.innerHTML=`<h2>Canvas</h2>${briefAt(activeGoalId,activeVersion)?goalView().pager(activeGoalId,activeVersion):''}`;
   }else if(currentRoute==='#/goals')renderIndex();
 }
 
@@ -1776,7 +1776,7 @@ loadStoredGoals().then(()=>navigate({refresh:false}),error=>{
    catch(error){announcement.textContent=error.message;}finally{refreshing=false;}
  }
  setInterval(refresh,5000);
- // Hidden tabs need the Root's count, without fetching Deliverables or execution logs.
+ // Hidden tabs need the Root's count, without fetching Canvases or execution logs.
  setInterval(()=>{if(document.visibilityState!=='visible')void refreshLetterCount();},15000);
  // Controls must not wait behind loading the full conversation's execution logs.
  setInterval(()=>{if(document.visibilityState==='visible')void activityControls.refresh();},2000);

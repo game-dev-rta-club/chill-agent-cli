@@ -3,12 +3,12 @@ keyPoints: >-
   Web loads a compact workspace snapshot, opens known Goals from memory and refreshes
   in the background. Tabs count unanswered Letters and unread notified replies under
   their own Root, including hidden tabs. Showing a Goal reads it on every device. Goal links start at the top; Letter links locate the message while
-  background updates keep visible content in place. Earlier Deliverables load on demand.
+  background updates keep visible content in place. Earlier Canvases load on demand.
 ---
 
 # Move between Goals without waiting for a poll
 
-The first Web visit loads the tree, latest Deliverables and Conversation through
+The first Web visit loads the tree, latest Canvases and Conversation through
 `GET /api/goals?view=web`. Moving to a known Goal renders that in-memory snapshot
 immediately, then checks for changes in the background. Polling, focus and route
 changes share an in-flight request rather than downloading the same data twice.
@@ -29,7 +29,7 @@ to the unanswered Letters, but only replies a device was notified of: with
 **Replies** Off in [Notifications](../using/notifications.md), only Letters count.
 With two unread notified replies and one unanswered Letter, the tab shows `(3)`;
 once the replies are read it shows `(1)` until that Letter is answered. Opening a child
-or an older Deliverable keeps that Root's count. Other Roots do not contribute.
+or an older Canvas keeps that Root's count. Other Roots do not contribute.
 
 A Goal is read when its Conversation is shown in a visible tab; replies that
 arrive while it is shown are read too. A Goal open in a hidden tab stays unread.
@@ -46,23 +46,23 @@ Letter count. A hidden tab checks the agent
 every 10 seconds instead of every 2, so a background tab still shows when work
 starts and ends.
 
-The snapshot includes earlier Deliverables' version numbers and dates, not their full
+The snapshot includes earlier Canvases' version numbers and dates, not their full
 bodies. Opening one loads `GET /api/goals/:id/briefs/:version` and keeps it in memory
-for that visit. HTML Deliverables still load in their isolated document frames. The
+for that visit. HTML Canvases still load in their isolated document frames. The
 unqualified `/api/goals` endpoint retains its full response for existing clients.
 
 Drafts use the existing browser storage and survive route changes. Background
-updates preserve the current reading position and offer a new Deliverable when one is
+updates preserve the current reading position and offer a new Canvas when one is
 published. A failed refresh leaves the last loaded content available; it does not
-claim that content is current. A first visit and an uncached earlier Deliverable still
+claim that content is current. A first visit and an uncached earlier Canvas still
 need a connection. No workspace data is made available offline by this cache.
 
 Opening or reloading a plain Goal starts at the top. A Letter link waits for its
-Deliverable layout, then brings the message into view; a tall Letter starts
-at its heading. Moving between Letters in the same Goal reuses the Deliverable. If the
+Canvas layout, then brings the message into view; a tall Letter starts
+at its heading. Moving between Letters in the same Goal reuses the Canvas. If the
 reader scrolls while a link is loading, that interaction takes priority over the
-pending jump. Background Activity, Deliverable sizing and diagram rendering preserve
-the visible conversation boundary, or the current position when reading the Deliverable.
+pending jump. Background Activity, Canvas sizing and diagram rendering preserve
+the visible conversation boundary, or the current position when reading the Canvas.
 Only the reading pane scrolls; the header stays fixed.
 
 JSON snapshots and static assets support gzip. The main JavaScript is bundled;
@@ -75,9 +75,9 @@ Implementation: [browser navigation](../../public/app.js),
 [snapshot projection](../../lib/web-snapshot.mjs), [HTTP routes](../../server.mjs).
 For changes to positioning or focus, follow the [scrolling guidelines](../development/scrolling.md).
 
-## Read the Deliverable while you talk
+## Read the Canvas while you talk
 
 On a wide screen (at least 1180px), a Goal shows its Conversation as a column on
-the right that scrolls by itself, with the Goal and its Deliverable on the left. You can
-keep reading the Deliverable while you scroll and write in the Conversation; it opens at
+the right that scrolls by itself, with the Goal and its Canvas on the left. You can
+keep reading the Canvas while you scroll and write in the Conversation; it opens at
 the newest message. Narrower screens and phones keep the single column.

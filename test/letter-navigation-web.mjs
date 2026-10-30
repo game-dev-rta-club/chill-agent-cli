@@ -14,10 +14,10 @@ const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...arg
 let browser,server;
 try {
  await run('create','--title','Letter navigation');
- await writeFile(join(root,'workspace/goals/1/deliverable.md'),'# Markdown Deliverable\n\nA short explanation.');await run('deliverable','update','--id','1');
- const file=await run('deliverable','path','--id','1','--format','html');
+ await writeFile(join(root,'workspace/goals/1/deliverable.md'),'# Markdown Deliverable\n\nA short explanation.');await run('canvas','update','--id','1');
+ const file=await run('canvas','path','--id','1','--format','html');
  await writeFile(file.path,'<!doctype html><html><head><style>body{font:16px sans-serif}.block{height:400px;padding:30px}</style></head><body><h1>Long HTML Deliverable</h1>'+Array.from({length:5},(_,i)=>`<section class="block">Section ${i}</section>`).join('')+'</body></html>');
- await run('deliverable','update','--id','1','--format','html');
+ await run('canvas','update','--id','1','--format','html');
  for(let i=0;i<6;i++)await run('reply','--id','1','--text',`Earlier comment ${i}`);
  const feedbackFile=join(root,'feedback.json');await writeFile(feedbackFile,JSON.stringify({text:'Earlier user message',requestId:'letter-navigation-delivery'}));
  const {feedback}=JSON.parse((await execute(process.execPath,[cli,'feedback','--id','1','--input-file',feedbackFile],{env})).stdout.trim().split('\n')[0]);
@@ -101,7 +101,7 @@ try {
  await page.evaluate(()=>location.hash='#/goals');await page.locator('.goals-index').waitFor();
  await page.waitForTimeout(500);assert.equal(await page.locator('main').evaluate(el=>el.scrollTop),0);await checkShell();
  // Markdown routes use the same pane-only scrolling without a frame.
- await run('deliverable','update','--id','1','--format','markdown');
+ await run('canvas','update','--id','1','--format','markdown');
  for(const viewport of [{width:1400,height:960},{width:390,height:844}]){
   await page.setViewportSize(viewport);await page.goto('about:blank');await page.goto(`${url}/#/goal/1/letter/${letter.id}`);await checkLetter();await checkEdges();
   assert.equal(await page.locator('.html-brief-frame').count(),0);

@@ -415,7 +415,7 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 .runtime-update-button[aria-busy="true"] svg { animation:runtime-update-spin 1.5s linear infinite; }
 @keyframes runtime-update-spin { to { transform:rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .runtime-update-button[aria-busy="true"] svg { animation:none; } }
-/* Wide screens: read the Deliverable on the left while the Conversation scrolls on its own at the right. */
+/* Wide screens: read the Canvas on the left while the Conversation scrolls on its own at the right. */
 @media(min-width:1180px) {
   body:has(.reading-pane>.goal-layout) .header-inner { max-width:calc(1568px + 40px); }
   .reading-pane>.goal-layout { max-width:1568px; display:grid; grid-template-columns:minmax(0,1fr) minmax(380px,40%); align-items:start; gap:32px; }
