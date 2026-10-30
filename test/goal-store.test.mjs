@@ -43,7 +43,7 @@ test('publishing a Deliverable without layout succeeds with a one-line visual-fi
  const f=await fixture(t);await f.run('create','--title','Visual Goal');
  const publish=async(body,format)=>{const {path}=await f.run('canvas','path','--id','1','--format',format);await writeFile(path,body);return f.run('canvas','update','--id','1','--format',format);};
  const markdown=await publish('# Plan\n\n- Step one\n- Step two','markdown');
- assert.equal(markdown.changed,true,'Markdown still publishes');assert.match(markdown.hint,/^This is Markdown\. Make it a visual-first HTML page: diagrams \(inline SVG\), tables, the current and finished form side by side\.$/);
+ assert.equal(markdown.changed,true,'Markdown still publishes');assert.match(markdown.hint,/^This is Markdown\. Make it a visual-first HTML page: tables, charts and diagrams in HTML, the current and finished form side by side; keep text out of SVG, where the user cannot select it to annotate\.$/);
  const plain=await publish('<h1>Plan</h1><ul><li>Step one</li></ul><style>p{color:red}</style>','html');
  assert.equal(plain.changed,true);assert.match(plain.hint,/^This reads like Markdown in HTML\. Make it a visual-first page: /);assert.doesNotMatch(plain.hint,/\n/);
  for(const body of ['<table><tr><td>Now</td><td>Finished</td></tr></table>','<svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg>',
