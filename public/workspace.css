@@ -147,6 +147,11 @@ h1,h2,h3,p { margin:0; }
 .letter-comment-title svg { flex:none; width:18px; height:18px; align-self:flex-start; margin-top:4px; stroke:currentColor; stroke-width:1.5; }
 .letter-comment-title span { min-width:0; overflow-wrap:anywhere; }
 .letter-comment-meta { display:flex; align-items:center; gap:8px; margin-left:auto; color:var(--muted); font-size:10px; }
+.letter-done-button { display:inline-flex; align-items:center; gap:3px; height:24px; padding:0 6px; border:1px solid transparent; border-radius:6px; background:none; color:var(--muted); font:600 11px system-ui,-apple-system,sans-serif; cursor:pointer; }
+.letter-done-button:hover, .letter-done-button:focus-visible { color:var(--brief-ink); border-color:var(--brief); background:var(--surface); }
+.letter-done-button.is-done { color:var(--brief-ink); }
+.letter-done-button:disabled { opacity:.6; cursor:default; }
+.letter-done-button svg { width:14px; height:14px; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
 .action.letter-answer-toggle { display:flex; width:fit-content; margin:12px 0 0 auto; border-color:var(--letter-border); background:var(--letter-header); color:var(--letter-ink); }
 .letter-answer-toggle:hover { border-color:var(--letter-ink); }
 
