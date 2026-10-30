@@ -37,6 +37,7 @@ const icons = {
   comment: '<path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z"/>',
   letter: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>',
   check: '<path d="m5 12 5 5 9-10"/>',
+  circle: '<circle cx="12" cy="12" r="8"/>',
   pending: '<circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/>',
   send: '<path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="m9 11-4 4 4 4"/>',
   annotate: '<path d="M4 20h16M5 16l11-11 3 3L8 19H5v-3Z"/>',
@@ -405,10 +406,12 @@ function replyMarkup(event) {
   return `<div class="event-text markdown-body" ${source}>${briefBody(event.html || '', {hasGoal, replyId:event.id, opened:openReplies})}</div>`;
 }
 
-// An open Letter offers Done; a closed one says who closed it.
+// An open Letter offers Done (an empty circle); the user's own Done is a check
+// they can press to take back. Other closed Letters say who closed them.
 function letterMetaMarkup(event,letter){
-  if(letter.status==='open')return `<button type="button" class="letter-done-button" data-action="letter-done" data-goal-id="${escapeHTML(event.goalId)}" data-event-id="${event.id}" title="Mark this Letter done without replying">${icon('check')}Done</button>`;
-  if(letter.status==='received'&&event.receivedBy==='user')return `<span class="answered-label">${icon('check')}Done</span>`;
+  const button=(done,label,title)=>`<button type="button" class="letter-done-button${done?' is-done':''}" data-action="letter-done" data-done="${done?'false':'true'}" data-goal-id="${escapeHTML(event.goalId)}" data-event-id="${event.id}" title="${title}">${icon(done?'check':'circle')}${label}</button>`;
+  if(letter.status==='open')return button(false,'Done','Mark this Letter done without replying');
+  if(letter.status==='received'&&event.receivedBy==='user')return button(true,'Done','Mark this Letter not done');
   return ['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:'';
 }
 function timelineMarkup(id) {
@@ -1606,13 +1609,18 @@ main.addEventListener('click', async event => {
   if (!button) return;
   button.disabled = true;
   try {
-    const response = await fetch(`/api/goals/${button.dataset.goalId}/letters/${button.dataset.eventId}/done`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const done = button.dataset.done === 'true';
+    const response = await fetch(`/api/goals/${button.dataset.goalId}/letters/${button.dataset.eventId}/done`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({done})});
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Could not mark the Letter done.');
+    if (!response.ok) throw new Error(result.error || 'Could not change the Letter.');
     // Show it at once on the event as the Web loaded it (rendered text, number);
     // the next poll brings the same change.
     const shown = events.find(e => e.id === result.id);
-    if (shown && addEvent({...shown, changeId: result.changeId, receivedAt: result.receivedAt, receivedBy: result.receivedBy}) && activeGoalId) {updateTimeline(activeGoalId); renderAnnotations(); void refreshLetterCount();}
+    if (!shown) return;
+    const {receivedAt, receivedBy, letterStatus, ...rest} = shown, status = {id: shown.id, status: 'open', lastAnswerId: null};
+    if (!done) letterStatuses.set(shown.id, status);
+    const next = done ? {...shown, changeId: result.changeId, receivedAt: result.receivedAt, receivedBy: result.receivedBy} : {...rest, changeId: result.changeId};
+    if (addEvent(next) && activeGoalId) {updateTimeline(activeGoalId); renderAnnotations(); void refreshLetterCount();}
   } catch (error) { announcement.textContent = error.message; button.disabled = false; }
 });
 

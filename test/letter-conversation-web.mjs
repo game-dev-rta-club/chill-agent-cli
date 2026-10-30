@@ -163,10 +163,16 @@ try {
  const eventsBefore=(await data()).conversation.length;
  await doneCard.getByRole('button',{name:'Done',exact:true}).click();
  // Shown from the response, before the next poll.
- await doneCard.locator('.answered-label',{hasText:'Done'}).waitFor({timeout:1500});
- assert.equal(await doneCard.locator('.event-text').innerText(),'The user may close this.','The text stays after Done');assert.equal(await doneCard.locator('.is-answered').count(),1);assert.equal(await doneCard.getByRole('button',{name:'Done'}).count(),0);
+ await doneCard.locator('.letter-done-button.is-done').waitFor({timeout:1500});
+ assert.equal(await doneCard.locator('.event-text').innerText(),'The user may close this.','The text stays after Done');assert.equal(await doneCard.locator('.is-answered').count(),1);
  assert.equal((await pending()).length,0);assert.equal((await data()).conversation.length,eventsBefore,'Done adds no Comment');
  assert.equal((await data()).conversation.find(e=>e.id===doneLetter.id).receivedBy,'user');
+ // Pressing the check again takes the Done back: the Letter is open and counted again.
+ await doneCard.locator('.letter-done-button.is-done').click();
+ await doneCard.locator('.letter-done-button:not(.is-done)').waitFor({timeout:1500});
+ assert.equal(await doneCard.locator('.is-answered').count(),0);assert.equal(await doneCard.locator('.event-text').innerText(),'The user may close this.');
+ assert.equal((await pending()).length,1);assert.equal((await data()).conversation.find(e=>e.id===doneLetter.id).receivedBy,undefined);
+ await doneCard.locator('.letter-done-button').click();await doneCard.locator('.letter-done-button.is-done').waitFor({timeout:1500});assert.equal((await pending()).length,0);
 
  const notice=await legacy({goalId:'1',type:'letter',replyRequired:false,title:'Your result is ready',text:'Open the result when convenient.'});
  for(const viewport of [{width:1200,height:900},{width:390,height:844}]){
@@ -179,5 +185,5 @@ try {
   assert.equal(await page.locator('.letter-title').count(),0);
   await page.screenshot({path:join(root,`notice-${viewport.width}.png`)});
  }
- assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','no Answer button','Comment answers the Letters','failure retry','bundled annotations','Deliverable history','annotation source','user Done','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','no Answer button','Comment answers the Letters','failure retry','bundled annotations','Deliverable history','annotation source','user Done and undo','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
 } finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
