@@ -218,6 +218,10 @@
 .note-image { display: block; max-width: 100%; max-height: 240px; margin-top: 8px; border: 1px solid var(--line); border-radius: 6px; object-fit: contain; }
 .annotation-action { position: fixed; z-index: 12; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border: 1px solid var(--accent); border-radius: 50%; background: var(--accent); color: #fff; box-shadow: 0 4px 15px #0003; }
 .annotation-action svg { width: 20px; height: 20px; }
+.annotation-key-hint { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 7px; background: var(--ink); color: #fff; font: 600 12px system-ui, -apple-system, sans-serif; white-space: nowrap; pointer-events: none; }
+.annotation-key-hint::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border: 5px solid transparent; border-top-color: var(--ink); }
+.annotation-key-hint kbd { min-width: 16px; padding: 0 5px; border: 1px solid #ffffff80; border-bottom-width: 2px; border-radius: 4px; background: #ffffff1a; font: 700 12px ui-monospace, monospace; text-align: center; }
+@media (hover: hover) { .annotation-action:hover .annotation-key-hint { display: inline-flex; } }
 .annotation-form { position: fixed; z-index: 22; left: 50%; bottom: max(6px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: calc(100% - 12px); max-height: calc(100dvh - 12px - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); box-shadow: 0 12px 42px #15211738; }
 .annotation-form textarea { max-height: min(50dvh, max(92px, calc(100dvh - 210px))); }
 .annotation-heading { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
