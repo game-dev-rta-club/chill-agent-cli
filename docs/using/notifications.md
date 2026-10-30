@@ -35,7 +35,9 @@ blocked, change the browser's site settings before trying again.
 Keep only **Letters** on to hear only when a reply, choice or permission is
 needed. A notified reply also counts in the tab title and appears under
 Replies in the header Letters menu until you open its Goal or choose **Mark all
-read**; see [Web navigation](../workspace/web-navigation.md). Opening a notification shows that reply in its Conversation. A device set
+read**; see [Web navigation](../workspace/web-navigation.md). Opening a notification shows that reply in its Conversation,
+in a tab already open on the same Root: one showing that Goal, else the one used
+last. With no such tab it opens a new one, so a tab of another Root keeps its page. A device set
 up before these switches keeps its earlier choice: every reply turns both on, and
 Letters only turns on Letters.
 

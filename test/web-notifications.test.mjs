@@ -52,7 +52,7 @@ test('Letters and Replies are separate switches; both On by default, both Off tu
  assert.deepEqual(await f.api.read('2',device).then(r=>[r.enabled,r.letters,r.replies]),[false,false,false]);
  await f.on();assert.deepEqual(await f.api.read('2',device).then(r=>[r.letters,r.replies]),[true,true]);assert.deepEqual((await f.api.settings('2')).on,['comment','letter']);
  f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'Here is the result'});
- assert.equal((await f.api.prepare('2',2)).handled,true);assert.equal(f.sends.length,1);assert.equal(f.sends[0].title,'An outcome');assert.match(f.sends[0].url,/#\/goal\/2\/letter\/2$/);
+ assert.equal((await f.api.prepare('2',2)).handled,true);assert.equal(f.sends.length,1);assert.equal(f.sends[0].title,'An outcome');assert.match(f.sends[0].url,/#\/goal\/2\/letter\/2$/);assert.equal(f.sends[0].rootId,'1');
  await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:true,replies:false});
  assert.deepEqual((await f.api.settings('2')).on,['letter']);
  f.events.push({id:3,goalId:'2',author:'agent',type:'comment',text:'Progress'});assert.equal((await f.api.prepare('2',3)).handled,false);
