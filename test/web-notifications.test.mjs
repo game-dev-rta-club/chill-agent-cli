@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWebNotifications,validateSubscription,pushPayload,pushLimit} from '../lib/web-notifications.mjs';
+import {createWebNotifications,validateSubscription,pushPayload,pushLimit,nearestGoalIds} from '../lib/web-notifications.mjs';
 import {randomUUID} from 'node:crypto';
 const device='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
 const subscription={endpoint:'https://fcm.googleapis.com/fcm/send/test',keys:{auth:Buffer.alloc(16).toString('base64url'),p256dh:Buffer.concat([Buffer.from([4]),Buffer.alloc(64)]).toString('base64url')}};
@@ -187,5 +187,16 @@ test('a push names the Goals of its Root within the size a push service accepts'
  assert.deepEqual(small.goalIds,[1,2,3]);assert.equal(Array.from(small.title).length,120);
  const many=Array.from({length:2000},(_,i)=>String(i+1)),payload=pushPayload(job,many);
  assert.ok(Buffer.byteLength(payload)<=pushLimit);
- const ids=JSON.parse(payload).goalIds;assert.ok(ids.length>200,'about 200 Goals always fit');assert.deepEqual(ids,ids.map((_,i)=>i+1),'nearest the Root first');
+ const ids=JSON.parse(payload).goalIds;assert.ok(ids.length>200,'about 200 Goals always fit');assert.deepEqual(ids,ids.map((_,i)=>i+1),'in the order given');
+});
+
+test('a push lists the Goals nearest the notified one first, within its Root',()=>{
+ // 200 ─ 210 ─ 211, 212 · 220 ─ 221; 300 is another Root.
+ const goals=[[200,null],[210,200],[211,210],[212,210],[220,200],[221,220],[300,null],[310,300]].map(([id,parentId])=>({id:String(id),parentId:parentId&&String(parentId)}));
+ const ids=nearestGoalIds(goals,'200','211');
+ // One step, then two (its sibling and the Root), then three and four.
+ assert.deepEqual(ids.slice(0,2),['211','210']);assert.deepEqual(new Set(ids.slice(2,4)),new Set(['212','200']));
+ assert.deepEqual(ids.slice(4),['220','221']);
+ assert.ok(!ids.includes('300')&&!ids.includes('310'),'another Root stays out');
+ assert.deepEqual(nearestGoalIds(goals,'200','999')[0],'200','an unknown Goal starts from its Root');
 });
