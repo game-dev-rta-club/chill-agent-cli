@@ -164,7 +164,7 @@ try {
  await doneCard.getByRole('button',{name:'Done',exact:true}).click();
  // Shown from the response, before the next poll.
  await doneCard.locator('.answered-label',{hasText:'Done'}).waitFor({timeout:1500});
- assert.equal(await doneCard.locator('.is-answered').count(),1);assert.equal(await doneCard.getByRole('button',{name:'Done'}).count(),0);
+ assert.equal(await doneCard.locator('.event-text').innerText(),'The user may close this.','The text stays after Done');assert.equal(await doneCard.locator('.is-answered').count(),1);assert.equal(await doneCard.getByRole('button',{name:'Done'}).count(),0);
  assert.equal((await pending()).length,0);assert.equal((await data()).conversation.length,eventsBefore,'Done adds no Comment');
  assert.equal((await data()).conversation.find(e=>e.id===doneLetter.id).receivedBy,'user');
 

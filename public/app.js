@@ -437,7 +437,7 @@ function timelineMarkup(id) {
     const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
     const item = `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
-      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${letterMetaMarkup(event,letter)}${time}${eventNumberMarkup(event)}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}${eventNumberMarkup(event)}</header>`}
+      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${time}${eventNumberMarkup(event)}${letterMetaMarkup(event,letter)}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}${eventNumberMarkup(event)}</header>`}
       ${event.text?replyMarkup(event):''}
       ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<img class="event-image" src="${src}" alt="Attached image">`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
     if (waiting) { waitingMarkup += item; return ''; }
@@ -1609,9 +1609,10 @@ main.addEventListener('click', async event => {
     const response = await fetch(`/api/goals/${button.dataset.goalId}/letters/${button.dataset.eventId}/done`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Could not mark the Letter done.');
-    // Show it at once; the next poll brings the same record.
-    const {status, changed, ...letter} = result, shown = events.find(e => e.id === letter.id);
-    if (addEvent({...(shown?.number ? {number: shown.number} : {}), ...letter}) && activeGoalId) {updateTimeline(activeGoalId); renderAnnotations(); void refreshLetterCount();}
+    // Show it at once on the event as the Web loaded it (rendered text, number);
+    // the next poll brings the same change.
+    const shown = events.find(e => e.id === result.id);
+    if (shown && addEvent({...shown, changeId: result.changeId, receivedAt: result.receivedAt, receivedBy: result.receivedBy}) && activeGoalId) {updateTimeline(activeGoalId); renderAnnotations(); void refreshLetterCount();}
   } catch (error) { announcement.textContent = error.message; button.disabled = false; }
 });
 
