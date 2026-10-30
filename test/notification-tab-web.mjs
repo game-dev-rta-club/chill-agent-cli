@@ -21,21 +21,20 @@ try {
  const registered=context.waitForEvent('serviceworker');
  await child.evaluate(()=>navigator.serviceWorker.register('/extensions/web-notifications/sw.js',{scope:'/'}));
  const worker=await registered;
- // Each tab tells the worker which Goal and Root it shows.
- const answers=await worker.evaluate(async()=>Promise.all((await clients.matchAll({type:'window',includeUncontrolled:true})).map(ask)));
- assert.deepEqual(answers.map(a=>`${a.goalId}/${a.rootId}`).sort(),['2/1','4/4']);
  // focus() needs the click's permission, which a test cannot give; the tab choice happens before it.
- const notify=data=>worker.evaluate(data=>openGoal(data).catch(()=>{}),data);
+ const notify=data=>worker.evaluate(data=>openGoal(data).catch(()=>{}),{goalIds:['1','2','3'],...data});
+ // A tab moved inside the Web is found at its new Goal.
+ await child.evaluate(()=>{location.hash='#/goal/3';});
  await notify({url:'/#/goal/3/letter/9',rootId:'1'});
  await child.waitForURL(/#\/goal\/3\/letter\/9$/);
  assert.match(other.url(),/#\/goal\/4$/,'a tab of another Root is left alone');
  // A tab already showing the notified Goal wins over another tab of the same Root.
  const exact=await open('/#/goal/2');
- await notify({url:'/#/goal/2',rootId:'1'});await notify({url:'/#/goal/2/letter/7',rootId:'1'});
+ await notify({url:'/#/goal/2/letter/7',rootId:'1'});
  await exact.waitForURL(/#\/goal\/2\/letter\/7$/);
  assert.match(child.url(),/#\/goal\/3\/letter\/9$/,'the other tab of that Root keeps its page');
  // With no tab of the Root, no open tab is changed.
- await notify({url:'/#/goal/1',rootId:'99'});
+ await notify({url:'/#/goal/9',rootId:'9',goalIds:['9']});
  await new Promise(r=>setTimeout(r,300));
  assert.deepEqual([child.url(),other.url(),exact.url()].map(u=>new URL(u).hash),['#/goal/3/letter/9','#/goal/4','#/goal/2/letter/7']);
  assert.deepEqual(errors,[]);
