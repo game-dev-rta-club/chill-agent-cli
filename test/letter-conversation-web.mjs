@@ -101,8 +101,12 @@ try {
    r.setStart(title.firstChild,0);r.setEnd(title.firstChild,2);
    window.getSelection().removeAllRanges();window.getSelection().addRange(r);document.dispatchEvent(new Event('selectionchange'));
  },pendingLetter.id);
- await page.locator('.annotation-action').click();
+ // Hovering the button names its key, and E opens the annotation like a click.
+ const action=page.locator('.annotation-action');await action.waitFor();await action.hover();
+ await action.locator('.annotation-key-hint').waitFor({state:'visible'});assert.equal(await action.getAttribute('aria-keyshortcuts'),'E');
+ await page.mouse.move(0,0);await page.keyboard.press('e');
  await pendingCard.locator('[data-reply-field="title"] .annotation-mark.is-editing').waitFor();
+ await editor().locator('textarea').press('e');assert.equal(await editor().locator('textarea').inputValue(),'e','E types in the annotation');await editor().locator('textarea').fill('');
  assert.equal(await pendingCard.locator('.event-text .annotation-mark').count(),0,'title offsets never mark the body');
  await editor().locator('textarea').fill('タイトルの注釈を試しています');
  await editor().getByRole('button',{name:'Save',exact:true}).click();
@@ -185,5 +189,5 @@ try {
   assert.equal(await page.locator('.letter-title').count(),0);
   await page.screenshot({path:join(root,`notice-${viewport.width}.png`)});
  }
- assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','no Answer button','Comment answers the Letters','failure retry','bundled annotations','Deliverable history','annotation source','user Done and undo','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',screenshots:root,checks:['empty Goal comment','no Answer button','Comment answers the Letters','failure retry','bundled annotations','Deliverable history','annotation source','E annotates','user Done and undo','Letter title annotation and marker','HTML filtering','desktop and mobile layout','Agent receipt live update and annotation draft']}));
 } finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

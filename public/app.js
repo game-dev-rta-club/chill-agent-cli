@@ -604,6 +604,7 @@ function mountHTMLBrief(id,version) {
       window.open(link.href,'_blank','noopener,noreferrer');
     });
     doc.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches('.annotation-mark')){event.preventDefault();event.target.click();}});
+    doc.addEventListener('keydown',annotateKey);
     renderAnnotations();size();
     // Stop observers when the route replaces this frame.
     const cleanup=new MutationObserver(()=>{if(!frame.isConnected){observer.disconnect();cleanup.disconnect();}});
@@ -741,8 +742,9 @@ const annotationAction = document.createElement('button');
 annotationAction.type = 'button';
 annotationAction.className = 'annotation-action';
 annotationAction.setAttribute('aria-label', 'Annotate selected text');
-annotationAction.title = 'Annotate selected text';
-annotationAction.innerHTML = icon('annotate');
+annotationAction.setAttribute('aria-keyshortcuts', 'E');
+// The hint above the button names its key; it replaces the title tooltip.
+annotationAction.innerHTML = `${icon('annotate')}<span class="annotation-key-hint" aria-hidden="true">Annotate <kbd>E</kbd></span>`;
 annotationAction.hidden = true;
 document.body.append(annotationAction);
 function hideAnnotationAction() { annotationAction.hidden = true; }
@@ -820,6 +822,15 @@ annotationAction.addEventListener('click', event => {
   const {source, ...anchor} = pendingAnchor;
   openNoteEditor({id: crypto.randomUUID(), kind: 'text', anchor, source, text: ''});
 });
+// E opens the annotation while its button shows, unless the key types text
+// or belongs to a shortcut.
+function annotateKey(event) {
+  if (event.key.toLowerCase() !== 'e' || event.metaKey || event.ctrlKey || event.altKey || event.isComposing || annotationAction.hidden) return;
+  if (event.target.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+  event.preventDefault();
+  annotationAction.click();
+}
+document.addEventListener('keydown', annotateKey);
 function openNoteEditor(note) {
   if (annotationSaves.has(notesKey()) || submitting.has(formKey(activeGoalId, 'comment'))) return;
   removePendingImage('annotation');
