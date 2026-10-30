@@ -35,7 +35,8 @@ try {
   const loadHistory=async()=>{
     while(await page.locator('[data-action="load-older-conversation"]').count()){
       await page.locator('[data-action="load-older-conversation"]').click();
-      await page.waitForFunction(()=>!document.querySelector('[data-action="load-older-conversation"]:disabled'));
+      // A locator wait, not waitForFunction, which the page's CSP refuses to evaluate.
+      await page.locator('[data-action="load-older-conversation"]:disabled').waitFor({state:'detached'});
     }
     const collapse=page.locator('[data-action="collapse-conversation"]');
     if(await collapse.isVisible())await collapse.click();
@@ -63,28 +64,34 @@ try {
   assert.equal(await earlier.evaluate(e=>getComputedStyle(e,'::after').visibility),'visible');
   await main().locator('textarea').fill('Keep this draft while I read.');
   await gap().locator('[data-side="bottom"]').scrollIntoViewIfNeeded();
-  const before=await gap().boundingBox();
+  const before=await gap().locator('[data-side="bottom"]').boundingBox();
   await gap().locator('[data-side="bottom"]').click();
   assert.equal(await cards().count(),7);assert.equal(await page.locator('#event-46').count(),1);
-  const shift=(await page.locator('#event-46').boundingBox()).y-(before.y+before.height);
-  assert.ok(Math.abs(shift)<3,`later expansion starts at the first revealed comment (shift ${shift}px)`);
+  // The later button stays where it was, so it can be pressed again and again.
+  const shift=(await gap().locator('[data-side="bottom"]').boundingBox()).y-before.y;
+  assert.ok(Math.abs(shift)<1,`the later button stays in place (shift ${shift}px)`);
+  const gapBottom=(await gap().boundingBox()).y+(await gap().boundingBox()).height,below=(await page.locator('#event-46').boundingBox()).y-gapBottom;
+  assert.ok(below>=0&&below<40,`the revealed comments start just below the gap (${below}px)`);
+  // Pressing again reveals three more without moving the button.
+  await gap().locator('[data-side="bottom"]').click();assert.equal(await cards().count(),10);
+  assert.ok(Math.abs((await gap().locator('[data-side="bottom"]').boundingBox()).y-before.y)<1,'the later button stays in place on the next press too');
   const earlierEdge=(await gap().boundingBox()).y;
   await gap().locator('[data-side="top"]').click();
-  assert.equal(await cards().count(),10);assert.equal(await page.locator('#event-12').count(),1);
+  assert.equal(await cards().count(),13);assert.equal(await page.locator('#event-12').count(),1);
   assert.ok(Math.abs((await page.locator('#event-12').boundingBox()).y-earlierEdge)<3,'earlier expansion starts at the first revealed comment');
   assert.equal(await main().locator('textarea').inputValue(),'Keep this draft while I read.');
   assert.equal(await page.locator('.version-pager').isVisible(),true);
   assert.equal(await page.locator('.version-dots, .version-tooltip, .brief-history').count(),0);
   assert.equal(await page.locator('.version-step[aria-disabled="true"]').getAttribute('aria-label'),'Next Canvas');
   await page.locator('[data-version-step="previous"]').click();
-  await page.waitForURL('**/v1');await page.locator('.version-label[aria-label="Version 1"]').waitFor();assert.equal(await cards().count(),10);
+  await page.waitForURL('**/v1');await page.locator('.version-label[aria-label="Version 1"]').waitFor();assert.equal(await cards().count(),13);
   assert.equal(await page.locator('.version-step[aria-disabled="true"]').getAttribute('aria-label'),'Previous Canvas');
   assert.equal(await main().locator('textarea').inputValue(),'Keep this draft while I read.');
   await page.locator('[data-version-step="next"]').click();
-  await page.waitForURL('**/v2');await page.locator('.version-label[aria-label="Version 2"]').waitFor();assert.equal(await cards().count(),10);
+  await page.waitForURL('**/v2');await page.locator('.version-label[aria-label="Version 2"]').waitFor();assert.equal(await cards().count(),13);
   const arrival=await appendAgentComment({goalId:'1',type:'comment',text:'A new update while you read.'});
   await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
-  await page.locator(`#event-${arrival.id}`).waitFor();assert.equal(await cards().count(),11);
+  await page.locator(`#event-${arrival.id}`).waitFor();assert.equal(await cards().count(),14);
   await page.locator('[data-action="collapse-conversation"]').click();
   assert.equal(await cards().count(),4);assert.equal(await page.locator(`#event-${pending.id}`).count(),1);
   // The user's comment is older than the pending Letter, in the first gap: reveal it, then locate its note.
@@ -106,10 +113,11 @@ try {
     assert.equal(boxes[1].top,boxes[0].top+boxes[0].height);
     assert.ok((await gap().boundingBox()).height<=64,'direction controls stack compactly on the icon line');
     await page.screenshot({path:join(root,`folded-${width}.png`)});
-    const gapBox=await gap().boundingBox(),firstRevealed=Number(await gap().getAttribute('data-gap-last'))-2;
+    const laterBox=await gap().locator('[data-side="bottom"]').boundingBox(),firstRevealed=Number(await gap().getAttribute('data-gap-last'))-2;
     await gap().locator('[data-side="bottom"]').click();
     assert.equal(await cards().count(),7);
-    assert.ok(Math.abs((await page.locator(`#event-${firstRevealed}`).boundingBox()).y-(gapBox.y+gapBox.height))<3,'later expansion keeps the first revealed comment at the opened edge');
+    assert.ok(Math.abs((await gap().locator('[data-side="bottom"]').boundingBox()).y-laterBox.y)<1,'later expansion keeps its button in place');
+    assert.equal(await page.locator(`#event-${firstRevealed}`).count(),1);
     await page.screenshot({path:join(root,`expanded-${width}.png`)});
     await page.locator('[data-action="collapse-conversation"]').click();
   }
@@ -138,7 +146,7 @@ try {
   await page.reload();await main().waitFor();await loadHistory();
   for(const letter of [open[1],open[2],pending])assert.equal(await page.locator(`#event-${letter.id}`).count(),0);
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({result:'passed',screenshots:root,checks:['latest three','pending Letter visible','vertical controls on the icon line','hover and keyboard labels','small gap keeps both directions','three from either end','first revealed comment stays at the opened edge','draft and History preserved','new arrivals','hidden annotation and Letter references','collapse again','all messages reachable','desktop and mobile']}));
+  console.log(JSON.stringify({result:'passed',screenshots:root,checks:['latest three','pending Letter visible','vertical controls on the icon line','hover and keyboard labels','small gap keeps both directions','three from either end','later button stays in place','draft and History preserved','new arrivals','hidden annotation and Letter references','collapse again','all messages reachable','desktop and mobile']}));
 } finally {
   await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}
   if(process.env.KEEP_TRIAL!=='1')await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});
