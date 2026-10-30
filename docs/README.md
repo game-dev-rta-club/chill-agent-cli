@@ -13,7 +13,7 @@ The integrating application decides what work to pursue and when to continue it.
 | I want to… | Read |
 | --- | --- |
 | Understand Goals, completion and progress | [Goal lifecycle](workspace/goals.md) |
-| Publish a plan or ask a question | [Canvases and Conversation](workspace/canvas-and-conversation.md) |
+| Publish a plan or ask a question | [Canvases and Conversation](workspace/deliverables-and-conversation.md) |
 | Find the next relevant Goal without reading everything | [Read in layers](workspace/reading-goals.md) |
 | Understand page loading, live updates and Canvas history | [Web navigation](workspace/web-navigation.md) |
 | Separate projects, ports and extension choices | [Project workspaces](runtime/projects.md) |

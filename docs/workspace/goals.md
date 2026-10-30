@@ -10,7 +10,7 @@ keyPoints: >-
 
 A Goal has a title, agreed scope and success criteria. Split it when there are
 separate outcomes to review. Keep refinements of the same outcome in its
-[Canvas](canvas-and-conversation.md).
+[Canvas](deliverables-and-conversation.md).
 
 ```sh
 chill goal create --title "Improve onboarding" --scope "First-run setup" --criteria "A new user can finish setup"
