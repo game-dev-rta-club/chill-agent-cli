@@ -1275,12 +1275,11 @@ function rootGoalId(id) {
   for(let n=0;goal?.parentId&&goalMetadata.has(goal.parentId)&&n<goalMetadata.size;n++)goal=goalMetadata.get(goal.parentId);
   return goal?.id||null;
 }
-// The notification worker asks each tab which Goal and Root it shows, then
-// opens the notified Goal in a tab of the same Root without reloading it.
+// The notification worker picks a tab of the notified Goal's Root, then
+// moves it to that Goal without reloading it.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', event => {
     const data = event.data || {};
-    if (data.type === 'chill-where') event.ports[0]?.postMessage({goalId: activeGoalId, rootId: rootGoalId(activeGoalId)});
     if (data.type === 'chill-open') {
       const target = new URL(data.url, location.origin);
       if (target.origin === location.origin && target.hash.startsWith('#/goal/')) location.hash = target.hash;
