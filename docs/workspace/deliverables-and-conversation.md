@@ -47,7 +47,9 @@ Other files, such as a video, upload the same way; they keep their file name, so
 a download from Web has the same extension.
 The Web reads each image's size from its file and reserves its box with a
 placeholder until the image arrives, so a slow image does not hold up the text
-around it. A saved file never changes, so the browser keeps it instead of
+around it. The first browser that shows an image saves its ThumbHash (a blurred
+picture in the image's own colours, about 25 bytes) beside the file; later views
+use it as the placeholder. A saved file never changes, so the browser keeps it instead of
 downloading it again.
 Text annotations retain their source version; image notes retain their attachment
 and location. Read the relevant version when responding to older feedback.

@@ -262,6 +262,7 @@
 /* A saved image shows its reserved box with a placeholder until it arrives (same as lib/brief.mjs). */
 img[data-image-reserved] { height: auto; }
 img[data-image-placeholder] { background: linear-gradient(110deg, #e9e6ef 30%, #f5f3f8 50%, #e9e6ef 70%) 100% 0 / 300% 100%; animation: image-placeholder 1.6s ease-in-out infinite; }
+img[data-thumbhash] { animation: none; }
 @keyframes image-placeholder { to { background-position: 0 0; } }
 @media (prefers-reduced-motion: reduce) { img[data-image-placeholder] { animation: none; } }
 .brief-body pre {max-width:100%;overflow:auto;padding:12px;background:var(--surface-soft);border-radius:6px;font-size:12px;}

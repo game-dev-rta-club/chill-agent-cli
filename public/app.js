@@ -10,6 +10,7 @@ import { createBriefArrivalTracker } from './brief-navigation.js';
 import { briefBody, addCodeCopy, copyCode } from './brief-body.js';
 import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-view.js';
 import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversation-window.js';
+import { thumbHashOf, thumbHashPicture } from './image-placeholder.js';
 import { createReadingPane } from './reading-pane.js';
 import {createRuntimeUpdate} from './runtime-update.js';
 import {watchNewDevices} from './device-notice.js';
@@ -585,7 +586,10 @@ function mountHTMLBrief(id,version) {
     if(!frame.isConnected){ready();return;}
     const doc=frame.contentDocument,body=doc?.querySelector('.brief-body');if(!body){ready();return;}
     for(const type of ['load','error'])doc.addEventListener(type,imageArrived,true);
-    body.querySelectorAll('img[data-image-placeholder]').forEach(img=>{if(img.complete)img.removeAttribute('data-image-placeholder');});
+    body.querySelectorAll('img[data-image-placeholder]').forEach(img=>{
+      if(img.complete){img.removeAttribute('data-image-placeholder');if(!img.dataset.thumbhash)rememberThumbHash(img);return;}
+      if(img.dataset.thumbhash)paintPlaceholder(img);else needsThumbHash.add(img);
+    });
     body.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
     size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(doc.body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
     const observer=new ResizeObserver(size);observer.observe(body);
@@ -984,10 +988,12 @@ const imageSizes = new Map(), sizeWaiting = new Set();
 let sizeRequest = null;
 function reserveImage(img) {
   const id = imageIdFromSource(img.getAttribute('src'));
-  if (!id || img.complete || img.hasAttribute('data-image-placeholder')) return;
+  if (!id || img.hasAttribute('data-image-placeholder')) return;
   if (!imageSizes.has(id)) { sizeWaiting.add(img); requestImageSizes(); return; }
   const size = imageSizes.get(id);
   if (!size) return;
+  // An image already here needs no placeholder, but may still lack its colours.
+  if (img.complete) { if (!size.thumbhash) rememberThumbHash(img); return; }
   // A thumbnail keeps its fixed box; others take the image's shape within their maximum height.
   if (!img.classList.contains('note-thumbnail') && !img.getAttribute('width') && !img.getAttribute('height')) {
     const scale = Math.min(1, parseFloat(getComputedStyle(img).maxHeight) / size.height || 1);
@@ -995,6 +1001,25 @@ function reserveImage(img) {
     img.setAttribute('data-image-reserved', '');
   }
   img.setAttribute('data-image-placeholder', '');
+  if (size.thumbhash) { img.dataset.thumbhash = size.thumbhash; paintPlaceholder(img); }
+  else needsThumbHash.add(img);
+}
+// Show the image's own colours, blurred; the first browser to load an image
+// without them works them out and saves them for everyone after.
+const needsThumbHash = new WeakSet(), savedThumbHashes = new Set();
+function paintPlaceholder(img) {
+  try { img.style.background = `center / cover no-repeat url("${thumbHashPicture(img.dataset.thumbhash)}")`; }
+  catch { /* Keep the plain placeholder. */ }
+}
+function rememberThumbHash(img) {
+  const id = imageIdFromSource(img.getAttribute('src'));
+  if (!id || savedThumbHashes.has(id) || !img.naturalWidth) return;
+  savedThumbHashes.add(id);
+  try {
+    const thumbhash = thumbHashOf(img);
+    if (imageSizes.get(id)) imageSizes.set(id, {...imageSizes.get(id), thumbhash});
+    void fetch('/api/image-thumbhashes', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, thumbhash})}).catch(() => {});
+  } catch { /* Leave it for the next browser. */ }
 }
 function requestImageSizes() {
   if (sizeRequest) return;
@@ -1010,7 +1035,12 @@ function requestImageSizes() {
   });
 }
 // The Canvas frame's images come from another document, so match by selector, not by class.
-const imageArrived = event => { if (event.target?.matches?.('img[data-image-placeholder]')) event.target.removeAttribute('data-image-placeholder'); };
+const imageArrived = event => {
+  const img = event.target;
+  if (!img?.matches?.('img[data-image-placeholder]')) return;
+  img.removeAttribute('data-image-placeholder'); img.style.removeProperty('background');
+  if (event.type === 'load' && needsThumbHash.has(img)) rememberThumbHash(img);
+};
 for (const type of ['load', 'error']) document.addEventListener(type, imageArrived, true);
 const reserveImagesIn = node => { if (node.nodeType !== 1) return; if (node.matches('img')) reserveImage(node); else node.querySelectorAll('img').forEach(reserveImage); };
 new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(reserveImagesIn))).observe(document.body, {childList: true, subtree: true});

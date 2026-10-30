@@ -33,9 +33,9 @@ test('image sizes come from PNG, JPEG and WebP headers',()=>{
 
 test('a Canvas image with a known size reserves its box and shows a placeholder',()=>{
   const id='11111111-1111-1111-1111-111111111111',other='22222222-2222-2222-2222-222222222222';
-  const doc=briefDocument(`<img src="/api/images/${id}"><img width="200" src="/api/images/${id}"><img src="/api/images/${other}">`,{[id]:{width:800,height:600}});
+  const doc=briefDocument(`<img src="/api/images/${id}"><img width="200" src="/api/images/${id}"><img src="/api/images/${other}">`,{[id]:{width:800,height:600,thumbhash:'YJqGPQw7'}});
   const images=doc.match(/<img[^>]*>/g);
-  assert.match(images[0],/width="800" height="600" data-image-placeholder/);
+  assert.match(images[0],/width="800" height="600" data-image-placeholder="" data-thumbhash="YJqGPQw7"/);
   assert.match(images[1],/width="200".*height="150" data-image-placeholder/);
   assert.doesNotMatch(images[2],/placeholder|width/);
   assert.match(doc,/img\[data-image-placeholder\]\{background:/);

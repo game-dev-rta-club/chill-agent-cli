@@ -83,6 +83,12 @@ test('multiple images and rectangle annotations persist, reject foreign images a
  const served=await f.get('/api/images/'+ids[0]);assert.equal(served.headers.get('cache-control'),'private, max-age=31536000, immutable');
  assert.equal((await fetch(f.url()+'/api/images/'+ids[0],{headers:{'If-None-Match':served.headers.get('etag')}})).status,304);
  assert.deepEqual((await(await f.get(`/api/image-sizes?ids=${ids[0]},not-id`)).json()).sizes,{[ids[0]]:{width:1,height:1}});
+ const saveHash=(id,thumbhash)=>fetch(f.url()+'/api/image-thumbhashes',{method:'POST',headers:{Origin:f.url(),'Content-Type':'application/json'},body:JSON.stringify({id,thumbhash})});
+ assert.equal((await saveHash(ids[0],'not base64!')).status,400);assert.equal((await saveHash('not-id','AAAAAAAA')).status,400);
+ assert.equal((await(await saveHash(ids[0],'YJqGPQw7sFlslqhFafSE+Q6oJ1h2iHB2Rw')).json()).thumbhash,'YJqGPQw7sFlslqhFafSE+Q6oJ1h2iHB2Rw');
+ // The first ThumbHash stays.
+ assert.equal((await(await saveHash(ids[0],'AAAAAAAAAAAA')).json()).thumbhash,'YJqGPQw7sFlslqhFafSE+Q6oJ1h2iHB2Rw');
+ assert.deepEqual((await(await f.get(`/api/image-sizes?ids=${ids[0]}`)).json()).sizes[ids[0]],{width:1,height:1,thumbhash:'YJqGPQw7sFlslqhFafSE+Q6oJ1h2iHB2Rw'});
  assert.equal((await f.post({attachmentIds:ids.slice(0,2)})).status,201);
  const rect={x:.1,y:.2,width:.3,height:.4}, image={kind:'image',imageId:ids[0],rect,text:'画像のメモ',imageName:'添付'};
  const text={kind:'text',source:{kind:'brief',version:1},anchor:{start:0,end:2,quote:'本文'},text:'',attachmentIds:[ids[1]]};
