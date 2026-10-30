@@ -32,11 +32,11 @@ try {
  const main=()=>page.locator('.conversation-form');
  const readCard=card=>card.evaluate(el=>{const pane=document.querySelector('main');pane.scrollTop+=el.getBoundingClientRect().top-pane.getBoundingClientRect().top-24;});
  const send=async(form)=>{const response=page.waitForResponse(r=>r.url().endsWith('/feedback')&&r.request().method()==='POST');await form.getByRole('button',{name:'Comment',exact:true}).click();assert.equal((await response).status(),201);if(await form.getAttribute('data-form')==='annotation')await form.waitFor({state:'hidden'});else await page.waitForFunction(()=>!document.querySelector('.conversation-form textarea').value);};
- await go();assert.match(await page.locator('.brief-body').innerText(),/No Deliverable/);
+ await go();assert.match(await page.locator('.brief-body').innerText(),/No Canvas/);
  await main().locator('textarea').fill('Before the Deliverable');await send(main());
  const path=join(root,'workspace/goals/1/deliverable.md');
  await writeFile(path,'## Current plan\n\nKeep this explanation current.\n\n<script>window.badBrief=true</script>\n<img src="https://example.com/tracker" onerror="window.badBrief=true">');
- await run('deliverable','update','--id','1');
+ await run('canvas','update','--id','1');
  const a=await run('reply','--id','1','--ask','First choice','--text','Which direction should we take?');
  const b=await run('reply','--id','1','--ask','Second choice','--text','Which color would you like?');
  await go();assert.equal(await page.evaluate(()=>window.badBrief),undefined);assert.equal(await page.locator('.brief-body img').count(),0);
@@ -80,7 +80,7 @@ try {
  assert.equal(await editor().locator('[data-editor-heading]').innerText(),'Annotation');
  await editor().locator('textarea').fill('Edited note');await editor().getByRole('button',{name:'Save',exact:true}).click();await main().locator('.draft-note input[type="checkbox"]').check();await send(main());
  assert.equal((await data()).conversation.at(-1).annotations[0].text,'Edited note');assert.equal(await main().locator('.draft-note').count(),0);
- await writeFile(path,'## Result\n\nThe same Goal has been updated.');await run('deliverable','update','--id','1');
+ await writeFile(path,'## Result\n\nThe same Goal has been updated.');await run('canvas','update','--id','1');
  await go('/v1');await page.locator('.brief-body summary').click();assert.match(await page.locator('.brief-body').innerText(),/Keep this explanation/);
  // Annotating an old Deliverable saves its exact history source in the Goal Conversation.
  await annotate('.brief-body p',22,29,'Keep this context');

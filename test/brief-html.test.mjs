@@ -45,7 +45,7 @@ test('one-time format conversion preserves snapshots, originals and conversation
 test('agents see annotation sources named deliverable while stored ones keep the internal name',async()=>{
  const {agentAnnotations}=await import('../lib/brief.mjs');
  const stored=[{kind:'text',source:{kind:'brief',version:2}},{kind:'text',source:{kind:'comment',eventId:5}}];
- assert.deepEqual(agentAnnotations(stored).map(n=>n.source.kind),['deliverable','comment']);
+ assert.deepEqual(agentAnnotations(stored).map(n=>n.source.kind),['canvas','comment']);
  assert.equal(stored[0].source.kind,'brief','the stored record is not changed');
  assert.equal(agentAnnotations(undefined),undefined);
 });

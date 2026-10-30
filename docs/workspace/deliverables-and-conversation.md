@@ -1,40 +1,43 @@
 ---
 keyPoints: >-
-  The Deliverable holds only a Goal's final output; progress and questions go to Conversation.
+  The Canvas holds only a Goal's final output; progress and questions go to Conversation.
   Edit its source and publish a snapshot; comments preserve discussion.
-  Static HTML works in Messages; HTML Deliverable images and SVG diagrams support notes.
+  Static HTML works in Messages; HTML Canvas images and SVG diagrams support notes.
   A reply that asks the user to decide is marked --ask and becomes a Letter; the user's next comment on the Goal closes it.
   Neither answers nor viewing complete or unblock work.
 ---
 
 # Keep the final output and the discussion apart
 
-The Deliverable holds only the final output of a Goal: the document, design or
+The Canvas holds only the final output of a Goal: the document, design or
 result it hands over, which may be a draft while the work goes on. A plan or
-proposal the user decides on may be a SubGoal's Deliverable. Progress and
+proposal the user decides on may be a SubGoal's Canvas. Progress and
 questions belong in Conversation, which also keeps feedback tied to
-an older Deliverable version. Updating the Deliverable does not erase that history.
+an older Canvas version. Updating the Canvas does not erase that history.
 The editable source is `deliverable.html` or `deliverable.md`; files from before the
-rename (`brief.*`) are moved to the new name the first time the workspace opens.
+Brief rename (`brief.*`) are moved to the new name the first time the workspace opens.
+The Canvas was called the Deliverable, and the stored files keep that name.
+`goal deliverable`, `--section deliverable` and `--deliverable-offset` still work
+as the old spellings of `goal canvas`, `--section canvas` and `--canvas-offset`.
 
-## Publish the Deliverable
+## Publish the Canvas
 
 ```sh
-chill goal deliverable path --id 1
+chill goal canvas path --id 1
 # Edit the returned file.
-chill goal deliverable update --id 1
+chill goal canvas update --id 1
 ```
 
 Editing the file alone does not change Web. Publishing saves an immutable version
 when the body or format differs. Identical content is not published and the
 command fails, so an edit that never reached the file is noticed. An empty source
-clears the Deliverable. The command does not create a Conversation message or complete
+clears the Canvas. The command does not create a Conversation message or complete
 the Goal.
 
-A new Deliverable starts as HTML (`deliverable.html`): a standalone,
+A new Canvas starts as HTML (`deliverable.html`): a standalone,
 visual-first page with its own `<style>` and inline SVG diagrams, rendered in an
 isolated frame where scripts, forms and remote assets do not run. Existing
-Markdown Deliverables still work with `--format markdown`. Switching format keeps
+Markdown Canvases still work with `--format markdown`. Switching format keeps
 previous versions and both editable source files. When the published content is
 Markdown, or HTML without any table, SVG, image or grid/flex layout, `update`
 still publishes and adds a one-line `hint` toward a visual-first page.
@@ -45,7 +48,7 @@ a download from Web has the same extension.
 Text annotations retain their source version; image notes retain their attachment
 and location. Read the relevant version when responding to older feedback.
 HTML images have an annotation button. Inline SVG diagrams use the same area
-selector and retain their Deliverable version and SVG index, so changing a diagram
+selector and retain their Canvas version and SVG index, so changing a diagram
 does not move an old note onto its replacement. The original diagram can be
 opened at `/api/goals/<id>/deliverables/<version>/svg/<index>` (indices start at zero).
 Small SVG icons below 64 pixels in either dimension keep their display without
@@ -69,13 +72,13 @@ counts, so updating does not turn old results into new unanswered questions.
 Message bodies already accept static HTML such as paragraphs, lists, tables,
 links and disclosures, alongside Markdown. Both authors use the same sanitizer;
 scripts, forms, custom styles and remote images are removed. Use a standalone
-HTML Deliverable when the explanation needs its own layout or styling.
+HTML Canvas when the explanation needs its own layout or styling.
 
-Each code block in a message or Deliverable has a Copy button at its top right,
+Each code block in a message or Canvas has a Copy button at its top right,
 always shown so a phone can press it; it copies the block's text and shows
 Copied for a moment.
 
-`#N` in a message or a Markdown Deliverable always names Goal N, as on GitHub. It
+`#N` in a message or a Markdown Canvas always names Goal N, as on GitHub. It
 links to that Goal unless it is inside code or a link, glued to a word or path
 (`abc#1`, `/#1`), or no such Goal exists. A Goal named from another Goal's
 Conversation shows "Mentioned in #M" in its own Conversation, once per Goal, at
@@ -100,5 +103,5 @@ A Letter answer is not automatically approval, an end to Waiting, or completion.
 Read the answer and decide what it changes within the agreed scope. The
 [layered reader](reading-goals.md) keeps the original question with its answers.
 
-Implementation: [Deliverable rendering](../../lib/brief.mjs),
+Implementation: [Canvas rendering](../../lib/brief.mjs),
 [Letter state](../../public/letter-state.js), [event storage](../../lib/goal-store.mjs).

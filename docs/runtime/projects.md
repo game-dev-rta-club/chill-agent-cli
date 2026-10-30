@@ -80,12 +80,12 @@ as the project default; nothing is migrated.
 The theme colors the workspace controls and reading surfaces. Status meanings
 stay consistent: Letters, waiting and work in progress use amber; answered
 Letters and completed Goals use green. Dark palettes adjust their contrast. Attached images
-and authored HTML Deliverables retain their own colors.
+and authored HTML Canvases retain their own colors.
 
 ## Search the workspace
 
 Open **More → Search** and type. Results show the project's Goals, Comments,
-Letters and latest Deliverables in which every word appears, ignoring case and
+Letters and latest Canvases in which every word appears, ignoring case and
 full or half width; archived Roots are left out. Goals come first, then the
 newest matches, up to 50. Choose a result, or press Enter for the first one, to
 open its Goal; a Comment or Letter result scrolls to that message, loading it if

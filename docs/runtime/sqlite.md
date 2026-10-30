@@ -8,7 +8,7 @@ keyPoints: >-
 # Build the SQLite workspace
 
 The internal `openSqliteWorkspace` foundation creates a project-local
-`workspace.sqlite` with Goal, Conversation and Deliverable-version tables. It requires
+`workspace.sqlite` with Goal, Conversation and Canvas-version tables. It requires
 Node.js 24.15 or newer and uses `node:sqlite`, without a separate database service.
 Goal commands and Web select SQLite for a fresh data directory. Once created,
 the database is detected on later launches. Selecting `json` for that directory
@@ -21,12 +21,12 @@ silently converting or ignoring it.
 For a disposable checkout test, set `CHILL_AGENT_DATA_DIR` to a new directory,
 then use the ordinary Goal CLI and Web server. No database service or storage
 variable is required.
-Published Goal, Conversation and Deliverable records live in SQLite; editable Deliverable
+Published Goal, Conversation and Canvas records live in SQLite; editable Canvas
 sources and attachments keep their existing paths. Feedback delivery reads the
 same event API instead of opening an event JSON file directly.
 
 Each project owns a database. Numeric Goal IDs, event IDs, independent change
-cursors and Deliverable versions survive reopening. The change cursor differs from the
+cursors and Canvas versions survive reopening. The change cursor differs from the
 event ID because an existing Letter can change without becoming a new event.
 Indexes support parent lookups and a Goal's events after a cursor. Stored JSON
 bodies retain full record contents while indexed columns support bounded reads.
@@ -45,18 +45,18 @@ store is silently converted.
 
 ## Complete the replacement in stages
 
-1. Goal, Conversation and Deliverable operations now retain their validation and public
-   shapes through the database. Newest Deliverable and changed-event queries use indexes.
+1. Goal, Conversation and Canvas operations now retain their validation and public
+   shapes through the database. Newest Canvas and changed-event queries use indexes.
    The Web client uses conversation pages and compact workspace summaries;
    the legacy compatibility snapshot still loads all history. The SQLite CLI page
-   reader selects the requested Goal range and Deliverable body. Goal, Deliverable and event operations now use database transactions instead of file
+   reader selects the requested Goal range and Canvas body. Goal, Canvas and event operations now use database transactions instead of file
    leases. Workspace coordination uses the separate lease database described below.
 2. Exercise Web, CLI and harness delivery in a disposable project. Inventory
    coordination records separately: delivery receipts, holds, connection identity,
    extension state and pending requests are not part of the foundation tables yet.
 3. Import a copy with original IDs, timestamps, references and delivery states.
    Verify counts and contents before enabling delivery; imported pending records
-   must not send themselves during validation. Keep editable Deliverable source paths,
+   must not send themselves during validation. Keep editable Canvas source paths,
    attachments and their references intact. Settings and runtime remain separate.
 4. Stop old writers for the final import, verify it and switch readers and writers
    together. Back up first and test restoration. An old JSON copy alone does not
@@ -93,8 +93,8 @@ A cursor from a later history page must not skip intervening live changes.
 The Web client requests `/api/goals?view=web&history=paged`: the newest 30
 conversation records per Goal, all open Letters and referenced answer targets.
 It receives Letter status metadata so an off-page reply cannot make a cached
-Letter look unanswered. Older Deliverable versions contain metadata only. SQLite
-reads the latest Deliverable body and indexed event ranges; JSON keeps its legacy file
+Letter look unanswered. Older Canvas versions contain metadata only. SQLite
+reads the latest Canvas body and indexed event ranges; JSON keeps its legacy file
 reads. Letter/reply metadata still scans the Goal's records within SQLite, and
 many genuinely open Letters can still grow the payload.
 
@@ -108,11 +108,11 @@ snapshot. This does not yet bound the global delta API.
 ## Read a CLI Goal page
 
 On SQLite, `show --id <id>` reads the selected Goal's conversation and selected
-Deliverable body without loading other Goals' conversation history or historical Deliverable
+Canvas body without loading other Goals' conversation history or historical Canvas
 bodies. `--since`, `--before` and `--limit` are applied in SQL using the Goal/change
 index. A single database read snapshot supplies page counts, the global change
 cursor, answer targets, hierarchy metadata and open Letters, including descendant
-Letters outside the page. Deliverable version metadata remains available for navigation.
+Letters outside the page. Canvas version metadata remains available for navigation.
 
 Omitting `--limit` intentionally returns all matching events for the requested
 Goal, so a continuation using only `--since` cannot silently lose instructions.

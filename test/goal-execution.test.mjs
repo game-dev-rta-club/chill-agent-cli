@@ -35,7 +35,7 @@ async function fixture(t){
   await shell('create','--title','Root agreement','--scope','Only editor changes','--criteria','Two improvements');
   await run('create','--title','Waiting branch','--parent','1');
   await run('create','--title','Independent branch','--parent','1');
-  const note=async(id='2')=>{const path=join(root,`workspace/goals/${id}/deliverable.md`);await writeFile(path,`Question ${++serial}`);return run('deliverable','update','--id',id);};
+  const note=async(id='2')=>{const path=join(root,`workspace/goals/${id}/deliverable.md`);await writeFile(path,`Question ${++serial}`);return run('canvas','update','--id',id);};
   const feedback=async(id='2')=>{const input=join(root,'input.json');await writeFile(input,JSON.stringify({text:'My answer'}));return (await execute(process.execPath,[cli,'feedback','--id',id,'--input-file',input],{env})).stdout.trim().split('\n').map(JSON.parse);};
   const selectionPath=`workspace/executions/${thread}.json`;
   return {root,env,run,shell,adopt,json,patch,history,note,feedback,selectionPath};

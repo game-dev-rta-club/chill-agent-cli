@@ -26,11 +26,11 @@ const cliFile = new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
 const cli = (...args) => exec(process.execPath,[cliFile,...args],{env});
 await cli('create','--title','会話から次の一歩を決める');
 await writeFile(join(root,'data/workspace/goals/1/deliverable.md'),await readFile(body,'utf8'));
-await cli('deliverable','update','--id','1');
+await cli('canvas','update','--id','1');
 await cli('reply','--id','1','--text','返信の説明です。気になるところに注釈を付けてください。');
 await cli('create','--title','別の計画');
 await writeFile(join(root,'data/workspace/goals/2/deliverable.md'),await readFile(body,'utf8'));
-await cli('deliverable','update','--id','2');
+await cli('canvas','update','--id','2');
 const server = spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname],{env,stdio:['ignore','pipe','pipe']});
 const url = await new Promise((resolve,reject) => {
   server.stdout.on('data',data => {const match = String(data).match(/http:\/\/127\.0\.0\.1:\d+/);if(match)resolve(match[0]);});

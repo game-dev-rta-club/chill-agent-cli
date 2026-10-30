@@ -15,7 +15,7 @@ test('historical Deliverable keeps the current tree and whole Goal conversation'
  assert.equal(page.latestVersion,2);assert.equal(page.root.scope,'Scope 1');
  const web=Object.fromEntries(goals.map(g=>[g.id,{...g,children:goals.filter(c=>c.parentId===g.id).map(c=>c.id)}]));
  const view=createGoalView(web,'2',new Set());assert.equal(view.letterCount('2'),page.goal.letterCount);
- const text=renderGoalPage({...page,attachments:[]});assert.match(text,/Root agreement #1/);assert.match(text,/Deliverable · v1/);assert.match(text,/Answer target · Letter 1/);assert.match(text,/Answer to Letter 1:\nAnswer/);
+ const text=renderGoalPage({...page,attachments:[]});assert.match(text,/Root agreement #1/);assert.match(text,/Canvas · v1/);assert.match(text,/Answer target · Letter 1/);assert.match(text,/Answer to Letter 1:\nAnswer/);
  assert.match(text,/Editable Markdown: \/goals\/2\/deliverable.md/);
  assert.equal(goalPage(goals,'3').brief,null);
  for(const options of [{version:0},{version:99},{since:-1}])assert.throws(()=>goalPage(goals,'2',options));
@@ -35,8 +35,8 @@ test('history pages preserve original Letter questions and offer older cursors',
 test('Deliverable pages pin their version, keep full access and do not silently discard the remainder',()=>{
  const body='a'.repeat(6000)+'Last section';
  const page={...goalPage([goal('1',null,{briefs:[{goalId:'1',version:1,body,format:'markdown'}]})],'1'),attachments:[]};
- const text=renderGoalPage(page);assert.doesNotMatch(text,/Last section/);assert.match(text,/--version 1 --format text --section deliverable --deliverable-offset 6000/);
- const rest=renderGoalPage(page,{section:'deliverable',briefOffset:6000});assert.match(rest,/Last section/);assert.doesNotMatch(rest,/Conversation/);
+ const text=renderGoalPage(page);assert.doesNotMatch(text,/Last section/);assert.match(text,/--version 1 --format text --section canvas --canvas-offset 6000/);
+ const rest=renderGoalPage(page,{section:'canvas',briefOffset:6000});assert.match(rest,/Last section/);assert.doesNotMatch(rest,/Conversation/);
  assert.match(renderGoalPage(page,{full:true}),/Last section/);
  assert.throws(()=>renderGoalPage(page,{briefOffset:999999}));
 });
@@ -50,11 +50,11 @@ test('context handoff retains agreement and all new corrections while deferring 
  for(const text of ['Scope 1','Scope 2','Outcome 1','Outcome 2','Question body 1','The final answer','/attachments/image.png'])assert.ok(output.includes(text));
  for(let i=2;i<=8;i++)assert.ok(output.includes(`Correction ${i}`));
  assert.doesNotMatch(output,/LONG BRIEF/);
- assert.match(output,/--version 3 --format text --section deliverable/);
+ assert.match(output,/--version 3 --format text --section canvas/);
  assert.match(output,/goal review --id 2 --letters/);
  // One read shows the direct Split Goals and where to edit and publish the Deliverable.
  assert.match(output,/Split Goals \(current, direct children; full index: chill goal review --id 2\)\n#3 Goal 3 — Open/);
- assert.match(output,/Editable Markdown: \/goals\/2\/deliverable.md\nAfter editing, publish: chill goal deliverable update --id 2 --format markdown/);
- assert.match(renderGoalPage(page,{section:'deliverable'}),/LONG BRIEF/);
+ assert.match(output,/Editable Markdown: \/goals\/2\/deliverable.md\nAfter editing, publish: chill goal canvas update --id 2 --format markdown/);
+ assert.match(renderGoalPage(page,{section:'canvas'}),/LONG BRIEF/);
  assert.deepEqual(page.conversation.map(e=>e.id),[2,3,4,5,6,7,8],'rendering does not consume feedback');
 });

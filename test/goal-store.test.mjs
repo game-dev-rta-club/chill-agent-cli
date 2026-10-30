@@ -16,32 +16,32 @@ async function fixture(t,storage){
  let serial=0;
  const update=async(id,patch)=>{const file=join(root,`patch-${serial++}.json`);await writeFile(file,JSON.stringify(patch));return run('update','--id',id,'--input-file',file);};
  const feedback=async(id,input)=>{const file=join(root,`feedback-${serial++}.json`);await writeFile(file,JSON.stringify(input));return (await invoke('feedback','--id',id,'--input-file',file)).stdout.trim().split('\n').map(JSON.parse)[0].feedback;};
- const brief=async(id,body)=>{const {path}=await run('deliverable','path','--id',id);await writeFile(path,body);return run('deliverable','update','--id',id);};
+ const brief=async(id,body)=>{const {path}=await run('canvas','path','--id',id);await writeFile(path,body);return run('canvas','update','--id',id);};
  // Letters saved by the removed goal letter command, such as its no-reply notices.
  const legacy=async input=>JSON.parse((await execute(process.execPath,['--input-type=module','-e',`import {appendAgentComment} from ${JSON.stringify(new URL('../lib/goal-store.mjs',import.meta.url).href)};console.log(JSON.stringify(await appendAgentComment(${JSON.stringify(input)})));`],{env})).stdout);
  return {root,run,invoke,update,feedback,brief,legacy};
 }
 test('empty Goals accept Conversation; stable Markdown updates only publish changes',async t=>{
  const f=await fixture(t),goal=await f.run('create','--title','Stable Goal');
- assert.equal(await readFile(goal.deliverablePath,'utf8'),'');
- assert.equal((await f.run('show','--id','1')).deliverable,null);
+ assert.equal(await readFile(goal.canvasPath,'utf8'),'');
+ assert.equal((await f.run('show','--id','1')).canvas,null);
  await f.run('reply','--id','1','--text','Before Deliverable');
  const first=await f.brief('1','# Plan\n\nOriginal'),path=join(f.root,'workspace/goals/1/briefs/v1.json'),bytes=await readFile(path,'utf8');
  assert.equal(first.changed,true);
- await assert.rejects(f.invoke('deliverable','update','--id','1'),error=>/Not published: .*deliverable\.html is the same as v1\./.test(error.stderr)&&error.code===1,'an unchanged file fails so a failed edit is noticed');
- assert.equal((await f.run('show','--id','1')).deliverable.version,1);
- await writeFile(goal.deliverablePath,'# Plan\n\nEdited');
- assert.equal((await f.run('show','--id','1')).deliverable.body,'# Plan\n\nOriginal','unpublished edits stay local');
- await f.run('deliverable','update','--id','1');
+ await assert.rejects(f.invoke('canvas','update','--id','1'),error=>/Not published: .*deliverable\.html is the same as v1\./.test(error.stderr)&&error.code===1,'an unchanged file fails so a failed edit is noticed');
+ assert.equal((await f.run('show','--id','1')).canvas.version,1);
+ await writeFile(goal.canvasPath,'# Plan\n\nEdited');
+ assert.equal((await f.run('show','--id','1')).canvas.body,'# Plan\n\nOriginal','unpublished edits stay local');
+ await f.run('canvas','update','--id','1');
  await f.run('reply','--id','1','--text','After update');
  const past=await f.run('show','--id','1','--version','1');
- assert.equal(past.goal.title,'Stable Goal');assert.equal(past.deliverable.body,first.body);
+ assert.equal(past.goal.title,'Stable Goal');assert.equal(past.canvas.body,first.body);
  assert.equal(past.conversation.length,2);assert.equal(past.latestVersion,2);
  assert.equal(await readFile(path,'utf8'),bytes);
 });
 test('publishing a Deliverable without layout succeeds with a one-line visual-first hint',async t=>{
  const f=await fixture(t);await f.run('create','--title','Visual Goal');
- const publish=async(body,format)=>{const {path}=await f.run('deliverable','path','--id','1','--format',format);await writeFile(path,body);return f.run('deliverable','update','--id','1','--format',format);};
+ const publish=async(body,format)=>{const {path}=await f.run('canvas','path','--id','1','--format',format);await writeFile(path,body);return f.run('canvas','update','--id','1','--format',format);};
  const markdown=await publish('# Plan\n\n- Step one\n- Step two','markdown');
  assert.equal(markdown.changed,true,'Markdown still publishes');assert.match(markdown.hint,/^This is Markdown\. Make it a visual-first HTML page: diagrams \(inline SVG\), tables, the current and finished form side by side\.$/);
  const plain=await publish('<h1>Plan</h1><ul><li>Step one</li></ul><style>p{color:red}</style>','html');
@@ -62,7 +62,7 @@ test('a Letter is a reply with --ask; the old comment, letter and assign command
  const letter=await f.run('reply','--id','1','--ask','Which way?','--text','Would you prefer A or B?');
  assert.equal(letter.type,'letter');assert.equal(letter.title,'Which way?');assert.match(letter.url,new RegExp(`/goal/1/letter/${letter.id}$`));
  const plain=await f.run('reply','--id','1','--text','Progress');assert.equal(plain.type,'comment');assert.equal(plain.title,undefined);assert.doesNotMatch(plain.url,/letter/);
- const page=await f.run('show','--id','1');assert.deepEqual(page.letters.map(l=>l.id),[letter.id]);assert.equal(page.deliverable,null);
+ const page=await f.run('show','--id','1');assert.deepEqual(page.letters.map(l=>l.id),[letter.id]);assert.equal(page.canvas,null);
  assert.equal(page.conversation[0].type,'letter');assert.equal(page.conversation[0].version,undefined);
  assert.equal((await f.run('tree'))[0].letterCount,1);
 });
@@ -155,11 +155,11 @@ test('the agent withdraws a Letter no longer needed; the Letter stays, and count
 test('concurrent Goal creation and identical Deliverable updates allocate without duplicates',async t=>{
  const f=await fixture(t);const goals=await Promise.all(Array.from({length:4},()=>f.run('create','--title','Goal')));
  assert.deepEqual(goals.map(g=>g.id).sort(),['1','2','3','4']);
- await writeFile(goals.find(g=>g.id==='1').deliverablePath,'# Current');
- const saved=await Promise.allSettled(Array.from({length:4},()=>f.run('deliverable','update','--id','1')));
+ await writeFile(goals.find(g=>g.id==='1').canvasPath,'# Current');
+ const saved=await Promise.allSettled(Array.from({length:4},()=>f.run('canvas','update','--id','1')));
  assert.equal(saved.filter(s=>s.status==='fulfilled'&&s.value.changed&&s.value.version===1).length,1);
  assert.ok(saved.filter(s=>s.status==='rejected').every(s=>/Not published: .* is the same as v1\./.test(s.reason.stderr)));
- assert.equal((await f.run('show','--id','1')).deliverable.version,1);
+ assert.equal((await f.run('show','--id','1')).canvas.version,1);
  await assert.rejects(f.update('1',{state:'working'}),/Live Working/);
  await assert.rejects(f.update('1',{state:'waiting'}),/Waiting reason/);
 });
@@ -234,14 +234,24 @@ test('editable sources from before the Deliverable rename move to their new name
  const dir=join(f.root,'workspace/goals/1');
  const {rm:remove}=await import('node:fs/promises');await remove(join(dir,'deliverable.md'),{force:true});
  await writeFile(join(dir,'brief.md'),'# Earlier source');
- const {path}=await f.run('deliverable','path','--id','1','--format','markdown');
+ const {path}=await f.run('canvas','path','--id','1','--format','markdown');
  assert.equal(path,join(dir,'deliverable.md'));assert.equal(await readFile(path,'utf8'),'# Earlier source');
  await assert.rejects(readFile(join(dir,'brief.md'),'utf8'));
  // An existing new source is never overwritten by a leftover earlier one.
  await writeFile(join(dir,'brief.md'),'# Leftover');
- await f.run('deliverable','path','--id','1','--format','markdown');
+ await f.run('canvas','path','--id','1','--format','markdown');
  assert.equal(await readFile(path,'utf8'),'# Earlier source');
- await assert.rejects(f.invoke('brief','path','--id','1'),/renamed to goal deliverable/);
+ await assert.rejects(f.invoke('brief','path','--id','1'),/renamed to goal canvas/);
+});
+test('the Deliverable spellings still work after the Canvas rename',async t=>{
+ const f=await fixture(t);const goal=await f.run('create','--title','Renamed');
+ assert.match(goal.canvasPath,/deliverable\.html$/,'the stored file keeps its name');
+ const {path}=await f.run('deliverable','path','--id','1');assert.equal(path,goal.canvasPath);
+ await writeFile(path,'<h1>Old command</h1>'+'x'.repeat(7000));
+ assert.equal((await f.run('deliverable','update','--id','1')).version,1);
+ const text=(await f.invoke('show','--id','1','--format','text','--section','deliverable','--deliverable-offset','6000')).stdout;
+ assert.match(text,/^Canvas · v1/m);assert.doesNotMatch(text,/Old command/);
+ assert.match((await f.invoke('help','deliverable','update')).stdout,/chill goal canvas update/);
 });
 
 test('an agent Comment or Letter posted by mistake can be deleted; user comments cannot',async t=>{

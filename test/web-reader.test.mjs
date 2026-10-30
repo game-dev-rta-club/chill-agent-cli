@@ -13,7 +13,7 @@ async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chill-web-')),env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'0'};
  const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
  await run('create','--title','Goal');const body=join(root,'workspace/goals/1/deliverable.md');
- let count=0;const note=async()=>{await writeFile(body,`本文と注釈 ${++count}`);return run('deliverable','update','--id','1');};
+ let count=0;const note=async()=>{await writeFile(body,`本文と注釈 ${++count}`);return run('canvas','update','--id','1');};
  let server,url;
  const stop=async()=>{if(server?.exitCode===null){server.kill();await once(server,'exit');}};
  const start=async()=>{server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--local'],{env,stdio:['ignore','pipe','pipe']});
@@ -90,7 +90,7 @@ test('multiple images and rectangle annotations persist, reject foreign images a
 });
 test('Markdown annotations validate rendered text and API deltas render both authors',async t=>{
  const f=await fixture(t),source='## Result\n\nA **formatted** result.';
- await writeFile(f.body,source);await f.run('deliverable','update','--id','1');
+ await writeFile(f.body,source);await f.run('canvas','update','--id','1');
  const agent=await f.run('reply','--id','1','--text','Choose **this option**.');
  const [goal]=await(await f.get('/api/goals')).json();
  assert.match(goal.briefs[0].html,/<details/);assert.match(goal.conversation[0].html,/<strong>this option/);
@@ -180,7 +180,7 @@ test('HTML message bodies survive saving and restart, with safe rendering and te
 test('HTML diagram annotations retain the exact version and reject missing or foreign images',async t=>{
  const f=await fixture(t),source=join(f.root,'workspace/goals/1/deliverable.html');
  await writeFile(source,'<style>.drawing{color:#243b3e}</style><h1>Before</h1><svg class="drawing" viewBox="0 0 100 100" onload="bad()"><text x="10" y="20">First</text><script>bad()</script></svg>');
- await f.run('deliverable','update','--id','1','--format','html');
+ await f.run('canvas','update','--id','1','--format','html');
  const page=await f.get('/api/goals/1/briefs/1/document'),doc=await page.text();assert.match(doc,/data-brief-svg="0"/);
  // A tunnel proxy must not rewrite the page (Cloudflare hides email addresses), or annotation offsets shift.
  assert.equal(page.headers.get('Cache-Control'),'no-store, no-transform');
@@ -188,7 +188,7 @@ test('HTML diagram annotations retain the exact version and reject missing or fo
  const image=await svg.text();assert.match(image,/xmlns="http:\/\/www.w3.org\/2000\/svg"/);assert.match(image,/>First</);assert.doesNotMatch(image,/onload|<script|bad\(\)/);
  const note={kind:'image',source:{kind:'brief',version:1,svgIndex:0},rect:{x:.1,y:.1,width:.5,height:.5},imageName:'First diagram',text:'Diagram note'};
  const result=await f.post({annotations:[note]});assert.equal(result.status,201);assert.deepEqual((await result.json()).feedback.annotations[0].source,note.source);
- await writeFile(source,'<h1>After</h1><svg viewBox="0 0 100 100"><text>Replacement</text></svg>');await f.run('deliverable','update','--id','1','--format','html');
+ await writeFile(source,'<h1>After</h1><svg viewBox="0 0 100 100"><text>Replacement</text></svg>');await f.run('canvas','update','--id','1','--format','html');
  assert.match(await(await f.get('/api/goals/1/briefs/1/svg/0')).text(),/>First</);
  for(const source of [{kind:'brief',version:1,svgIndex:1},{kind:'brief',version:2,svgIndex:-1},{kind:'brief',version:99,svgIndex:0},{kind:'comment',version:1,svgIndex:0}])assert.equal((await f.post({annotations:[{...note,source}]})).status,400);
  assert.equal((await f.get('/api/goals/1/briefs/1/svg/1')).status,404);

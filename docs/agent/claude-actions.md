@@ -71,7 +71,7 @@ with no owner.
 To hand part of a Root to another conversation, first make that Split Goal a Root
 of its own (`chill goal update --id 58 --input-file patch.json` with
 `{"parentId":null}`). It stays with the same conversation, keeps its Split Goals,
-Conversation and Deliverables, and starts from the Root's hand-off cursor, so a
+Conversation and Canvases, and starts from the Root's hand-off cursor, so a
 comment already handed is not handed again. The other conversation then runs
 `chill goal adopt --id 58`.
 

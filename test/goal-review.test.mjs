@@ -37,8 +37,8 @@ test('review CLI returns an index, not Deliverable or conversation bodies, with 
  const child=JSON.parse(await run('create','--title','Child','--parent',root.id));
  const leaf=JSON.parse(await run('create','--title','Leaf','--parent',child.id));
  await run('create','--title','Unrelated');
- const brief=JSON.parse(await run('deliverable','path','--id',leaf.id));
- await writeFile(brief.path,'Unique leaf Deliverable');await run('deliverable','update','--id',leaf.id);
+ const brief=JSON.parse(await run('canvas','path','--id',leaf.id));
+ await writeFile(brief.path,'Unique leaf Deliverable');await run('canvas','update','--id',leaf.id);
  await run('reply','--id',child.id,'--ask','Question title','--text','Question detail');
  const patch=join(dir,'patch.json');await writeFile(patch,JSON.stringify({state:'done'}));await run('update','--id',leaf.id,'--input-file',patch);
  const text=await run('review','--id',root.id);

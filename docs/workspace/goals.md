@@ -10,7 +10,7 @@ keyPoints: >-
 
 A Goal has a title, agreed scope and success criteria. Split it when there are
 separate outcomes to review. Keep refinements of the same outcome in its
-[Deliverable](deliverables-and-conversation.md).
+[Canvas](deliverables-and-conversation.md).
 
 ```sh
 chill goal create --title "Improve onboarding" --scope "First-run setup" --criteria "A new user can finish setup"
@@ -47,12 +47,12 @@ A Root that moves drops what it kept as a Root: its conversation or chat, its
 Autonomy, notification choice and look. If it becomes a Root again
 (`{"parentId":null}`), it stays with the agent it moved to and starts from the
 defaults. Restore an archived Root before moving it. IDs, Conversation and
-Deliverables stay. The Web has no move control; ask the agent.
+Canvases stay. The Web has no move control; ask the agent.
 
 Progress counts leaf Goals equally. Two Done leaves out of three contribute 67%,
 regardless of how deeply they are nested. An unfinished Goal is capped at 99%:
 all leaves being complete still leaves the parent's own completion to confirm.
-Publishing a Deliverable, posting a Comment or acknowledging feedback adds no progress.
+Publishing a Canvas, posting a Comment or acknowledging feedback adds no progress.
 
 Running and Paused are observed activity, not additional stored work states.
 A Done Goal can temporarily display Running without losing its completion.
@@ -99,7 +99,7 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
   its unfinished Goals in, without the Goals other live conversations work on,
   which it names as taken. A Claude conversation gets it at its Stop hook; the
   Web server checks a Codex chat every 30 seconds. One check per revision: a user
-  comment, a Goal or Deliverable change, or a level change.
+  comment, a Goal or Canvas change, or a level change.
 - **Tool prompts.** Allowed when the conversation owns at least one Root and every
   Root it owns is at Auto Continue or Ultra Continue; owning none, the prompt asks
   as usual. Questions for the user (AskUserQuestion) are never answered, and a
@@ -134,7 +134,7 @@ Playwright, like the other `test/*-web.mjs` scripts).
 
 Use `chill goal update --id <root> --input-file archive.json` with
 `{"archived":true}` to remove an unused root and its descendants from normal
-lists and continuation discovery. This preserves their IDs, Deliverables and
+lists and continuation discovery. This preserves their IDs, Canvases and
 Conversation; it does not mark unfinished work Done. Restore the same ID with
 `{"archived":false}`. Archive only whole roots, so hiding a SubGoal cannot make
 an incomplete parent appear finished. Archiving is not a command to interrupt

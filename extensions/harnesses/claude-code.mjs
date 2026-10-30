@@ -21,7 +21,7 @@ export default {
    'Review native Hooks when required. If agent show reports no connection, run agent join; resuming is not needed. Do not clear, fork, fabricate identity variables or launch a second writer.',
    'Before ending a response that waits for something outside chill (CI, a build), schedule a check with agent wake --in <minutes> --reason <text>; finished CI wakes nobody, and the watcher wakes this conversation at that time.',
    'There is no deferred Queue state. Keep independent input in the current work plan; select the Goal being worked on with goal work. Saved Web feedback reaches the conversation through its hooks: during work at the next tool call, and when idle through the watcher hook.',
-   'Children, Deliverables, replies and ordinary reads use the shared goal commands.',
+   'Children, Canvases, replies and ordinary reads use the shared goal commands.',
    'A Web comment that starts with /name asks you to use that skill. If it is not loaded by name, read its SKILL.md in .claude/skills, .agents/skills or .codex/skills of the project or home folder.',
    'Other conversations may work in the same project at the same time, often in other Git worktrees; each owns its own Root. Work only on Goals under your own Root and change only your own working folder. Read other Roots only when the user asks.'
   ],
