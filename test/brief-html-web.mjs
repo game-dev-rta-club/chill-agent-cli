@@ -59,7 +59,9 @@ try {
  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
  await frame.locator('.annotation-action').waitFor({state:'visible',timeout:2000});
  const actionBox=await frame.locator('.annotation-action').boundingBox();
- await page.mouse.click(actionBox.x+actionBox.width/2,actionBox.y+actionBox.height/2);await page.locator('.annotation-form textarea').fill('HTMLでも注釈');await page.locator('.annotation-form').getByRole('button',{name:'Save',exact:true}).click();
+ // In the Deliverable too, hovering names the key and E opens the annotation.
+ await page.mouse.move(actionBox.x+actionBox.width/2,actionBox.y+actionBox.height/2);await frame.locator('.annotation-key-hint').waitFor({state:'visible',timeout:2000});
+ await page.keyboard.press('e');await page.locator('.annotation-form textarea').fill('HTMLでも注釈');await page.locator('.annotation-form').getByRole('button',{name:'Save',exact:true}).click();
  assert.equal(await frame.locator('.annotation-mark').innerText(),quote);
  const sent=page.waitForResponse(r=>r.url().endsWith('/feedback')&&r.request().method()==='POST');await page.locator('.conversation-form').getByRole('button',{name:'Comment',exact:true}).click();const response=await sent;assert.equal(response.status(),201);
  const event=(await response.json()).feedback;assert.equal(event.annotations[0].anchor.start,canonical.indexOf(quote));
