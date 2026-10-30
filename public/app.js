@@ -36,6 +36,7 @@ const icons = {
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   comment: '<path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z"/>',
   letter: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>',
+  check: '<path d="m5 12 5 5 9-10"/>',
   pending: '<circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/>',
   send: '<path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="m9 11-4 4 4 4"/>',
   annotate: '<path d="M4 20h16M5 16l11-11 3 3L8 19H5v-3Z"/>',
@@ -404,6 +405,12 @@ function replyMarkup(event) {
   return `<div class="event-text markdown-body" ${source}>${briefBody(event.html || '', {hasGoal, replyId:event.id, opened:openReplies})}</div>`;
 }
 
+// An open Letter offers Done; a closed one says who closed it.
+function letterMetaMarkup(event,letter){
+  if(letter.status==='open')return `<button type="button" class="letter-done-button" data-action="letter-done" data-goal-id="${escapeHTML(event.goalId)}" data-event-id="${event.id}" title="Mark this Letter done without replying">${icon('check')}Done</button>`;
+  if(letter.status==='received'&&event.receivedBy==='user')return `<span class="answered-label">${icon('check')}Done</span>`;
+  return ['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:'';
+}
 function timelineMarkup(id) {
   const visible = conversationFor(id);
   const pinned = conversationPins(id, visible);
@@ -430,7 +437,7 @@ function timelineMarkup(id) {
     const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
     const item = `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
-      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}${eventNumberMarkup(event)}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}${eventNumberMarkup(event)}</header>`}
+      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${letterMetaMarkup(event,letter)}${time}${eventNumberMarkup(event)}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}${eventNumberMarkup(event)}</header>`}
       ${event.text?replyMarkup(event):''}
       ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<img class="event-image" src="${src}" alt="Attached image">`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
     if (waiting) { waitingMarkup += item; return ''; }
@@ -1592,6 +1599,17 @@ main.addEventListener('submit', async event => {
     submitting.delete(key);
     if (activeGoalId === id) {updateComposerState();updateTimeline(id);renderAnnotations();}
   }
+});
+
+main.addEventListener('click', async event => {
+  const button = event.target.closest('[data-action="letter-done"]');
+  if (!button) return;
+  button.disabled = true;
+  try {
+    const response = await fetch(`/api/goals/${button.dataset.goalId}/letters/${button.dataset.eventId}/done`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not mark the Letter done.');
+  } catch (error) { announcement.textContent = error.message; button.disabled = false; }
 });
 
 main.addEventListener('click', async event => {

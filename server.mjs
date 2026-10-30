@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, closeLetter, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import { setRootAutonomy, goalsWithRootAutonomy } from './lib/root-autonomy.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
@@ -350,6 +350,13 @@ const server = createServer(async (request, response) => {
   if(readPath&&request.method==='POST'){
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
     try{return sendJson(response,200,await markRead(readPath[1],(await readJson(request)).through));}
+    catch(error){return sendJson(response,400,{error:error.message});}
+  }
+  // The user marks a Letter Done when its question no longer needs an answer.
+  const letterDonePath=/^\/api\/goals\/([1-9][0-9]*)\/letters\/([1-9][0-9]*)\/done$/.exec(path);
+  if(letterDonePath&&request.method==='POST'){
+    if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    try{return sendJson(response,200,await closeLetter(letterDonePath[1],Number(letterDonePath[2]),'','user'));}
     catch(error){return sendJson(response,400,{error:error.message});}
   }
   const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
