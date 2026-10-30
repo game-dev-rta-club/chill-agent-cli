@@ -11,6 +11,7 @@ import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
 import {runClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessionStartContext} from '../lib/claude-actions.mjs';
 import {holdClaudeConversation,holdResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
+import {logWatcher,watcherLogPath} from '../lib/claude-watch-log.mjs';
 import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
 import {deliverFeedback} from '../lib/delivery.mjs';
 import {readJson,replaceRetryMs,writeJsonAtomically} from '../lib/storage.mjs';
@@ -143,6 +144,23 @@ test('the claude-watch hook exits 2 with the feedback, which Claude Code shows t
  await f.waiting();await appendFeedback({goalId:f.root.id,text:'from the Web'});
  const code=await new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});
  assert.equal(code,2);assert.equal(stdout,'');assert.match(stderr,/from the Web[\s\S]*goal reply --id/);
+ // Each start and end is logged, so a watcher that stopped can be explained later.
+ const log=(await readFile(watcherLogPath(),'utf8')).trim().split('\n').map(line=>JSON.parse(line)).filter(e=>e.pid===p.pid);
+ assert.deepEqual(log.map(e=>[e.event,e.status,e.hook,e.sessionId]),[['start',undefined,'Stop',f.event('Stop').session_id],['end','feedback','Stop',f.event('Stop').session_id]]);
+ assert.equal(typeof log[1].ms,'number');
+});
+
+test('the watcher log names a stop signal and keeps its newer half past the limit',async t=>{
+ const f=await fixture(t);await f.stop();const entry=fileURLToPath(new URL('../bin/chill-conversation.mjs',import.meta.url));
+ const p=spawn(process.execPath,[entry,'hook','claude-watch'],{cwd:f.cwd,env:process.env,stdio:['pipe','pipe','pipe']});
+ p.stdin.end(JSON.stringify(f.event('Stop')));
+ await f.waiting();const exited=new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});p.kill('SIGTERM');await exited;
+ const end=(await readFile(watcherLogPath(),'utf8')).trim().split('\n').map(line=>JSON.parse(line)).find(e=>e.pid===p.pid&&e.event==='end');
+ assert.deepEqual([end.status,end.signal],['stopped','SIGTERM']);
+ for(let i=0;i<40;i++)await logWatcher({event:'start',n:i},{maxBytes:1000});
+ const kept=(await readFile(watcherLogPath(),'utf8')).trim().split('\n').map(line=>JSON.parse(line));
+ assert.ok(Buffer.byteLength(kept.map(e=>JSON.stringify(e)).join('\n'))<=1100,'the log stays near its limit');
+ assert.equal(kept.at(-1).n,39,'the newest line stays');
 });
 
 test('reply posts on the Goal on the Web and answers it',async t=>{
