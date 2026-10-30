@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWebNotifications,validateSubscription} from '../lib/web-notifications.mjs';
+import {createWebNotifications,validateSubscription,pushPayload,pushLimit} from '../lib/web-notifications.mjs';
+import {randomUUID} from 'node:crypto';
 const device='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
 const subscription={endpoint:'https://fcm.googleapis.com/fcm/send/test',keys:{auth:Buffer.alloc(16).toString('base64url'),p256dh:Buffer.concat([Buffer.from([4]),Buffer.alloc(64)]).toString('base64url')}};
 function fixture(seed=null){let saved=seed,queue=Promise.resolve(),time=100000,mode='ok',origin=null,busy=false,settle=0,readMark=0;const sends=[],events=[{id:1,goalId:'2',author:'agent',type:'letter',title:'Choose',text:'A decision'}];
@@ -52,7 +53,7 @@ test('Letters and Replies are separate switches; both On by default, both Off tu
  assert.deepEqual(await f.api.read('2',device).then(r=>[r.enabled,r.letters,r.replies]),[false,false,false]);
  await f.on();assert.deepEqual(await f.api.read('2',device).then(r=>[r.letters,r.replies]),[true,true]);assert.deepEqual((await f.api.settings('2')).on,['comment','letter']);
  f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'Here is the result'});
- assert.equal((await f.api.prepare('2',2)).handled,true);assert.equal(f.sends.length,1);assert.equal(f.sends[0].title,'An outcome');assert.match(f.sends[0].url,/#\/goal\/2\/letter\/2$/);assert.equal(f.sends[0].rootId,'1');assert.deepEqual(f.sends[0].goalIds,['1','2']);
+ assert.equal((await f.api.prepare('2',2)).handled,true);assert.equal(f.sends.length,1);assert.equal(f.sends[0].title,'An outcome');assert.match(f.sends[0].url,/#\/goal\/2\/letter\/2$/);assert.equal(f.sends[0].rootId,'1');assert.deepEqual(f.sends[0].goalIds,[1,2]);
  await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:true,replies:false});
  assert.deepEqual((await f.api.settings('2')).on,['letter']);
  f.events.push({id:3,goalId:'2',author:'agent',type:'comment',text:'Progress'});assert.equal((await f.api.prepare('2',3)).handled,false);
@@ -178,4 +179,13 @@ test('local notification permission is scoped to the automatic project port',asy
  const f=fixture(),port=workspacePort(),input={goalId:'2',rootId:'1',enabled:true,deviceId:device,subscription};
  await f.api.configure({...input,origin:`http://127.0.0.1:${port}`});
  await assert.rejects(f.api.configure({...input,origin:`http://127.0.0.1:${port===43199?43200:43199}`}),/Use HTTPS or the local workspace/);
+});
+
+test('a push names the Goals of its Root within the size a push service accepts',()=>{
+ const job={id:randomUUID(),receipt:randomUUID(),title:'題'.repeat(300),message:'本文'.repeat(175),url:'https://phone.test/#/goal/2/letter/9',rootId:'1'};
+ const small=JSON.parse(pushPayload(job,['1','2','3']));
+ assert.deepEqual(small.goalIds,[1,2,3]);assert.equal(Array.from(small.title).length,120);
+ const many=Array.from({length:2000},(_,i)=>String(i+1)),payload=pushPayload(job,many);
+ assert.ok(Buffer.byteLength(payload)<=pushLimit);
+ const ids=JSON.parse(payload).goalIds;assert.ok(ids.length>200,'about 200 Goals always fit');assert.deepEqual(ids,ids.map((_,i)=>i+1),'nearest the Root first');
 });
