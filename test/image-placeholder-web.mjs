@@ -9,12 +9,13 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=await mkdtemp(join(tmpdir(),'chill-image-web-')),env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'0'};
 const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
 const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
-// A plain 400x300 PNG, so the browser can draw it once it arrives.
+// A 400x300 PNG, so the browser can draw it once it arrives.
 function png(width,height) {
   const chunk=(type,data)=>{const head=Buffer.alloc(8),tail=Buffer.alloc(4);head.writeUInt32BE(data.length);head.write(type,4,'latin1');tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4),data])));return Buffer.concat([head,data,tail]);};
   const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(width);ihdr.writeUInt32BE(height,4);ihdr.set([8,2,0,0,0],8);
-  const row=Buffer.concat([Buffer.from([0]),Buffer.alloc(width*3,0x9a)]);
-  return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',ihdr),chunk('IDAT',deflateSync(Buffer.concat(Array(height).fill(row)))),chunk('IEND',Buffer.alloc(0))]);
+  // Orange at the top fading to blue, so the placeholder's colours can be told apart.
+  const rows=Array.from({length:height},(_,y)=>{const t=y/height,pixel=[Math.round(240-200*t),Math.round(140-40*t),Math.round(40+200*t)];return Buffer.from([0,...Array(width).fill(pixel).flat()]);});
+  return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',ihdr),chunk('IDAT',deflateSync(Buffer.concat(rows))),chunk('IEND',Buffer.alloc(0))]);
 }
 await run('create','--title','Slow images');
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
@@ -47,6 +48,29 @@ try {
  await page.locator('.timeline-entry img[data-image-placeholder]').waitFor({state:'detached'});
  assert.ok(await fits());
  const loaded=await frame.locator('img').boundingBox();assert.ok(Math.abs(loaded.height-box.height)<1,'the Canvas image does not move when it arrives');
+ // The first browser to show the image saves its colours; the next view uses them.
+ const saved=async()=>(await(await fetch(`${url}/api/image-sizes?ids=${id}`)).json()).sizes[id].thumbhash;
+ for(let i=0;i<100&&!(await saved());i++)await new Promise(r=>setTimeout(r,50));
+ assert.ok(await saved(),'the ThumbHash is saved');
+ let releaseAgain;const heldAgain=new Promise(resolve=>{releaseAgain=resolve;});
+ await page.unroute('**/api/images/*');await page.route('**/api/images/*',async route=>{await heldAgain;await route.continue();});
+ // A new page, so the browser does not reuse the image it already has.
+ const next=await browser.newPage({viewport:{width:1056,height:1000}});next.on('pageerror',e=>errors.push(e.message));
+ await next.route('**/api/images/*',async route=>{await heldAgain;await route.continue();});
+ await next.goto(url+'/#/goal/1');
+ const coloured=next.frameLocator('.html-brief-frame').locator('img[data-thumbhash][style*="data:image/png"]');await coloured.waitFor({state:'attached'});
+ await next.locator('.timeline-entry img[data-thumbhash][style*="data:image/png"]').waitFor({state:'attached'});
+ await next.screenshot({path:'/tmp/chill-image-thumbhash.png'});
+ releaseAgain();
+ await next.frameLocator('.html-brief-frame').locator('img[data-image-placeholder]').waitFor({state:'detached'});
+ assert.equal(await next.frameLocator('.html-brief-frame').locator('img').getAttribute('style'),'','the placeholder colours are removed once the image arrives');
+ // On a fast connection an image is often loaded before the Web looks at it; its colours are saved too.
+ const second=(await(await fetch(url+'/api/images',{method:'POST',headers:{Origin:url,'Content-Type':'image/png'},body:png(300,200)})).json()).id;
+ await run('reply','--id','1','--text',`Another ![Fast](/api/images/${second})`);
+ await next.reload();
+ const savedSecond=async()=>(await(await fetch(`${url}/api/image-sizes?ids=${second}`)).json()).sizes[second].thumbhash;
+ for(let i=0;i<100&&!(await savedSecond());i++)await new Promise(r=>setTimeout(r,50));
+ assert.ok(await savedSecond(),'an image loaded at once also gets its ThumbHash');
  assert.deepEqual(errors,[]);
  console.log('image placeholder web checks passed');
 } finally {

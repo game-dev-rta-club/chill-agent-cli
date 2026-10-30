@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, imageSizes, closeLetter, reopenLetter, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, imageSizes, saveImageThumbHash, closeLetter, reopenLetter, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import { setRootAutonomy, goalsWithRootAutonomy } from './lib/root-autonomy.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
@@ -413,6 +413,11 @@ const server = createServer(async (request, response) => {
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
     }
+  }
+  if (path === '/api/image-thumbhashes' && request.method === 'POST') {
+    if (!allowedOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) return sendJson(response, 403, { error: 'Only same-origin JSON requests are accepted.' });
+    try { const { id, thumbhash } = await readJson(request); return sendJson(response, 200, await saveImageThumbHash(id, thumbhash)); }
+    catch (error) { return sendJson(response, 400, { error: error.message }); }
   }
   if (feedbackPath && request.method === 'POST') {
     if (!allowedOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) {

@@ -39,7 +39,8 @@
   },
   "devDependencies": {
     "esbuild": "0.28.2",
-    "mermaid": "11.17.2"
+    "mermaid": "11.17.2",
+    "thumbhash": "0.1.1"
   },
   "license": "MIT",
   "repository": {
