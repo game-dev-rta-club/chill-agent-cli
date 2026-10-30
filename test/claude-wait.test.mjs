@@ -156,7 +156,8 @@ test('the watcher log names a stop signal and keeps its newer half past the limi
  p.stdin.end(JSON.stringify(f.event('Stop')));
  await f.waiting();const exited=new Promise((resolve,reject)=>{p.on('error',reject);p.on('exit',resolve);});p.kill('SIGTERM');await exited;
  const end=(await readFile(watcherLogPath(),'utf8')).trim().split('\n').map(line=>JSON.parse(line)).find(e=>e.pid===p.pid&&e.event==='end');
- assert.deepEqual([end.status,end.signal],['stopped','SIGTERM']);
+ // Windows ends a killed process at once, without a signal it could log: a start with no end.
+ if(process.platform==='win32')assert.equal(end,undefined);else assert.deepEqual([end.status,end.signal],['stopped','SIGTERM']);
  for(let i=0;i<40;i++)await logWatcher({event:'start',n:i},{maxBytes:1000});
  const kept=(await readFile(watcherLogPath(),'utf8')).trim().split('\n').map(line=>JSON.parse(line));
  assert.ok(Buffer.byteLength(kept.map(e=>JSON.stringify(e)).join('\n'))<=1100,'the log stays near its limit');

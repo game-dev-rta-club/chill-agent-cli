@@ -71,7 +71,7 @@ session, process ID, the hook that started it and, at the end, its status
 (`feedback`, `wake`, `not-owner`, `stopped`, `detached`, `replaced`, `gone`,
 `stalled`, `idle`, `already-running` or `error` with the error), the signal
 that stopped it, and how long it ran. A start with no end means the process was
-killed before it could write one. The log keeps its newer half once it passes
+killed before it could write one (on Windows, any stop of the process). The log keeps its newer half once it passes
 256 KB.
 
 ## Claude Desktop
