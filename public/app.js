@@ -1609,7 +1609,9 @@ main.addEventListener('click', async event => {
     const response = await fetch(`/api/goals/${button.dataset.goalId}/letters/${button.dataset.eventId}/done`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Could not mark the Letter done.');
-    await refreshGoals();
+    // Show it at once; the next poll brings the same record.
+    const {status, changed, ...letter} = result, shown = events.find(e => e.id === letter.id);
+    if (addEvent({...(shown?.number ? {number: shown.number} : {}), ...letter}) && activeGoalId) {updateTimeline(activeGoalId); renderAnnotations(); void refreshLetterCount();}
   } catch (error) { announcement.textContent = error.message; button.disabled = false; }
 });
 
