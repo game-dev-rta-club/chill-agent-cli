@@ -45,6 +45,10 @@ still publishes and adds a one-line `hint` toward a visual-first page.
 Upload images with `goal image` and use the returned `/api/images/<id>` reference.
 Other files, such as a video, upload the same way; they keep their file name, so
 a download from Web has the same extension.
+The Web reads each image's size from its file and reserves its box with a
+placeholder until the image arrives, so a slow image does not hold up the text
+around it. A saved file never changes, so the browser keeps it instead of
+downloading it again.
 Text annotations retain their source version; image notes retain their attachment
 and location. Read the relevant version when responding to older feedback.
 HTML images have an annotation button. Inline SVG diagrams use the same area

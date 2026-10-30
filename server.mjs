@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, closeLetter, reopenLetter, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, imageSizes, closeLetter, reopenLetter, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import { setRootAutonomy, goalsWithRootAutonomy } from './lib/root-autonomy.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
@@ -383,7 +383,8 @@ const server = createServer(async (request, response) => {
       if(!brief||brief.format!=='html')return sendJson(response,404,{error:'HTML Canvas not found.'});
       response.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'; sandbox allow-same-origin");
       response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-      return response.end(briefDocument(brief.body));
+      const ids=[...brief.body.matchAll(/\/api\/images\/([0-9a-f-]{36})/g)].map(match=>match[1]);
+      return response.end(briefDocument(brief.body,await imageSizes(ids)));
     } catch {return sendJson(response,500,{error:'Could not load HTML Canvas.'});}
   }
   const feedbackPath = /^\/api\/goals\/([1-9][0-9]*)\/feedback$/.exec(path);
@@ -438,10 +439,18 @@ const server = createServer(async (request, response) => {
     if (!file) return sendJson(response, 404, { error: 'Attachment not found.' });
     return sendJson(response, 200, { id: file.id, mimeType: file.mimeType, name: file.name ?? null, image: !file.name });
   }
+  if (path === '/api/image-sizes') {
+    const ids = (new URL(request.url, 'http://localhost').searchParams.get('ids') || '').split(',').filter(id => /^[0-9a-f-]{36}$/.test(id)).slice(0, 200);
+    return sendJson(response, 200, { sizes: await imageSizes(ids) });
+  }
   const imagePath = /^\/api\/images\/([0-9a-f-]{36})$/.exec(path);
   if (imagePath) {
     const image = await attachmentInfo(imagePath[1]);
     if (!image) return sendJson(response, 404, { error: 'Attachment not found.' });
+    // A saved file never changes, so the browser keeps it instead of fetching it again.
+    response.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    response.setHeader('ETag', `"${image.id}"`);
+    if (request.headers['if-none-match'] === `"${image.id}"`) { response.writeHead(304); return response.end(); }
     const data = await readFile(image.path);
     // Images and PDFs open in the browser. Other files download, so an
     // attached HTML or script never runs inside the Web's origin.

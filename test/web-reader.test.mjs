@@ -80,6 +80,9 @@ test('multiple images and rectangle annotations persist, reject foreign images a
  assert.equal((await upload('not png')).status,400);
  assert.deepEqual(Buffer.from(await(await f.get('/api/images/'+ids[0])).arrayBuffer()),png);
  assert.equal((await f.get('/api/images/not-id')).status,404);
+ const served=await f.get('/api/images/'+ids[0]);assert.equal(served.headers.get('cache-control'),'private, max-age=31536000, immutable');
+ assert.equal((await fetch(f.url()+'/api/images/'+ids[0],{headers:{'If-None-Match':served.headers.get('etag')}})).status,304);
+ assert.deepEqual((await(await f.get(`/api/image-sizes?ids=${ids[0]},not-id`)).json()).sizes,{[ids[0]]:{width:1,height:1}});
  assert.equal((await f.post({attachmentIds:ids.slice(0,2)})).status,201);
  const rect={x:.1,y:.2,width:.3,height:.4}, image={kind:'image',imageId:ids[0],rect,text:'画像のメモ',imageName:'添付'};
  const text={kind:'text',source:{kind:'brief',version:1},anchor:{start:0,end:2,quote:'本文'},text:'',attachmentIds:[ids[1]]};

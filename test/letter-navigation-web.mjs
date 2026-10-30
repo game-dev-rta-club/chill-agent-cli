@@ -26,6 +26,8 @@ try {
  server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});
  browser=await chromium.launch({headless:true});const page=await browser.newPage(),errors=[];page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));
+ // The page's CSP blocks waitForFunction's eval, so poll with evaluate instead.
+ const waitUntil=async(check,arg,{timeout=10000}={})=>{const end=Date.now()+timeout;while(!(await page.evaluate(check,arg))){if(Date.now()>end)throw new Error('Timed out waiting for the page');await page.waitForTimeout(50);}};
  // Force the Letter route to render before the HTML document finishes loading.
  let briefGate=null;
  await page.route('**/briefs/2/document',async route=>{if(briefGate)await briefGate;await new Promise(resolve=>setTimeout(resolve,350));await route.continue();});
@@ -38,7 +40,7 @@ try {
  });
  const checkShell=async()=>assert.deepEqual(await page.evaluate(()=>({windowY:window.scrollY,headerTop:document.querySelector('.app-header').getBoundingClientRect().top,paneBottom:document.querySelector('main').getBoundingClientRect().bottom,viewport:innerHeight})),{windowY:0,headerTop:0,paneBottom:await page.evaluate(()=>innerHeight),viewport:await page.evaluate(()=>innerHeight)});
  const checkLetter=async()=>{
-  try{await page.waitForFunction(id=>{const target=document.querySelector(`#event-${id}`),pane=document.querySelector('main').getBoundingClientRect(),rect=target?.getBoundingClientRect();return rect&&rect.top>=pane.top&&rect.bottom<=pane.bottom;},letter.id);}catch(error){console.log(await page.evaluate(id=>({hash:location.hash,scroll:document.querySelector('main').scrollTop,windowY:scrollY,frame:document.querySelector('iframe')?.getBoundingClientRect().toJSON(),pane:document.querySelector('main').getBoundingClientRect().toJSON(),letter:document.querySelector(`#event-${id}`)?.getBoundingClientRect().toJSON()}),letter.id));await page.screenshot({path:'/tmp/chill-letter-failure.png'});throw error;}
+  try{await waitUntil(id=>{const target=document.querySelector(`#event-${id}`),pane=document.querySelector('main').getBoundingClientRect(),rect=target?.getBoundingClientRect();return rect&&rect.top>=pane.top&&rect.bottom<=pane.bottom;},letter.id);}catch(error){console.log(await page.evaluate(id=>({hash:location.hash,scroll:document.querySelector('main').scrollTop,windowY:scrollY,frame:document.querySelector('iframe')?.getBoundingClientRect().toJSON(),pane:document.querySelector('main').getBoundingClientRect().toJSON(),letter:document.querySelector(`#event-${id}`)?.getBoundingClientRect().toJSON()}),letter.id));await page.screenshot({path:'/tmp/chill-letter-failure.png'});throw error;}
   await checkShell();
  };
  const checkEdges=async()=>{
@@ -48,13 +50,13 @@ try {
  };
  // Opening a plain Goal must stay at the top through asynchronous layout.
  await page.goto(`${url}/#/goal/1`);
- await page.waitForFunction(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);
+ await waitUntil(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);
  await page.waitForTimeout(800);
  assert.equal(await page.locator('main').evaluate(el=>el.scrollTop),0,'plain Goal starts at the top');
  for(const viewport of [{width:1400,height:960},{width:390,height:844}]){
   await page.setViewportSize(viewport);
   await page.goto('about:blank');
-  await page.goto(`${url}/#/goal/1/letter/${letter.id}`);await page.waitForFunction(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);await checkLetter();await checkEdges();
+  await page.goto(`${url}/#/goal/1/letter/${letter.id}`);await waitUntil(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);await checkLetter();await checkEdges();
   // Same-Goal navigation retains the asynchronous HTML frame.
   await page.goto(`${url}/#/goal/1`);await page.locator('.html-brief-frame').waitFor();
   await page.locator('.conversation-form textarea').fill('Keep this draft');
@@ -62,7 +64,7 @@ try {
   await page.locator('[data-letter-link]').click();
   assert.equal(await page.evaluate(()=>window.savedBriefFrame===document.querySelector('.html-brief-frame')),true,'same Goal retains its Deliverable');
   assert.equal(await page.locator('.conversation-form textarea').inputValue(),'Keep this draft');
-  await page.waitForFunction(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);await checkLetter();await checkEdges();
+  await waitUntil(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);await checkLetter();await checkEdges();
   await page.locator('main').evaluate(el=>el.scrollTop=0);
   await page.locator('[data-letter-link]').click();await checkLetter();
 
@@ -86,7 +88,7 @@ try {
  await page.evaluate(()=>location.hash='#/goal/1');await page.waitForTimeout(800);
  assert.equal(await page.locator('main').evaluate(el=>el.scrollTop),0);
  await page.locator('main').evaluate(el=>el.scrollTop=el.scrollHeight);await page.reload();
- await page.waitForFunction(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);await page.waitForTimeout(800);
+ await waitUntil(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);await page.waitForTimeout(800);
  assert.equal(await page.locator('main').evaluate(el=>el.scrollTop),0,'reload starts at top');
  // A reader's wheel input cancels a pending Letter jump while layout is loading.
  await page.goto('about:blank');
@@ -94,7 +96,7 @@ try {
  await page.goto(`${url}/#/goal/1/letter/${letter.id}`,{waitUntil:'domcontentloaded'});await page.locator('.html-brief-frame').waitFor();
  await page.locator('main').evaluate(el=>el.dispatchEvent(new WheelEvent('wheel',{deltaY:100,bubbles:true})));
  releaseBrief();briefGate=null;
- await page.waitForFunction(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);await page.waitForTimeout(800);
+ await waitUntil(()=>document.querySelector('.html-brief-frame')?.clientHeight>2000);await page.waitForTimeout(800);
  assert.equal(await page.locator('main').evaluate(el=>el.scrollTop),0,'reader intent cancels the delayed Letter jump');
  // A stale frame must not scroll a different route when its late load completes.
  await page.goto(`${url}/#/goal/1/letter/${letter.id}`);await page.locator('.html-brief-frame').waitFor();
