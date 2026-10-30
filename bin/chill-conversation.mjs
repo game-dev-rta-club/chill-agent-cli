@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {listGoals,workspaceDirectory} from '../lib/goal-store.mjs';
 import {parseOptions, showHelp} from '../lib/cli-help.mjs';
 import {holdClaudeConversation,holdResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
+import {logWatcher} from '../lib/claude-watch-log.mjs';
 import {claudeRmGuard} from '../lib/claude-rm-guard.mjs';
 import {claudePauseGuard} from '../lib/claude-pause.mjs';
 import {claudePermissionDecision} from '../lib/claude-permissions.mjs';
@@ -86,11 +87,17 @@ async function claudeHook(action) {
   if(action==='claude-watch') {
     // An asyncRewake hook: exit 2 makes Claude Code wake the model with stderr.
     if(input?.agent_id!=null||!['SessionStart','Stop'].includes(input?.hook_event_name)||typeof input.session_id!=='string')return;
-    const controller=new AbortController();
-    for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>controller.abort());
+    const controller=new AbortController(),startedAt=Date.now(),seen={sessionId:input.session_id,pid:process.pid,hook:input.hook_event_name};
+    let signal='';
+    for(const name of ['SIGTERM','SIGINT','SIGHUP'])process.once(name,()=>{signal=name;controller.abort();});
+    await logWatcher({...seen,event:'start'});
     // Claude Code is the parent; when it exits this process is reparented.
     const parent=process.ppid;
-    const result=await watchClaudeConversation({sessionId:input.session_id,signal:controller.signal,attached:()=>process.ppid===parent}),text=watcherWakeText(result);
+    let result;
+    try { result=await watchClaudeConversation({sessionId:input.session_id,signal:controller.signal,attached:()=>process.ppid===parent}); }
+    catch(error) { await logWatcher({...seen,event:'end',status:'error',error:String(error?.stack||error).slice(0,2000),ms:Date.now()-startedAt});throw error; }
+    await logWatcher({...seen,event:'end',status:result.status,...(signal?{signal}:{}),ms:Date.now()-startedAt});
+    const text=watcherWakeText(result);
     if(result.status==='stalled'){process.stderr.write(`${text}\n`,()=>process.exit(2));return;}
     if(text){process.stderr.write(`${text}\n`);process.exitCode=2;}
     return;
