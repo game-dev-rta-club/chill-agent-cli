@@ -1609,6 +1609,7 @@ main.addEventListener('click', async event => {
     const response = await fetch(`/api/goals/${button.dataset.goalId}/letters/${button.dataset.eventId}/done`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Could not mark the Letter done.');
+    await refreshGoals();
   } catch (error) { announcement.textContent = error.message; button.disabled = false; }
 });
 
