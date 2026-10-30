@@ -4,24 +4,24 @@ import {createMonitorRunner,continuationMessage,readMonitor} from '../lib/contin
 import {codexTurnPlan} from '../lib/agents/codex-continuation.mjs';
 import {continuationObservation} from '../lib/agents/codex-continuation-observation.mjs';
 import {continuationEligibility} from '../lib/continuation-eligibility.mjs';
-import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
+import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createGoal,createOwnedRoot,updateGoal,updateBrief,appendFeedback,readFeedback} from '../lib/goal-store.mjs';
 import {setRootAutonomy} from '../lib/root-autonomy.mjs';
+import {goalRule} from '../lib/goal-rule.mjs';
 import {mkdir} from 'node:fs/promises';
-import {recordVersionSource} from '../lib/version-source.mjs';
 import {codexThread,contractStub} from './codex-contract.mjs';
 
 import {expectHidden} from './hidden-failures.mjs';
-// The skill lives outside the runtime; setup records its guide in the data directory.
+// A project set up by an earlier version recorded the skill's guide beside its version file.
 async function installedSkill(t){
  const dir=await mkdtemp(join(tmpdir(),'chill-guide-')),skill=join(dir,'skill'),old=process.env.CHILL_AGENT_DATA_DIR;
- await mkdir(join(skill,'references/auto-mode'),{recursive:true});
+ await mkdir(join(skill,'references/auto-mode'),{recursive:true});await mkdir(join(dir,'data','runtime'),{recursive:true});
  await writeFile(join(skill,'SKILL.md'),'# Guide\n');await writeFile(join(skill,'references/auto-mode/continue.md'),'# Continue\n');
  await writeFile(join(skill,'chill-agent.json'),JSON.stringify({package:'example'}));
  process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');
- await recordVersionSource(process.env.CHILL_AGENT_DATA_DIR,{versionFile:join(skill,'chill-agent.json'),agentGuide:join(skill,'SKILL.md')});
+ await writeFile(join(dir,'data','runtime','version-source.json'),JSON.stringify({version:1,versionFile:join(skill,'chill-agent.json'),agentGuide:join(skill,'SKILL.md')}));
  t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
 }
 const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootState:'idle',revision:'r1',progress:'p1',candidates:[{id:'2',title:'Work'}],lastUserEvent:1,paused:false,pendingFeedback:[],queue:[],stable:true,harnessState:'notLoaded',heartbeatFresh:false,turn:{id:'turn',status:'completed',completedAt:1}});
@@ -169,7 +169,6 @@ test('the request names open Letters without counters, report dumps or commands'
  const f={...idle(),context:{goals:{total:3,unfinished:2,waiting:0},latestReport:'長い過去の報告',letters:[{goalId:'27',title:'対象を選んでください'}]}};
  const text=continuationMessage(f);
  assert.match(text,/Goal #27: “対象を選んでください”/);
- assert.match(text,/write a Letter/);
  assert.match(text,/Letters awaiting the user/);
  assert.doesNotMatch(text,/Waiting for your user’s answer/);
  assert.doesNotMatch(text,/1\/2|2\/2|配送照合|<!--|長い過去の報告|回答待ち：1件|```|chill goal|monitor result/);
@@ -189,13 +188,11 @@ test('both harnesses get one light request; only a conversation that can wake it
  assert.equal(claude.replace(/^Waiting on CI.*\n/m,''),codex,'the wake line is the only difference');
 });
 
-test('the request points to the guide recorded by setup',async t=>{
+test('the request ends with the Goal rule and names no guide, even one an earlier setup recorded',async t=>{
  await installedSkill(t);
  const text=continuationMessage(idle());
- const path=JSON.parse(text.match(/^When you carry work on, (".*?") says/m)[1]);
- assert.ok(path.endsWith(join('references','auto-mode','continue.md')));
- const guide=await readFile(path,'utf8');
- assert.ok(guide.length>0);
+ assert.ok(text.endsWith(goalRule));
+ assert.doesNotMatch(text,/SKILL\.md|continue\.md|guide/);
  assert.match(text,/ask yourself once/);
 });
 

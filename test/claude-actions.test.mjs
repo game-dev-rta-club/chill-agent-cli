@@ -1,3 +1,4 @@
+import {goalRule} from '../lib/goal-rule.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,readFile,rm,writeFile} from 'node:fs/promises';
@@ -116,6 +117,10 @@ test('the goal and agent CLIs act at once and print their result; piping the out
   const execute=promisify(execFile),entry=fileURLToPath(new URL('../bin/chill-conversation.mjs',import.meta.url)),goal=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
   const {stdout,stderr}=await execute('/bin/sh',['-c','"$1" "$2" create --title "CLI outcome" | cat','probe',process.execPath,goal],{cwd:f.cwd,env:{...process.env,...s.env}});
   assert.equal(stderr,'');assert.match(JSON.parse(stdout).message,/^Created Goal #1, owned by this conversation/);assert.equal((await listGoals()).length,1);
+  // Root and child alike get the Goal rule.
+  assert.ok(JSON.parse(stdout).message.includes(goalRule));
+  const child=await execute(process.execPath,[goal,'create','--title','CLI step','--parent','1'],{cwd:f.cwd,env:{...process.env,...s.env}});
+  assert.equal(JSON.parse(child.stdout).message,goalRule);
   // Sent now, so the running work's tool hook hands it over.
   const event=await appendFeedback({goalId:'1',text:'CLI feedback'});await sendFeedbackNow(event.changeId);
   const path=join(f.dir,'hook.json');await writeFile(path,JSON.stringify(s.hook({agent_id:'child'})));

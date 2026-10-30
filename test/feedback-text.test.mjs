@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,rm,realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {goalRule} from '../lib/goal-rule.mjs';
 
-test('Claude and Codex show the same feedback text, with the recorded guide and their own commands',async t=>{
+test('Claude and Codex show the same feedback text, with the Goal rule, no guide path and their own commands',async t=>{
  const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-guide-')));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const guide=join(dir,'SKILL.md');await writeFile(guide,'# Guide');
  await mkdir(join(dir,'data','runtime'),{recursive:true});
@@ -13,7 +14,9 @@ test('Claude and Codex show the same feedback text, with the recorded guide and 
  const {claudeFeedbackText}=await import('../lib/claude-actions.mjs'),{codexFeedbackText,codexCommand}=await import('../lib/agents/codex-work.mjs'),{command}=await import('../lib/chill-command.mjs');
  const event={id:3,goalId:'1',text:'Plain'},claude=await claudeFeedbackText([event]),codex=await codexFeedbackText([event]);
  for(const text of [claude,codex]){
-  assert.match(text,new RegExp(`Workflow: ${JSON.stringify(guide).replace(/[\\\\^$.*+?()[\]{}|]/g,'\\$&')}`));
+  assert.ok(text.includes(goalRule));
+  // A guide recorded at setup is not named: agents rarely opened it.
+  assert.ok(!text.includes(guide));assert.doesNotMatch(text,/Workflow:/);
   // The agent replies itself: nothing it writes is posted for it.
   assert.match(text,/The user reads only the Web and waits for a reply on each Goal\. Reply on the Goal \(this answers it\): /);
   assert.doesNotMatch(text,/posted|final reply|current Goal|Skills named/);

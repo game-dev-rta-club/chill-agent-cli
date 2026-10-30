@@ -25,15 +25,15 @@ the spec, so it does not know or care how it was installed.
 An application relies on exactly two things:
 
 1. It runs `npx -y <package> setup prepare … --version-file <absolute chill-agent.json>`.
-   It may add `--agent-guide <absolute SKILL.md>` for its agent guide.
+   Older applications also pass `--agent-guide`; setup accepts and ignores it.
 2. The file contains only the `package` field above.
 
 Earlier skills named the file `cli.json`. A project set up with one keeps that
 path in its record; when the file is gone and `chill-agent.json` sits beside it,
 the CLI reads that instead, so reinstalling the skill needs no new setup.
 
-Setup prepares the runtime as usual and records the version file's location,
-the package each prepared snapshot came from and the agent guide. When a
+Setup prepares the runtime as usual and records the version file's location
+and the package each prepared snapshot came from. When a
 version file was given, its result names `session start` as the next command.
 Running setup again without the option, as `session start` does, keeps them.
 
