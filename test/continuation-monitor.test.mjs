@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createMonitorRunner,continuationMessage,readMonitor} from '../lib/continuation-monitor.mjs';
+import {createMonitorRunner,continuationMessage,journalFor,readMonitor,settle} from '../lib/continuation-monitor.mjs';
 import {codexTurnPlan} from '../lib/agents/codex-continuation.mjs';
 import {continuationObservation} from '../lib/agents/codex-continuation-observation.mjs';
 import {continuationEligibility} from '../lib/continuation-eligibility.mjs';
@@ -230,4 +230,23 @@ test('continuation anchors to the highest-level Goal and preserves the observed 
  assert.equal(x.state.history[0].goalId,'7');assert.equal(x.state.history[0].turnId,'auto-run');
  assert.deepEqual(x.state.history[0].work.messages,[{text:'Public update'}]);
  assert.equal(x.state.attempts[0].goalId,'8');
+});
+
+test('one journal rule for every harness: same, taken over, written before any owner, or another owner\'s',()=>{
+ const owner={agent:'codex',id:'t'},earlier={agent:'codex',id:'s'},at='2026-01-01T00:00:00.000Z';
+ const record={rootId:'1',owner:earlier,autonomy:3,revision:'r',attempts:[{id:'done',completedAt:at},{id:'open'}]};
+ assert.equal(journalFor(null,owner,'none',at),null);
+ assert.equal(journalFor(record,earlier,'same',at),record);
+ const before=journalFor({rootId:'1',autonomy:2,attempts:[]},owner,'adopted',at);
+ assert.deepEqual(before,{rootId:'1',autonomy:2,attempts:[],owner},'a record from before any owner just takes the owner');
+ const adopted=journalFor(record,owner,'adopted',at);
+ assert.deepEqual([adopted.owner,adopted.autonomy,adopted.revision,adopted.attempts,adopted.status],[owner,3,null,[],'assignment-changed']);
+ assert.deepEqual(adopted.history.map(a=>[a.id,a.phase??null]),[['done',null],['open','assignment-changed']],'the open request is closed, never resent');
+ const other=journalFor(record,owner,'other',at);
+ assert.equal('autonomy' in other,false,'another owner\'s level is not carried over');assert.equal(other.history.length,2);
+});
+test('a settled request records worked when the Web changed since it, otherwise no-work',()=>{
+ const at='2026-01-01T00:00:00.000Z',worked={progress:'p1'},idle={progress:'p1'},old={};
+ settle(worked,{progress:'p2',at});settle(idle,{progress:'p1',at});settle(old,{progress:'p2',at});
+ assert.deepEqual([worked.result.outcome,worked.phase,idle.result.outcome,old.result,old.phase],['worked','completed','no-work',undefined,'ended']);
 });
