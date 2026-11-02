@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createMonitorRunner,continuationMessage,settle} from '../lib/continuation-monitor.mjs';
+import {createMonitorRunner,continuationMessage,settle,LOST_AFTER_MS} from '../lib/continuation-monitor.mjs';
 import {readTurnCheck,seedTurnCheck} from '../lib/turn-checks.mjs';
 import {createContinuationExtension} from '../lib/continuation-extension.mjs';
 import {codexTurnPlan} from '../lib/agents/codex-continuation.mjs';
@@ -81,6 +81,14 @@ test('lost receipt is not blindly retried even when content changes',async t=>{
  expectHidden(t,'continuation-monitor.send');
  const x=fixture();x.fail();assert.equal((await x.run()).status,'uncertain');
  x.f.revision='new';assert.equal((await x.run()).status,'awaiting-run');assert.equal(x.sent.length,1);
+});
+test('a request that never reached an idle chat is closed after a while, never resent, and the next revision is checked',async t=>{
+ expectHidden(t,'continuation-monitor.send');
+ const x=fixture();x.fail();await x.run();assert.equal(x.state.attempts[0].phase,'uncertain');
+ x.advance(60000);assert.equal((await x.run()).status,'awaiting-run','not yet: it may still arrive');
+ x.advance(LOST_AFTER_MS);const state=await x.run();
+ assert.equal(state.attempts[0].phase,'lost');assert.equal(state.status,'exhausted');assert.equal(x.sent.length,1,'never resent');
+ x.f.revision='r2';await x.run();assert.equal(x.sent.length,2,'the next revision gets its check');
 });
 test('send-time recheck blocks newly queued input and changed revision',async()=>{
  for(const kind of ['queue','revision']){
