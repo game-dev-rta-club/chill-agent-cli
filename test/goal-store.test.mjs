@@ -232,15 +232,16 @@ test('legacy no-reply Letters preserve counts without exposing a separate messag
 test('editable sources from before the Deliverable rename move to their new names once',async t=>{
  const f=await fixture(t);await f.run('create','--title','Renamed');
  const dir=join(f.root,'workspace/goals/1');
- const {rm:remove}=await import('node:fs/promises');await remove(join(dir,'deliverable.md'),{force:true});
+ // A workspace from before this runtime migrated it (one-time).
+ const {rm:remove}=await import('node:fs/promises');await remove(join(dir,'deliverable.md'),{force:true});await remove(join(f.root,'workspace','migrations.json'),{force:true});
  await writeFile(join(dir,'brief.md'),'# Earlier source');
  const {path}=await f.run('canvas','path','--id','1','--format','markdown');
  assert.equal(path,join(dir,'deliverable.md'));assert.equal(await readFile(path,'utf8'),'# Earlier source');
  await assert.rejects(readFile(join(dir,'brief.md'),'utf8'));
- // An existing new source is never overwritten by a leftover earlier one.
+ // Once migrated, a leftover earlier source is never read again, nor moved over the new one.
  await writeFile(join(dir,'brief.md'),'# Leftover');
  await f.run('canvas','path','--id','1','--format','markdown');
- assert.equal(await readFile(path,'utf8'),'# Earlier source');
+ assert.equal(await readFile(path,'utf8'),'# Earlier source');assert.equal(await readFile(join(dir,'brief.md'),'utf8'),'# Leftover','left as it was');
  await assert.rejects(f.invoke('brief','path','--id','1'),/renamed to goal canvas/);
 });
 test('the Deliverable spellings still work after the Canvas rename',async t=>{

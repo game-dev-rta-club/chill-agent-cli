@@ -112,7 +112,10 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
 level of the Goal's Root agent and answers `{"goalId","rootId","autonomy"}`.
 `GET /api/goals?view=web` gives every Goal the `autonomy` of its Root's agent.
 
-Earlier workspaces move on first use, in this order:
+Earlier workspaces move on first use, in this order, once: `workspace/migrations.json`
+records each move by name when it has finished, so a migrated workspace never
+looks for these old shapes again, and one an older runtime writes later is not
+read as a level.
 
 1. AutoContinue was an On/Off switch per Root. Every Goal under a Root that had
    it On without a level of its own gets the level now named Auto Continue, and
