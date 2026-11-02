@@ -84,12 +84,14 @@ the panel; Escape or a click outside closes it without a change. If the save fai
 The level is kept as `autonomy` in the Root's continuation journal record
 (`workspace/continuation/<rootId>.json`), which names the agent it was written
 for. The checks themselves are the agent's, one record for all its Roots
-(`workspace/turn-checks/`). The same conversation keeps the level, and so does one that takes the Root
-over with `goal adopt`: the record's owner is then listed in the Root's
-`previousOwners`. A record written for an owner the Root never had starts over,
-at Normal. A level set on a Root no
-conversation works on yet is kept without an owner, and the first agent on the
-Root takes it over. Goals have no level of their own.
+(`workspace/turn-checks/`). The same conversation keeps the level. One that
+takes the Root from another conversation with `goal adopt` starts at Normal, so
+the earlier conversation's tool approval never comes along; the user sets the
+level again on the Web. A level set on a Root no conversation works on yet is
+kept without an owner, and the conversation that adopts it takes it over. Either
+way the record then names the new owner, so it passes the level on no further.
+A record written for an owner the Root never had reads as Normal. Goals have no
+level of their own.
 
 Autonomy adds nothing to the feedback text.
 Hooks read the level afresh, so a running agent meets a change at its next hook.
@@ -119,7 +121,10 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
 level of the Goal's Root agent and answers `{"goalId","rootId","autonomy"}`.
 `GET /api/goals?view=web` gives every Goal the `autonomy` of its Root's agent.
 
-Earlier workspaces move on first use, in this order:
+Earlier workspaces move on first use, in this order, once: `workspace/migrations.json`
+records each move by name when it has finished, so a migrated workspace never
+looks for these old shapes again, and one an older runtime writes later is not
+read as a level.
 
 1. AutoContinue was an On/Off switch per Root. Every Goal under a Root that had
    it On without a level of its own gets the level now named Auto Continue, and

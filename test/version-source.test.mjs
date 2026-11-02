@@ -45,9 +45,9 @@ test('a project set up when the file was cli.json reads chill-agent.json once th
  assert.equal((await readVersionSource(f.data)).versionFile,old,'with neither file, the record is unchanged and the Web keeps its version');
 });
 
-test('setup records the version file and its package, ignores the agent guide older skills pass, then names the session command',async t=>{
+test('setup records the version file and its package, then names the session command',async t=>{
  const f=await fixture(t);
- const result=await f.setup('--version-file',f.versionFile,'--agent-guide',f.guide);
+ const result=await f.setup('--version-file',f.versionFile);
  assert.equal(result.package,f.spec);
  assert.match(result.next,/session start --harness claude-code --project/);
  assert.deepEqual(await readVersionSource(f.data),{version:1,versionFile:f.versionFile});

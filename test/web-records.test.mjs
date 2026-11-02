@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const execute=promisify(execFile),store=new URL('../lib/goal-store.mjs',import.meta.url).href,web=new URL('../lib/web-records.mjs',import.meta.url).href,letters=new URL('../public/letter-state.js',import.meta.url).href;
-for(const backend of ['json','sqlite'])test(`${backend} compact Web keeps open Letters and off-page reply status without history bodies`,async t=>{
+test(`compact Web keeps open Letters and off-page reply status without history bodies`,async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-web-records-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import * as s from ${JSON.stringify(store)};
@@ -34,10 +34,10 @@ for(const backend of ['json','sqlite'])test(`${backend} compact Web keeps open L
  const closed=(await listWebRecords())[0].letterStates.find(e=>e.id===withdrawn.id);
  assert.equal(letterState({...withdrawn,letterStatus:closed},[]).status,'received');
  `;
- const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:backend}});
+ const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root}});
  assert.equal(result.stdout,'');
 });
-for(const backend of ['json','sqlite'])test(`${backend} Web records carry the Goals that mention each Goal`,async t=>{
+test(`Web records carry the Goals that mention each Goal`,async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-web-mentions-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import * as s from ${JSON.stringify(store)};
@@ -49,6 +49,6 @@ for(const backend of ['json','sqlite'])test(`${backend} Web records carry the Go
  assert.deepEqual(a.mentions.map(m=>[m.goalId,m.eventId]),[['2',named.id]]);
  assert.deepEqual(b.mentions.map(m=>m.goalId),['1']);
  `;
- const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:backend}});
+ const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root}});
  assert.equal(result.stdout,'');
 });

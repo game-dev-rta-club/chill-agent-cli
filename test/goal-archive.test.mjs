@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const exec=promisify(execFile);
-for(const storage of ['json','sqlite'])test(`archive retains history and IDs, hides entire roots: ${storage}`,async t=>{
+test(`archive retains history and IDs, hides entire roots`,async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-archive-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';
@@ -28,5 +28,5 @@ for(const storage of ['json','sqlite'])test(`archive retains history and IDs, hi
  assert.deepEqual((await store.listGoals()).map(g=>g.id),['1','2','3','4']);
  assert.equal((await listWebRecords()).length,4);
  `;
- await exec(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:storage},maxBuffer:1024*1024});
+ await exec(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root},maxBuffer:1024*1024});
 });

@@ -65,7 +65,7 @@ test('help-guided operations work and settings flags are order independent',asyn
   const f=await fixture(t);
   f.env.CHILL_AGENT_CODEX_PATH=join(root,'test/fake-codex.mjs');
   f.env.PORT='4173'; delete f.env.CHILL_AGENT_IDLE_TIMEOUT;
-  f.env.CHILL_AGENT_EXTENSIONS='none'; // host notification path, without the bundled provider
+  f.env.CHILL_AGENT_EXTENSIONS='none'; // without the bundled provider there are no notifications
   const plan=args=>f.run(join(root,'bin/chill-agent.mjs'),args);
   const created=await plan(['create','--title','Help-guided Plan']);
   assert.match(created.stdout,/"id": "1"/);
@@ -77,11 +77,8 @@ test('help-guided operations work and settings flags are order independent',asyn
   await plan(['canvas','update','--id','1']);
   await plan(['reply','--id','1','--text','Historical']);
   const settings=args=>f.run(join(root,'bin/chill-settings.mjs'),args);
-  assert.deepEqual(JSON.parse((await settings(['notice','--event','2','--id','1'])).stdout),{enabled:false});
+  await assert.rejects(settings(['notice','--event','2','--id','1']),/does not provide notifications/);
   const config=join(f.directory,'notification.json');
   await writeFile(config,JSON.stringify({enabled:true,tool:'test-tool',destination:'chosen-user',on:['comment']}));
-  await settings(['notifications','--file',config]);
-  const notice=JSON.parse((await settings(['notice','--event','2','--id','1'])).stdout);
-  assert.equal(notice.destination,'chosen-user'); assert.equal(notice.url,null);
-  assert.match(await readFile(join(f.data,'settings/notifications.json'),'utf8'),/chosen-user/);
+  await assert.rejects(settings(['notifications','--file',config]),/does not provide notifications/);
 });

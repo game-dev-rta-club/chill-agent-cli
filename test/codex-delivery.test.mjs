@@ -102,27 +102,13 @@ test('installing the hook is idempotent and preserves other hooks without modify
 
 
 
-test('saved notification preferences reach a new chat in its message, and are read again when it notifies', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
+test('a global notification setting from an earlier version adds nothing to a chat\'s message', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
   const f = await fixture();
   await saveMessageSetting('notifications', {enabled:true,tool:'chosen-tool',destination:'chosen-recipient',on:['comment','letter']}, f.root);
-  assert.equal((await runHook(f)).stdout, '', 'a notification setting alone does not make every tool call noisy');
   await f.publish(other);
   const [, {comment}] = await f.feedback({});
   assert.equal(comment.mark, 'handed');
-  const queued = (await sentTo(f.root, thread))[0];
-  assert.match(queued, /notice --id 1 --event <saved-event-id>/);
-  assert.equal((await runHook(f,{session_id:other},{CODEX_THREAD_ID:other})).stdout, '', 'nothing is handed twice');
-  // A message can outlive the settings that created it. Its command re-reads
-  // current preferences instead of freezing a recipient in the chat.
-  await saveMessageSetting('notifications', {enabled:true,tool:'changed-tool',destination:'new-recipient',on:['comment']}, f.root);
-  const settingsCLI = fileURLToPath(new URL('../bin/chill-settings.mjs',import.meta.url));
-  await f.run(['reply','--id','1','--text','Finished'],{CODEX_THREAD_ID:other});
-  const noticeArgs = ['notice','--id','1','--event','2'];
-  const current = JSON.parse((await execute(process.execPath,[settingsCLI,...noticeArgs],{env:f.env})).stdout);
-  assert.equal(current.destination, 'new-recipient');
-  assert.equal(current.tool, 'changed-tool');
-  await saveMessageSetting('notifications', {enabled:false}, f.root);
-  assert.deepEqual(JSON.parse((await execute(process.execPath,[settingsCLI,...noticeArgs],{env:f.env})).stdout), {enabled:false});
+  assert.doesNotMatch((await sentTo(f.root, thread))[0], /notice --id/,'only the runtime\'s provider notifies');
 });
 
 test('invalid optional notification settings do not block publishing or receiving feedback', {skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async () => {
@@ -135,7 +121,7 @@ test('invalid optional notification settings do not block publishing or receivin
   assert.equal(comment.mark, 'handed');
   const queued = (await sentTo(f.root, thread))[0];
   assert.match(queued, /"eventId":1,/);
-  assert.match(queued, /Could not read saved user notification preferences/);
+  assert.doesNotMatch(queued, /notification preferences/,'without the runtime\'s provider nothing is read');
 });
 test('a chat Codex does not show to chill cannot own a Root, and is told why',{skip:process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable'},async()=>{
   const f=await fixture();

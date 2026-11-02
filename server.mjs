@@ -360,7 +360,7 @@ const server = createServer(async (request, response) => {
     try{const {done=true}=await readJson(request),id=Number(letterDonePath[2]);return sendJson(response,200,done===false?await reopenLetter(letterDonePath[1],id):await closeLetter(letterDonePath[1],id,'','user'));}
     catch(error){return sendJson(response,400,{error:error.message});}
   }
-  const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
+  const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
   if(briefSVGPath&&request.method==='GET'){
     try{
       const brief=await readBrief(briefSVGPath[1],Number(briefSVGPath[2]));
@@ -371,12 +371,12 @@ const server = createServer(async (request, response) => {
       return response.end(svg);
     }catch{return sendJson(response,500,{error:'Could not load Canvas image.'});}
   }
-  const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)$/.exec(path);
+  const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)$/.exec(path);
   if(briefDataPath&&request.method==='GET'){
     try{const brief=await readBrief(briefDataPath[1],Number(briefDataPath[2]));return sendJson(response,brief?200:404,brief?webBrief(brief):{error:'Canvas not found.'});}
     catch{return sendJson(response,500,{error:'Could not load Canvas.'});}
   }
-  const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/document$/.exec(path);
+  const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/document$/.exec(path);
   if(briefDocumentPath&&request.method==='GET') {
     try {
       const brief=await readBrief(briefDocumentPath[1],Number(briefDocumentPath[2]));

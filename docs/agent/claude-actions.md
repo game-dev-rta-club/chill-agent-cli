@@ -64,9 +64,11 @@ The Root and its Split Goals move to the new conversation, the earlier owner is
 kept in `previousOwners`, and feedback saved for the earlier owner is delivered
 to the new one. Web gets no note of the move: an agent comment would count as a
 reply and drop the comments still awaiting one. The earlier owner's watcher
-ends when it next finds that conversation owns nothing. `goal adopt` works the
-same from any agent and on a Root with no owner; `goal release` leaves a Root
-with no owner.
+ends when it next finds that conversation owns nothing. Taken from another
+conversation, the Root starts at Autonomy Normal, so that conversation's tool
+approval does not come along. `goal adopt` works the same from any agent and on
+a Root with no owner, which keeps the level set for it. `goal release`, run from
+the conversation that owns the Root, leaves it with no owner.
 
 To hand part of a Root to another conversation, first make that Split Goal a Root
 of its own (`chill goal update --id 58 --input-file patch.json` with

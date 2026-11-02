@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm} from 'node:fs/promises';
 import {writeFile,readFile} from './record-fixture.mjs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -8,9 +8,9 @@ import {promisify} from 'node:util';
 import test from 'node:test';
 import {fileURLToPath} from 'node:url';
 const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
-async function fixture(t,storage){
+async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chill-goals-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
- const env={...process.env,...(storage?{CHILL_AGENT_STORAGE:storage}:{}),CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
+ const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
  const invoke=(...args)=>execute(process.execPath,[cli,...args],{env});
  const run=async(...args)=>JSON.parse((await invoke(...args)).stdout);
  let serial=0;
@@ -207,10 +207,11 @@ test('concurrent child creation and parent completion never leave Done over an u
  const tree=(await f.run('tree'))[0];assert.equal(tree.state,'idle');assert.equal(tree.children.length,1);
  await assert.rejects(f.update('1',{state:'done'}),/unfinished SubGoals/);
 });
-test('runtime rejects obsolete schemas without modifying data',async t=>{
- const f=await fixture(t,'json');await f.run('create','--title','Current');
- const path=join(f.root,'workspace/schema.json'),old=JSON.stringify({format:'goal-workspace',version:3});await writeFile(path,old);
- await assert.rejects(f.run('tree'),/Unsupported workspace/);assert.equal(await readFile(path,'utf8'),old);
+test('a JSON workspace from before SQLite is refused unchanged, pointing to chill-migrate',async t=>{
+ const f=await fixture(t),path=join(f.root,'workspace/schema.json'),old=JSON.stringify({format:'goal-workspace',version:7});
+ await mkdir(join(f.root,'workspace'),{recursive:true});await writeFile(path,old);
+ await assert.rejects(f.run('tree'),/old JSON format.*chill-migrate/);assert.equal(await readFile(path,'utf8'),old);
+ await assert.rejects(readFile(join(f.root,'workspace/workspace.sqlite')),{code:'ENOENT'});
 });
 
 test('legacy no-reply Letters preserve counts without exposing a separate message kind',async t=>{
@@ -232,26 +233,24 @@ test('legacy no-reply Letters preserve counts without exposing a separate messag
 test('editable sources from before the Deliverable rename move to their new names once',async t=>{
  const f=await fixture(t);await f.run('create','--title','Renamed');
  const dir=join(f.root,'workspace/goals/1');
- const {rm:remove}=await import('node:fs/promises');await remove(join(dir,'deliverable.md'),{force:true});
+ // A workspace from before this runtime migrated it (one-time).
+ const {rm:remove}=await import('node:fs/promises');await remove(join(dir,'deliverable.md'),{force:true});await remove(join(f.root,'workspace','migrations.json'),{force:true});
  await writeFile(join(dir,'brief.md'),'# Earlier source');
  const {path}=await f.run('canvas','path','--id','1','--format','markdown');
  assert.equal(path,join(dir,'deliverable.md'));assert.equal(await readFile(path,'utf8'),'# Earlier source');
  await assert.rejects(readFile(join(dir,'brief.md'),'utf8'));
- // An existing new source is never overwritten by a leftover earlier one.
+ // Once migrated, a leftover earlier source is never read again, nor moved over the new one.
  await writeFile(join(dir,'brief.md'),'# Leftover');
  await f.run('canvas','path','--id','1','--format','markdown');
- assert.equal(await readFile(path,'utf8'),'# Earlier source');
+ assert.equal(await readFile(path,'utf8'),'# Earlier source');assert.equal(await readFile(join(dir,'brief.md'),'utf8'),'# Leftover','left as it was');
  await assert.rejects(f.invoke('brief','path','--id','1'),/renamed to goal canvas/);
 });
-test('the Deliverable spellings still work after the Canvas rename',async t=>{
+test('the Deliverable spellings are refused with the Canvas names; the stored file keeps its name',async t=>{
  const f=await fixture(t);const goal=await f.run('create','--title','Renamed');
  assert.match(goal.canvasPath,/deliverable\.html$/,'the stored file keeps its name');
- const {path}=await f.run('deliverable','path','--id','1');assert.equal(path,goal.canvasPath);
- await writeFile(path,'<h1>Old command</h1>'+'x'.repeat(7000));
- assert.equal((await f.run('deliverable','update','--id','1')).version,1);
- const text=(await f.invoke('show','--id','1','--format','text','--section','deliverable','--deliverable-offset','6000')).stdout;
- assert.match(text,/^Canvas · v1/m);assert.doesNotMatch(text,/Old command/);
- assert.match((await f.invoke('help','deliverable','update')).stdout,/chill goal canvas update/);
+ for(const args of [['deliverable','path','--id','1'],['show','--id','1','--section','deliverable'],['show','--id','1','--deliverable-offset','6000']])
+  await assert.rejects(f.invoke(...args),/renamed to the Canvas: use goal canvas/);
+ assert.equal((await f.run('canvas','path','--id','1')).path,goal.canvasPath);
 });
 
 test('an agent Comment or Letter posted by mistake can be deleted; user comments cannot',async t=>{

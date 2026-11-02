@@ -32,13 +32,13 @@ test('SQLite operations roll back ancestor changes and serialize in-process writ
  await assert.rejects(readFile(join(s.workspaceDirectory(),'locks','events','1.json')),{code:'ENOENT'});
  await assert.rejects(readFile(join(s.workspaceDirectory(),'locks','tree','1.json')),{code:'ENOENT'});
  `;
- const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'sqlite'},timeout:20000});
+ const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root},timeout:20000});
  assert.equal(result.stdout,'');
 });
 
 test('separate CLI processes allocate unique event IDs inside SQLite transactions',async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-sqlite-processes-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
- const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'sqlite'};
+ const env={...process.env,CHILL_AGENT_DATA_DIR:root};
  // This checks IDs, not speed: a slow Windows runner has taken over 20 s for the 30 appends.
  const run=code=>execute(process.execPath,['--input-type=module','-e',`import * as s from ${JSON.stringify(storeUrl)};${code}`],{env,timeout:60000});
  await run("await s.createGoal({title:'Root'});");
