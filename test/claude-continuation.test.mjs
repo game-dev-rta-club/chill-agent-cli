@@ -245,13 +245,15 @@ test('chill records the result at the next Stop: worked when the agent left some
  const attempt=(await busy.read()).attempts[0];assert.equal(attempt.result.outcome,'worked');assert.equal(attempt.phase,'completed');
  await assert.rejects(busy.action('extension',{extension:'continuation',operation:'result',input:{rootId:busy.root.id,attemptId:attempt.id,outcome:'no-work'}}),/unavailable/,'there is nothing to report');
 });
-test('the request counts every owned Root, and work in any of them counts as worked',async t=>{
+test('the request counts every Root Autonomy continues, and work in any of them counts as worked',async t=>{
  const f=await fixture(t);await f.configure();
  await f.action('create-goal',{title:'Second Root',scope:'Fixture only',criteria:'Counted'});
- const second=(await listGoals()).find(g=>g.title==='Second Root');
+ const second=(await listGoals()).find(g=>g.title==='Second Root');await setRootAutonomy(second.id,2);
+ await f.action('create-goal',{title:'Normal Root',scope:'Fixture only',criteria:'Not counted'});
+ await createGoal({title:'Not continued',parentId:(await listGoals()).find(g=>g.title==='Normal Root').id});
  await createGoal({title:'Open step',parentId:second.id});
  const request=(await f.stop()).reason;
- assert.match(request,/There are 3 unfinished Goals/,'the first Root, the second Root and its open step');
+ assert.match(request,/There are 3 unfinished Goals/,'the first Root, the second Root and its open step, not the Normal Root\'s');
  await f.newPrompt();await appendAgentComment({goalId:second.id,type:'comment',text:'Moved the second Root forward.'});
  assert.equal(await f.stop(),null);
  assert.equal((await f.read()).attempts[0].result.outcome,'worked','a Comment in another owned Root is work too');

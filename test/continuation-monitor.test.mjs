@@ -133,11 +133,11 @@ test('real store: content revisions stay separate from agent Web events',async()
   if(method==='thread/queue/list')return {data:[]};throw Error(method);
  }));
  try{
-  const root=await createOwnedRoot({title:'root'},{agent:'codex',id:threadId});
+  const root=await createOwnedRoot({title:'root'},{agent:'codex',id:threadId});await setRootAutonomy(root.id,2);
   const observe=()=>continuationObservation(root.id,null,{connect});
   let facts=await observe();const original=facts.revision;
   await updateGoal(root.id,{started:true});assert.equal((await observe()).revision,original);
-  await updateGoal(root.id,{state:'done'});facts=await observe();
+  await updateGoal(root.id,{scope:'Changed'});facts=await observe();
   assert.notEqual(facts.revision,original);assert.equal(continuationEligibility(facts),'idle');
   await writeFile(join(dir,'workspace/goals',root.id,'deliverable.md'),'New brief');
   await updateBrief(root.id);const briefRevision=(await observe()).revision;
@@ -152,13 +152,13 @@ test('real store: content revisions stay separate from agent Web events',async()
   const revision=(await observe()).revision;assert.notEqual(revision,briefRevision);
   // Actual state persistence and shared thread lock; two monitors race.
   // A Done Root asks for nothing; reopened at Auto Continue, it does.
-  await setRootAutonomy(root.id,2);
+  await updateGoal(root.id,{state:'done'});
   assert.equal(await codexTurnPlan(threadId),null);await updateGoal(root.id,{state:'idle'});let sends=0;
   const run=createMonitorRunner({plan:()=>codexTurnPlan(threadId),observe:async()=>({...idle(),rootId:root.id,threadId,revision:(await observe()).revision}),
    send:async()=>{sends++;return {queuedSubmission:{id:'queue'}};}});
   await Promise.all([run(),run()]);assert.equal(sends,1);
   const events=await readFeedback();
-  assert.deepEqual(await readFeedback(),events);assert.notEqual((await observe()).revision,revision,'the Autonomy change is a revision');
+  assert.deepEqual(await readFeedback(),events);
   assert.equal((await run()).status,'awaiting-run');assert.equal(sends,1);
   await setRootAutonomy(root.id,1);assert.equal((await run()).status,'off');
   assert.equal((await readTurnCheck({agent:'codex',id:threadId})).attempts.length,1);
@@ -252,7 +252,7 @@ test('a settled request records worked when the Web changed since it, otherwise 
  settle(worked,{progress:'p2',at});settle(idle,{progress:'p1',at});settle(old,{progress:'p2',at});
  assert.deepEqual([worked.result.outcome,worked.phase,idle.result.outcome,old.result,old.phase],['worked','completed','no-work',undefined,'ended']);
 });
-test('a chat\'s observation counts every Root it owns, and work in any of them changes its progress',async()=>{
+test('a chat\'s observation counts every Root its Autonomy continues, and work in any of them changes its progress',async()=>{
  const old=process.env.CHILL_AGENT_DATA_DIR,dir=await mkdtemp(join(tmpdir(),'chill-monitor-roots-'));process.env.CHILL_AGENT_DATA_DIR=dir;
  const threadId='00000000-0000-0000-0000-000000000004';
  const connect=fn=>fn(contractStub(async(method,p)=>{
@@ -263,8 +263,12 @@ test('a chat\'s observation counts every Root it owns, and work in any of them c
  try{
   const first=await createOwnedRoot({title:'First'},{agent:'codex',id:threadId}),second=await createOwnedRoot({title:'Second'},{agent:'codex',id:threadId});
   await createGoal({title:'Open step',parentId:second.id});
+  const normal=await createOwnedRoot({title:'Normal'},{agent:'codex',id:threadId});await createGoal({title:'Not continued',parentId:normal.id});
+  await setRootAutonomy(first.id,2);await setRootAutonomy(second.id,3);
   const before=await continuationObservation(first.id,null,{connect});
-  assert.equal(before.context.goals.unfinished,3,'both Roots and the second Root\'s open step');
+  assert.equal(before.context.goals.unfinished,3,'both continued Roots and the second Root\'s open step, not the Normal Root\'s');
+  await appendFeedback({goalId:normal.id,text:'Only for the Normal Root'});
+  assert.equal((await continuationObservation(first.id,null,{connect})).revision,before.revision,'a Normal Root starts no check');
   await appendAgentComment({goalId:second.id,type:'comment',text:'Moved the second Root forward.'});
   assert.notEqual((await continuationObservation(first.id,null,{connect})).progress,before.progress);
  }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
