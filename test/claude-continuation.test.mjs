@@ -125,6 +125,15 @@ test('a conversation that adopts a Root takes its level record too, so the recor
  const record=await storage('continuation').read(unowned.id);
  assert.deepEqual(record.owner,(await readGoal(unowned.id)).owner);assert.equal(record.autonomy,3);
 });
+test('a Root taken from another conversation starts at Normal, and only its owner releases it',async t=>{
+ const f=await fixture(t);const other={harnessId:'claude-code',sessionId:randomUUID(),contextId:randomUUID()};
+ const taken=await createGoal({title:'Another conversation\'s'});await setRootOwner(taken.id,claudeOwner(other));await setRootAutonomy(taken.id,3);
+ await assert.rejects(f.action('release',{goalId:taken.id}),/only that conversation can release it/);
+ await assert.rejects(agentAction('release',{goalId:taken.id},{}),/agent conversation/,'nor from a shell outside any conversation');
+ assert.match((await f.action('adopt',{goalId:taken.id})).hookSpecificOutput.additionalContext,/starts at Autonomy Normal/);
+ assert.equal(await rootAutonomy(await readGoal(taken.id)),1,'the earlier conversation\'s level and its tool approval do not come along');
+ assert.match((await f.action('release',{goalId:taken.id})).hookSpecificOutput.additionalContext,/has no owner now/,'its owner can');
+});
 test('Ultra Continue covers the whole Root tree and leaves out Goals another live conversation works on',async t=>{
  const f=await fixture(t);const a=await createGoal({title:'Part A',parentId:f.root.id}),b=await createGoal({title:'Part B',parentId:f.root.id}),done=await createGoal({title:'Shipped',parentId:f.root.id});
  await updateGoal(done.id,{state:'done'});await f.configure(3);
