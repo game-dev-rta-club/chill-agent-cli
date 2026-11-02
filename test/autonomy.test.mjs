@@ -46,7 +46,8 @@ test('the journal record is the Root owner\'s: the same owner or one it took ove
   assert.deepEqual(withAutonomy(unowned,null,2,'now'),{rootId:'1',autonomy:2,updatedAt:'now'});
   assert.deepEqual(withAutonomy(codex,null,2,'now'),{rootId:'1',owner:{agent:'codex',id:'t'},autonomy:2,updatedAt:'now'});
   assert.equal(withAutonomy(root,record({owner:claude('a')}),3),null,'unchanged');
-  assert.deepEqual(withAutonomy(root,record({owner:claude('old'),revision:'r'}),2,'now'),record({owner:claude('old'),revision:'r',autonomy:2,updatedAt:'now'}),'a record to take over keeps its owner until the owner writes it');
+  assert.deepEqual(withAutonomy(root,record({owner:claude('old'),revision:'r'}),2,'now'),record({owner:claude('a'),revision:'r',autonomy:2,updatedAt:'now'}),'a record taken over is written for its new owner');
+  assert.deepEqual(withAutonomy(root,record({}),3,'now'),record({owner:claude('a'),autonomy:3,updatedAt:'now'}),'so is one written before any owner, even at the same level');
   assert.deepEqual(withAutonomy(codex,record({owner:{agent:'codex',id:'u'},revision:'r',history:[{id:'h'}]}),2,'now'),
     {rootId:'1',owner:{agent:'codex',id:'t'},autonomy:2,updatedAt:'now'},'another owner\'s record starts over, with only the level: checks are the conversation\'s');
   assert.throws(()=>withAutonomy(root,null,4),/Normal, Auto Continue or Ultra Continue/);
