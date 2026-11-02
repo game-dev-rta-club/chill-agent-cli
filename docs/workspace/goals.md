@@ -111,19 +111,17 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
   a lower level, a pause or a Done Root lets the turn end; if scheduling fails,
   the agent says so on the Root and stays held until one of the others happens.
   Codex has no scheduled checks, so this does not apply there.
-- **A level change.** chill tells the agent, once, of each Root it owns whose
-  level differs from the one last stated to it (by an end-of-turn message or an
-  earlier notice), and what the new level asks; a lowered level also applies to
-  work already under way. It does so the next time chill hands the conversation
-  anything: a tool hook, a scheduled check or comment waking an idle Claude
-  conversation, a message to an idle Codex chat. A Claude notice also lists the
-  checks still scheduled and how to cancel them (`agent wake --cancel
-  <time|all>`); when the notice comes with a check's wake, that wake asks for the
-  check only if it is still needed at the new level, and later wakes say "Do it
-  now" as before. chill does not remove checks on a level change: only the agent
-  knows which still serve its work. When chill first finds a Root the agent
-  owns, it records the level without a notice. The levels stated are kept in
-  `workspace/levels-told/`.
+- **A level change.** When a Root the agent owns has a level other than the one
+  last stated to it (by an end-of-turn message or an earlier notice), chill
+  tells the agent once what the new level asks; a lowered level applies to work
+  already under way too, so an end-of-turn message never counts as telling it a
+  lowered level. It does so the next time it hands the conversation anything: a
+  tool hook, a scheduled check or comment waking an idle Claude conversation, a
+  message to an idle Codex chat. chill does not remove checks, since only the
+  agent knows which still serve its work; a Claude notice lists them with
+  `agent wake --cancel <time|all>`, and every due check is done only if still
+  needed. A Root chill first finds is recorded without a notice. The levels
+  stated are kept in `workspace/levels-told/`.
 - **Tool prompts.** A prompt names no Goal, so the Root the user last commented
   in (on it or any Goal under it) decides among the Roots the conversation owns;
   with no comment in any of them, the newest Root. At Auto Continue or Never

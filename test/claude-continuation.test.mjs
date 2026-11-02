@@ -299,8 +299,8 @@ test('a level the user changes reaches the running agent once, at its next tool 
  assert.equal(await f.tool(),null,'a Root seen first is recorded, not told');
  const {wake}=await f.wake();await f.configure(1);
  const told=(await f.tool()).hookSpecificOutput.additionalContext;
- assert.match(told,/^chill-agent: the user changed the Autonomy level of Root Goal #1 “Native Autonomy” from Never Stop to Normal\. The new level applies to work already under way: bring anything it would not let you start to a point where it can be left, and say where it stands in a Comment on its Goal\. From now on the user decides each next step: do what they ask, and start nothing else on your own\.\n/);
- assert.match(told,new RegExp(`A level change does not cancel the checks you scheduled: ${wake.at} \\(Look again\\)\\. Cancel any you no longer need at the new level: .*agent wake --cancel <time\\|all>$`));
+ assert.match(told,/^chill-agent: the user changed the Autonomy level of Root Goal #1 “Native Autonomy” from Never Stop to Normal\. The new level applies to work already under way: bring anything it would not let you start to a point where it can be left, and say where it stands in a Comment on its Goal\. From now on the user decides each next step: start nothing on your own\.\n/);
+ assert.match(told,new RegExp(`A level change does not cancel the checks you scheduled: ${wake.at} \\(Look again\\)\\. Cancel any you no longer need: .*agent wake --cancel <time\\|all>$`));
  assert.equal(await f.tool(),null,'told once');
  assert.deepEqual((await f.cancel(wake.at)).wakes,[]);
  await assert.rejects(f.cancel('2000-01-01T00:00:00.000Z'),/No check is scheduled at 2000-01-01T00:00:00\.000Z\. Scheduled: none\./);
@@ -310,4 +310,7 @@ test('a level the user changes reaches the running agent once, at its next tool 
  const raised=(await f.tool()).hookSpecificOutput.additionalContext;
  assert.match(raised,/from Auto Continue to Never Stop\. From now on: Root Goal #1 is delegated to you/);assert.doesNotMatch(raised,/does not cancel|work already under way/,'no checks, no list; a raise asks nothing of work under way');
  await f.wake();await f.wake();assert.deepEqual((await f.cancel('all')),{cancelled:2,wakes:[]});
+ // Lowered just before a turn ends: the end-of-turn message states Auto Continue, the notice still comes.
+ await f.newPrompt();await f.stop();await f.configure(2);assert.match((await f.stop()).reason,/Auto Continue: After each turn/);
+ assert.match((await f.tool()).hookSpecificOutput.additionalContext,/from Never Stop to Auto Continue\. The new level applies to work already under way/);
 });

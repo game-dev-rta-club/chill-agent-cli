@@ -289,7 +289,7 @@ test('a scheduled check wakes the conversation through its watcher when it is du
  assert.deepEqual(await w.done,{status:'wake',reason:'CI of PR #91'});
  assert.equal((await readJson(f.recordPath)).wakes,undefined,'a due check is removed, so it wakes once');
  assert.match(watcherWakeText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*agent wake/);
- assert.match(watcherWakeText({status:'wake',reason:'CI',notice:'chill-agent: the user changed the Autonomy level'}),/^chill-agent: the user changed the Autonomy level\nchill-agent: the check you scheduled is due \(CI\)\. Do it only if you still need it at the new level above\./,'after a level change the new level decides');
+ assert.match(watcherWakeText({status:'wake',reason:'CI',notice:'chill-agent: the user changed the Autonomy level'}),/^chill-agent: the user changed the Autonomy level\nchill-agent: the check you scheduled is due \(CI\)\. Do it now if you still need it\./,'a level change notice comes first');
  await assert.rejects(scheduleClaudeWake({cancel:true,env:f.env(),now}),/whole minutes/,'there is no cancel');
  // Compact and resume keep the checks; a cleared context starts without them.
  await scheduleClaudeWake({minutes:5,reason:'Later',env:f.env(),now});
@@ -411,7 +411,7 @@ test('the watcher hook wakes for a due check and ends itself before its hook tim
  const f=await fixture(t);let clock=Date.now();const now=()=>clock;
  await scheduleClaudeWake({minutes:1,reason:'CI',env:f.env(),now});
  const w=f.wait({now});await f.waiting();clock+=60000;
- const due=await w.done;assert.deepEqual(due,{status:'wake',reason:'CI'});assert.match(watcherWakeText(due),/due \(CI\)\. Do it now/);
+ const due=await w.done;assert.deepEqual(due,{status:'wake',reason:'CI'});assert.match(watcherWakeText(due),/due \(CI\)\. Do it now if you still need it\./);
  const idle=await f.wait({maxMs:50}).done;
  assert.deepEqual(idle,{status:'idle'});assert.match(watcherWakeText(idle),/Nothing to do/);
 });
