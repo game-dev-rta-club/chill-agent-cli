@@ -173,7 +173,7 @@ test('a continued conversation keeps the Root\'s Autonomy and gets its own check
  await updateGoal(f.root.id,{scope:'Changed'});
  assert.equal(await stop(continued),null);
  await setRootAutonomy(f.root.id,2);assert.match(await stop(continued),/Keep going/);
- const after=await journal.read(f.root.id);assert.deepEqual(after.owner,claudeOwner(continued));assert.equal(after.history.at(-1).id,'foreign');
+ const after=await journal.read(f.root.id);assert.deepEqual(after.owner,claudeOwner(continued));assert.equal('attempts' in after,false,'the journal keeps only the level');
 });
 test('after the update a conversation carries on the check its Root journal kept, so it asks no extra check',async t=>{
  const f=await fixture(t);await f.configure();await f.stop();
