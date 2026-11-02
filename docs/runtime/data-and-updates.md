@@ -6,12 +6,17 @@ keyPoints: >-
 
 # Keep data separate from installed code
 
-Fresh setup allocates a [separate workspace for each project](projects.md).
-Within a workspace, use one data directory for the CLI, Web server, project hook and any composed
-application that shares the workspace. `CHILL_AGENT_DATA_DIR` overrides the
-default. On macOS the default is `~/Library/Application Support/chill-agent`;
-on Windows it is `%USERPROFILE%\.chill-agent`; elsewhere it is
-`$XDG_DATA_HOME/chill-agent`, falling back to `~/.local/share/chill-agent`.
+Setup allocates a [separate workspace for each project](projects.md): its data
+folder is `projects/<hash>` inside a shared folder. On macOS the shared folder
+is `~/Library/Application Support/chill-agent`; on Windows it is
+`%USERPROFILE%\.chill-agent`; elsewhere it is `$XDG_DATA_HOME/chill-agent`,
+falling back to `~/.local/share/chill-agent`. The CLI, Web server, project hook
+and any composed application that shares the workspace use the same data
+folder, which `CHILL_AGENT_DATA_DIR` selects; the project's own command sets it.
+A command run with none selected stops instead of falling back to the shared
+folder, and so does one pointed at the shared folder itself: it once held one
+workspace for every project, and is no longer a data folder. What it holds
+stays as it is.
 Windows avoids AppData because packaged apps such as Claude Desktop have their
 AppData writes redirected to a private folder that other processes cannot see.
 
