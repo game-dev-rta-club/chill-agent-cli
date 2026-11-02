@@ -56,14 +56,14 @@ asks, so it stands on its own: the agreed work anywhere under the Root (Auto
 Continue), or the whole Root tree toward its criteria, without Goals other live
 conversations work on (Ultra Continue).
 It lists what the record already says (unfinished Goals, feedback still awaiting
-a reply, open Letters) and names no command, so a turn with nothing left ends in
+a reply, open Letters), counted over every Root the conversation owns, and names no command, so a turn with nothing left ends in
 a single response. Codex receives the same text; only a conversation that can
 schedule its own wake-up also hears about `agent wake`.
 
 The request goes out as Stop output, so the next main Stop means the response
 that received it has ended. That Stop ends the attempt and records its result:
 `worked` when the agent left something on the Web since the request (a comment,
-a Letter, or a Goal or Canvas change), otherwise `no-work`. The agent
+a Letter, or a Goal or Canvas change) in any Root it owns, otherwise `no-work`. The agent
 reports nothing. A Codex run is recorded the same way when chill sees the turn
 that received the request end. One check consumes the allowance for that
 revision, so the same revision is never continued twice; comments and results do
