@@ -18,6 +18,9 @@ Object.assign(process.env, {
   HOME: home, USERPROFILE: home,
   CODEX_HOME: join(home, '.codex'), CLAUDE_CONFIG_DIR: join(home, '.claude'), XDG_DATA_HOME: join(home, '.local', 'share'),
   CHILL_AGENT_CODEX_PATH: join(home, 'no-codex'),
+  // A throwaway project's data, as its own command would select it. A test of
+  // setup or of a command run with no project deletes it.
+  CHILL_AGENT_DATA_DIR: join(home, 'project-data'),
   CHILL_TEST_CONTRACT_LOG: contractLog,
 });
 process.on('exit', () => {

@@ -98,7 +98,9 @@ and shares it between searches, so typing quickly does not repeat the work.
 ## Preserve an existing workspace
 
 An explicit `CHILL_AGENT_DATA_DIR`, including an existing stable launcher,
-continues to use that store unless `--isolated` is passed. This keeps existing
+continues to use that store unless `--isolated` is passed. The one exception is
+the shared folder that holds `projects/`: it is refused as a data folder
+([data and updates](data-and-updates.md)). This keeps existing
 links, feedback queues and native conversations intact during upgrades. Old
 shared workspaces are not silently split by Goal or reassigned to new chats.
 
