@@ -930,6 +930,19 @@ imageAreaImage.addEventListener('error', () => {
 });
 imageAreaDialog.querySelector('[data-area-close]').addEventListener('click', closeImageSelection);
 imageAreaDialog.addEventListener('cancel', event => { event.preventDefault(); closeImageSelection(); });
+// A click outside the window closes it, as ✕ does. The backdrop is the dialog
+// itself, so only a press and release both beyond its box count: a selection
+// dragged past the edge keeps the window open.
+const outsideImageArea = event => {
+  const box = imageAreaDialog.getBoundingClientRect();
+  return event.target === imageAreaDialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom);
+};
+let imageAreaPressedOutside = false;
+imageAreaDialog.addEventListener('pointerdown', event => { imageAreaPressedOutside = outsideImageArea(event); });
+imageAreaDialog.addEventListener('click', event => {
+  if (imageAreaPressedOutside && outsideImageArea(event)) closeImageSelection();
+  imageAreaPressedOutside = false;
+});
 imageAreaWhole.addEventListener('click', () => {
   if (!imageSelection) return;
   imageSelection.rect = {x: 0, y: 0, width: 1, height: 1};
