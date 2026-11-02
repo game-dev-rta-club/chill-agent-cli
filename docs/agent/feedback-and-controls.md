@@ -60,7 +60,8 @@ handed comments on still waits for a reply, with nothing of it running to wake i
 later, makes the Web look stopped. chill holds that stop once and asks the agent
 to tell the user where things stand: reply if it is handled, or post a progress
 Comment that says what it waits for and when it will check. The stop right after a
-hold always ends. Claude Code names its background work in the Stop input; Codex's
+hold always ends. A conversation holding several Roots is held once for all of
+them, never once per Root. Claude Code names its background work in the Stop input; Codex's
 Stop input names none, so a Codex chat is held even while a background terminal
 runs. The rule is `quietGoals` in [agent rules](../../lib/agent-rules.mjs).
 

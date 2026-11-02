@@ -145,6 +145,17 @@ test('the Stop is held once while a handed Goal awaits a reply, and a reply on i
   assert.equal((await codexSnapshot(f.thread)).roots[0].awaiting.size,0,`#${event} is answered`);
 });
 
+test('with two Roots, the Stop is held once for both and the stop right after it ends',async t=>{
+  const f=await fixture(t),second=await createGoal({title:'Second Root'});
+  await setRootOwner(second.id,{agent:'codex',id:f.thread});
+  await f.save('One');await deliverFeedback((await appendFeedback({goalId:second.id,text:'Two'})).changeId);
+  const turn=await f.startTurn();
+  const held=await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread);
+  assert.equal(held?.decision,'block');
+  for(const id of [f.root.id,second.id])assert.match(held.reason,new RegExp(`Goal #${id}\\b`));
+  assert.equal(await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread),null,'the stop right after a hold ends, whichever Root it was held for');
+});
+
 test('Pause stops the turn; a new comment resumes and is sent, and Resume asks the chat to go on',async t=>{
   const f=await fixture(t),turn=await f.work(),calls=[];
   const interrupt=async(threadId,turnId)=>{calls.push(turnId);await f.endTurn('interrupted');return {ok:true,interruptedTurnId:turnId};};
