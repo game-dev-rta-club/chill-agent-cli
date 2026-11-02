@@ -203,7 +203,7 @@ test('a prompt the user types in the conversation resumes a Web pause; Claude Co
  assert.equal(await paused(),false,'the user wrote here, so the work continues without the Web');
 });
 
-test('Autonomy answers permission prompts when every Root the conversation owns is at Auto Continue or Ultra Continue',async t=>{
+test('Autonomy answers permission prompts when every Root the conversation owns is at Auto Continue or Never Stop',async t=>{
  const {claudePermissionDecision}=await import('../lib/claude-permissions.mjs');
  const {createGoal,updateGoal}=await import('../lib/goal-store.mjs');
  const {setRootAutonomy}=await import('../lib/root-autonomy.mjs');
@@ -216,7 +216,7 @@ test('Autonomy answers permission prompts when every Root the conversation owns 
  // A Goal in the tree has no level of its own: setting it on a child sets the Root's.
  const child=await createGoal({title:'Side',parentId:f.root.id});
  await setRootAutonomy(child.id,1);assert.equal(await allowed(),false,'Normal on the Root keeps prompts asking');
- await setRootAutonomy(child.id,3);assert.equal(await allowed(),true,'Ultra Continue approves');
+ await setRootAutonomy(child.id,3);assert.equal(await allowed(),true,'Never Stop approves');
  // A second owned Root: every one must be above Normal.
  await f.action('create-goal',{title:'Second Root',scope:'',criteria:''});const second=(await (await import('../lib/goal-store.mjs')).listGoals()).at(-1);
  assert.equal(await allowed(),false,'one owned Root at Normal keeps prompts asking');

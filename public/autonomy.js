@@ -3,8 +3,8 @@
 // continuation journal (lib/root-autonomy.mjs); every Goal of the tree shows it.
 export const autonomyLevels=Object.freeze([
   {level:1,name:'Normal',description:'Does what each comment asks, then waits for you.'},
-  {level:2,name:'Auto Continue',description:'Keeps working on what you\'ve agreed, across the whole Root Goal. Questions come as Letters. No tool prompts.'},
-  {level:3,name:'Ultra Continue',description:'Plans its own way to the Root Goal\'s success criteria and moves every Goal under it forward. Letters only for your decisions. No tool prompts.'},
+  {level:2,name:'Auto Continue',description:'Carries out what you\'ve agreed anywhere in the Root Goal and keeps its Goals up to date. Questions come as Letters. No tool prompts.'},
+  {level:3,name:'Never Stop',description:'Plans its own way to the Root Goal\'s success criteria, reads whatever helps on the web and this machine, except secrets, and keeps going. In Claude Code it always schedules its next check. Letters only for your decisions. No tool prompts.'},
 ]);
 export const validAutonomy=level=>Number.isInteger(level)&&level>=1&&level<=autonomyLevels.length;
 // A record without a level reads as Normal.

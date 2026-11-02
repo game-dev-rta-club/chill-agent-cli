@@ -62,7 +62,7 @@ ordering; tool prompts follow Autonomy (the level of the owned Root the user las
 The request lists the owned Roots above Normal by level name with what each
 asks, so it stands on its own: the agreed work anywhere under the Root (Auto
 Continue), or the whole Root tree toward its criteria, without Goals other live
-conversations work on (Ultra Continue).
+conversations work on (Never Stop).
 It lists what the record already says (unfinished Goals, feedback still awaiting
 a reply, open Letters), counted over every Root it continues (above Normal and not Done; feedback awaiting a reply counts in every Root it owns), and names no command, so a turn with nothing left ends in
 a single response. Codex receives the same text; only a conversation that can

@@ -18,11 +18,11 @@ const tree=()=>[goal('1'),goal('2',{parentId:'1'}),goal('3',{parentId:'1'}),goal
 const at=(goals,levels)=>Object.entries(levels).map(([id,level])=>({root:goals.find(g=>g.id===id),level}));
 
 test('the three levels go by name, with their descriptions',()=>{
-  assert.deepEqual(autonomyLevels.map(l=>[l.level,l.name]),[[1,'Normal'],[2,'Auto Continue'],[3,'Ultra Continue']]);
+  assert.deepEqual(autonomyLevels.map(l=>[l.level,l.name]),[[1,'Normal'],[2,'Auto Continue'],[3,'Never Stop']]);
   assert.deepEqual(autonomyLevels.map(l=>l.description),[
     'Does what each comment asks, then waits for you.',
-    'Keeps working on what you\'ve agreed, across the whole Root Goal. Questions come as Letters. No tool prompts.',
-    'Plans its own way to the Root Goal\'s success criteria and moves every Goal under it forward. Letters only for your decisions. No tool prompts.',
+    'Carries out what you\'ve agreed anywhere in the Root Goal and keeps its Goals up to date. Questions come as Letters. No tool prompts.',
+    'Plans its own way to the Root Goal\'s success criteria, reads whatever helps on the web and this machine, except secrets, and keeps going. In Claude Code it always schedules its next check. Letters only for your decisions. No tool prompts.',
   ]);
   assert.equal(autonomyOf({}),1,'a record without a level reads as Normal');assert.equal(autonomyOf({autonomy:4}),1,'4 is not a level');
 });
@@ -49,7 +49,7 @@ test('the journal record is the Root owner\'s: the same owner or one it took ove
   assert.deepEqual(withAutonomy(root,record({owner:claude('old'),revision:'r'}),2,'now'),record({owner:claude('old'),revision:'r',autonomy:2,updatedAt:'now'}),'a record to take over keeps its owner until the owner writes it');
   assert.deepEqual(withAutonomy(codex,record({owner:{agent:'codex',id:'u'},revision:'r',history:[{id:'h'}]}),2,'now'),
     {rootId:'1',owner:{agent:'codex',id:'t'},autonomy:2,updatedAt:'now'},'another owner\'s record starts over, with only the level: checks are the conversation\'s');
-  assert.throws(()=>withAutonomy(root,null,4),/Normal, Auto Continue or Ultra Continue/);
+  assert.throws(()=>withAutonomy(root,null,4),/Normal, Auto Continue or Never Stop/);
 });
 
 test('approvals follow the owned Root the user wrote to last, else the newest; owning none means asking',()=>{
@@ -65,7 +65,7 @@ test('approvals follow the owned Root the user wrote to last, else the newest; o
   assert.equal(approvesTools(levels({1:1,9:2}),{goals,events:[]}),true,'with no comment anywhere, the newest Root decides');
 });
 
-test('the end-of-turn plan lists each owned Root above Normal by name, with its tree at Ultra Continue',()=>{
+test('the end-of-turn plan lists each owned Root above Normal by name, with its unfinished Goals',()=>{
   const goals=tree();
   assert.equal(turnPlan({goals,levels:at(goals,{1:1,4:1})}),null,'nothing above Normal');
   assert.equal(turnPlan({goals,levels:[]}),null,'no owned Root');
@@ -73,13 +73,21 @@ test('the end-of-turn plan lists each owned Root above Normal by name, with its 
   assert.equal(plan.level,3);assert.equal(plan.rootId,'4');assert.equal(plan.goalId,'4');
   assert.deepEqual(plan.roots.map(r=>[r.id,r.level]),[['1',2],['4',3]]);
   const lines=autonomyLines(plan);
-  assert.match(lines,/^- Root Goal #1 “Goal 1”, Auto Continue: After each turn, keep carrying out what you and the user clearly see the same way, in any Goal under Root Goal #1: work they asked for and plans you settled together\. Do not start what they have not agreed to; suggest it in its Goal instead\. When something only the user can decide blocks you, such as a choice they would care about or a step that is irreversible or leaves this workspace, ask it in a Letter \(a reply with --ask\) and carry on with the rest\.$/m);
-  assert.match(lines,/^- Root Goal #4 “Goal 4”, Ultra Continue: Root Goal #4 is delegated to you: its success criteria are fixed, and how to reach them is your call\. The user will not follow each step or review as you go, so do not wait for them\. Find what is still missing, plan it, split it into SubGoals, choose the order and carry it all out across its tree, writing each decision into its Goal so the user can catch up later\. Ask in a Letter for what is the user's alone: changing the success criteria, matters of taste the criteria leave open, and anything irreversible or beyond this workspace, such as merging to a shared branch, deleting data or publishing\. Meanwhile keep working on the rest of the tree\.$/m);
+  const [auto,never]=lines.split(/\n(?=- )/);
+  assert.match(auto,/^- Root Goal #1 “Goal 1”, Auto Continue: After each turn, keep carrying out what you and the user clearly see the same way, in any Goal under Root Goal #1: work they asked for and plans you settled together\./);
+  assert.match(auto,/Do not start what they have not agreed to or change what was agreed; suggest it in its Goal instead\./);
+  assert.match(auto,/\n  Unfinished in that tree: #1 “Goal 1”, #2 “Goal 2”, #3 “Goal 3”\.$/,'Auto Continue lists its tree too');
+  assert.match(never,/^- Root Goal #4 “Goal 4”, Never Stop: Root Goal #4 is delegated to you: its success criteria are fixed, how to reach them is your call/);
+  assert.match(never,/reading whatever helps on the web or anywhere on this machine, other projects included, but not secrets such as keys, passwords or private mail\./);
+  assert.match(never,/a first pass is not enough while any criterion might still not hold\./);assert.match(never,/Whenever you resume, first check what has changed in the work and around it/);
+  assert.match(never,/anything irreversible or that changes something beyond this workspace/);
+  for(const text of [auto,never])assert.match(text,/Keep every Goal in the tree that no other conversation has taken showing .*the real state of its work, such as Done once its criteria are met/,'both levels tidy');
+  assert.doesNotMatch(lines,/agent wake/,'the shared text names no command only Claude Code has');
   assert.doesNotMatch(lines,/Lv|Drive|Level/,'levels go by name');
   const ultra=turnPlan({goals,levels:at(goals,{1:3}),held:new Set(['3'])});
   assert.deepEqual(ultra.roots,[{id:'1',title:'Goal 1',level:3,open:[{id:'1',title:'Goal 1'},{id:'2',title:'Goal 2'}],taken:[{id:'3',title:'Goal 3'}]}]);
   assert.match(autonomyLines(ultra),/\n  Unfinished in that tree: #1 “Goal 1”, #2 “Goal 2”\.\n  Taken by other live conversations, so leave them: #3 “Goal 3”\./);
-  assert.deepEqual(turnPlan({goals,levels:at(goals,{1:2})}).roots,[{id:'1',title:'Goal 1',level:2}],'Auto Continue lists no tree');
+  assert.deepEqual(turnPlan({goals,levels:at(goals,{1:2})}).roots,[{id:'1',title:'Goal 1',level:2,open:[{id:'1',title:'Goal 1'},{id:'2',title:'Goal 2'},{id:'3',title:'Goal 3'}],taken:[]}],'Auto Continue lists its tree');
   goals[0].state='done';assert.equal(turnPlan({goals,levels:at(goals,{1:3})}),null,'a Done Root asks for nothing');
 });
 
@@ -139,7 +147,7 @@ for(const storage of ['json','sqlite']){
     assert.deepEqual(await w.stored(),none('1','2','3','4','5'),'a new Goal copies nothing');
   });
 
-  test(`four stored levels move to three once, then to their Roots: 2 to Normal, 3 to Auto Continue, 4 to Ultra Continue (${storage})`,async t=>{
+  test(`four stored levels move to three once, then to their Roots: 2 to Normal, 3 to Auto Continue, 4 to Never Stop (${storage})`,async t=>{
     const w=await workspace(t,storage);
     for(const title of ['Normal','Thorough','Continue','Drive','None'])await w.run('create','--title',title);
     await w.seed({1:1,2:2,3:3,4:4,5:undefined});await w.unrenumbered();

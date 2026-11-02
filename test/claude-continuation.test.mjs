@@ -28,7 +28,7 @@ async function fixture(t){
  await start();await action('create-goal',{title:'Native Autonomy',scope:'One verified continuation',criteria:'No duplicate or lost input'});const root=(await listGoals())[0];
  // The Web's Autonomy control, on any Goal of the tree, sets the Root agent's level.
  const configure=(level=2)=>setRootAutonomy(root.id,level);
- return {dir,cwd,root,event,action,start,configure,sessionId,read:async()=>readTurnCheck((await readGoal(root.id)).owner),journal:()=>storage('continuation').read(root.id),stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
+ return {dir,cwd,root,event,action,start,configure,sessionId,read:async()=>readTurnCheck((await readGoal(root.id)).owner),journal:()=>storage('continuation').read(root.id),wake:async()=>{const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');return scheduleClaudeWake({minutes:10,reason:'Look again',env});},stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
 }
 
 test('Stop reserves once; the next Stop ends the request and consumes the revision',async t=>{
@@ -43,9 +43,27 @@ test('Stop reserves once; the next Stop ends the request and consumes the revisi
  await f.configure(2);assert.equal(await f.stop(),null,'returning to the same level does not reset the allowance');
  await f.configure(3);await f.newPrompt();const drive=await f.stop();
  assert.equal(drive.decision,'block','a level change is a new revision');assert.equal((await f.read()).history.length,1);
- assert.match(drive.reason,/Ultra Continue: Root Goal #1 is delegated to you: its success criteria are fixed/);
+ assert.match(drive.reason,/Never Stop: Root Goal #1 is delegated to you: its success criteria are fixed/);
  await f.stop();
  await updateGoal(f.root.id,{scope:'A new agreed outcome'});await f.newPrompt();assert.equal((await f.stop()).decision,'block','so is a content change');
+});
+const neverStopHold=/^chill-agent: Root Goal #1 is at Never Stop, so its work must resume on its own: this turn ends only once the next check is scheduled\. First make each Goal you worked on show the real state of its work, finished ones Done\. Then schedule your next look at whether the work or anything it depends on has changed, .*agent wake --in <minutes> --reason '<what to look at>'\. If the command fails, say so once in a Comment on the Root, adding that lowering the level or pausing lets the turn end\. Then end the response\.$/s;
+test('Never Stop ends no turn without a scheduled check: it holds every Stop until one is scheduled',async t=>{
+ const f=await fixture(t);await f.configure(3);
+ assert.match((await f.stop()).reason,/Never Stop: Root Goal #1 is delegated to you/,'the end-of-turn message comes first');
+ for(let i=0;i<3;i++)assert.match((await f.stop()).reason,neverStopHold,'and the hold on every Stop after it, not once per revision');
+ await f.wake();assert.equal(await f.stop(),null,'a scheduled check lets the turn end');
+});
+test('Never Stop lets the turn end once the user lowers the level, pauses the conversation or the Root is Done; Auto Continue never asks for a check',async t=>{
+ const f=await fixture(t);await f.configure(2);
+ assert.equal((await f.stop()).decision,'block');assert.equal(await f.stop(),null,'Auto Continue ends without a check');
+ await f.configure(3);await f.newPrompt();await f.stop();assert.match((await f.stop()).reason,neverStopHold);
+ await f.configure(1);assert.equal(await f.stop(),null,'a lower level ends it');
+ await f.configure(3);await f.newPrompt();await f.stop();assert.match((await f.stop()).reason,neverStopHold);
+ const {setClaudePause}=await import('../lib/claude-pause.mjs'),connection=claudeConnection(await readGoal(f.root.id));
+ await setClaudePause(connection,true);assert.equal(await f.stop(),null,'a pause ends it');
+ await setClaudePause(connection,false);
+ await updateGoal(f.root.id,{state:'done'});await f.newPrompt();assert.equal(await f.stop(),null,'a Done Root ends it');
 });
 test('a request left without a result ends at the next Stop instead of stopping the checks for good',async t=>{
  // A continued response that forgot to report its result used to keep every
@@ -95,9 +113,10 @@ test('one message per conversation, from its Root at the highest level, listing 
  const f=await fixture(t);await f.configure(2);await f.action('create-goal',{title:'Second Root',scope:'',criteria:''});const other=(await listGoals()).at(-1);
  await setRootAutonomy(other.id,3);
  const {reason}=await f.stop();
- assert.match(reason,new RegExp(`Root Goal #${f.root.id} “Native Autonomy”, Auto Continue: `));assert.match(reason,new RegExp(`Root Goal #${other.id} “Second Root”, Ultra Continue: Root Goal #${other.id} is delegated to you`));
+ assert.match(reason,new RegExp(`Root Goal #${f.root.id} “Native Autonomy”, Auto Continue: `));assert.match(reason,new RegExp(`Root Goal #${other.id} “Second Root”, Never Stop: Root Goal #${other.id} is delegated to you`));
  const {attempts}=await f.read();assert.equal(attempts.length,1,'one record for the conversation');assert.equal(attempts[0].goalId,other.id);
- assert.equal(await f.stop(),null,'once per revision');assert.equal((await f.read()).attempts[0].phase,'completed');
+ assert.match((await f.stop()).reason,/is at Never Stop, so its work must resume on its own: this turn ends only once the next check is scheduled/,'Never Stop holds the stop until a check is scheduled');
+ await f.wake();assert.equal(await f.stop(),null,'once per revision');assert.equal((await f.read()).attempts[0].phase,'completed');
 });
 test('the level is the Root agent\'s: set on any Goal of the tree, it covers the whole tree',async t=>{
  const f=await fixture(t);const side=await createGoal({title:'Side',parentId:f.root.id}),work=await createGoal({title:'Work',parentId:side.id});
@@ -118,7 +137,7 @@ test('a level set before any conversation works on the Root goes to the first on
  assert.deepEqual(await setRootAutonomy(unowned.id,3),{goalId:unowned.id,rootId:unowned.id,autonomy:3});
  const record=await storage('continuation').read(unowned.id);assert.equal(record.autonomy,3);assert.equal('connection' in record||'threadId' in record,false);
 });
-test('Ultra Continue covers the whole Root tree and leaves out Goals another live conversation works on',async t=>{
+test('Never Stop covers the whole Root tree and leaves out Goals another live conversation works on',async t=>{
  const f=await fixture(t);const a=await createGoal({title:'Part A',parentId:f.root.id}),b=await createGoal({title:'Part B',parentId:f.root.id}),done=await createGoal({title:'Shipped',parentId:f.root.id});
  await updateGoal(done.id,{state:'done'});await f.configure(3);
  // Another conversation in the project is working on Part B right now.
@@ -128,7 +147,7 @@ test('Ultra Continue covers the whole Root tree and leaves out Goals another liv
  const {reason}=await f.stop();
  assert.match(reason,new RegExp(`Unfinished in that tree: #${f.root.id} “Native Autonomy”, #${a.id} “Part A”\\.`));
  assert.match(reason,new RegExp(`Taken by other live conversations, so leave them: #${b.id} “Part B”`));
- assert.doesNotMatch(reason,/Shipped/);assert.match(reason,/Ask in a Letter for what is the user's alone/);
+ assert.doesNotMatch(reason,/Shipped/);assert.match(reason,/Ask in a Letter \(a reply with --ask\) for what is the user's alone/);
 });
 test('feedback text adds nothing for Autonomy at any level',async t=>{
  const f=await fixture(t);

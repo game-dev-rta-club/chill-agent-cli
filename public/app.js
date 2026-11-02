@@ -66,7 +66,7 @@ const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 
   ${agentFace}
   </svg>`;
 // Autonomy icons (48x48): the agent with what its level adds around it,
-// nothing (Normal), an arrow going round (Auto Continue), a car (Ultra Continue).
+// nothing (Normal), an arrow going round (Auto Continue), a car (Never Stop).
 // The effects follow the current colour; the face and wheels keep their own.
 const agentIn = (x, y, scale) => `<g transform="translate(${x} ${y}) scale(${scale})" stroke="none">${agentAntenna}${agentFace}</g>`;
 const autonomyIcons = {
