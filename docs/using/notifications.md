@@ -43,7 +43,8 @@ page until it is reloaded. A device set
 up before these switches keeps its earlier choice: every reply turns both on, and
 Letters only turns on Letters.
 
-While the agent is still working, its replies wait. When the work ends, the
+While the agent is still working in a Root, its replies there wait; work only in
+its other Roots holds nothing back. When the work ends, the
 replies you have not read yet become one notification: the newest, with how many
 more there are. A reply you already read while the work went on, such as "On it",
 sends nothing. For an agent that chill continues itself, the work must stay ended
