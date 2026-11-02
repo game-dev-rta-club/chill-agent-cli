@@ -10,7 +10,9 @@ keyPoints: >-
 # Qualify the end-of-turn check in a Claude conversation
 
 This development route uses the same request, result recording and revision
-allowance as Codex, but a different native delivery mechanism. The built-in
+allowance as Codex, from the same rules in
+[continuation-monitor](../../lib/continuation-monitor.mjs) (`journalFor`,
+`settle`, `startRevision`, `reserve`), but a different native delivery mechanism. The built-in
 continuation extension registers [claude-continuation](../../lib/claude-continuation.mjs)
 through the optional `connection-hooks` capability. Codex remains the default
 setup route. Experimental native project hooks use explicit
