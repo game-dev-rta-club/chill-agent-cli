@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm} from 'node:fs/promises';
 import {writeFile,readFile} from './record-fixture.mjs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -8,9 +8,9 @@ import {promisify} from 'node:util';
 import test from 'node:test';
 import {fileURLToPath} from 'node:url';
 const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
-async function fixture(t,storage){
+async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chill-goals-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
- const env={...process.env,...(storage?{CHILL_AGENT_STORAGE:storage}:{}),CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
+ const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
  const invoke=(...args)=>execute(process.execPath,[cli,...args],{env});
  const run=async(...args)=>JSON.parse((await invoke(...args)).stdout);
  let serial=0;
@@ -207,10 +207,11 @@ test('concurrent child creation and parent completion never leave Done over an u
  const tree=(await f.run('tree'))[0];assert.equal(tree.state,'idle');assert.equal(tree.children.length,1);
  await assert.rejects(f.update('1',{state:'done'}),/unfinished SubGoals/);
 });
-test('runtime rejects obsolete schemas without modifying data',async t=>{
- const f=await fixture(t,'json');await f.run('create','--title','Current');
- const path=join(f.root,'workspace/schema.json'),old=JSON.stringify({format:'goal-workspace',version:3});await writeFile(path,old);
- await assert.rejects(f.run('tree'),/Unsupported workspace/);assert.equal(await readFile(path,'utf8'),old);
+test('a JSON workspace from before SQLite is refused unchanged, pointing to chill-migrate',async t=>{
+ const f=await fixture(t),path=join(f.root,'workspace/schema.json'),old=JSON.stringify({format:'goal-workspace',version:7});
+ await mkdir(join(f.root,'workspace'),{recursive:true});await writeFile(path,old);
+ await assert.rejects(f.run('tree'),/old JSON format.*chill-migrate/);assert.equal(await readFile(path,'utf8'),old);
+ await assert.rejects(readFile(join(f.root,'workspace/workspace.sqlite')),{code:'ENOENT'});
 });
 
 test('legacy no-reply Letters preserve counts without exposing a separate message kind',async t=>{

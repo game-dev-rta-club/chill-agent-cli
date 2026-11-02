@@ -8,7 +8,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
 
-test('public Goal commands persist SQLite records, preserve Letter relationships and reject parallel JSON',async t=>{
+test('public Goal commands persist SQLite records, preserve Letter relationships and write no JSON records',async t=>{
   const root=await mkdtemp(join(tmpdir(),'chill-sqlite-goals-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
   const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
@@ -35,10 +35,6 @@ test('public Goal commands persist SQLite records, preserve Letter relationships
   assert.equal(shown.canvas.body,'# Plan\nSQLite content');
   assert.equal(shown.letters.length,0);
   assert.ok(shown.conversation.some(e=>e.id===pending.id&&e.changeId>e.id));
-  delete env.CHILL_AGENT_STORAGE;
-  assert.equal((await run('show','--id','1')).goal.title,'SQLite root','reopen detects persistent backend');
-  env.CHILL_AGENT_STORAGE='json';
-  await assert.rejects(run('show','--id','1'),/parallel JSON/);
   await assert.rejects(readFile(join(root,'workspace/schema.json')),{code:'ENOENT'});
   await assert.rejects(readFile(join(root,'workspace/goals/1/goal.json')),{code:'ENOENT'});
 });
@@ -80,16 +76,14 @@ test('isolated SQLite Web accepts a reply and CLI reads it after server shutdown
   assert.ok(shown.conversation.some(event=>event.text==='Web reply'));
 });
 
-test('existing JSON workspaces remain JSON until an explicit separate migration',async t=>{
+test('an existing JSON workspace is neither read nor written, whatever command opens it',async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-legacy-selection-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
- const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'json'};
+ const env={...process.env,CHILL_AGENT_DATA_DIR:root};
  const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
- await run('create','--title','Legacy');
- delete env.CHILL_AGENT_STORAGE;
- await run('reply','--id','1','--text','Still legacy');
- assert.equal(JSON.parse(await readFile(join(root,'workspace/events/1.json'))).text,'Still legacy');
- await assert.rejects(readFile(join(root,'workspace/workspace.sqlite')),{code:'ENOENT'});
- const original=await readFile(join(root,'workspace/goals/1/goal.json'));
- env.CHILL_AGENT_STORAGE='sqlite';await assert.rejects(run('show','--id','1'),/explicit migration/);
- assert.deepEqual(await readFile(join(root,'workspace/goals/1/goal.json')),original);
+ const {mkdir}=await import('node:fs/promises');await mkdir(join(root,'workspace/goals/1'),{recursive:true});
+ await writeFile(join(root,'workspace/schema.json'),JSON.stringify({format:'goal-workspace',version:7}));
+ const original=JSON.stringify({id:'1',parentId:null,title:'Legacy'});await writeFile(join(root,'workspace/goals/1/goal.json'),original);
+ for(const args of [['show','--id','1'],['reply','--id','1','--text','x'],['create','--title','New']])await assert.rejects(run(...args),/old JSON format/);
+ assert.equal(await readFile(join(root,'workspace/goals/1/goal.json'),'utf8'),original);
+ const {readdir}=await import('node:fs/promises');assert.deepEqual((await readdir(join(root,'workspace'))).sort(),['goals','schema.json'],'nothing is added beside it');
 });

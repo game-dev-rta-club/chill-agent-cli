@@ -8,7 +8,7 @@ import {once} from 'node:events';
 import {promisify} from 'node:util';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=await mkdtemp(join(tmpdir(),'chill-paged-web-'));
-const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'sqlite',PORT:'0'},execute=promisify(execFile);
+const env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'0'},execute=promisify(execFile);
 let browser,server;
 try{
  const store=new URL('../lib/goal-store.mjs',import.meta.url).href;

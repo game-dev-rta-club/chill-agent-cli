@@ -7,7 +7,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
 const execute=promisify(execFile),store=new URL('../lib/goal-store.mjs',import.meta.url).href,search=new URL('../lib/workspace-search.mjs',import.meta.url).href;
-for(const backend of ['json','sqlite'])test(`${backend} search finds visible Goals, Comments, Letters and Deliverables`,async t=>{
+test(`search finds visible Goals, Comments, Letters and Deliverables`,async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-search-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10}));
  const code=`
  import assert from 'node:assert/strict';import {writeFile} from 'node:fs/promises';
@@ -38,7 +38,7 @@ for(const backend of ['json','sqlite'])test(`${backend} search finds visible Goa
  await new Promise(resolve=>setTimeout(resolve,3100));
  const cut=(await searchWorkspace('needle')).results[0].snippet;assert.ok(cut.startsWith('…')&&cut.endsWith('…')&&cut.includes('needle'));assert.ok(cut.length<130);
  `;
- const result=await execute(process.execPath,['--no-warnings','--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:backend}});
+ const result=await execute(process.execPath,['--no-warnings','--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root}});
  assert.equal(result.stdout,'');
 });
 test('Web answers GET /api/search and refuses other methods',async t=>{
