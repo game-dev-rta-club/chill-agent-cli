@@ -91,7 +91,7 @@ session ID, optional prompt identity and a connection generation; reject stale
 owners. A clear/fork or different session must not inherit a Root binding merely
 because it uses the same project directory. Offer input only from chill's saved
 events and reservations. Leave tool permissions with Claude; only Autonomy Auto Continue or
-Ultra Continue answers a PermissionRequest, and chill never changes Claude's permission relay or modes.
+Never Stop answers a PermissionRequest, and chill never changes Claude's permission relay or modes.
 
 ## Qualify before exposing controls
 

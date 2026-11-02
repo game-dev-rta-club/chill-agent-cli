@@ -3,7 +3,7 @@ keyPoints: >-
   A Goal records an outcome and its criteria; children inherit the root's chat.
   Goals moved into another Root, a whole Root too, follow that Root's agent and settings.
   Done requires every descendant to be Done, while progress counts completed leaves.
-  Autonomy is set per agent (per Root): Normal, Auto Continue or Ultra Continue, from any Goal's comment box.
+  Autonomy is set per agent (per Root): Normal, Auto Continue or Never Stop, from any Goal's comment box.
 ---
 
 # Goals describe outcomes
@@ -64,7 +64,7 @@ Implementation: [Goal store](../../lib/goal-store.mjs),
 ## Autonomy: how far the agent goes on its own
 
 Autonomy is set per agent (per Root): the conversation that owns a Root has one
-level for it, **Normal**, **Auto Continue** or **Ultra Continue**. Every Goal's
+level for it, **Normal**, **Auto Continue** or **Never Stop**. Every Goal's
 comment box shows that level and sets it; all Goals of a tree show the same
 value. It is stored as 1 to 3 but always shown by name, never by number.
 
@@ -78,8 +78,8 @@ the panel; Escape or a click outside closes it without a change. If the save fai
 | Level | End of turn | Tool prompts (Claude) |
 | --- | --- | --- |
 | Normal | nothing | asked as usual |
-| Auto Continue | keep carrying out what the agent and the user agreed, in any Goal under the Root; questions go to Letters | allowed |
-| Ultra Continue | the Root is delegated: plan toward its success criteria and move its whole tree forward; only the user's decisions go to Letters | allowed |
+| Auto Continue | keep carrying out what the agent and the user agreed, in any Goal under the Root, and keep each Goal showing where its work stands; anything not agreed is suggested in its Goal; questions go to Letters | allowed |
+| Never Stop | the Root is delegated: plan toward its success criteria, dig past a first pass and move its whole tree forward, reading whatever helps beyond the workspace except secrets; only the user's decisions go to Letters. In Claude, a turn is held until a check is scheduled | allowed |
 
 The level is kept as `autonomy` in the Root's continuation journal record
 (`workspace/continuation/<rootId>.json`), which names the agent it was written
@@ -98,16 +98,34 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
 
 - **End of turn.** One message per conversation, from its Root at the highest
   level. It lists each unfinished Root it owns above Normal, by level name, with
-  what that level asks, so it stands on its own. A Root at Ultra Continue brings
-  its unfinished Goals in, without the Goals other live conversations work on,
+  what that level asks, so it stands on its own. Each Root brings its
+  unfinished Goals in, without the Goals other live conversations work on,
   which it names as taken. A Claude conversation gets it at its Stop hook; the
   Web server checks a Codex chat every 30 seconds. One check per revision, for the
   conversation however many Roots it owns: a user comment, a Goal or Canvas
   change, or a level change in any Root above Normal that is not Done; a Normal or Done Root starts no check.
+- **Never Stop's hold (Claude only).** Once that message has been sent, while
+  the conversation owns an unfinished Root at Never Stop and has no scheduled
+  check (`agent wake`), every Stop is held, not only once per revision, with a
+  request to bring its Goals up to date and schedule a check. A scheduled check,
+  a lower level, a pause or a Done Root lets the turn end; if scheduling fails,
+  the agent says so on the Root and stays held until one of the others happens.
+  Codex has no scheduled checks, so this does not apply there.
+- **A level change.** When a Root the agent owns has a level other than the one
+  last stated to it (by an end-of-turn message or an earlier notice), chill
+  tells the agent once what the new level asks; a lowered level applies to work
+  already under way too, so an end-of-turn message never counts as telling it a
+  lowered level. It does so the next time it hands the conversation anything: a
+  tool hook, a scheduled check or comment waking an idle Claude conversation, a
+  message to an idle Codex chat. chill does not remove checks, since only the
+  agent knows which still serve its work; a Claude notice lists them with
+  `agent wake --cancel <time|all>`, and every due check is done only if still
+  needed. A Root chill first finds is recorded without a notice. The levels
+  stated are kept in `workspace/levels-told/`.
 - **Tool prompts.** A prompt names no Goal, so the Root the user last commented
   in (on it or any Goal under it) decides among the Roots the conversation owns;
-  with no comment in any of them, the newest Root. At Auto Continue or Ultra
-  Continue the prompt is allowed; owning none, it asks as usual. Questions for the user (AskUserQuestion) are never answered, and a
+  with no comment in any of them, the newest Root. At Auto Continue or Never
+  Stop the prompt is allowed; owning none, it asks as usual. Questions for the user (AskUserQuestion) are never answered, and a
   paused conversation is not answered. Codex prompts cannot be answered by hooks.
 
 `POST /api/goals/<id>/autonomy` with `{"level":2}` (same-origin JSON) sets the

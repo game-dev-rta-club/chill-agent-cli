@@ -24,7 +24,7 @@ try{
  assert.equal(await page.locator('.autonomy input,.autonomy-range,.autonomy-tip').count(),0,'no slider is left');
  await trigger.click();await panel.waitFor();
  assert.equal(await trigger.getAttribute('aria-expanded'),'true');
- assert.deepEqual(await panel.locator('[data-autonomy-level] b').allTextContents(),['Normal','Auto Continue','Ultra Continue']);
+ assert.deepEqual(await panel.locator('[data-autonomy-level] b').allTextContents(),['Normal','Auto Continue','Never Stop']);
  assert.deepEqual(await panel.locator('[data-autonomy-level]').evaluateAll(b=>b.map(x=>x.getAttribute('aria-pressed'))),['true','false','false']);
  assert.match(await panel.innerText(),/^Autonomy\n/);
  assert.doesNotMatch(await page.locator('.autonomy').innerText(),/Lv|\d/,'no level numbers are shown');
@@ -35,16 +35,16 @@ try{
  await trigger.click();await page.locator('#goal-title').click();await panel.waitFor({state:'hidden'});
  // A failed save leaves the level as it was and says so.
  await page.route('**/api/goals/1/autonomy',r=>r.fulfill({status:500,contentType:'application/json',body:'{"error":"boom"}'}));
- await trigger.click();await panel.getByRole('button',{name:/^Ultra Continue/}).click();
+ await trigger.click();await panel.getByRole('button',{name:/^Never Stop/}).click();
  await panel.getByText('Could not save. Autonomy is unchanged.',{exact:true}).waitFor();
  assert.equal(await trigger.getAttribute('aria-label'),'Autonomy: Normal');
  await page.unroute('**/api/goals/1/autonomy');
- await panel.getByRole('button',{name:/^Ultra Continue/}).click();await panel.waitFor({state:'hidden'});
- assert.equal(await trigger.getAttribute('aria-label'),'Autonomy: Ultra Continue');assert.match(await trigger.innerText(),/Ultra Continue/);
+ await panel.getByRole('button',{name:/^Never Stop/}).click();await panel.waitFor({state:'hidden'});
+ assert.equal(await trigger.getAttribute('aria-label'),'Autonomy: Never Stop');assert.match(await trigger.innerText(),/Never Stop/);
  assert.equal(await page.evaluate(()=>document.activeElement.hasAttribute('data-autonomy-button')),true,'focus returns to the button after saving');
  const saved=await (await fetch(url+'/api/goals?view=web')).json();
  assert.deepEqual((saved.goals||saved).map(g=>[g.id,g.autonomy]),[['1',3],['2',3]],'the Root agent\'s level, shown on every Goal');
- await page.goto(url+'/#/goal/2');await page.locator('[data-autonomy-button][aria-label="Autonomy: Ultra Continue"]').waitFor();
+ await page.goto(url+'/#/goal/2');await page.locator('[data-autonomy-button][aria-label="Autonomy: Never Stop"]').waitFor();
  await page.setViewportSize({width:1280,height:900});await trigger.click();await panel.waitFor();
  const wide=await panel.boundingBox(),button=await trigger.boundingBox();assert.ok(wide.y+wide.height<=button.y+2||wide.y>=button.y+button.height-2,'the panel opens next to the button');
  assert.ok(await unclipped(panel),'the panel shows whole beside the conversation column');

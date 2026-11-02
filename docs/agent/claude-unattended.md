@@ -30,7 +30,7 @@ There are two decisions:
 
 | Setting | What it controls |
 | --- | --- |
-| The Root agent's [Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own) | How far the agent goes on its own: keep carrying out the agreed work (Auto Continue) or take the whole Root tree toward its criteria (Ultra Continue). At either, the PermissionRequest hook answers prompts with Allow |
+| The Root agent's [Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own) | How far the agent goes on its own: keep carrying out the agreed work (Auto Continue) or take the whole Root tree toward its criteria (Never Stop). At either, the PermissionRequest hook answers prompts with Allow |
 | Claude tool permissions | Which reads, commands and edits can execute without another approval at Autonomy Normal |
 
 Review the operations the work requires in Claude's permission settings. Saved

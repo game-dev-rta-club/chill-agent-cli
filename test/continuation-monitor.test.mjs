@@ -28,11 +28,11 @@ async function installedSkill(t){
 }
 const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootState:'idle',revision:'r1',progress:'p1',candidates:[{id:'2',title:'Work'}],lastUserEvent:1,paused:false,pendingFeedback:[],queue:[],stable:true,harnessState:'notLoaded',heartbeatFresh:false,turn:{id:'turn',status:'completed',completedAt:1}});
 // The chat's Autonomy plan: its Root at Auto Continue, its revision following the facts'.
-const planFor=f=>({rootId:'1',threadId:'t',owner:{agent:'codex',id:'t'},level:2,goalId:'1',goalTitle:'Root',revision:f.revision,roots:[{id:'1',title:'Root',level:2}]});
+const planFor=f=>({rootId:'1',threadId:'t',owner:{agent:'codex',id:'t'},level:2,goalId:'1',goalTitle:'Root',revision:f.revision,roots:[{id:'1',title:'Root',level:2,open:[],taken:[]}]});
 function fixture(){
  // Each chat's check record, by its ID; `state` is the one written last.
  let saved=null,time=1000,f=idle(),sent=[],failure=false,observations=0,mutate=()=>{};const records=new Map();
- const deps={plan:async()=>deps.planned===undefined?planFor(f):deps.planned,read:async owner=>structuredClone(records.get(owner.id))??{owner,attempts:[],history:[]},write:async(owner,s)=>{saved=structuredClone(s);records.set(owner.id,saved);},observe:async()=>{mutate(++observations);return structuredClone(f);},lock:async(_id,fn)=>fn(),now:()=>time,send:async(_f,text,id)=>{sent.push({text,id});if(failure)throw Error('timeout');return {queuedSubmission:{id:'q'}};}};
+ const deps={tell:async()=>{},plan:async()=>deps.planned===undefined?planFor(f):deps.planned,read:async owner=>structuredClone(records.get(owner.id))??{owner,attempts:[],history:[]},write:async(owner,s)=>{saved=structuredClone(s);records.set(owner.id,saved);},observe:async()=>{mutate(++observations);return structuredClone(f);},lock:async(_id,fn)=>fn(),now:()=>time,send:async(_f,text,id)=>{sent.push({text,id});if(failure)throw Error('timeout');return {queuedSubmission:{id:'q'}};}};
  return {run:()=>createMonitorRunner(deps)(),get state(){return saved;},records,get sent(){return sent;},f,advance:(n=101)=>{time+=n;},fail:()=>{failure=true;},mutate:fn=>{mutate=fn;},complete:()=>{f.pendingWork={endedAt:new Date(time).toISOString()};f.turn={id:'next'+sent.length,status:'completed',completedAt:time/1000};},deps};
 }
 for(const [name,patch] of Object.entries({queued:{queue:[{id:'other-goal'}]},sending:{pendingFeedback:[{eventId:2,status:'sending'}]},saved:{pendingFeedback:[{eventId:2,status:'saved'}]},paused:{paused:true},unfinished:{turn:{id:'x',completedAt:null,status:'interrupted'}},heartbeat:{heartbeatFresh:true},unknown:{harnessState:'unknown'},changing:{stable:false},interrupted:{turn:{id:'t',completedAt:1,status:'interrupted'}}})){
@@ -58,12 +58,12 @@ test('nothing is checked while no Root asks for it; the chat\'s check observes t
  const x=fixture();x.deps.planned=null;assert.equal((await x.run()).status,'off');assert.equal(x.sent.length,0);
  const observed=[],observe=x.deps.observe;x.deps.observe=async(id,pending)=>{observed.push(id);return observe(id,pending);};
  x.deps.planned=undefined;await x.run();assert.equal(x.sent.length,1);assert.deepEqual([...new Set(observed)],['1']);
- assert.match(x.sent[0].text,/- Root Goal #1 “Root”, Auto Continue: After each turn, keep carrying out what you and the user clearly see the same way, in any Goal under Root Goal #1/);
+ assert.match(x.sent[0].text,/- Root Goal #1 “Root”, Auto Continue: After each turn, keep carrying out what you and the user clearly see the same way, in any Goal under Root Goal #1: work they asked for/);
 });
 test('a level change is a new revision',async()=>{
  const x=fixture();await x.run();x.complete();assert.equal((await x.run()).status,'exhausted');
  x.deps.planned={...planFor(x.f),level:3,revision:'level-3',roots:[{id:'1',title:'Root',level:3,open:[{id:'2',title:'Work'}],taken:[]}]};
- await x.run();assert.equal(x.sent.length,2);assert.match(x.sent[1].text,/Root Goal #1 “Root”, Ultra Continue: Root Goal #1 is delegated to you/);
+ await x.run();assert.equal(x.sent.length,2);assert.match(x.sent[1].text,/Root Goal #1 “Root”, Never Stop: Root Goal #1 is delegated to you/);
  assert.match(x.sent[1].text,/Unfinished in that tree: #2 “Work”\./);
 });
 test('a chat that takes over a Root gets its own check; the earlier chat\'s request stays in its record, never resent',async t=>{

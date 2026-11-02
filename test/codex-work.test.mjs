@@ -12,6 +12,7 @@ import {agentExecutions} from '../lib/agents/index.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {codexFeedbackText,codexSnapshot,codexStop,codexToolHook,handIdleCodex,pauseCodex,readCodexWork,resumeCodex} from '../lib/agents/codex-work.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
+import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {hookOutput} from '../bin/chill-hook.mjs';
 import {expectHidden} from './hidden-failures.mjs';
 import {desktopChat} from './fake-codex-desktop.mjs';
@@ -179,4 +180,18 @@ test('a reassigned Root keeps its cursor: the new chat receives only what was ne
   invalidateAgentObservation(next);
   assert.deepEqual((await handIdleCodex(next)).map(e=>e.id),[waiting]);
   assert.notEqual(handed,waiting);
+});
+
+test('a level the user changes is told once: at the chat\'s next tool hook, or with the next message to an idle chat',async t=>{
+  const f=await fixture(t);await setRootAutonomy(f.root.id,3);
+  const turn=await f.work();
+  assert.equal(await codexToolHook({threadId:f.thread,turnId:turn}),null,'a Root seen first is recorded, not told');
+  await setRootAutonomy(f.root.id,2);
+  assert.match(await codexToolHook({threadId:f.thread,turnId:turn}),/^chill-agent: the user changed the Autonomy level of Root Goal #\d+ “Outcome” from Never Stop to Auto Continue\. The new level applies to work already under way: .* From now on: After each turn/);
+  assert.equal(await codexToolHook({threadId:f.thread,turnId:turn}),null,'once');
+  assert.doesNotMatch(await codexToolHook({threadId:f.thread,turnId:turn})??'',/agent wake/,'Codex has no checks to cancel');
+  await f.endTurn();await setRootAutonomy(f.root.id,1);
+  await f.save('Next step');
+  const [,text]=[null,...(await f.sent())].slice(-2);
+  assert.match(text,/^chill-agent: the user changed the Autonomy level of Root Goal #\d+ “Outcome” from Auto Continue to Normal\.[^\n]*\n/,'the notice comes first');assert.match(text,/"text":"Next step"/);
 });
