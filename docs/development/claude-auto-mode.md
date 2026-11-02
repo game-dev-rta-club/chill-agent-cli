@@ -57,7 +57,7 @@ At a main Stop, the extension checks saved feedback and holds across every Root
 in this native connection. Unprocessed input suppresses continuation. The
 extension saves one attempt before the CLI returns a native Stop decision,
 without claiming that native input queues are empty. Claude retains its input
-ordering; tool prompts follow Autonomy (every owned Root at Auto Continue or Ultra Continue).
+ordering; tool prompts follow Autonomy (the level of the owned Root the user last commented in).
 
 The request lists the owned Roots above Normal by level name with what each
 asks, so it stands on its own: the agreed work anywhere under the Root (Auto

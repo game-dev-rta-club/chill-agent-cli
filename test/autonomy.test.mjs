@@ -52,11 +52,17 @@ test('the journal record is the Root owner\'s: the same owner or one it took ove
   assert.throws(()=>withAutonomy(root,null,4),/Normal, Auto Continue or Ultra Continue/);
 });
 
-test('approvals: every owned Root at Auto Continue or higher; owning none means asking',()=>{
+test('approvals follow the owned Root the user wrote to last, else the newest; owning none means asking',()=>{
+  const goals=[{id:'1'},{id:'2',parentId:'1'},{id:'5'},{id:'9'}];
+  const levels=map=>Object.entries(map).map(([id,level])=>({root:{id},level}));
+  const said=(...ids)=>ids.map((goalId,i)=>({author:'user',goalId,changeId:i+1}));
   assert.equal(approvesTools([]),false,'no owned Root');
-  assert.equal(approvesTools([1]),false);
-  assert.equal(approvesTools([2]),true);assert.equal(approvesTools([3]),true);assert.equal(approvesTools([2,3]),true);
-  assert.equal(approvesTools([2,1]),false,'one Root at Normal keeps prompts asking');assert.equal(approvesTools([3,1]),false,'so does Ultra Continue beside it');
+  assert.equal(approvesTools(levels({1:1})),false);assert.equal(approvesTools(levels({1:2})),true);assert.equal(approvesTools(levels({1:3})),true);
+  assert.equal(approvesTools(levels({1:2,5:1}),{goals,events:said('5','2')}),true,'a comment in a Goal under Root 1 is the latest');
+  assert.equal(approvesTools(levels({1:2,5:1}),{goals,events:said('2','5')}),false,'the Normal Root was written to last');
+  assert.equal(approvesTools(levels({1:2,5:1}),{goals,events:[...said('2','5'),{author:'agent',goalId:'1',changeId:9}]}),false,'the agent\'s own replies do not count');
+  assert.equal(approvesTools(levels({1:2,9:1}),{goals,events:said('2')}),true,'a new Root without comments leaves the last one deciding');
+  assert.equal(approvesTools(levels({1:1,9:2}),{goals,events:[]}),true,'with no comment anywhere, the newest Root decides');
 });
 
 test('the end-of-turn plan lists each owned Root above Normal by name, with its tree at Ultra Continue',()=>{
