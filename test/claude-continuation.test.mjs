@@ -28,7 +28,7 @@ async function fixture(t){
  await start();await action('create-goal',{title:'Native Autonomy',scope:'One verified continuation',criteria:'No duplicate or lost input'});const root=(await listGoals())[0];
  // The Web's Autonomy control, on any Goal of the tree, sets the Root agent's level.
  const configure=(level=2)=>setRootAutonomy(root.id,level);
- return {dir,cwd,root,event,action,start,configure,sessionId,read:async()=>readTurnCheck((await readGoal(root.id)).owner),journal:()=>storage('continuation').read(root.id),wake:async()=>{const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');return scheduleClaudeWake({minutes:10,reason:'Look again',env});},stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
+ return {dir,cwd,root,event,action,start,configure,sessionId,read:async()=>readTurnCheck((await readGoal(root.id)).owner),journal:()=>storage('continuation').read(root.id),wake:async()=>{const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');return scheduleClaudeWake({minutes:10,reason:'Look again',env});},cancel:async at=>{const {cancelClaudeWake}=await import('../lib/claude-wake.mjs');return cancelClaudeWake({at,env});},tool:()=>handleClaudeToolHook(event('PostToolUse',{tool_name:'Read',tool_use_id:randomUUID(),tool_response:{text:'work'}}),{cwd}),stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
 }
 
 test('Stop reserves once; the next Stop ends the request and consumes the revision',async t=>{
@@ -292,4 +292,22 @@ test('the request counts every Root Autonomy continues, and work in any of them 
  await f.newPrompt();await appendAgentComment({goalId:second.id,type:'comment',text:'Moved the second Root forward.'});
  assert.equal(await f.stop(),null);
  assert.equal((await f.read()).attempts[0].result.outcome,'worked','a Comment in another owned Root is work too');
+});
+
+test('a level the user changes reaches the running agent once, at its next tool hook, with the checks it can cancel',async t=>{
+ const f=await fixture(t);await f.configure(3);
+ assert.equal(await f.tool(),null,'a Root seen first is recorded, not told');
+ const {wake}=await f.wake();await f.configure(1);
+ const told=(await f.tool()).hookSpecificOutput.additionalContext;
+ assert.match(told,/^chill-agent: the user changed Root Goal #1 “Native Autonomy” from Never Stop to Normal\. From now on: Finish the step you are on, report it in a Comment on its Goal and end your turn/);
+ assert.match(told,new RegExp(`Checks you scheduled are still pending: ${wake.at} \\(Look again\\)\\. Cancel the ones you no longer need: .*agent wake --cancel <at\\|all>$`));
+ assert.equal(await f.tool(),null,'told once');
+ assert.deepEqual((await f.cancel(wake.at)).wakes,[]);
+ await assert.rejects(f.cancel('2000-01-01T00:00:00.000Z'),/No check is scheduled at 2000-01-01T00:00:00\.000Z\. Scheduled: none\./);
+ // The end-of-turn message states the levels it lists, so only a change after it is told.
+ await f.configure(2);assert.match((await f.stop()).reason,/Auto Continue: After each turn/);
+ await f.configure(3);
+ const raised=(await f.tool()).hookSpecificOutput.additionalContext;
+ assert.match(raised,/from Auto Continue to Never Stop\. From now on: Root Goal #1 is delegated to you/);assert.doesNotMatch(raised,/Checks you scheduled/,'no checks, no list');
+ await f.wake();await f.wake();assert.deepEqual((await f.cancel('all')),{cancelled:2,wakes:[]});
 });

@@ -61,7 +61,8 @@ async function main() {
   }
   if(action==='wake') {
     linked(caller,'wake');
-    const {scheduleClaudeWake}=await import('../lib/claude-wake.mjs');
+    const {scheduleClaudeWake,cancelClaudeWake}=await import('../lib/claude-wake.mjs');
+    if(values['--cancel']!==undefined){console.log(JSON.stringify(await cancelClaudeWake({at:values['--cancel']}),null,2));return;}
     console.log(JSON.stringify(await scheduleClaudeWake({minutes:values['--in']===undefined?undefined:Number(values['--in']),reason:values['--reason']||''}),null,2));
     return;
   }
@@ -97,7 +98,9 @@ async function claudeHook(action) {
     try { result=await watchClaudeConversation({sessionId:input.session_id,signal:controller.signal,attached:()=>process.ppid===parent}); }
     catch(error) { await logWatcher({...seen,event:'end',status:'error',error:String(error?.stack||error).slice(0,2000),ms:Date.now()-startedAt});throw error; }
     await logWatcher({...seen,event:'end',status:result.status,...(signal?{signal}:{}),ms:Date.now()-startedAt});
-    const text=watcherWakeText(result);
+    let text=watcherWakeText(result);
+    // A scheduled check wakes the conversation: tell it first of a level the user changed.
+    if(result.status==='wake'){const {claudeWakeNotice}=await import('../lib/claude-actions.mjs');const notice=await claudeWakeNotice(input.session_id);if(notice)text=`${notice}\n${text}`;}
     if(result.status==='stalled'){process.stderr.write(`${text}\n`,()=>process.exit(2));return;}
     if(text){process.stderr.write(`${text}\n`);process.exitCode=2;}
     return;

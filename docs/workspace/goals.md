@@ -111,6 +111,14 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
   a lower level, a pause or a Done Root lets the turn end; if scheduling fails,
   the agent says so on the Root and stays held until one of the others happens.
   Codex has no scheduled checks, so this does not apply there.
+- **A level change.** The next time chill hands the conversation anything (a
+  tool hook, a Claude scheduled check, a message to an idle Codex chat), it
+  tells it once of each owned Root whose level differs from the one last stated
+  to it, by an end-of-turn message or an earlier notice, with what the new
+  level asks. A Claude notice also lists the checks still scheduled and how to
+  cancel the ones no longer needed (`agent wake --cancel <at|all>`); nothing
+  removes them by itself. A Root seen for the first time is recorded without a
+  notice. The levels stated are kept in `workspace/levels-told/`.
 - **Tool prompts.** A prompt names no Goal, so the Root the user last commented
   in (on it or any Goal under it) decides among the Roots the conversation owns;
   with no comment in any of them, the newest Root. At Auto Continue or Never
