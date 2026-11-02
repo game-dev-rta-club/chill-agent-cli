@@ -9,7 +9,7 @@ import {spawn} from 'node:child_process';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {captureClaudeEntry,claudeEntryPaths} from '../lib/claude-entry.mjs';
 import {runClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessionStartContext} from '../lib/claude-actions.mjs';
-import {holdClaudeConversation,holdResultText,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
+import {holdClaudeConversation,holdResultText,stallGuard,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {logWatcher,watcherLogPath} from '../lib/claude-watch-log.mjs';
 import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
@@ -464,4 +464,23 @@ test('on Windows a task outlasts a record that refuses replacement for longer th
  const before=(await readJson(f.recordPath)).hold.checkedAt;
  await until(async()=>(await readJson(f.recordPath)).hold.checkedAt!==before);
  assert.deepEqual(await task.stop(),{status:'stopped'});
+});
+
+test('the stall check ends a watcher that stops checking, but not one that slept', async t => {
+  t.mock.timers.enable({apis:['setInterval','Date'],now:0});
+  const settled=promise=>Promise.race([promise,Promise.resolve('pending')]);
+  const asleep=stallGuard(5*60*1000);
+  t.after(asleep.stop);
+  // The computer slept for 17 minutes, then this check ran first on waking.
+  t.mock.timers.setTime(17*60*1000);
+  t.mock.timers.tick(10000);
+  assert.equal(await settled(asleep.stalled),'pending');
+  asleep.check();
+  asleep.stop();
+  const stuck=stallGuard(5*60*1000);
+  t.after(stuck.stop);
+  for(let i=0;i<29;i++)t.mock.timers.tick(10000);
+  assert.equal(await settled(stuck.stalled),'pending');
+  t.mock.timers.tick(10000);
+  assert.deepEqual(await settled(stuck.stalled),{status:'stalled'});
 });
