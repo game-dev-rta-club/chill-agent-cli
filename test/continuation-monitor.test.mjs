@@ -7,7 +7,7 @@ import {continuationEligibility} from '../lib/continuation-eligibility.mjs';
 import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {createGoal,createOwnedRoot,updateGoal,updateBrief,appendFeedback,readFeedback} from '../lib/goal-store.mjs';
+import {appendAgentComment,createGoal,createOwnedRoot,updateGoal,updateBrief,appendFeedback,readFeedback} from '../lib/goal-store.mjs';
 import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {goalRule} from '../lib/goal-rule.mjs';
 import {mkdir} from 'node:fs/promises';
@@ -249,4 +249,21 @@ test('a settled request records worked when the Web changed since it, otherwise 
  const at='2026-01-01T00:00:00.000Z',worked={progress:'p1'},idle={progress:'p1'},old={};
  settle(worked,{progress:'p2',at});settle(idle,{progress:'p1',at});settle(old,{progress:'p2',at});
  assert.deepEqual([worked.result.outcome,worked.phase,idle.result.outcome,old.result,old.phase],['worked','completed','no-work',undefined,'ended']);
+});
+test('a chat\'s observation counts every Root it owns, and work in any of them changes its progress',async()=>{
+ const old=process.env.CHILL_AGENT_DATA_DIR,dir=await mkdtemp(join(tmpdir(),'chill-monitor-roots-'));process.env.CHILL_AGENT_DATA_DIR=dir;
+ const threadId='00000000-0000-0000-0000-000000000004';
+ const connect=fn=>fn(contractStub(async(method,p)=>{
+  if(method==='thread/read')return {thread:codexThread({id:p.threadId})};
+  if(method==='thread/turns/list')return {data:[{id:'ended',status:'completed',completedAt:1,items:[]}]};
+  if(method==='thread/queue/list')return {data:[]};throw Error(method);
+ }));
+ try{
+  const first=await createOwnedRoot({title:'First'},{agent:'codex',id:threadId}),second=await createOwnedRoot({title:'Second'},{agent:'codex',id:threadId});
+  await createGoal({title:'Open step',parentId:second.id});
+  const before=await continuationObservation(first.id,null,{connect});
+  assert.equal(before.context.goals.unfinished,3,'both Roots and the second Root\'s open step');
+  await appendAgentComment({goalId:second.id,type:'comment',text:'Moved the second Root forward.'});
+  assert.notEqual((await continuationObservation(first.id,null,{connect})).progress,before.progress);
+ }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });
