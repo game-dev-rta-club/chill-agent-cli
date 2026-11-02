@@ -187,11 +187,11 @@ test('a level the user changes is told once: at the chat\'s next tool hook, or w
   const turn=await f.work();
   assert.equal(await codexToolHook({threadId:f.thread,turnId:turn}),null,'a Root seen first is recorded, not told');
   await setRootAutonomy(f.root.id,2);
-  assert.match(await codexToolHook({threadId:f.thread,turnId:turn}),/^chill-agent: the user changed Root Goal #\d+ “Outcome” from Never Stop to Auto Continue\. From now on: After each turn/);
+  assert.match(await codexToolHook({threadId:f.thread,turnId:turn}),/^chill-agent: the user changed the Autonomy level of Root Goal #\d+ “Outcome” from Never Stop to Auto Continue\. The new level applies to work already under way: .* From now on: After each turn/);
   assert.equal(await codexToolHook({threadId:f.thread,turnId:turn}),null,'once');
   assert.doesNotMatch(await codexToolHook({threadId:f.thread,turnId:turn})??'',/agent wake/,'Codex has no checks to cancel');
   await f.endTurn();await setRootAutonomy(f.root.id,1);
   await f.save('Next step');
   const [,text]=[null,...(await f.sent())].slice(-2);
-  assert.match(text,/^chill-agent: the user changed Root Goal #\d+ “Outcome” from Auto Continue to Normal\.[^\n]*\n/,'the notice comes first');assert.match(text,/"text":"Next step"/);
+  assert.match(text,/^chill-agent: the user changed the Autonomy level of Root Goal #\d+ “Outcome” from Auto Continue to Normal\.[^\n]*\n/,'the notice comes first');assert.match(text,/"text":"Next step"/);
 });

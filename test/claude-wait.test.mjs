@@ -289,6 +289,7 @@ test('a scheduled check wakes the conversation through its watcher when it is du
  assert.deepEqual(await w.done,{status:'wake',reason:'CI of PR #91'});
  assert.equal((await readJson(f.recordPath)).wakes,undefined,'a due check is removed, so it wakes once');
  assert.match(watcherWakeText({status:'wake',reason:'CI of PR #91'}),/check you scheduled is due \(CI of PR #91\)[\s\S]*agent wake/);
+ assert.match(watcherWakeText({status:'wake',reason:'CI',notice:'chill-agent: the user changed the Autonomy level'}),/^chill-agent: the user changed the Autonomy level\nchill-agent: the check you scheduled is due \(CI\)\. Do it only if you still need it at the new level above\./,'after a level change the new level decides');
  await assert.rejects(scheduleClaudeWake({cancel:true,env:f.env(),now}),/whole minutes/,'there is no cancel');
  // Compact and resume keep the checks; a cleared context starts without them.
  await scheduleClaudeWake({minutes:5,reason:'Later',env:f.env(),now});
