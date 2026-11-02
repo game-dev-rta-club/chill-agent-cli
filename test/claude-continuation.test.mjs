@@ -118,6 +118,13 @@ test('a level set before any conversation works on the Root goes to the first on
  assert.deepEqual(await setRootAutonomy(unowned.id,3),{goalId:unowned.id,rootId:unowned.id,autonomy:3});
  const record=await storage('continuation').read(unowned.id);assert.equal(record.autonomy,3);assert.equal('connection' in record||'threadId' in record,false);
 });
+test('a conversation that adopts a Root takes its level record too, so the record names it',async t=>{
+ const f=await fixture(t);const unowned=await createGoal({title:'Not started'});await setRootAutonomy(unowned.id,3);
+ assert.equal('owner' in await storage('continuation').read(unowned.id),false,'a level set before any conversation has no owner');
+ await f.action('adopt',{goalId:unowned.id});
+ const record=await storage('continuation').read(unowned.id);
+ assert.deepEqual(record.owner,(await readGoal(unowned.id)).owner);assert.equal(record.autonomy,3);
+});
 test('Ultra Continue covers the whole Root tree and leaves out Goals another live conversation works on',async t=>{
  const f=await fixture(t);const a=await createGoal({title:'Part A',parentId:f.root.id}),b=await createGoal({title:'Part B',parentId:f.root.id}),done=await createGoal({title:'Shipped',parentId:f.root.id});
  await updateGoal(done.id,{state:'done'});await f.configure(3);

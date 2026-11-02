@@ -89,7 +89,7 @@ over with `goal adopt`: the record's owner is then listed in the Root's
 `previousOwners`. A record written for an owner the Root never had starts over,
 at Normal. A level set on a Root no
 conversation works on yet is kept without an owner, and the first agent on the
-Root takes it over. Goals have no level of their own.
+Root takes it over. A conversation that takes a Root over with `goal adopt` writes itself into the record, so the record passes the level on no further. Goals have no level of their own.
 
 Autonomy adds nothing to the feedback text.
 Hooks read the level afresh, so a running agent meets a change at its next hook.
