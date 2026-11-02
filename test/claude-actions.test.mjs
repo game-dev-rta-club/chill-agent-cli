@@ -15,7 +15,7 @@ import {createGoal,createOwnedRoot,listGoals,appendFeedback,readGoal,updateGoal}
 import {claudeOwner} from '../lib/agents/owners.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
-import {goalCommentMarks} from '../lib/agents/index.mjs';
+import {agentExecutions,goalCommentMarks} from '../lib/agents/index.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
 import {fileURLToPath} from 'node:url';
 import {claudeHook,hookFor} from './claude-fixtures.mjs';
@@ -100,6 +100,15 @@ test('two Roots and a child hand their comments to the same conversation, and on
   assert.equal((await readGoal(g.id)).state,'idle');
   await assert.rejects(s.act('reply',{goalId:g.id,text:' '}),/Comment must contain text/);
   await assert.rejects(s.act('reply',{text:'no Goal'}),/Goal ID/);
+});
+
+test('one snapshot of a conversation marks Running in each of its Roots',async t=>{
+  const f=await fixture(t),s=await f.start(),g=await root(s),g2=await root(s);
+  await reportClaudeHook(s.event('UserPromptSubmit',{prompt:'go'}));
+  for(const goal of [g,g2])await sendFeedbackNow((await appendFeedback({goalId:goal.id,text:'now'})).changeId);
+  assert.match(context(await handleClaudeToolHook(s.hook())),/now/);
+  const marks=await agentExecutions(await listGoals());
+  assert.deepEqual([...marks.keys()].sort(),[g.id,g2.id].sort());
 });
 
 test('separate, resumed and cleared contexts cannot take or answer another conversation\'s comments',async t=>{
