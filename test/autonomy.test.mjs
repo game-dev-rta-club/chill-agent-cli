@@ -97,8 +97,11 @@ async function workspace(t,storage) {
     :sqlite(db=>Object.fromEntries(db.prepare('SELECT id,body FROM goals').all().map(row=>[String(row.id),JSON.parse(row.body)])));
   // Each Goal's own stored level (none since the move to Roots).
   const stored=async()=>Object.fromEntries(Object.entries(await bodies()).map(([id,body])=>[id,body.autonomy]));
-  // Edit stored Goals: fields to set, undefined removing one.
+  // A workspace this runtime has not migrated yet (one-time): what an older one left.
+  const older=()=>rm(join(root,'workspace','migrations.json'),{force:true});
+  // Edit stored Goals as an older runtime left them: fields to set, undefined removing one.
   const patch=async changes=>{
+    await older();
     const set=body=>{const next={...body};for(const [key,value] of Object.entries(changes[body.id]))if(value===undefined)delete next[key];else next[key]=value;return next;};
     if(storage==='json')for(const id of Object.keys(changes))await writeFile(goalFile(id),JSON.stringify(set(JSON.parse(await readFile(goalFile(id),'utf8')))));
     else await sqlite(db=>{for(const row of db.prepare('SELECT id,body FROM goals').all())if(Object.hasOwn(changes,String(row.id)))db.prepare('UPDATE goals SET body=? WHERE id=?').run(JSON.stringify(set(JSON.parse(row.body))),row.id);});
@@ -107,7 +110,7 @@ async function workspace(t,storage) {
   const seed=levels=>patch(Object.fromEntries(Object.entries(levels).map(([id,autonomy])=>[id,{autonomy}])));
   const scale=join(root,'workspace','autonomy-scale.json');
   // A workspace the renumbering has not reached yet.
-  const unrenumbered=()=>rm(scale,{force:true});
+  const unrenumbered=async()=>{await older();await rm(scale,{force:true});};
   const journal=id=>join(root,'workspace','continuation',`${id}.json`);
   const readJournal=async id=>JSON.parse(await readFile(journal(id),'utf8').catch(()=>'null'));
   const writeJournal=async(id,value)=>{await mkdir(join(root,'workspace','continuation'),{recursive:true});await writeFile(journal(id),JSON.stringify(value));};
@@ -132,10 +135,10 @@ for(const storage of ['json','sqlite']){
     assert.deepEqual(w.without(await w.readJournal('1')),{rootId:'1',revision:'r',attempts:[{id:'a'}],autonomy:2},'the attempts and revision stay; the switch is gone');
     assert.equal('enabled' in await w.readJournal('3'),false);
     assert.deepEqual(JSON.parse(await readFile(w.scale,'utf8')),{levels:3});
-    // A switch written again by an older runtime is removed again; its Root moves to Auto Continue.
+    // Once migrated, the workspace never looks for the old switch again: one an older runtime wrote is not a level.
     await w.writeJournal('3',{rootId:'3',enabled:true,attempts:[]});
     await w.run('create','--title','Fresh','--parent','1');
-    assert.deepEqual(await w.levels(),{1:2,3:2,4:undefined});assert.equal('enabled' in await w.readJournal('3'),false);
+    assert.deepEqual(await w.levels(),{1:2,3:undefined,4:undefined});assert.equal((await w.readJournal('3')).enabled,true,'left as it was');
     assert.deepEqual(await w.stored(),none('1','2','3','4','5'),'a new Goal copies nothing');
   });
 
