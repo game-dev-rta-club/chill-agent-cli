@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createMonitorRunner,continuationMessage,journalFor,readMonitor,settle} from '../lib/continuation-monitor.mjs';
+import {createMonitorRunner,continuationMessage,settle} from '../lib/continuation-monitor.mjs';
+import {readTurnCheck,seedTurnCheck} from '../lib/turn-checks.mjs';
+import {createContinuationExtension} from '../lib/continuation-extension.mjs';
 import {codexTurnPlan} from '../lib/agents/codex-continuation.mjs';
 import {continuationObservation} from '../lib/agents/codex-continuation-observation.mjs';
 import {continuationEligibility} from '../lib/continuation-eligibility.mjs';
@@ -28,9 +30,10 @@ const idle=()=>({rootId:'1',threadId:'t',observedAt:'2026-01-01T00:00:00Z',rootS
 // The chat's Autonomy plan: its Root at Auto Continue, its revision following the facts'.
 const planFor=f=>({rootId:'1',threadId:'t',owner:{agent:'codex',id:'t'},level:2,goalId:'1',goalTitle:'Root',revision:f.revision,roots:[{id:'1',title:'Root',level:2}]});
 function fixture(){
- let saved=null,time=1000,f=idle(),sent=[],failure=false,observations=0,mutate=()=>{};
- const deps={plan:async()=>deps.planned===undefined?planFor(f):deps.planned,read:async()=>structuredClone(saved),write:async(_id,s)=>{saved=structuredClone(s);},observe:async()=>{mutate(++observations);return structuredClone(f);},lock:async(_id,fn)=>fn(),now:()=>time,send:async(_f,text,id)=>{sent.push({text,id});if(failure)throw Error('timeout');return {queuedSubmission:{id:'q'}};}};
- return {run:()=>createMonitorRunner(deps)('1'),get state(){return saved;},get sent(){return sent;},f,advance:(n=101)=>{time+=n;},fail:()=>{failure=true;},mutate:fn=>{mutate=fn;},complete:()=>{f.pendingWork={endedAt:new Date(time).toISOString()};f.turn={id:'next'+sent.length,status:'completed',completedAt:time/1000};},deps};
+ // Each chat's check record, by its ID; `state` is the one written last.
+ let saved=null,time=1000,f=idle(),sent=[],failure=false,observations=0,mutate=()=>{};const records=new Map();
+ const deps={plan:async()=>deps.planned===undefined?planFor(f):deps.planned,read:async owner=>structuredClone(records.get(owner.id))??{owner,attempts:[],history:[]},write:async(owner,s)=>{saved=structuredClone(s);records.set(owner.id,saved);},observe:async()=>{mutate(++observations);return structuredClone(f);},lock:async(_id,fn)=>fn(),now:()=>time,send:async(_f,text,id)=>{sent.push({text,id});if(failure)throw Error('timeout');return {queuedSubmission:{id:'q'}};}};
+ return {run:()=>createMonitorRunner(deps)(),get state(){return saved;},records,get sent(){return sent;},f,advance:(n=101)=>{time+=n;},fail:()=>{failure=true;},mutate:fn=>{mutate=fn;},complete:()=>{f.pendingWork={endedAt:new Date(time).toISOString()};f.turn={id:'next'+sent.length,status:'completed',completedAt:time/1000};},deps};
 }
 for(const [name,patch] of Object.entries({queued:{queue:[{id:'other-goal'}]},sending:{pendingFeedback:[{eventId:2,status:'sending'}]},saved:{pendingFeedback:[{eventId:2,status:'saved'}]},paused:{paused:true},unfinished:{turn:{id:'x',completedAt:null,status:'interrupted'}},heartbeat:{heartbeatFresh:true},unknown:{harnessState:'unknown'},changing:{stable:false},interrupted:{turn:{id:'t',completedAt:1,status:'interrupted'}}})){
  test(`never sends for ${name}`,async()=>{const x=fixture();Object.assign(x.f,patch);await x.run();x.advance(10000);await x.run();assert.equal(x.sent.length,0);});
@@ -51,10 +54,10 @@ test('one nudge per revision across restarts; completed result alone does not pr
  x.advance(10000);assert.equal((await x.run()).status,'exhausted');assert.equal(x.sent.length,1);
  x.f.revision='r2';await x.run();assert.equal(x.sent.length,2);assert.equal(x.state.history.length,1);
 });
-test('nothing is checked while no Root asks for it, or for a Root the plan does not name',async()=>{
+test('nothing is checked while no Root asks for it; the chat\'s check observes the Root its plan names',async()=>{
  const x=fixture();x.deps.planned=null;assert.equal((await x.run()).status,'off');assert.equal(x.sent.length,0);
- x.deps.planned={...planFor(x.f),rootId:'9'};assert.equal((await x.run()).status,'off','the chat gets one message, from the Root of its highest level');
- x.deps.planned=undefined;await x.run();assert.equal(x.sent.length,1);
+ const observed=[],observe=x.deps.observe;x.deps.observe=async(id,pending)=>{observed.push(id);return observe(id,pending);};
+ x.deps.planned=undefined;await x.run();assert.equal(x.sent.length,1);assert.deepEqual([...new Set(observed)],['1']);
  assert.match(x.sent[0].text,/- Root Goal #1 “Root”, Auto Continue: After each turn, keep carrying out what you and the user clearly see the same way, in any Goal under Root Goal #1/);
 });
 test('a level change is a new revision',async()=>{
@@ -63,15 +66,13 @@ test('a level change is a new revision',async()=>{
  await x.run();assert.equal(x.sent.length,2);assert.match(x.sent[1].text,/Root Goal #1 “Root”, Ultra Continue: Root Goal #1 is delegated to you/);
  assert.match(x.sent[1].text,/Unfinished in that tree: #2 “Work”\./);
 });
-test('an adopted Root keeps its level for its new chat; the earlier request is closed, never resent',async t=>{
+test('a chat that takes over a Root gets its own check; the earlier chat\'s request stays in its record, never resent',async t=>{
  expectHidden(t,'continuation-monitor.send');
- const x=fixture();x.fail();await x.run();await x.deps.write('1',{...x.state,autonomy:3});
+ const x=fixture();x.fail();await x.run();
  x.deps.planned={...planFor(x.f),threadId:'u',owner:{agent:'codex',id:'u'}};x.f.threadId='u';
- await x.run();assert.equal(x.state.history[0].phase,'assignment-changed');assert.deepEqual(x.state.owner,{agent:'codex',id:'u'});assert.equal(x.state.autonomy,3);
-});
-test('a record written before any chat worked on the Root is taken over with its level',async()=>{
- const x=fixture();await x.deps.write('1',{rootId:'1',attempts:[],autonomy:2});
- await x.run();assert.equal(x.sent.length,1);assert.deepEqual(x.state.owner,{agent:'codex',id:'t'});assert.equal(x.state.autonomy,2);assert.equal(x.state.status,'queued');
+ await x.run();assert.equal(x.sent.length,2,'one check for the new chat');assert.notEqual(x.sent[1].id,x.sent[0].id);
+ assert.equal(x.records.get('t').attempts[0].phase,'uncertain','the earlier request is left as it was');
+ assert.deepEqual(x.records.get('u').owner,{agent:'codex',id:'u'});assert.equal(x.records.get('u').attempts.length,1);
 });
 test('Done and no candidates do not suppress monitoring',async()=>{
  const x=fixture();x.f.rootState='done';x.f.candidates=[];await x.run();assert.equal(x.sent.length,1);
@@ -155,12 +156,12 @@ test('real store: content revisions stay separate from agent Web events',async()
   assert.equal(await codexTurnPlan(threadId),null);await updateGoal(root.id,{state:'idle'});let sends=0;
   const run=createMonitorRunner({plan:()=>codexTurnPlan(threadId),observe:async()=>({...idle(),rootId:root.id,threadId,revision:(await observe()).revision}),
    send:async()=>{sends++;return {queuedSubmission:{id:'queue'}};}});
-  await Promise.all([run(root.id),run(root.id)]);assert.equal(sends,1);
+  await Promise.all([run(),run()]);assert.equal(sends,1);
   const events=await readFeedback();
   assert.deepEqual(await readFeedback(),events);assert.notEqual((await observe()).revision,revision,'the Autonomy change is a revision');
-  assert.equal((await run(root.id)).status,'awaiting-run');assert.equal(sends,1);
-  await setRootAutonomy(root.id,1);assert.equal((await run(root.id)).status,'off');
-  assert.equal((await readMonitor(root.id)).attempts.length,1);
+  assert.equal((await run()).status,'awaiting-run');assert.equal(sends,1);
+  await setRootAutonomy(root.id,1);assert.equal((await run()).status,'off');
+  assert.equal((await readTurnCheck({agent:'codex',id:threadId})).attempts.length,1);
  }finally{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });
 
@@ -232,18 +233,19 @@ test('continuation anchors to the highest-level Goal and preserves the observed 
  assert.equal(x.state.attempts[0].goalId,'8');
 });
 
-test('one journal rule for every harness: same, taken over, written before any owner, or another owner\'s',()=>{
- const owner={agent:'codex',id:'t'},earlier={agent:'codex',id:'s'},at='2026-01-01T00:00:00.000Z';
- const record={rootId:'1',owner:earlier,autonomy:3,revision:'r',attempts:[{id:'done',completedAt:at},{id:'open'}]};
- assert.equal(journalFor(null,owner,'none',at),null);
- assert.equal(journalFor(record,earlier,'same',at),record);
- const before=journalFor({rootId:'1',autonomy:2,attempts:[]},owner,'adopted',at);
- assert.deepEqual(before,{rootId:'1',autonomy:2,attempts:[],owner},'a record from before any owner just takes the owner');
- const adopted=journalFor(record,owner,'adopted',at);
- assert.deepEqual([adopted.owner,adopted.autonomy,adopted.revision,adopted.attempts,adopted.status],[owner,3,null,[],'assignment-changed']);
- assert.deepEqual(adopted.history.map(a=>[a.id,a.phase??null]),[['done',null],['open','assignment-changed']],'the open request is closed, never resent');
- const other=journalFor(record,owner,'other',at);
- assert.equal('autonomy' in other,false,'another owner\'s level is not carried over');assert.equal(other.history.length,2);
+test('a chat\'s first check record carries on its latest Root check; the other Roots\' requests go to history, closed',()=>{
+ const owner={agent:'codex',id:'t'},at='2026-01-01T00:00:00.000Z';
+ assert.deepEqual(seedTurnCheck(owner,[],at),{owner,attempts:[],history:[]});
+ const older={rootId:'1',owner,revision:'r1',checkedAt:'2025-12-01T00:00:00.000Z',history:[{id:'old'}],attempts:[{id:'open'}]};
+ const newer={rootId:'2',owner,revision:'r2',status:'exhausted',checkedAt:'2025-12-02T00:00:00.000Z',attempts:[{id:'last',completedAt:at}]};
+ const seeded=seedTurnCheck(owner,[older,newer],at);
+ assert.deepEqual([seeded.revision,seeded.status,seeded.attempts.map(a=>a.id)],['r2','exhausted',['last']],'the latest check carries on, so the update asks no extra check');
+ assert.deepEqual(seeded.history.map(a=>[a.id,a.phase??null]),[['old',null],['open','superseded']],'another Root\'s open request is closed, never resent');
+});
+test('the poller runs a chat\'s check once, however many of its Roots it lists',async()=>{
+ let ticks=0;const chat={live:true,key:'codex:t',tick:async()=>{ticks++;},prepare:async()=>{}};
+ const extension=createContinuationExtension({roots:async()=>[{id:'1'},{id:'2'}],continuation:()=>chat});
+ await extension.tick();assert.equal(ticks,1);
 });
 test('a settled request records worked when the Web changed since it, otherwise no-work',()=>{
  const at='2026-01-01T00:00:00.000Z',worked={progress:'p1'},idle={progress:'p1'},old={};

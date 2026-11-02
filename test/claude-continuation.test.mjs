@@ -12,7 +12,7 @@ import {claudeConnection,claudeOwner} from '../lib/agents/owners.mjs';
 import {onStop} from '../lib/claude-continuation.mjs';
 import {recordClaudeWork} from '../lib/claude-agent-work.mjs';
 import {storage} from '../lib/extension-api.mjs';
-import {readMonitor} from '../lib/continuation-monitor.mjs';
+import {readTurnCheck} from '../lib/turn-checks.mjs';
 import {hookFor} from './claude-fixtures.mjs';
 import {agentAction} from './agent-action.mjs';
 
@@ -28,7 +28,7 @@ async function fixture(t){
  await start();await action('create-goal',{title:'Native Autonomy',scope:'One verified continuation',criteria:'No duplicate or lost input'});const root=(await listGoals())[0];
  // The Web's Autonomy control, on any Goal of the tree, sets the Root agent's level.
  const configure=(level=2)=>setRootAutonomy(root.id,level);
- return {dir,cwd,root,event,action,start,configure,sessionId,read:()=>readMonitor(root.id),stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
+ return {dir,cwd,root,event,action,start,configure,sessionId,read:async()=>readTurnCheck((await readGoal(root.id)).owner),journal:()=>storage('continuation').read(root.id),stop:(patch={})=>handleClaudeToolHook(event('Stop',patch),{cwd}),newPrompt:async()=>{promptId=randomUUID();await handleClaudeToolHook(event('UserPromptSubmit'),{cwd});}};
 }
 
 test('Stop reserves once; the next Stop ends the request and consumes the revision',async t=>{
@@ -67,9 +67,9 @@ test('Web input during a continued run waits for its stop, and is answered befor
  await appendAgentComment({goalId:f.root.id,type:'comment',text:'Working on the correction; next update after the tests.'});
  assert.equal(await f.stop(),null,'the same revision is not continued again, and the user has heard back');
 });
-test('a new Root starts at Normal: no check, no journal',async t=>{
+test('a new Root starts at Normal: no check',async t=>{
  const f=await fixture(t);assert.equal('autonomy' in await readGoal(f.root.id),false,'no Goal keeps a level');assert.equal(await rootAutonomy(f.root),1);
- assert.equal(await f.stop(),null);assert.equal(await f.read(),null);
+ assert.equal(await f.stop(),null);assert.deepEqual((await f.read()).attempts,[]);
  await f.newPrompt();await f.configure();assert.equal((await f.stop()).decision,'block');
  await f.configure(1);await f.newPrompt();assert.equal(await f.stop(),null);assert.equal((await f.read()).attempts.length,1,'the history stays');
 });
@@ -96,14 +96,14 @@ test('one message per conversation, from its Root at the highest level, listing 
  await setRootAutonomy(other.id,3);
  const {reason}=await f.stop();
  assert.match(reason,new RegExp(`Root Goal #${f.root.id} “Native Autonomy”, Auto Continue: `));assert.match(reason,new RegExp(`Root Goal #${other.id} “Second Root”, Ultra Continue: Root Goal #${other.id} is delegated to you`));
- assert.equal((await f.read()).attempts.length,0);assert.equal((await readMonitor(other.id)).attempts.length,1,'the highest level\'s Root keeps the attempt');
- assert.equal(await f.stop(),null,'once per revision');assert.equal((await readMonitor(other.id)).attempts[0].phase,'completed');
+ const {attempts}=await f.read();assert.equal(attempts.length,1,'one record for the conversation');assert.equal(attempts[0].goalId,other.id);
+ assert.equal(await f.stop(),null,'once per revision');assert.equal((await f.read()).attempts[0].phase,'completed');
 });
 test('the level is the Root agent\'s: set on any Goal of the tree, it covers the whole tree',async t=>{
  const f=await fixture(t);const side=await createGoal({title:'Side',parentId:f.root.id}),work=await createGoal({title:'Work',parentId:side.id});
  assert.equal('autonomy' in work,false,'a new Goal copies nothing');
  assert.deepEqual(await setRootAutonomy(work.id,2),{goalId:work.id,rootId:f.root.id,autonomy:2});
- assert.equal((await f.read()).autonomy,2);assert.equal('autonomy' in await readGoal(work.id),false);
+ assert.equal((await f.journal()).autonomy,2);assert.equal('autonomy' in await readGoal(work.id),false);
  const {reason}=await f.stop();assert.match(reason,new RegExp(`Root Goal #${f.root.id} “Native Autonomy”, Auto Continue: .* in any Goal under Root Goal #${f.root.id}`));
  assert.doesNotMatch(reason,new RegExp(`Goal #${work.id} `));
 });
@@ -113,10 +113,10 @@ test('a level set before any conversation works on the Root goes to the first on
  await storage('continuation').write(f.root.id,{rootId:f.root.id,attempts:[],autonomy:2});
  assert.equal(await rootAutonomy(f.root),2);
  assert.match((await f.stop()).reason,/Auto Continue/);
- const state=await f.read();assert.deepEqual(state.owner,f.root.owner,'the conversation takes the record over');assert.equal(state.autonomy,2);
+ assert.equal(await rootAutonomy(await readGoal(f.root.id)),2,'the conversation has the level');
  const unowned=await createGoal({title:'Not started'});
  assert.deepEqual(await setRootAutonomy(unowned.id,3),{goalId:unowned.id,rootId:unowned.id,autonomy:3});
- const record=await readMonitor(unowned.id);assert.equal(record.autonomy,3);assert.equal('connection' in record||'threadId' in record,false);
+ const record=await storage('continuation').read(unowned.id);assert.equal(record.autonomy,3);assert.equal('connection' in record||'threadId' in record,false);
 });
 test('Ultra Continue covers the whole Root tree and leaves out Goals another live conversation works on',async t=>{
  const f=await fixture(t);const a=await createGoal({title:'Part A',parentId:f.root.id}),b=await createGoal({title:'Part B',parentId:f.root.id}),done=await createGoal({title:'Shipped',parentId:f.root.id});
@@ -153,7 +153,7 @@ test('saved Web feedback and the end-of-turn check cannot both claim the same St
  });
 });
 
-test('a continued conversation keeps the Root\'s Autonomy; an unconfirmed request is closed, never resent; another owner starts at Normal',async t=>{
+test('a continued conversation keeps the Root\'s Autonomy and gets its own check; the earlier request stays with its conversation, never resent; another owner starts at Normal',async t=>{
  const f=await fixture(t),earlier=claudeConnection(await readGoal(f.root.id));
  await f.configure();
  const offered=await f.stop();assert.equal(offered.decision,'block');const first=(await f.read()).attempts[0];
@@ -161,20 +161,29 @@ test('a continued conversation keeps the Root\'s Autonomy; an unconfirmed reques
  await setRootOwner(f.root.id,claudeOwner(continued));
  const stop=connection=>onStop({connection,promptId:randomUUID(),checkpointId:randomUUID(),generation:randomUUID()});
  assert.equal(await stop(earlier),null,'the earlier conversation owns nothing now');
- // The owner is part of the revision: the new conversation gets one check of its own.
+ assert.equal((await readTurnCheck(claudeOwner(earlier))).attempts[0].id,first.id,'its request stays in its own record');
  const next=await stop(continued);assert.match(next,/Auto Continue/);
  const state=await f.read();assert.deepEqual(state.owner,claudeOwner(continued));
- assert.equal(state.history[0].id,first.id,'the closed request is kept as history');assert.equal(state.history[0].phase,'assignment-changed');
  assert.equal(state.attempts.length,1);assert.notEqual(state.attempts[0].id,first.id);
  assert.equal(await stop(continued),null,'awaiting this request, not another one');
- // A record from an owner this Root never had starts over, at Normal, and keeps its history.
+ // A record from an owner this Root never had is not this conversation's level.
  const journal=storage('continuation');
  await journal.write(f.root.id,{rootId:f.root.id,owner:{agent:'claude-code',id:'other',context:randomUUID()},autonomy:3,attempts:[{id:'foreign',at:new Date().toISOString()}]});
  assert.equal(await rootAutonomy(await readGoal(f.root.id)),1,'another owner\'s level is not this conversation\'s');
  await updateGoal(f.root.id,{scope:'Changed'});
  assert.equal(await stop(continued),null);
- const after=await journal.read(f.root.id);assert.deepEqual(after.owner,claudeOwner(continued));assert.equal(after.history.at(-1).id,'foreign');assert.equal('autonomy' in after,false,'the takeover drops it');
  await setRootAutonomy(f.root.id,2);assert.match(await stop(continued),/Keep going/);
+ const after=await journal.read(f.root.id);assert.deepEqual(after.owner,claudeOwner(continued));assert.equal(after.history.at(-1).id,'foreign');
+});
+test('after the update a conversation carries on the check its Root journal kept, so it asks no extra check',async t=>{
+ const f=await fixture(t);await f.configure();await f.stop();
+ const record=await f.read(),journal=storage('continuation');
+ // What a Root journal kept before checks moved to the conversation's record.
+ await journal.write(f.root.id,{...await f.journal(),owner:f.root.owner,revision:record.revision,attempts:record.attempts,status:record.status,checkedAt:record.checkedAt});
+ await rm(join(f.dir,'data','workspace','turn-checks'),{recursive:true,force:true});
+ assert.equal(await f.stop(),null,'the request ends, never sent again');
+ const state=await f.read();assert.equal(state.attempts[0].id,record.attempts[0].id);assert.equal(state.attempts[0].phase,'completed');
+ assert.equal(await f.stop(),null,'once per revision');
 });
 
 test('with two Roots, a stop is held once for both and the stop right after it ends',async t=>{

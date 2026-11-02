@@ -83,7 +83,8 @@ the panel; Escape or a click outside closes it without a change. If the save fai
 
 The level is kept as `autonomy` in the Root's continuation journal record
 (`workspace/continuation/<rootId>.json`), which names the agent it was written
-for. The same conversation keeps the level, and so does one that takes the Root
+for. The checks themselves are the agent's, one record for all its Roots
+(`workspace/turn-checks/`). The same conversation keeps the level, and so does one that takes the Root
 over with `goal adopt`: the record's owner is then listed in the Root's
 `previousOwners`. A record written for an owner the Root never had starts over,
 at Normal. A level set on a Root no
@@ -98,8 +99,9 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
   what that level asks, so it stands on its own. A Root at Ultra Continue brings
   its unfinished Goals in, without the Goals other live conversations work on,
   which it names as taken. A Claude conversation gets it at its Stop hook; the
-  Web server checks a Codex chat every 30 seconds. One check per revision: a user
-  comment, a Goal or Canvas change, or a level change.
+  Web server checks a Codex chat every 30 seconds. One check per revision, for the
+  conversation however many Roots it owns: a user comment, a Goal or Canvas
+  change, or a level change in any of them.
 - **Tool prompts.** Allowed when the conversation owns at least one Root and every
   Root it owns is at Auto Continue or Ultra Continue; owning none, the prompt asks
   as usual. Questions for the user (AskUserQuestion) are never answered, and a

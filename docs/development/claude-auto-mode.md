@@ -11,8 +11,8 @@ keyPoints: >-
 
 This development route uses the same request, result recording and revision
 allowance as Codex, from the same rules in
-[continuation-monitor](../../lib/continuation-monitor.mjs) (`journalFor`,
-`settle`, `startRevision`, `reserve`), but a different native delivery mechanism. The built-in
+[continuation-monitor](../../lib/continuation-monitor.mjs) (`settle`,
+`startRevision`, `reserve`) and the same per-conversation record, but a different native delivery mechanism. The built-in
 continuation extension registers [claude-continuation](../../lib/claude-continuation.mjs)
 through the optional `connection-hooks` capability. Codex remains the default
 setup route. Experimental native project hooks use explicit
@@ -24,24 +24,32 @@ What the check asks follows the
 of each Root the conversation owns, set from any of its Goals' comment boxes.
 There is no other switch: the AutoContinue and Approve all controls and
 `chill monitor enable|disable|pause|resume` were removed.
-`chill monitor status --id <ROOT>` prints a Root's check record.
+`chill monitor status --id <ROOT>` prints the check record of the Root's agent.
 
-## Which Roots, and which Root keeps the record
+## Which Roots, and where the check is kept
 
 The conversation's levels are those of the Roots it owns. At a main Stop with
 nothing left to hand over, the extension builds one message from the highest
-level among its unfinished Roots; with none above Normal, it sends nothing. The
-Root at the highest level keeps the attempt in its journal
-(`workspace/continuation/<root>.json`), which holds the Root agent's level,
-attempts, history and the revision.
+level among its unfinished Roots; with none above Normal, it sends nothing.
+The conversation's check record
+([turn-checks](../../lib/turn-checks.mjs), `workspace/turn-checks/<owner>.json`)
+keeps its attempts, history and revision, one record however many Roots it
+owns. Each Root's level stays in its own journal
+(`workspace/continuation/<root>.json`).
 
-When a continued conversation takes a Root over with `goal adopt`, it
-keeps the journal and its level; a request the earlier conversation never
-answered is closed as Agent changed and never resent. The Root's owner is part
-of the revision, so the new conversation receives its own single check, as a
-reassigned Codex Root does. A record with no owner yet (a level set before any
-conversation worked on the Root) is taken over the same way. A record of an
-owner the Root never had starts over at Normal and keeps its history.
+When a continued conversation takes a Root over with `goal adopt`, it keeps the
+Root's level and checks in its own record; a request the earlier conversation
+never answered stays in that conversation's record and is never resent. The
+Root's owner is part of the revision, so the new conversation receives its own
+single check, as a reassigned Codex Root does. A level set before any
+conversation worked on the Root goes to the first one. A level written for an
+owner the Root never had is not the current conversation's: it gets Normal.
+
+A conversation without a record yet, after an update from the version that kept
+checks in each Root's journal, starts from its latest one: that check's revision
+and attempts carry on, so the update asks no extra check, and the other Roots'
+attempts go to history, unanswered ones closed. The journals keep their old
+fields; nothing reads them after that.
 
 ## Continue once; chill records the result
 
