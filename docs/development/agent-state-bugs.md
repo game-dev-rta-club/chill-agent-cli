@@ -44,6 +44,7 @@ both the fake Codex and a Claude Code conversation, so each one covers both harn
 | 31 | The agent was silent for 40 minutes; the user asked whether it was running | One stop-hold rule over chill's own records, for both harnesses | `agent-rules` "a stop is held once while a handed Goal awaits a reply and nothing keeps running"; scenario "a stop with nothing running and nothing said…" |
 | 32 | Per-comment Running was lost when the inbox output was piped (IDs searched in the transcript) | Mechanism gone: no `offerId`; the Goals of the work come from what chill handed | Scenario "the Goal shows Running and Think…"; `claude-actions` "…piping the output changes nothing" |
 | 33 | The agent showed Running after `/reload-skills` (any transcript write opened a turn) | Running comes only from hooks; a local command runs none, so comments saved after it are handed at once | Scenario "a command the user runs in the agent's own app, such as /reload-skills, does not make it Running" |
+| 34 | A conversation holding two Roots had every stop held (each Root kept its own hold mark, so they took turns) | The hold is kept once per conversation, over all its Roots | `claude-continuation` and `codex-work` "with two Roots, the/a stop is held once for both…" |
 
 Bugs 5, 27 and 33 also depend on how the real Claude app behaves, which a test
 cannot settle; [the manual checks](agent-state-manual-checks.md) cover them.

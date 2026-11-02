@@ -177,6 +177,18 @@ test('a continued conversation keeps the Root\'s Autonomy; an unconfirmed reques
  await setRootAutonomy(f.root.id,2);assert.match(await stop(continued),/Keep going/);
 });
 
+test('with two Roots, a stop is held once for both and the stop right after it ends',async t=>{
+ const f=await fixture(t);
+ await f.action('create-goal',{title:'Second Root',scope:'Fixture only',criteria:'Held once'});
+ const second=(await listGoals()).find(g=>g.title==='Second Root');
+ await appendFeedback({goalId:f.root.id,text:'One'});await appendFeedback({goalId:second.id,text:'Two'});
+ await f.action('inbox',{});
+ const first=await f.stop();
+ assert.equal(first?.decision,'block');
+ for(const id of [f.root.id,second.id])assert.match(first.reason,new RegExp(`Goal #${id}\\b`));
+ assert.equal(await f.stop({stop_hook_active:true}),null,'the stop right after a hold ends, whichever Root it was held for');
+});
+
 test('a stop is held while a handed Goal awaits a reply and nothing runs; the agent speaking on it lets it end',async t=>{
  const f=await fixture(t);
  await appendFeedback({goalId:f.root.id,text:'Short work'});
