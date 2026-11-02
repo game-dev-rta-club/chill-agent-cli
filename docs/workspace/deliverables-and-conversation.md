@@ -17,8 +17,8 @@ an older Canvas version. Updating the Canvas does not erase that history.
 The editable source is `deliverable.html` or `deliverable.md`; files from before the
 Brief rename (`brief.*`) are moved to the new name the first time the workspace opens.
 The Canvas was called the Deliverable, and the stored files keep that name.
-`goal deliverable`, `--section deliverable` and `--deliverable-offset` still work
-as the old spellings of `goal canvas`, `--section canvas` and `--canvas-offset`.
+`goal deliverable`, `--section deliverable` and `--deliverable-offset` are refused
+with their new names, `goal canvas`, `--section canvas` and `--canvas-offset`.
 
 ## Publish the Canvas
 
@@ -56,7 +56,7 @@ and location. Read the relevant version when responding to older feedback.
 HTML images have an annotation button. Inline SVG diagrams use the same area
 selector and retain their Canvas version and SVG index, so changing a diagram
 does not move an old note onto its replacement. The original diagram can be
-opened at `/api/goals/<id>/deliverables/<version>/svg/<index>` (indices start at zero).
+opened at `/api/goals/<id>/briefs/<version>/svg/<index>` (indices start at zero).
 Small SVG icons below 64 pixels in either dimension keep their display without
 an overlaid annotation control.
 

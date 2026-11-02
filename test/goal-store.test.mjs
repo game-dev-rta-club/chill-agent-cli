@@ -244,15 +244,12 @@ test('editable sources from before the Deliverable rename move to their new name
  assert.equal(await readFile(path,'utf8'),'# Earlier source');assert.equal(await readFile(join(dir,'brief.md'),'utf8'),'# Leftover','left as it was');
  await assert.rejects(f.invoke('brief','path','--id','1'),/renamed to goal canvas/);
 });
-test('the Deliverable spellings still work after the Canvas rename',async t=>{
+test('the Deliverable spellings are refused with the Canvas names; the stored file keeps its name',async t=>{
  const f=await fixture(t);const goal=await f.run('create','--title','Renamed');
  assert.match(goal.canvasPath,/deliverable\.html$/,'the stored file keeps its name');
- const {path}=await f.run('deliverable','path','--id','1');assert.equal(path,goal.canvasPath);
- await writeFile(path,'<h1>Old command</h1>'+'x'.repeat(7000));
- assert.equal((await f.run('deliverable','update','--id','1')).version,1);
- const text=(await f.invoke('show','--id','1','--format','text','--section','deliverable','--deliverable-offset','6000')).stdout;
- assert.match(text,/^Canvas · v1/m);assert.doesNotMatch(text,/Old command/);
- assert.match((await f.invoke('help','deliverable','update')).stdout,/chill goal canvas update/);
+ for(const args of [['deliverable','path','--id','1'],['show','--id','1','--section','deliverable'],['show','--id','1','--deliverable-offset','6000']])
+  await assert.rejects(f.invoke(...args),/renamed to the Canvas: use goal canvas/);
+ assert.equal((await f.run('canvas','path','--id','1')).path,goal.canvasPath);
 });
 
 test('an agent Comment or Letter posted by mistake can be deleted; user comments cannot',async t=>{

@@ -27,15 +27,15 @@ async function input(path) {
   if(raw.length>largeSize) throw new Error('Request is too large.');
   return JSON.parse(raw);
 }
-// The Canvas was called the Deliverable; its old command and options still work
-// for skill copies written before the rename. After 2026-12-01, replace this with
-// one error naming goal canvas, as goal brief does.
-const currentNames=args=>{
+// The Canvas was called the Deliverable; its old command and options are refused
+// with the new names, as goal brief is.
+const oldNames=args=>{
   const first=args.findIndex(arg=>arg.startsWith('-'));
-  return args.map((arg,i)=>(first<0||i<first)&&arg==='deliverable'?'canvas':arg==='--deliverable-offset'?'--canvas-offset':arg==='deliverable'&&args[i-1]==='--section'?'canvas':arg);
+  return args.some((arg,i)=>(first<0||i<first)&&arg==='deliverable'||arg==='--deliverable-offset'||arg==='deliverable'&&args[i-1]==='--section');
 };
 async function main() {
-  const args=currentNames(process.argv.slice(2));
+  const args=process.argv.slice(2);
+  if(oldNames(args))throw Error('The Deliverable was renamed to the Canvas: use goal canvas, --canvas-offset and --section canvas.');
   if(showHelp('goal',args.length?args:['--help'])) return;
   const [command,...rest]=args;
   if(command==='brief')throw Error('goal brief was renamed to goal canvas.');

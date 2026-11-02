@@ -25,7 +25,6 @@ the spec, so it does not know or care how it was installed.
 An application relies on exactly two things:
 
 1. It runs `npx -y <package> setup prepare … --version-file <absolute chill-agent.json>`.
-   Older applications also pass `--agent-guide`; setup accepts and ignores it.
 2. The file contains only the `package` field above.
 
 Earlier skills named the file `cli.json`. A project set up with one keeps that
