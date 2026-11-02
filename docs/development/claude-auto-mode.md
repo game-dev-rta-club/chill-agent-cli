@@ -73,7 +73,9 @@ that received it has ended. That Stop ends the attempt and records its result:
 `worked` when the agent left something on the Web since the request (a comment,
 a Letter, or a Goal or Canvas change) in any Root it continues, otherwise `no-work`. The agent
 reports nothing. A Codex run is recorded the same way when chill sees the turn
-that received the request end. One check consumes the allowance for that
+that received the request end. A Codex request that no run or queue entry
+shows while the chat sits idle never reached it: after 10 minutes it is closed
+as `lost`, never resent, so the chat does not wait for it. One check consumes the allowance for that
 revision, so the same revision is never continued twice; comments and results do
 not create another allowance. Substantive Goal, Canvas, user-input or
 Autonomy changes create the next one. One Stop sends at most one request for the
