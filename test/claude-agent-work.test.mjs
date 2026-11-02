@@ -30,6 +30,8 @@ test('each main hook reports what the conversation is doing; a subagent reports 
   ];
   for(const [name,type] of cases)assert.equal(hookWorkEvent(claudeHook(name))?.type??null,type,name);
   assert.equal(hookWorkEvent(claudeHook('StopFailure')).type,'interrupted','an API error ends the response without Stop');
+  for(const name of ['PreToolUse','PostToolUse'])assert.equal(hookWorkEvent(claudeHook(name,{tool_use_id:'toolu_plugin_810ac164'})),null,`a plugin's own ${name} is not the agent working`);
+  assert.equal(hookWorkEvent(claudeHook('PreToolUse',{tool_use_id:'toolu_01ELQtbimgfwLwL5'})).type,'started');
   assert.deepEqual(hookWorkEvent(subagentHook('PostToolUse',{agent_id:'a1'}),new Date('2026-10-19T10:00:00Z')),{type:'subagent',task:{id:'a1',type:'subagent',name:'general-purpose',description:null},at:'2026-10-19T10:00:00.000Z'},'a subagent\'s tool shows it is active');
   assert.deepEqual(hookWorkEvent(subagentHook('SubagentStop',{agent_id:'a1'})),{type:'subagent-stopped',id:'a1'});
   assert.equal(hookWorkEvent(subagentHook('Stop')),null);

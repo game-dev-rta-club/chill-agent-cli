@@ -60,7 +60,9 @@ for conversations whose hooks reported it.
 Claude and Codex Roots show the same running state. The Agent button, the
 browser tab icon, the Goal list and the Agent menu's Activity show Running while
 the conversation's transcript has an open response: a user or assistant entry
-after the last Stop summary or interrupt. Subagent entries do not count. A
+after the last Stop summary or interrupt. Subagent entries do not count, nor
+does a tool call a plugin makes on its own, such as Cache Keep holding an idle
+conversation open after its response ends. A
 transcript with no write for 10 minutes counts as Idle, so a closed app does not
 stay Running. Without a reported transcript the state is unknown.
 
