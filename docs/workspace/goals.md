@@ -100,7 +100,10 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
   level. It lists each unfinished Root it owns above Normal, by level name, with
   what that level asks, so it stands on its own. Each Root brings its
   unfinished Goals in, without the Goals other live conversations work on,
-  which it names as taken. A Claude conversation gets it at its Stop hook; the
+  which it names as taken. It asks the agent to work in focused turns, so each
+  gets full attention: one purpose per turn, ended once its results and next
+  approach are clear and posted in a Comment on the Goal. It also says which
+  changes bring the message again. A Claude conversation gets it at its Stop hook; the
   Web server checks a Codex chat every 30 seconds. One check per revision, for the
   conversation however many Roots it owns: a user comment, a Goal or Canvas
   change, or a level change in any Root above Normal that is not Done; a Normal or Done Root starts no check.

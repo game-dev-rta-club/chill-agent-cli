@@ -265,8 +265,10 @@ test('a stop is held while a handed Goal awaits a reply and nothing runs; the ag
 test('the request asks for one look back and names no command, so a turn with nothing left ends in one response',async t=>{
  const f=await fixture(t);await f.configure();
  const {reason}=await f.stop();
- assert.match(reason,/do once what each level asks/);assert.match(reason,/Run no commands and write no turn summary/);
- assert.match(reason,/carry it out now and report the results in a Comment on its Goal\./);
+ assert.match(reason,/in focused turns\. Give each turn one coherent purpose/);assert.match(reason,/Run no commands and write no turn summary/);
+ assert.match(reason,/decide how to work better in the next turn/);
+ assert.match(reason,/report the results and the next approach briefly in a Comment on its Goal\./);
+ assert.match(reason,/After a turn, chill sends this message again only if, since it was last sent, the user commented, anyone \(you included\) edited a Goal or the Canvas, or a level changed\. Otherwise, even after a turn of work and your Comment, the conversation waits/);
  assert.doesNotMatch(reason,/monitor result|goal review|goal tree|goal show|```/);
  assert.match(reason,/There (is|are) \d+ unfinished Goals?|Every Goal is marked Done/);
 });
