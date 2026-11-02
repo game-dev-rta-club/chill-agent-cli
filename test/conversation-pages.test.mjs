@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const execute=promisify(execFile),url=new URL('../lib/goal-store.mjs',import.meta.url).href;
-for(const backend of ['json','sqlite'])test(`${backend} pages are bounded, scoped and include off-page answer targets`,async t=>{
+test(`pages are bounded, scoped and include off-page answer targets`,async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-pages-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import * as s from ${JSON.stringify(url)};
@@ -33,6 +33,6 @@ for(const backend of ['json','sqlite'])test(`${backend} pages are bounded, scope
  await assert.rejects(s.readConversationPage('1',{before:0}),/before/);
  await assert.rejects(s.readConversationPage('99'),/Goal not found/);
  `;
- const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:backend}});
+ const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root}});
  assert.equal(result.stdout,'');
 });

@@ -47,8 +47,7 @@ test('independent processes increment under the same SQLite lease',async t=>{
 test('legacy protocols and foreign databases are not silently adopted',async t=>{
  const f=await fixture(t);await mkdir(f.lock,{recursive:true});await writeFile(join(f.lock,'1.json'),JSON.stringify({pid:process.pid,released:true}));
  await assert.rejects(withStoreLock(f.lock,()=>{}),/offline reconciliation/);
- await writeFile(join(f.workspace,'schema.json'),'{}');await withStoreLock(f.lock,()=>{});assert.equal((await readdir(f.lock)).length,2);
- await rm(join(f.workspace,'schema.json'));await rm(f.lock,{recursive:true,maxRetries:10,retryDelay:100});
+ await rm(f.lock,{recursive:true,maxRetries:10,retryDelay:100});
  const db=new DatabaseSync(join(f.workspace,'coordination.sqlite'));db.exec('CREATE TABLE foreign_data (value TEXT)');db.close();
  await assert.rejects(withStoreLock(f.lock,()=>{}),/foreign/);
  const check=new DatabaseSync(join(f.workspace,'coordination.sqlite'));assert.ok(check.prepare("SELECT name FROM sqlite_master WHERE name='foreign_data'").get());check.close();

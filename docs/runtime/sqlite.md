@@ -1,8 +1,8 @@
 ---
 keyPoints: >-
   The SQLite foundation preserves numeric identities and change cursors in
-  isolated workspaces. New Goal workspaces use SQLite by default; migration and cutover are
-  separate work, with delivery records and editable files preserved explicitly.
+  isolated workspaces. SQLite is the only Goal store: a JSON workspace from before it is
+  refused unchanged, and chill-migrate copies it into a new data directory.
 ---
 
 # Build the SQLite workspace
@@ -10,13 +10,11 @@ keyPoints: >-
 The internal `openSqliteWorkspace` foundation creates a project-local
 `workspace.sqlite` with Goal, Conversation and Canvas-version tables. It requires
 Node.js 24.15 or newer and uses `node:sqlite`, without a separate database service.
-Goal commands and Web select SQLite for a fresh data directory. Once created,
-the database is detected on later launches. Selecting `json` for that directory
-is rejected to prevent a parallel store. Existing JSON installations with
-`workspace/schema.json` remain JSON; there is no automatic migration.
-`CHILL_AGENT_STORAGE=json` explicitly creates a legacy workspace for compatibility
-testing. `CHILL_AGENT_STORAGE=sqlite` refuses existing JSON data instead of
-silently converting or ignoring it.
+Goal commands and Web always use it; there is no storage option. A workspace
+from before SQLite, with `workspace/schema.json`, is neither read nor written:
+every command that opens it fails and names `bin/chill-migrate.mjs`, which copies
+it into a new data directory ([migration](sqlite-migration.md)). There is no
+automatic migration.
 
 For a disposable checkout test, set `CHILL_AGENT_DATA_DIR` to a new directory,
 then use the ordinary Goal CLI and Web server. No database service or storage
@@ -136,6 +134,6 @@ A live owner is never taken over. A dead process can be reclaimed, and a random
 ownership token prevents a previous owner from deleting a replacement lease.
 The database has its own application ID and schema version; foreign databases
 are rejected. Existing numbered leases in a SQLite workspace require offline
-reconciliation rather than mixing ownership protocols. JSON workspaces and
-locks outside the workspace retain their existing file protocol. Delivery
+reconciliation rather than mixing ownership protocols. Locks outside the
+workspace retain their existing file protocol. Delivery
 receipts, pending requests and connection records themselves remain files.

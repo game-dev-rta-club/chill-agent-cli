@@ -44,6 +44,6 @@ test('SQLite CLI pages match complete-history output while selecting only reques
  await assert.rejects(readGoalPage('99'),/Goal not found/);
  await s.createGoal({title:'Empty'});assert.equal((await readGoalPage('4')).brief,null);
  `;
- await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'sqlite',CHILL_AGENT_CODEX_PATH:'/missing/codex'},maxBuffer:1024*1024});
+ await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'},maxBuffer:1024*1024});
  assert.ok(true);
 });
