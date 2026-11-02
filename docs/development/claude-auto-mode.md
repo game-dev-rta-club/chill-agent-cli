@@ -37,8 +37,9 @@ keeps its attempts, history and revision, one record however many Roots it
 owns. Each Root's level stays in its own journal
 (`workspace/continuation/<root>.json`).
 
-When a continued conversation takes a Root over with `goal adopt`, it keeps the
-Root's level and checks in its own record; a request the earlier conversation
+When a continued conversation takes a Root over with `goal adopt`, the Root
+starts at Normal for it (the user sets the level again) and it checks in its own
+record; a request the earlier conversation
 never answered stays in that conversation's record and is never resent. The
 Root's owner is part of the revision, so the new conversation receives its own
 single check, as a reassigned Codex Root does. A level set before any
