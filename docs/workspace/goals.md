@@ -102,9 +102,10 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
   Web server checks a Codex chat every 30 seconds. One check per revision, for the
   conversation however many Roots it owns: a user comment, a Goal or Canvas
   change, or a level change in any Root above Normal that is not Done; a Normal or Done Root starts no check.
-- **Tool prompts.** Allowed when the conversation owns at least one Root and every
-  Root it owns is at Auto Continue or Ultra Continue; owning none, the prompt asks
-  as usual. Questions for the user (AskUserQuestion) are never answered, and a
+- **Tool prompts.** A prompt names no Goal, so the Root the user last commented
+  in (on it or any Goal under it) decides among the Roots the conversation owns;
+  with no comment in any of them, the newest Root. At Auto Continue or Ultra
+  Continue the prompt is allowed; owning none, it asks as usual. Questions for the user (AskUserQuestion) are never answered, and a
   paused conversation is not answered. Codex prompts cannot be answered by hooks.
 
 `POST /api/goals/<id>/autonomy` with `{"level":2}` (same-origin JSON) sets the
