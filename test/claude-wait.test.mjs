@@ -14,7 +14,7 @@ import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {logWatcher,watcherLogPath} from '../lib/claude-watch-log.mjs';
 import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
 import {deliverFeedback} from '../lib/delivery.mjs';
-import {readJson,replaceRetryMs,writeJsonAtomically} from '../lib/storage.mjs';
+import {readJson,replaceRetryMs,withStoreLock,writeJsonAtomically} from '../lib/storage.mjs';
 import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
 import {fileURLToPath} from 'node:url';
 import {hookFor} from './claude-fixtures.mjs';
@@ -462,6 +462,39 @@ test('on Windows a task outlasts a record that refuses replacement for longer th
  // Longer than a write retries (replaceRetryMs), so the watch loop itself must carry on.
  try{await new Promise(r=>setTimeout(r,replaceRetryMs+2000));assert.equal(ended,null,'the task keeps holding');}
  finally{await chmod(f.recordPath,0o644);}
+ const before=(await readJson(f.recordPath)).hold.checkedAt;
+ await until(async()=>(await readJson(f.recordPath)).hold.checkedAt!==before);
+ assert.deepEqual(await task.stop(),{status:'stopped'});
+});
+
+test('a task waits out a record lease another writer keeps past the store\'s wait',{timeout:60000},async t=>{
+ expectHidden(t,'claude-wait.claim','claude-wait.write');
+ const f=await fixture(t);
+ const until=async check=>{for(let i=0;i<1000;i++){if(await check())return;await new Promise(r=>setTimeout(r,10));}throw Error('Timed out');};
+ // A writer retrying a refused replacement keeps the lease longer than another waits for it.
+ const lock=claudeEntryPaths(f.data,f.connection.sessionId).lock,held=()=>withStoreLock(lock,()=>new Promise(r=>setTimeout(r,11000)));
+ let ended=null;const busy=held();await new Promise(r=>setTimeout(r,50));
+ const task=f.hold({refreshMs:20});task.done.then(result=>{ended=result;},error=>{ended=error;});
+ await busy;
+ await until(async()=>!!(await readJson(f.recordPath)).hold);
+ assert.equal(ended,null,'the task takes its seat once the lease is free');
+ await held();
+ assert.equal(ended,null,'the task keeps holding');
+ const before=(await readJson(f.recordPath)).hold.checkedAt;
+ await until(async()=>(await readJson(f.recordPath)).hold.checkedAt!==before);
+ assert.deepEqual(await task.stop(),{status:'stopped'});
+});
+
+test('a task outlasts a Goal store locked past its own retries',{timeout:90000},async t=>{
+ expectHidden(t,'claude-wait.write');
+ const f=await fixture(t);
+ const until=async check=>{for(let i=0;i<1000;i++){if(await check())return;await new Promise(r=>setTimeout(r,10));}throw Error('Timed out');};
+ const task=f.hold({refreshMs:20});let ended=null;task.done.then(result=>{ended=result;},error=>{ended=error;});
+ await until(async()=>!!(await readJson(f.recordPath)).hold);
+ // An exclusive connection keeps every other one out, as a store stuck in recovery does.
+ const {DatabaseSync}=await import('node:sqlite'),db=new DatabaseSync(join(f.data,'workspace','workspace.sqlite'));
+ try{db.exec('PRAGMA locking_mode=EXCLUSIVE; BEGIN EXCLUSIVE');await new Promise(r=>setTimeout(r,17000));assert.equal(ended,null,'the task keeps holding');}
+ finally{db.exec('COMMIT');db.close();}
  const before=(await readJson(f.recordPath)).hold.checkedAt;
  await until(async()=>(await readJson(f.recordPath)).hold.checkedAt!==before);
  assert.deepEqual(await task.stop(),{status:'stopped'});
