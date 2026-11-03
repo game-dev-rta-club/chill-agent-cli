@@ -66,9 +66,10 @@ watches the new context, ending if that context owns no Goal.
 A store that is briefly unavailable does not end a watcher or the Desktop task.
 On Windows a write can retry a refused replacement of the record for up to 15
 seconds while it holds the record's lease, longer than another process waits
-for it, so the waiter reads `Store is busy`. The watcher and the task try again
-at their next check, also when taking their seat; a store that never frees ends
-them as `stalled`.
+for it, so the waiter reads `Store is busy`; the Goal store can likewise stay
+locked past its own retries. The watcher and the task try again at their next
+check, also when taking their seat; a store that never frees ends them as
+`stalled`.
 
 ## Why a watcher ended
 

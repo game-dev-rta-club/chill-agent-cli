@@ -485,6 +485,21 @@ test('a task waits out a record lease another writer keeps past the store\'s wai
  assert.deepEqual(await task.stop(),{status:'stopped'});
 });
 
+test('a task outlasts a Goal store locked past its own retries',{timeout:90000},async t=>{
+ expectHidden(t,'claude-wait.write');
+ const f=await fixture(t);
+ const until=async check=>{for(let i=0;i<1000;i++){if(await check())return;await new Promise(r=>setTimeout(r,10));}throw Error('Timed out');};
+ const task=f.hold({refreshMs:20});let ended=null;task.done.then(result=>{ended=result;},error=>{ended=error;});
+ await until(async()=>!!(await readJson(f.recordPath)).hold);
+ // An exclusive connection keeps every other one out, as a store stuck in recovery does.
+ const {DatabaseSync}=await import('node:sqlite'),db=new DatabaseSync(join(f.data,'workspace','workspace.sqlite'));
+ try{db.exec('PRAGMA locking_mode=EXCLUSIVE; BEGIN EXCLUSIVE');await new Promise(r=>setTimeout(r,17000));assert.equal(ended,null,'the task keeps holding');}
+ finally{db.exec('COMMIT');db.close();}
+ const before=(await readJson(f.recordPath)).hold.checkedAt;
+ await until(async()=>(await readJson(f.recordPath)).hold.checkedAt!==before);
+ assert.deepEqual(await task.stop(),{status:'stopped'});
+});
+
 test('the stall check ends a watcher that stops checking, but not one that slept', async t => {
   t.mock.timers.enable({apis:['setInterval','Date'],now:0});
   const settled=promise=>Promise.race([promise,Promise.resolve('pending')]);
