@@ -100,7 +100,10 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
   level. It lists each unfinished Root it owns above Normal, by level name, with
   what that level asks, so it stands on its own. Each Root brings its
   unfinished Goals in, without the Goals other live conversations work on,
-  which it names as taken. A Claude conversation gets it at its Stop hook; the
+  which it names as taken. It asks the agent to work in focused turns, so each
+  gets full attention: one purpose per turn, ended once its results and next
+  approach are clear and posted in a Comment on the Goal. It also says which
+  changes bring the message again. A Claude conversation gets it at its Stop hook; the
   Web server checks a Codex chat every 30 seconds. One check per revision, for the
   conversation however many Roots it owns: a user comment, a Goal or Canvas
   change, or a level change in any Root above Normal that is not Done; a Normal or Done Root starts no check.
@@ -113,9 +116,10 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
   Codex has no scheduled checks, so this does not apply there.
 - **A level change.** When a Root the agent owns has a level other than the one
   last stated to it (by an end-of-turn message or an earlier notice), chill
-  tells the agent once what the new level asks; a lowered level applies to work
-  already under way too, so an end-of-turn message never counts as telling it a
-  lowered level. It does so the next time it hands the conversation anything: a
+  tells the agent once what the new level asks, at Auto Continue or Never Stop
+  with the same request for focused turns as the end-of-turn message; a lowered
+  level applies to work already under way too, so an end-of-turn message never
+  counts as telling it a lowered level. It does so the next time it hands the conversation anything: a
   tool hook, a scheduled check or comment waking an idle Claude conversation, a
   message to an idle Codex chat. chill does not remove checks, since only the
   agent knows which still serve its work; a Claude notice lists them with
