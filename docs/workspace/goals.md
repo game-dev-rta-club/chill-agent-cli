@@ -116,9 +116,10 @@ Hooks read the level afresh, so a running agent meets a change at its next hook.
   Codex has no scheduled checks, so this does not apply there.
 - **A level change.** When a Root the agent owns has a level other than the one
   last stated to it (by an end-of-turn message or an earlier notice), chill
-  tells the agent once what the new level asks; a lowered level applies to work
-  already under way too, so an end-of-turn message never counts as telling it a
-  lowered level. It does so the next time it hands the conversation anything: a
+  tells the agent once what the new level asks, at Auto Continue or Never Stop
+  with the same request for focused turns as the end-of-turn message; a lowered
+  level applies to work already under way too, so an end-of-turn message never
+  counts as telling it a lowered level. It does so the next time it hands the conversation anything: a
   tool hook, a scheduled check or comment waking an idle Claude conversation, a
   message to an idle Codex chat. chill does not remove checks, since only the
   agent knows which still serve its work; a Claude notice lists them with
