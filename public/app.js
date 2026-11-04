@@ -1114,16 +1114,19 @@ function renderAnnotations(openingEditor=false) {
       markText(target, {...entry.note.anchor, start: entry.note.anchor.start - base, end: entry.note.anchor.end - base}, entry.ref, entry.draft, entry.editing);
     }
   }
-  annotationSources('.brief-body img, .brief-body svg[data-brief-svg], .image-preview img, .event-image').forEach(img => {
+  annotationSources('.brief-body img, .brief-body svg[data-brief-svg], .image-preview img, .event-image, [data-annotation-reply] img').forEach(img => {
     const svgIndex=img.dataset.briefSvg===undefined?null:Number(img.dataset.briefSvg);
     const imageId = svgIndex===null?imageIdFromSource(img.src):null;
     const attachment = Boolean(img.closest('.image-preview'));
     if (!imageId && !attachment && svgIndex===null) return;
+    // A reply image is named by its alt text unless a Canvas already named it.
+    const label = img.closest('[data-annotation-reply]') && (img.title || img.alt);
+    if (imageId && label && !imageNames.has(imageId)) imageNames.set(imageId, label.slice(0, 200));
     const matching = entries.filter(item => item.note.kind === 'image' && (svgIndex!==null?item.note.source?.kind==='brief'&&item.note.source.version===activeVersion&&item.note.source.svgIndex===svgIndex:imageId ? item.note.imageId === imageId : item.note.target === 'attachment'));
     const bounds=svgIndex!==null?img.getBoundingClientRect():null;
     // Small decorative SVG icons keep their layout; a diagram-sized SVG gets
     // the same control as an uploaded image.
-    const editable = (imageId||svgIndex!==null&&bounds.width>=64&&bounds.height>=64) && (img.closest('.brief-body')||img.classList.contains('event-image'));
+    const editable = (imageId||svgIndex!==null&&bounds.width>=64&&bounds.height>=64) && (img.closest('.brief-body, [data-annotation-reply]')||img.classList.contains('event-image'));
     if (!matching.length && !editable) return;
     const wrapper = document.createElement('span');
     wrapper.className = 'annotatable-image';
@@ -1174,7 +1177,7 @@ function openNoteReference(ref, scroll = false) {
   if (!entry) return;
   if (entry.note.source?.kind === 'comment') revealConversationEvent(entry.note.source.eventId);
   else if (entry.note.kind === 'image') {
-    const source=conversationFor(activeGoalId).find(e=>attachmentIdsFor(e).includes(entry.note.imageId));
+    const source=conversationFor(activeGoalId).find(e=>attachmentIdsFor(e).includes(entry.note.imageId)||String(e.html||'').includes(`/api/images/${entry.note.imageId}`));
     if(source)revealConversationEvent(source.id);
   }
   const target = (entry.note.kind==='letter'?document.getElementById(`event-${entry.note.source.eventId}`):null)
