@@ -53,7 +53,7 @@ use it as the placeholder. A saved file never changes, so the browser keeps it i
 downloading it again.
 Text annotations retain their source version; image notes retain their attachment
 and location. Read the relevant version when responding to older feedback.
-HTML images have an annotation button. Its area window closes with ✕, Escape or
+HTML images, and images an agent message shows in its text, have an annotation button. Its area window closes with ✕, Escape or
 a click outside it; a selection dragged past its edge keeps it open. Inline SVG diagrams use the same area
 selector and retain their Canvas version and SVG index, so changing a diagram
 does not move an old note onto its replacement. The original diagram can be

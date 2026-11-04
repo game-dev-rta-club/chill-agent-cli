@@ -94,7 +94,10 @@ test('multiple images and rectangle annotations persist, reject foreign images a
  const text={kind:'text',source:{kind:'brief',version:1},anchor:{start:0,end:2,quote:'本文'},text:'',attachmentIds:[ids[1]]};
  const r=await f.post({annotations:[image,text]});assert.equal(r.status,201);assert.equal((await r.json()).feedback.annotations.length,2);
  for(const bad of [{...image,imageId:ids[2]},{...image,rect:{...rect,x:.9}},{...image,imageName:12}]) assert.equal((await f.post({annotations:[bad]})).status,400);
- const shown=await f.run('show','--id','1');assert.equal(shown.attachments.length,2);assert.ok(shown.attachments.every(a=>a.path.endsWith('.png')));
+ // An image an agent reply shows in its text takes notes like an attached one.
+ await f.run('reply','--id','1','--text',`図です\n\n![図](/api/images/${ids[2]})`);
+ assert.equal((await f.post({annotations:[{...image,imageId:ids[2]}]})).status,201);
+ const shown=await f.run('show','--id','1');assert.equal(shown.attachments.length,3);assert.ok(shown.attachments.every(a=>a.path.endsWith('.png')));
  assert.deepEqual(shown.conversation[0].attachmentIds,ids.slice(0,2));
 });
 test('Markdown annotations validate rendered text and API deltas render both authors',async t=>{
