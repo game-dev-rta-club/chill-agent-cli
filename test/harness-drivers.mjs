@@ -30,7 +30,7 @@
 //   permissionPrompt()              a tool permission prompt in the agent's app: 'allow' when chill answers it, else
 //                                   null. Only where a hook can answer prompts (capabilities.approvals)
 //   comments()                      the agent's comments on the Goal
-//   letters()                       the titles of the Goal's open Letters, as the Letters menu lists them
+//   letters()                       the titles of the Goal's open Letters, as the Notification menu lists them
 // A capability the harness lacks is declared in `capabilities` and the scenario asserts the interface says so.
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';

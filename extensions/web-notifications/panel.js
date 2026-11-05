@@ -1,14 +1,13 @@
 const bytes=key=>Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-key.length%4)%4)),c=>c.charCodeAt(0));
-const bell='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/><path class="letters-notify-slash" d="M4 3 20 21"/></svg>';
-// The Letters menu's last row: this browser's one Notification switch.
+// In the Notification menu's top row: this browser's one Notification switch.
 export async function mount({element,control,goalId,clientId:deviceId,api,changed,signal}){
  if(!deviceId){element.textContent='Allow site storage to set up notifications.';return null;}
- element.innerHTML=`<label class="agent-extension letters-notify">${bell}<span>Notification</span><input type="checkbox" role="switch" aria-label="Notification: send what the count shows to this browser"></label><p class="extension-message" role="status"></p>`;
- const input=element.querySelector('input'),row=element.querySelector('label'),message=element.querySelector('[role="status"]');
+ element.innerHTML=`<label class="agent-extension letters-notify"><input type="checkbox" role="switch" aria-label="Notification: send what the count shows to this browser"></label><p class="extension-message" role="status"></p>`;
+ const input=element.querySelector('input'),message=element.querySelector('[role="status"]');
  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
  const supported=isSecureContext&&'Notification' in window&&'serviceWorker' in navigator&&'PushManager' in window;
  let saving=false;
- function render(next){control=next;input.checked=Boolean(next.enabled);row.classList.toggle('is-off',!next.enabled);input.disabled=saving||!next.letters&&!next.replies;}
+ function render(next){control=next;input.checked=Boolean(next.enabled);input.disabled=saving||!next.letters&&!next.replies;}
  async function subscribe(){
   if(ios&&!matchMedia('(display-mode: standalone)').matches&&!navigator.standalone)throw Error('Add to Home Screen, then open Chill and turn notifications on.');
   if(!supported)throw Error('Use a browser that supports notifications, such as Chrome on Android.');
