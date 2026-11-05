@@ -114,6 +114,22 @@ test('every reply counts once its Root\'s work ends, with no device; a browser c
  await f.on();assert.deepEqual((await f.api.read('2',device)).replies,false);assert.deepEqual((await f.api.settings('2')).on,['letter']);
  await assert.rejects(f.api.configure({goalId:'2',rootId:'1',deviceId:device,enabled:true,subscription,origin:'https://phone.test',letters:false,replies:false}),/Turn on Letters, Replies or both/);
 });
+test('claims stay bounded with no device; a Root\'s work rewrites nothing while it lasts',async()=>{
+ const f=fixture();const start=Date.parse('2026-10-14T00:00:00Z'),at=new Date(start).toISOString();f.time(start);
+ await f.api.initialize();await f.api.drain();
+ for(let id=2;id<1100;id++)f.events.push({id,goalId:'2',author:'agent',type:'letter',title:'Q',text:'Q',updatedAt:at});
+ await f.api.drain();assert.equal(Object.keys(f.state().claims).length,1000);
+ f.busy(true);f.events.push({id:1200,goalId:'2',author:'agent',type:'comment',text:'On it',updatedAt:at});await f.api.drain();
+ assert.deepEqual(Object.keys(f.state().held),['1200']);
+ const before=f.state();await f.api.drain();assert.equal(f.state(),before,'still working: the store is not written');
+});
+test('a device whose ID changed keeps its notifications and the count the new ID chose',async()=>{
+ const f=fixture();await f.api.initialize();await f.on(other);
+ await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:true,replies:false});
+ await f.api.configure({goalId:'2',rootId:'1',deviceId:device,enabled:true,subscription:{...subscription,endpoint:subscription.endpoint+other},origin:'https://phone.test'});
+ const entry=f.state().roots['1'].devices;assert.equal(entry[other],undefined);
+ assert.deepEqual([entry[device].enabled,entry[device].letters,entry[device].replies,'cutoff' in entry[device]],[true,true,false,true]);
+});
 test('an Off device from before the count starts at the defaults; an On device keeps what it was sent',async()=>{
  const f=fixture({version:2,keys:{publicKey:'public',privateKey:'private'},devices:{[device]:{subscription,origin:'https://phone.test'}},roots:{'1':{devices:{[device]:{enabled:false,cutoff:9,letters:false,replies:false},[other]:{enabled:true,cutoff:9,scope:'letters'}}}},jobs:{},claims:{}});
  await f.api.initialize();assert.equal(f.state().version,3);

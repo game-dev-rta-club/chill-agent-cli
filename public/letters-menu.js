@@ -52,7 +52,7 @@ export function createLettersMenu({button,panel,readReplies,countsChanged}){
   latest={goals,events,currentId};
   const {letters,replies,count}=waitingMessages(goals,events,currentId),root=rootOf(new Map(goals.map(g=>[g.id,g])),currentId),notifying=Boolean(control?.enabled);
   shownReplies=replies;rootId=root?.id??null;counts={letters:counted(root,'letters'),replies:counted(root,'replies')};
-  button.classList.toggle('is-on',count>0);button.setAttribute('aria-label',`Letters · ${letters.length} unanswered, ${replies.length} unread replies · ${count?'On':'Off'} · Notification ${notifying?'on':'off'}`);
+  button.classList.toggle('is-on',count>0);button.setAttribute('aria-label',`Letters · ${letters.length} unanswered, ${replies.length} unread replies · ${count?'On':'Off'}${control?` · Notification ${notifying?'on':'off'}`:''}`);
   const markup=envelope+(notifying?bell:'')+`<span class="header-letter-count">${count}</span>`;
   if(button.innerHTML!==markup)button.innerHTML=markup;
   const switches=Boolean(control&&rootId&&browserClientId());

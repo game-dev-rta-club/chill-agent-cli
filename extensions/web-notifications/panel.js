@@ -18,7 +18,7 @@ export async function mount({element,control,goalId,clientId:deviceId,api,change
   const registration=await navigator.serviceWorker.register('/extensions/web-notifications/sw.js',{scope:'/'});
   const worker=registration.installing||registration.waiting;
   if(!registration.active&&worker)await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('Notification setup timed out. Try again.')),12000);worker.addEventListener('statechange',()=>{if(worker.state==='activated'){clearTimeout(timeout);resolve();}if(worker.state==='redundant'){clearTimeout(timeout);reject(Error('Notification setup failed. Reload to retry.'));}});});
-  return registration.pushManager.getSubscription()||registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes(control.publicKey)});
+  return await registration.pushManager.getSubscription()||await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes(control.publicKey)});
  }
  input.onchange=async()=>{
   const on=input.checked;
