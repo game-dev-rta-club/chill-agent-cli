@@ -70,6 +70,10 @@ export function workDisclosure(previous, live) {
   return !previous || previous.live !== live ? {live, open: live} : previous;
 }
 
+// Think with no text says Thinking… while the agent works, so an empty box does
+// not read as a failed load. Stopped with no text, there is no Think to show.
+export const showsThink = (work, live) => Boolean(work) && (live || work.messages?.length > 0);
+
 // Think shows only the newest message, held at three lines so its height does
 // not change as messages arrive, and folds the older ones into one row. The
 // user can open them all, as before, and fold them again.
