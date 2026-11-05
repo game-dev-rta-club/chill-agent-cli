@@ -15,20 +15,21 @@ changes share an in-flight request rather than downloading the same data twice.
 Hidden tabs pause the full workspace refresh. They continue a small count
 request every 15 seconds, subject to the browser's background timer throttling.
 
-The header keeps Agent and Letters beside each other. Letters opens the unanswered
+The header keeps Agent and Notification beside each other. The bell opens the unanswered
 Letters for the current Root and its descendants, and below them, as Replies, the
 unread replies; on the Goals index it includes all Roots. Both sections show even when
-empty. Each entry opens its message. **Mark all read** reads the listed Replies; Letters
-stay until answered. On a Goal, a switch beside each heading chooses whether this browser
-counts that kind for the Root, and the last row turns on [Notification](../using/notifications.md).
-The envelope shows a muted zero when nothing counts and a highlighted count when
-anything does, the same number as the tab title, and a small bell while Notification
-is on. Goals navigation lives inside More, even without extensions.
+empty. Each entry opens its message. The check mark in the top row, **Mark all read** on hover,
+reads the listed Replies and shows only while there are some; Letters stay until answered.
+On a Goal, a bell beside each heading chooses whether this browser counts that kind for the
+Root, and the top row turns on [Notification](../using/notifications.md). The menu closes
+with Escape or a tap outside it. The header's bell shows a muted zero when nothing counts
+and a highlighted count when anything does, the same number as the tab title, and a slash
+while Notification is off. Goals navigation lives inside More, even without extensions.
 The Goals index lists Root Goals newest first.
 
 The browser tab shows the current Root's title and how many messages need you,
 including all descendants: `(2) Root title · chill`. The count adds unread replies
-to the unanswered Letters, as this browser chose in the Letters menu: with the Replies
+to the unanswered Letters, as this browser chose in the Notification menu: with the Replies
 switch Off, only Letters count. A reply counts once its Root's agent stops working.
 With two unread replies and one unanswered Letter, the tab shows `(3)`;
 once the replies are read it shows `(1)` until that Letter is answered. Opening a child

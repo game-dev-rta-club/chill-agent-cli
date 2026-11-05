@@ -2,24 +2,25 @@
 keyPoints: >-
   The count in the tab title and the browser notification are separate. Each browser
   chooses per Root whether Letters and Replies count; Notification sends it what its
-  count shows. Both live in the Letters menu. Replies wait until the agent's work ends
+  count shows. Both live in the Notification menu. Replies wait until the agent's work ends
   and only unread ones are announced. Changing the public URL retires old registrations.
 ---
 
 # Hear when your attention matters
 
-Open a Goal and open the envelope, the **Letters** menu in the header. It has
+Open a Goal and open the bell, the **Notification** menu in the header. It has
 three switches:
 
-- **Letters**, beside the Letters heading: count questions that need your
+- **Letters**, the bell beside the Letters heading: count questions that need your
   decision. The agent marks a reply that asks you to decide or approve something,
   and it arrives as a Letter. A Claude conversation that owns a Goal never asks in
   its own app.
-- **Replies**, beside the Replies heading: count other replies from the agent, such
+- **Replies**, the bell beside the Replies heading: count other replies from the agent, such
   as results and Claude conversation replies.
-- **Notification**, the last row: send this browser what its count shows.
+- **Notification**, the switch in the top row: send this browser what its count
+  shows.
 
-The two count switches decide what the tab title and the envelope show. They need
+The two count bells decide what the tab title and the header's bell show. They need
 no permission, and a new browser or project starts with both On and Notification Off.
 Letters Off leaves unanswered Letters listed in the menu; only the count skips them.
 Replies Off hides the unread replies too. A reply counts once the agent's work ends,
@@ -28,9 +29,9 @@ of chill do not count.
 
 Turn Notification On and allow the browser's permission request. A confirmation
 arrives a few seconds later. Tap it to return to the Goal. This browser then receives
-what it counts for that project (the Root Goal and its children), and the envelope
-shows a small bell. Because a notification sends what the count shows, you cannot
-hear about a kind without counting it. With both count switches Off, Notification
+what it counts for that project (the Root Goal and its children), and the header's
+bell loses its slash. Because a notification sends what the count shows, you cannot
+hear about a kind without counting it. With both count bells Off, Notification
 turns Off and cannot be turned On.
 
 Each device has its own switches: a phone, or a browser on another computer. Turn
@@ -39,14 +40,15 @@ has no Root, so these switches appear only on a Goal.
 
 For your phone, open **More → Public link** on your computer and scan its QR. On iPhone,
 add the page to your Home Screen and open that app first. Then turn on Notification in
-the phone's Letters menu. Permission belongs to that browser and URL. If previously
+the phone's Notification menu. Permission belongs to that browser and URL. If previously
 blocked, change the browser's site settings before trying again.
 
 ## Control interruptions
 
 Keep only **Letters** on to hear only when a reply, choice or permission is
 needed. With **Replies** on, an unread reply counts in the tab title and appears
-under Replies in the Letters menu until you open its Goal or choose **Mark all
+under Replies in the Notification menu until you open its Goal or press the check mark,
+**Mark all
 read**; see [Web navigation](../workspace/web-navigation.md). Opening a notification shows that reply in its Conversation,
 in a tab already open on the same Root: one showing that Goal, else the one used
 last, found by its address. With no such tab it opens a new one, so a tab of another
@@ -106,4 +108,3 @@ Letters have one presentation; users answer them with a Comment on the Goal, whi
 closes its open Letters. Agents use them only when a reply, choice or permission is needed. Results and progress belong in Comments and
 remain silent under the Letter-only preference. Historical no-reply Letters
 retain their original pending-count behavior. An unanswered Letter blocks only
-the work that depends on its answer, not other agreed actions.
