@@ -156,15 +156,17 @@ test('tab count adds unread replies to unanswered Letters, as each browser chose
  const count=async id=>(await(await f.get(`/api/goals/${id}/letters/count`)).json()).count;
  const read=(id,through,origin=f.url())=>fetch(f.url()+`/api/goals/${id}/read`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({through})});
  assert.equal(await count('1'),0,'replies from before the first read are read');
+ await f.post({text:'My own comment'});
  const result=await f.run('reply','--id','1','--text','Result'),quiet=await f.run('reply','--id',child.id,'--text','Not announced');
  const letter=await f.run('reply','--id',child.id,'--ask','Q','--text','Which one?');
- await f.post({text:'My own comment'});
- assert.equal(await count(child.id),1,'a reply not yet announced does not count');
+ // Web announces every reply by itself, with no device registered.
+ for(let i=0;i<100&&await count(child.id)<3;i++)await new Promise(resolve=>setTimeout(resolve,100));
+ assert.equal(await count(child.id),3,'replies and the Letter count without a device');
  const quietBrowser='11111111-1111-4111-8111-111111111111',lettersOff='22222222-2222-4222-8222-222222222222';
  const claims=Object.fromEntries([before,result,letter].map(e=>[e.id,{at:Date.now(),rootId:'1',reply:true}]));
  await mkdir(join(f.root,'workspace/web-notifications'),{recursive:true});
  await writeFile(join(f.root,'workspace/web-notifications/1.json'),JSON.stringify({version:3,keys:null,devices:{},roots:{'1':{devices:{[quietBrowser]:{enabled:false,letters:true,replies:false},[lettersOff]:{enabled:false,letters:false,replies:true}}}},jobs:{},claims}));
- assert.equal(await count(child.id),2,'an announced reply counts; a Letter counts once');
+ assert.equal(await count(child.id),2,'a reply not yet announced does not count; a Letter counts once');
  const browserCount=async client=>(await(await f.get(`/api/goals/${child.id}/letters/count?clientId=${client}`)).json()).count;
  assert.equal(await browserCount(quietBrowser),1,'Replies Off counts only the Letter');assert.equal(await browserCount(lettersOff),1,'Letters Off counts only the reply');
  assert.deepEqual((await(await f.get(`/api/goals?view=web&clientId=${quietBrowser}`)).json())[0].counts,{letters:true,replies:false});
