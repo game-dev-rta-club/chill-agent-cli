@@ -4,7 +4,7 @@ import {mkdtemp, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {workReader} from '../lib/agents/codex-work-output.mjs';
-import {activityDisplay, commentMarkDisplay, thinkView, workDisclosure} from '../public/work-ui.js';
+import {activityDisplay, commentMarkDisplay, showsThink, thinkView, workDisclosure} from '../public/work-ui.js';
 import {codexThread, contractStub} from './codex-contract.mjs';
 
 const thread='00000000-0000-0000-0000-000000000001';
@@ -119,4 +119,11 @@ test('Think shows the newest message and folds the earlier ones until opened',()
  assert.deepEqual(thinkView(m,true),{earlier:0,shown:m,clamped:false,less:true});
  assert.deepEqual(thinkView([m[0]]),{earlier:0,shown:[m[0]],clamped:true,less:false},'a single long message is also held at three lines');
  assert.deepEqual(thinkView([]),{earlier:0,shown:[],clamped:false,less:false});
+});
+
+test('Think with no text shows only while the agent works', () => {
+  assert.equal(showsThink({messages: []}, true), true);
+  assert.equal(showsThink({messages: []}, false), false);
+  assert.equal(showsThink({messages: [{text: 'Done.'}]}, false), true);
+  assert.equal(showsThink(null, true), false);
 });
