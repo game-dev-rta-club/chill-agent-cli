@@ -1,4 +1,5 @@
 import {createLettersMenu} from './letters-menu.js';
+import {browserClientId} from './browser-context.js';
 import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.js';
@@ -117,8 +118,9 @@ window.addEventListener('chill-agent-appearance',event=>tabIcon.use(event.detail
 window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)?'working':isWaitingOnCheck(wake)?'waiting':null);});
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
-const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel'),readReplies});
-const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,announce:showToast});
+let countsSaves=0;
+const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel'),readReplies,countsChanged:(rootId,counts)=>{countsSaves++;const root=goalMetadata.get(rootId);if(root){goalMetadata.set(rootId,{...root,counts});updateTabTitle();}}});
+const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,controlsChanged:controls=>lettersMenu.controlsChanged(controls)});
 createRuntimeUpdate({button:document.getElementById('runtime-update-button'),announce:showToast});
 watchNewDevices();
 let activeVersion = null;
@@ -1255,12 +1257,14 @@ function updateTabTitle(){
   lettersMenu.update([...goalMetadata.values()],events,activeGoalId);
   document.title=letterTabTitle(rootLetterSummary([...goalMetadata.values()],events,activeGoalId));
 }
+// A count depends on what this browser chose to show.
+const clientQuery=prefix=>{const id=browserClientId();return id?`${prefix}clientId=${id}`:'';};
 async function refreshLetterCount(){
   if(!activeGoalId||letterCountRequest)return;
   const id=activeGoalId,generation=tabTitleGeneration;
   letterCountRequest=true;
   try{
-    const response=await fetch(`/api/goals/${id}/letters/count`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
+    const response=await fetch(`/api/goals/${id}/letters/count${clientQuery('?')}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
     if(response.ok){const summary=await response.json();if(id===activeGoalId&&generation===tabTitleGeneration)document.title=letterTabTitle(summary);}
   }catch{/* Keep the last known count until the connection returns. */}
   finally{letterCountRequest=false;}
@@ -1820,7 +1824,8 @@ function loadStoredGoals() {
   // Polling, returning to the tab and navigation share one request.
   if(storeRequest)return storeRequest;
   storeRequest=(async()=>{
-    const response=await fetch('/api/goals?view=web&history=paged',{cache:'no-store',signal:AbortSignal.timeout(12000)});
+    const saves=countsSaves;
+    const response=await fetch(`/api/goals?view=web&history=paged${clientQuery('&')}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
     if(!response.ok)throw new Error('Could not load Goals. Your draft is kept.');
     const stored=await response.json(),signature=JSON.stringify(stored,(key,value)=>['checkedAt','expiresAt'].includes(key)?undefined:value),changed=signature!==storeSignature;
     storeSignature=signature;
@@ -1830,7 +1835,8 @@ function loadStoredGoals() {
       if(conversationInfo&&historyPages.get(id)?.head!==conversationInfo.head)historyPages.set(id,{...conversationInfo});
       for(const status of letterStates||[]){letterStatuses.set(status.id,status);const cached=events.find(e=>e.id===status.id);if(cached)cached.letterStatus=status;}
       const previous=briefsByGoal.get(id)||[];
-      goalMetadata.set(id,{id,...metadata});
+      // A load that overlapped a save must not bring back the old choice.
+      goalMetadata.set(id,{id,...metadata,...(saves===countsSaves?{}:{counts:goalMetadata.get(id)?.counts})});
       // Published versions are immutable. Keep older Canvases once opened.
       briefsByGoal.set(id,briefs.map(brief=>brief.html===undefined?{...previous.find(b=>b.version===brief.version),...brief}:brief));
       conversation.forEach(addEvent);

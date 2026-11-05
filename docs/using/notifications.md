@@ -1,47 +1,59 @@
 ---
 keyPoints: >-
-  Each browser has two switches per Root: Letters and Replies. The first switch On
-  sends one setup confirmation; both Off stops that device and leaves other devices
-  unchanged. Replies wait until the agent's work ends and only unread ones are
-  announced. Changing the public URL retires old registrations.
+  The count in the tab title and the browser notification are separate. Each browser
+  chooses per Root whether Letters and Replies count; Notification sends it what its
+  count shows. Both live in the Letters menu. Replies wait until the agent's work ends
+  and only unread ones are announced. Changing the public URL retires old registrations.
 ---
 
 # Hear when your attention matters
 
-Open a Goal and choose **More → Notifications**. The panel has two switches:
+Open a Goal and open the envelope, the **Letters** menu in the header. It has
+three switches:
 
-- **Letters**: questions that need your decision. The agent marks a reply that
-  asks you to decide or approve something, and it arrives as a Letter. A Claude
-  conversation that owns a Goal never asks in its own app.
-- **Replies**: other replies from the agent, such as results and Claude
-  conversation replies.
+- **Letters**, beside the Letters heading: count questions that need your
+  decision. The agent marks a reply that asks you to decide or approve something,
+  and it arrives as a Letter. A Claude conversation that owns a Goal never asks in
+  its own app.
+- **Replies**, beside the Replies heading: count other replies from the agent, such
+  as results and Claude conversation replies.
+- **Notification**, the last row: send this browser what its count shows.
 
-Turn on either one and allow the browser's permission request. A confirmation
-arrives a few seconds later. Tap it to return to the Goal. This browser then
-receives what you switched on for that project (the Root Goal and its children).
-Turning both switches Off stops notifications on this device.
+The two count switches decide what the tab title and the envelope show. They need
+no permission, and a new browser or project starts with both On and Notification Off.
+Letters Off leaves unanswered Letters listed in the menu; only the count skips them.
+Replies Off hides the unread replies too. A reply counts once the agent's work ends,
+the moment a notification would announce it, and replies saved before this version
+of chill do not count.
+
+Turn Notification On and allow the browser's permission request. A confirmation
+arrives a few seconds later. Tap it to return to the Goal. This browser then receives
+what it counts for that project (the Root Goal and its children), and the envelope
+shows a small bell. Because a notification sends what the count shows, you cannot
+hear about a kind without counting it. With both count switches Off, Notification
+turns Off and cannot be turned On.
 
 Each device has its own switches: a phone, or a browser on another computer. Turn
-them Off on one device to stop its alerts; the other devices' choices stay unchanged. A new browser or project starts with both
-Off, and the switches stay visible so you can see what each would send.
+them Off on one device; the other devices' choices stay unchanged. The Goals index
+has no Root, so these switches appear only on a Goal.
 
 For your phone, open **More → Public link** on your computer and scan its QR. On iPhone,
-add the page to your Home Screen and open that app first. Then turn on a switch in the
-phone's Notifications panel. Permission belongs to that browser and URL. If previously
+add the page to your Home Screen and open that app first. Then turn on Notification in
+the phone's Letters menu. Permission belongs to that browser and URL. If previously
 blocked, change the browser's site settings before trying again.
 
 ## Control interruptions
 
 Keep only **Letters** on to hear only when a reply, choice or permission is
-needed. A notified reply also counts in the tab title and appears under
-Replies in the header Letters menu until you open its Goal or choose **Mark all
+needed. With **Replies** on, an unread reply counts in the tab title and appears
+under Replies in the Letters menu until you open its Goal or choose **Mark all
 read**; see [Web navigation](../workspace/web-navigation.md). Opening a notification shows that reply in its Conversation,
 in a tab already open on the same Root: one showing that Goal, else the one used
 last, found by its address. With no such tab it opens a new one, so a tab of another
 Root keeps its page. A tab opened before an update comes forward but stays on its
 page until it is reloaded. A device set
-up before these switches keeps its earlier choice: every reply turns both on, and
-Letters only turns on Letters.
+up before these switches keeps what it was sent: every reply turns both counts on,
+Letters only turns on Letters, and Notification stays On.
 
 While the agent is still working in a Root, its replies there wait; work only in
 its other Roots holds nothing back. When the work ends, the

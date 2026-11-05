@@ -7,7 +7,7 @@ const bellIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 export const extensionIcon=icon=>icon==='bell'?bellIcon:icon==='globe'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>';
 // Other parts of the page follow the extension states shown for the current Goal.
 export const announceControls=controls=>window.dispatchEvent(new CustomEvent('chill-extension-controls',{detail:{controls}}));
-export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
+export function createExtensionButtons({container,getGoalId,controlsChanged=()=>{}}){
  let controls=[],generation=0,controller=null,opened=null,panelController=null,cleanup=null;
  const more=document.createElement('button');more.type='button';more.className='extension-more';more.setAttribute('aria-label','More');more.setAttribute('aria-expanded','false');more.setAttribute('aria-controls','extension-list');
  more.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>More</span>';
@@ -24,8 +24,8 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  function close(restore=false){const id=opened;opened=null;panelController?.abort();cleanup?.();cleanup=null;panel.hidden=true;render();if(restore)more.focus({preventScroll:true});}
  function render(unknown=false){
   const retained=new Set();container.hidden=false;
+  for(const c of controls)if(c.manifest?.startsWith(`/extensions/${c.id}/`)&&!document.querySelector('link[rel="manifest"]')){const link=document.createElement('link');link.rel='manifest';link.href=c.manifest;document.head.append(link);}
   for(const c of controls.filter(c=>c.placement==='header')){
-   if(c.manifest?.startsWith(`/extensions/${c.id}/`)&&!document.querySelector('link[rel="manifest"]')){const link=document.createElement('link');link.rel='manifest';link.href=c.manifest;document.head.append(link);}
    retained.add(c.id);let wrapper=container.querySelector(`[data-header-extension="${c.id}"]`)?.parentElement;
    if(!wrapper){wrapper=document.createElement('span');wrapper.className='extension-control';wrapper.innerHTML=`<button type="button" class="extension-trigger" data-header-extension="${esc(c.id)}"></button><span class="extension-tooltip" role="tooltip" id="extension-tip-${esc(c.id)}"></span>`;list.append(wrapper);}
    const button=wrapper.querySelector('button');button.setAttribute('aria-label',c.label);button.setAttribute('aria-describedby',`extension-tip-${c.id}`);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded',String(opened===c.id));
@@ -35,6 +35,7 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
   }
   for(const button of container.querySelectorAll('[data-header-extension]'))if(!retained.has(button.dataset.headerExtension))button.parentElement.remove();
   announceControls(unknown?[]:controls);
+  if(!unknown)controlsChanged(controls);
  }
  async function refresh(){
   const id=getGoalId();if(!id)return;
@@ -80,5 +81,5 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  const timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
  window.addEventListener('focus',refresh);window.addEventListener('chill-extensions-changed',refresh);
- return {themeRootChanged:id=>themeMenu.rootChanged(id),routeChanged(){showMore(false);close();generation++;controller?.abort();if(!getGoalId())controls=[];render(true);void refresh();},refresh,destroy(){close();panel.remove();clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);window.removeEventListener('chill-extensions-changed',refresh);}};
+ return {themeRootChanged:id=>themeMenu.rootChanged(id),routeChanged(){showMore(false);close();generation++;controller?.abort();if(!getGoalId())controls=[];render(Boolean(getGoalId()));void refresh();},refresh,destroy(){close();panel.remove();clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);window.removeEventListener('chill-extensions-changed',refresh);}};
 }

@@ -10,8 +10,8 @@ test('header Letters include descendants, exclude other roots and answered or re
  assert.deepEqual(letters(goals,events,null),[1,2,3]);
  assert.deepEqual(letters(goals,[],null),[]);
 });
-test('header Replies list notified replies newer than their Goal read mark, apart from Letters',()=>{
- const goals=[{id:'1',readThrough:10,notified:[11,13]},{id:'2',parentId:'1',readThrough:20,notified:[21]},{id:'3',readThrough:0,notified:[31]}];
+test('header Replies list announced replies newer than their Goal read mark, apart from Letters',()=>{
+ const goals=[{id:'1',readThrough:10,announced:[11,13]},{id:'2',parentId:'1',readThrough:20,announced:[21]},{id:'3',readThrough:0,announced:[31]}];
  const reply=(id,goalId,extra={})=>({id,goalId,author:'agent',type:'comment',text:'Result',...extra});
  const events=[reply(9,'1'),reply(11,'1'),reply(12,'1'),reply(13,'1',{deletedAt:'now'}),reply(21,'2'),reply(31,'3'),{id:14,goalId:'1',author:'agent',type:'letter'}];
  const {letters,replies}=waitingMessages(goals,events,'2');

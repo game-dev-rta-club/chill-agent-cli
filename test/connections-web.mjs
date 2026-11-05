@@ -25,7 +25,7 @@ try{
  });
  for(const width of [1280,390,320]){
   await page.setViewportSize({width,height:850});await page.goto(`${url}/#/goal/1`);
-  for(const name of ['Notifications','Public link','Auto-continue'])await page.getByRole('button',{name,exact:true}).waitFor();
+  for(const name of ['Public link','Auto-continue'])await page.getByRole('button',{name,exact:true}).waitFor();
   await page.getByRole('button',{name:'Auto-continue',exact:true}).click();await page.getByRole('switch',{name:'Auto-continue'}).waitFor();assert.equal(await page.getByRole('switch',{name:'Auto-continue'}).isChecked(),false);await page.keyboard.press('Escape');
   await page.getByRole('button',{name:'Public link',exact:true}).click();await page.getByRole('switch',{name:'Public link'}).waitFor();
   await page.getByRole('button',{name:'More about public access'}).click();assert.match(await page.getByRole('dialog').innerText(),/No API token/);
@@ -43,13 +43,13 @@ try{
  assert.equal(await page.locator('.extension-url').getAttribute('href'),'https://phone-test.trycloudflare.com/#/goal/1');await page.screenshot({path:'/tmp/chill-public-on.png'});
  await page.getByRole('switch',{name:'Public link'}).uncheck();assert.equal((await fetch(url)).status,200);await page.keyboard.press('Escape');
  // On asks within the user gesture, and this browser's Off leaves others alone.
- await page.getByRole('button',{name:'Notifications',exact:true}).click();const toggle=page.getByRole('switch',{name:'Notifications'});await page.waitForFunction(()=>document.querySelector('.extension-panel input')?.disabled===false);
+ await page.locator('#letters-button').click();const toggle=page.getByRole('switch',{name:/^Notification/});await page.waitForFunction(()=>document.querySelector('.letters-foot input')?.disabled===false);
  assert.equal(await page.getByRole('button',{name:'Send test'}).count(),0);assert.equal(await page.getByText('History',{exact:true}).count(),0);
- assert.equal((await page.evaluate(()=>window.permissionCalls)).length,0);await page.evaluate(()=>window.permissionResult='denied');await toggle.click();await page.getByText('Allow notifications in your browser’s site settings, then try On again.').waitFor();assert.equal(await toggle.isChecked(),false);
+ assert.equal((await page.evaluate(()=>window.permissionCalls)).length,0);await page.evaluate(()=>window.permissionResult='denied');await toggle.click();await page.getByText('Allow notifications in your browser’s site settings, then try again.').waitFor();assert.equal(await toggle.isChecked(),false);
  await page.evaluate(()=>window.permissionResult='granted');await toggle.check();await page.getByText('A confirmation will arrive shortly.').waitFor();assert.deepEqual(await page.evaluate(()=>window.permissionCalls),[true,true]);
- const other=await browser.newPage();await other.goto(`${url}/#/goal/1`);await other.getByRole('button',{name:'Notifications',exact:true}).click();await other.waitForFunction(()=>document.querySelector('.extension-panel input')?.disabled===false);
- assert.equal(await other.getByRole('switch',{name:'Notifications'}).isChecked(),false);assert.equal(await other.getByRole('button',{name:'Connect this device'}).count(),0);await other.close();
- await toggle.uncheck();await page.waitForFunction(()=>document.querySelector('.extension-panel input')?.disabled===false);
+ const other=await browser.newPage();await other.goto(`${url}/#/goal/1`);await other.locator('#letters-button').click();await other.waitForFunction(()=>document.querySelector('.letters-foot input')?.disabled===false);
+ assert.equal(await other.getByRole('switch',{name:/^Notification/}).isChecked(),false);assert.equal(await other.getByRole('button',{name:'Connect this device'}).count(),0);await other.close();
+ await toggle.uncheck();await page.waitForFunction(()=>document.querySelector('.letters-foot input')?.disabled===false);
  assert.equal(await toggle.isChecked(),false);await page.screenshot({path:'/tmp/chill-notifications.png'});
  const response=await fetch(url+'/api/extensions/public-link/toggle',{method:'POST',headers:{Origin:'https://evil.test','Content-Type':'application/json'},body:'{"enabled":true}'});assert.equal(response.status,403);
  const sw=await fetch(url+'/extensions/web-notifications/sw.js');assert.equal(sw.headers.get('service-worker-allowed'),'/');assert.match(await sw.text(),/notificationclick/);

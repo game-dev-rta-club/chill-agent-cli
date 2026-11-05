@@ -77,7 +77,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  const refreshButton=panel.querySelector('[data-agent-refresh]');
  function render(data){
   const expanded=new Set([...content.querySelectorAll('details[open][data-agent-detail]')].map(d=>d.dataset.agentDetail)),scroll=panel.scrollTop;
-  current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>c.placement!=='header'&&!c.activity));
+  current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>!['header','letters'].includes(c.placement)&&!c.activity));
   if(data.extensions)announceControls(data.extensions);
   for(const d of content.querySelectorAll('details[data-agent-detail]'))d.open=expanded.has(d.dataset.agentDetail);
   panel.scrollTop=scroll;
