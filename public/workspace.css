@@ -421,6 +421,7 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 .letters-notify:not(.is-off) .letters-notify-slash { display:none; }
 .header-letter-list { list-style:none; margin:0; padding:0; }
 .header-letter-list a { display:grid; gap:4px; padding:12px 8px; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+.header-letter-list li:last-child a { border-bottom:0; }
 .header-letter-list a:hover { background:var(--letter-surface); }
 .header-letter-list strong { font-size:14px; color:var(--letter-ink); }
 .header-letter-list small { font-size:12px; color:var(--muted); }

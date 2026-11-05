@@ -10,6 +10,8 @@ Return a descriptor from `read(goalId, {activity, clientId})`. The host adds the
 `id` and `label`. A basic toggle returns `{rootId, enabled}`; use
 `placement: 'header'` to show it in the header's **More** menu. Each row displays
 the extension's name, icon and On/Off state on both phones and computers.
+`placement: 'letters'` shows it as the last row of the Letters menu instead: the
+host mounts its `panelModule` there, and the envelope shows a bell while it is enabled.
 The frontend chooses from fixed
 icons: `icon: 'repeat'` is the coffee motif and `icon: 'bell'` is a bell,
 with a generic fallback. `description` supplies short header help.
