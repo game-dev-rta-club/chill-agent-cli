@@ -150,27 +150,31 @@ test('tab count follows the current Root, including child Letters, answers and r
  assert.equal((await f.get('/api/goals/999/letters/count')).status,404);
 });
 
-test('tab count adds unread notified replies to unanswered Letters; showing a Goal reads it on every device',async t=>{
+test('tab count adds unread replies to unanswered Letters, as each browser chose; showing a Goal reads it on every device',async t=>{
  const f=await fixture(t),child=await f.run('create','--title','Child','--parent','1');
  const before=await f.run('reply','--id','1','--text','Saved before anyone read');
  const count=async id=>(await(await f.get(`/api/goals/${id}/letters/count`)).json()).count;
  const read=(id,through,origin=f.url())=>fetch(f.url()+`/api/goals/${id}/read`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({through})});
  assert.equal(await count('1'),0,'replies from before the first read are read');
- const result=await f.run('reply','--id','1','--text','Result'),quiet=await f.run('reply','--id',child.id,'--text','Not notified');
+ const result=await f.run('reply','--id','1','--text','Result'),quiet=await f.run('reply','--id',child.id,'--text','Not announced');
  const letter=await f.run('reply','--id',child.id,'--ask','Q','--text','Which one?');
  await f.post({text:'My own comment'});
- assert.equal(await count(child.id),1,'a reply nobody was notified of does not count');
+ assert.equal(await count(child.id),1,'a reply not yet announced does not count');
+ const quietBrowser='11111111-1111-4111-8111-111111111111',lettersOff='22222222-2222-4222-8222-222222222222';
  const claims=Object.fromEntries([before,result,letter].map(e=>[e.id,{at:Date.now(),rootId:'1',reply:true}]));
  await mkdir(join(f.root,'workspace/web-notifications'),{recursive:true});
- await writeFile(join(f.root,'workspace/web-notifications/1.json'),JSON.stringify({version:2,keys:null,devices:{},roots:{},jobs:{},claims}));
- assert.equal(await count(child.id),2,'a notified reply counts; a Letter counts once');
+ await writeFile(join(f.root,'workspace/web-notifications/1.json'),JSON.stringify({version:3,keys:null,devices:{},roots:{'1':{devices:{[quietBrowser]:{enabled:false,letters:true,replies:false},[lettersOff]:{enabled:false,letters:false,replies:true}}}},jobs:{},claims}));
+ assert.equal(await count(child.id),2,'an announced reply counts; a Letter counts once');
+ const browserCount=async client=>(await(await f.get(`/api/goals/${child.id}/letters/count?clientId=${client}`)).json()).count;
+ assert.equal(await browserCount(quietBrowser),1,'Replies Off counts only the Letter');assert.equal(await browserCount(lettersOff),1,'Letters Off counts only the reply');
+ assert.deepEqual((await(await f.get(`/api/goals?view=web&clientId=${quietBrowser}`)).json())[0].counts,{letters:true,replies:false});
  let [root]=await(await f.get('/api/goals?view=web')).json();
- assert.deepEqual(root.notified,[result.id]);
+ assert.deepEqual(root.announced,[result.id]);
  assert.equal((await read(child.id,letter.id)).status,200);
  assert.equal(await count('1'),2,'a read Letter still counts until answered');
  assert.equal((await read('1',result.id)).status,200);
  assert.equal(await count('1'),1);
- [root]=await(await f.get('/api/goals?view=web')).json();assert.deepEqual(root.notified,[]);
+ [root]=await(await f.get('/api/goals?view=web')).json();assert.deepEqual(root.announced,[]);
  assert.equal((await read('1',1)).status,200);assert.equal(await count('1'),1,'a read mark never moves back');
  await f.run('close-letter','--id',child.id,'--event',String(letter.id));assert.equal(await count('1'),0);
  assert.ok(quiet.id<letter.id);

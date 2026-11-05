@@ -10,20 +10,26 @@ export function letterState(letter, conversation = []) {
   return {status: letter.receivedAt ? 'received' : letter.letterStatus?.status || (answer ? 'answered' : 'open'), lastAnswerId: Math.max(answer?.id || 0, letter.letterStatus?.lastAnswerId || 0) || null};
 }
 
-// A reply is unread while it was notified and is newer than its Goal's read mark.
+// A reply is unread once announced, until it is older than its Goal's read mark.
 export const unreadReply=(event,goal)=>event.type==='comment'&&event.author==='agent'&&!event.deletedAt
-  &&event.id>(goal?.readThrough??Infinity)&&Boolean(goal?.notified?.includes(event.id));
-// The Root's count: unanswered Letters plus unread notified replies.
+  &&event.id>(goal?.readThrough??Infinity)&&Boolean(goal?.announced?.includes(event.id));
+// Whether this browser's count shows a kind for a Root; both show until switched off.
+export const counted=(root,kind)=>root?.counts?.[kind]!==false;
+export function rootOf(byId,id){
+  let root=byId.get(id);
+  while(root?.parentId&&byId.has(root.parentId))root=byId.get(root.parentId);
+  return root;
+}
+// The Root's count: unanswered Letters plus unread replies, as this browser chose.
 export function rootLetterSummary(goals,conversation,currentId){
   const byId=new Map(goals.map(goal=>[goal.id,goal]));
-  let root=byId.get(currentId);
+  const root=rootOf(byId,currentId);
   if(!root)return null;
-  while(root.parentId&&byId.has(root.parentId))root=byId.get(root.parentId);
   const children=new Map();
   for(const goal of goals){const list=children.get(goal.parentId)||[];list.push(goal.id);children.set(goal.parentId,list);}
   const ids=new Set(),visit=id=>{if(ids.has(id))return;ids.add(id);for(const child of children.get(id)||[])visit(child);};
   visit(root.id);
   const relevant=conversation.filter(event=>ids.has(event.goalId));
-  return {rootId:root.id,title:root.title,count:relevant.filter(event=>unreadReply(event,byId.get(event.goalId))||letterState(event,relevant)?.status==='open').length};
+  return {rootId:root.id,title:root.title,count:relevant.filter(event=>counted(root,'replies')&&unreadReply(event,byId.get(event.goalId))||counted(root,'letters')&&letterState(event,relevant)?.status==='open').length};
 }
 export function letterTabTitle(summary){return summary?`${summary.count?`(${summary.count}) `:''}${summary.title} · chill`:'Goals · chill';}

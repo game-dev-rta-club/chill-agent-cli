@@ -405,7 +405,20 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 .header-letters:hover,.header-letters[aria-expanded=true] { background:var(--theme-soft,#f2eadc); }
 .header-letter-count { position:absolute; right:0; top:0; min-width:17px; padding:0 3px; border-radius:9px; background:var(--surface-soft); font-size:10px; line-height:17px; font-variant-numeric:tabular-nums; }
 .is-on .header-letter-count { background:var(--letter-ink); color:white; }
+.header-letters .header-letter-bell { position:absolute; right:4px; bottom:6px; width:14px; height:14px; fill:var(--letter-ink); stroke:var(--letter-ink); stroke-width:2; stroke-linecap:round; filter:drop-shadow(0 0 1.5px var(--theme-surface,white)); }
 .letters-panel { max-height:calc(100dvh - 90px); overflow:auto; }
+.letters-panel .extension-message:empty { display:none; }
+.letters-tools { align-items:center; }
+.letters-tools.is-aligned { padding-right:39px; gap:8px; min-height:36px; }
+.letters-tools .letters-switch { margin-right:2px; }
+.letters-foot { border-top:1px solid var(--line); margin-top:12px; padding-top:12px; }
+.letters-foot[hidden] { display:none; }
+.letters-notify { justify-content:flex-start; gap:8px; padding-right:41px; font-size:14px; }
+.letters-notify input { margin-left:auto; }
+.letters-notify input:disabled { cursor:not-allowed; }
+.letters-notify svg { width:16px; height:16px; flex:none; color:var(--letter-ink); }
+.letters-notify.is-off svg { color:var(--muted); }
+.letters-notify:not(.is-off) .letters-notify-slash { display:none; }
 .header-letter-list { list-style:none; margin:0; padding:0; }
 .header-letter-list a { display:grid; gap:4px; padding:12px 8px; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
 .header-letter-list a:hover { background:var(--letter-surface); }

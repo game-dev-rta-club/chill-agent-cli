@@ -137,6 +137,8 @@ async function readJson(request) {
   return JSON.parse(body);
 }
 
+// This browser's ID, which some answers depend on.
+const clientIdOf=url=>/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(url.searchParams.get('clientId')||'')?url.searchParams.get('clientId'):null;
 function acceptsGzip(request) {
   return (request.headers['accept-encoding'] || '').split(',').some(part => {
     const [name, ...parameters] = part.trim().toLowerCase().split(';');
@@ -278,7 +280,7 @@ const server = createServer(async (request, response) => {
   }
   const extensionPath=/^\/api\/goals\/([1-9][0-9]*)\/extensions(?:\/([a-z][a-z0-9-]*))?$/.exec(path);
   if(extensionPath&&request.method==='GET'&&!extensionPath[2]){
-    try{return sendJson(response,200,await extensions.controls(extensionPath[1],{activity:url.searchParams.get('activity')==='1',clientId:/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(url.searchParams.get('clientId')||'')?url.searchParams.get('clientId'):null}));}
+    try{return sendJson(response,200,await extensions.controls(extensionPath[1],{activity:url.searchParams.get('activity')==='1',clientId:clientIdOf(url)}));}
     catch(error){recordHidden('server.extension-controls',error);return sendJson(response,503,{error:error.message});}
   }
   if(extensionPath&&request.method==='POST'&&extensionPath[2]){
@@ -341,7 +343,7 @@ const server = createServer(async (request, response) => {
   const lettersCountPath=/^\/api\/goals\/([1-9][0-9]*)\/letters\/count$/.exec(path);
   if(lettersCountPath&&request.method==='GET'){
     try{
-      const [goals,conversation,attention]=await Promise.all([listGoals(),readFeedback(),readAttention()]);
+      const [goals,conversation,attention]=await Promise.all([listGoals(),readFeedback(),readAttention(clientIdOf(url))]);
       const summary=rootLetterSummary(goals.map(goal=>attention(goal,conversation)),conversation,lettersCountPath[1]);
       return sendJson(response,summary?200:404,summary||{error:'Goal not found.'});
     }catch{return sendJson(response,500,{error:'Could not count Letters.'});}
@@ -483,7 +485,7 @@ const server = createServer(async (request, response) => {
   if (path === '/api/goals') {
     try {
       const web=url.searchParams.get('view')==='web';
-      const [goals,attention]=await Promise.all([readConnectedGoals({render:!web,paged:web&&url.searchParams.get('history')==='paged'}),readAttention()]);
+      const [goals,attention]=await Promise.all([readConnectedGoals({render:!web,paged:web&&url.searchParams.get('history')==='paged'}),readAttention(clientIdOf(url))]);
       // Every Goal shows the Autonomy of its Root's agent.
       let body = Buffer.from(JSON.stringify(web?webSnapshot(await goalsWithRootAutonomy(goals)).map(goal=>attention(goal,goal.conversation)):goals));
       response.setHeader('Vary','Accept-Encoding');

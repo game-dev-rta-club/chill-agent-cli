@@ -42,15 +42,15 @@ test('expired subscriptions turn off usable status; disconnect stops future deli
  await f.on();await f.api.remove('2',device);assert.equal((await f.api.settings('2')).enabled,false);assert.equal(f.state().devices[device],undefined);
 });
 test('migration preserves the old choice for each registered device without a welcome replay',async()=>{
- for(const enabled of [true,false]){const f=fixture({version:1,keys:{publicKey:'public',privateKey:'private'},devices:{[device]:{subscription,origin:'https://phone.test'}},roots:{'1':{enabled,cutoff:9,devices:{[device]:true}}},jobs:{},claims:{}});await f.api.initialize();assert.equal(f.state().version,2);assert.deepEqual(f.state().roots['1'].devices[device],{enabled,cutoff:9});assert.equal((await f.api.read('2',device)).enabled,enabled);assert.deepEqual(f.state().jobs,{});}
+ for(const enabled of [true,false]){const f=fixture({version:1,keys:{publicKey:'public',privateKey:'private'},devices:{[device]:{subscription,origin:'https://phone.test'}},roots:{'1':{enabled,cutoff:9,devices:{[device]:true}}},jobs:{},claims:{}});await f.api.initialize();assert.equal(f.state().version,3);assert.deepEqual(f.state().roots['1'].devices[device],{enabled,cutoff:9,...(enabled?{letters:true,replies:true}:{})});assert.equal((await f.api.read('2',device)).enabled,enabled);assert.deepEqual(f.state().jobs,{});}
 });
 test('reads do not expose credentials, endpoints or receipt tokens, and moved roots fail',async()=>{
  const f=fixture();await f.api.initialize();await f.on();const output=JSON.stringify(await f.api.read('2',device));for(const secret of ['private','endpoint','receipt'])assert.equal(output.includes(secret),false);
  await assert.rejects(f.api.configure({goalId:'2',rootId:'9',deviceId:device,enabled:true,subscription,origin:'https://phone.test'}),/moved/);
 });
-test('Letters and Replies are separate switches; both On by default, both Off turns the device off',async()=>{
+test('Notification sends what the count shows; both counts Off turns it off',async()=>{
  const f=fixture();await f.api.initialize();
- assert.deepEqual(await f.api.read('2',device).then(r=>[r.enabled,r.letters,r.replies]),[false,false,false]);
+ assert.deepEqual(await f.api.read('2',device).then(r=>[r.enabled,r.letters,r.replies]),[false,true,true]);
  await f.on();assert.deepEqual(await f.api.read('2',device).then(r=>[r.letters,r.replies]),[true,true]);assert.deepEqual((await f.api.settings('2')).on,['comment','letter']);
  f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'Here is the result'});
  assert.equal((await f.api.prepare('2',2)).handled,true);assert.equal(f.sends.length,1);assert.equal(f.sends[0].title,'An outcome');assert.match(f.sends[0].url,/#\/goal\/2\/letter\/2$/);assert.equal(f.sends[0].rootId,'1');assert.deepEqual(f.sends[0].goalIds,[1,2]);
@@ -61,7 +61,7 @@ test('Letters and Replies are separate switches; both On by default, both Off tu
  await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:false,replies:true});
  f.events.push({...f.events[0],id:5},{id:6,goalId:'2',author:'agent',type:'comment',text:'Another result'});
  assert.equal((await f.api.prepare('2',5)).handled,false);assert.equal((await f.api.prepare('2',6)).handled,true);
- // Both Off is Off for this device, and a later first switch On registers it again.
+ // Counting nothing turns Notification Off, and a later On registers it again.
  const off=await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:false,replies:false});
  assert.deepEqual([off.enabled,off.letters,off.replies],[false,false,false]);assert.equal((await f.api.settings('2')).enabled,false);
  await f.api.configure({goalId:'2',rootId:'1',deviceId:device,enabled:true,subscription:{...subscription,endpoint:subscription.endpoint+device},origin:'https://phone.test',letters:false,replies:true});
@@ -69,7 +69,7 @@ test('Letters and Replies are separate switches; both On by default, both Off tu
  // Registering again without switches keeps this device's choice.
  await f.on();assert.deepEqual(await f.api.read('2',device).then(r=>[r.letters,r.replies]),[false,true]);
  await assert.rejects(f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:'yes',replies:true}),/Choose Letters and Replies/);
- await assert.rejects(f.api.kinds({goalId:'2',rootId:'1',deviceId:other,letters:true,replies:false}),/Turn notifications on/);
+ await assert.rejects(f.api.kinds({goalId:'2',rootId:'1',deviceId:'nope',letters:true,replies:true}),/Invalid device/);
  await assert.rejects(f.api.configure({goalId:'2',rootId:'1',deviceId:other,enabled:true,subscription,origin:'https://phone.test',letters:false,replies:false}),/Letters, Replies or both/);
 });
 
@@ -97,6 +97,30 @@ test('Web sends new Agent replies by itself, once, for Codex and Claude alike',a
  // Off stops replies for this device.
  await f.off();f.events.push({id:7,goalId:'2',author:'agent',type:'comment',text:'After Off',updatedAt:at});await f.api.drain();assert.equal(f.sends.length,3);
 });
+test('every reply counts once its Root\'s work ends, with no device; a browser counts without notifications',async()=>{
+ const f=fixture();const start=Date.parse('2026-10-14T00:00:00Z'),at=new Date(start).toISOString();f.time(start);
+ await f.api.initialize();await f.api.drain();
+ f.busy(true);f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'On it',updatedAt:at});await f.api.drain();
+ assert.deepEqual([...await f.api.announcedReplies()],[],'the count waits like a notification');
+ f.busy(false);await f.api.drain();assert.deepEqual([...await f.api.announcedReplies()],[2]);assert.equal(f.sends.length,0);
+ // The count's switches need no permission, and do not choose the Web provider.
+ assert.deepEqual((await f.api.counts(device))('1'),{letters:true,replies:true});
+ const saved=await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:true,replies:false});
+ assert.deepEqual([saved.enabled,saved.letters,saved.replies],[false,true,false]);
+ assert.deepEqual((await f.api.counts(device))('1'),{letters:true,replies:false});
+ assert.deepEqual((await f.api.counts(other))('1'),{letters:true,replies:true},'another browser keeps its own');
+ assert.equal((await f.api.settings('2')).selected,false);
+ // Notification On then sends only what this browser counts.
+ await f.on();assert.deepEqual((await f.api.read('2',device)).replies,false);assert.deepEqual((await f.api.settings('2')).on,['letter']);
+ await assert.rejects(f.api.configure({goalId:'2',rootId:'1',deviceId:device,enabled:true,subscription,origin:'https://phone.test',letters:false,replies:false}),/Turn on Letters, Replies or both/);
+});
+test('an Off device from before the count starts at the defaults; an On device keeps what it was sent',async()=>{
+ const f=fixture({version:2,keys:{publicKey:'public',privateKey:'private'},devices:{[device]:{subscription,origin:'https://phone.test'}},roots:{'1':{devices:{[device]:{enabled:false,cutoff:9,letters:false,replies:false},[other]:{enabled:true,cutoff:9,scope:'letters'}}}},jobs:{},claims:{}});
+ await f.api.initialize();assert.equal(f.state().version,3);
+ assert.deepEqual((await f.api.counts(device))('1'),{letters:true,replies:true});
+ assert.deepEqual((await f.api.counts(other))('1'),{letters:true,replies:false});
+ assert.equal((await f.api.settings('2')).selected,true,'a Root that used Web notifications stays with them');
+});
 test('replies saved while the agent works wait for the work to end; only the unread ones are announced, once, with how many more',async()=>{
  const f=fixture();const start=Date.parse('2026-10-14T00:00:00Z'),at=new Date(start).toISOString();f.time(start);
  await f.api.initialize();await f.on();f.time(start+6000);await f.api.drain();assert.equal(f.sends.length,1,'only the confirmation');
@@ -106,10 +130,10 @@ test('replies saved while the agent works wait for the work to end; only the unr
  await f.api.drain();
  assert.deepEqual(f.sends.slice(1).map(s=>s.title),['Pick one'],'a Letter is not held');
  assert.deepEqual(Object.keys(f.state().held).map(Number),[2,4,5]);
- assert.deepEqual([...await f.api.notifiedReplies()],[],'held replies do not count as unread yet');
+ assert.deepEqual([...await f.api.announcedReplies()],[],'held replies do not count as unread yet');
  f.read(2);f.busy(false);await f.api.drain();
  assert.deepEqual(f.sends.slice(2).map(s=>[s.title,s.body]),[['An outcome','Done: the result\n(+1 more reply)']],'one notification: the newest unread, with the count of the others');
- assert.deepEqual([...await f.api.notifiedReplies()].sort(),[4,5],'the unread ones count, the read one does not');
+ assert.deepEqual([...await f.api.announcedReplies()].sort(),[4,5],'the unread ones count, the read one does not');
  assert.deepEqual(f.state().held,{});await f.api.drain();assert.equal(f.sends.length,3,'released once');
  // Read before the work ends: nothing is announced.
  f.busy(true);f.events.push({id:6,goalId:'2',author:'agent',type:'comment',text:'Will do',updatedAt:at});await f.api.drain();
