@@ -17,7 +17,7 @@ export function waitingMessages(goals,events,currentId){
 }
 export function createLettersMenu({button,panel,readReplies,countsChanged}){
  const head=document.createElement('div'),body=document.createElement('div'),status=document.createElement('p');
- head.className='agent-panel-heading letters-head';head.innerHTML=`<h2>Notification</h2><div class="letters-control"></div><button type="button" class="letters-read" data-replies-read title="Mark all read" aria-label="Mark all read" hidden>${check}</button>`;
+ head.className='agent-panel-heading letters-head';head.innerHTML=`<h2>Notification</h2><div class="letters-control"></div><button type="button" class="letters-read" data-replies-read title="Mark all read" aria-label="Mark all read" hidden>${check}All read</button>`;
  const slot=head.querySelector('.letters-control'),read=head.querySelector('[data-replies-read]');
  status.className='extension-message';status.setAttribute('role','status');panel.append(head,status,body);
  let signature='',shownReplies=[],latest=null,control=null,rootId=null,counts=null,notify=null;

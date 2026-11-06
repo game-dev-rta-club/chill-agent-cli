@@ -18,7 +18,7 @@ request every 15 seconds, subject to the browser's background timer throttling.
 The header keeps Agent and Notification beside each other. The bell opens the unanswered
 Letters for the current Root and its descendants, and below them, as Replies, the
 unread replies; on the Goals index it includes all Roots. Both sections show even when
-empty. Each entry opens its message. The check mark in the top row, **Mark all read** on hover,
+empty. Each entry opens its message. The **All read** button in the top row, **Mark all read** on hover,
 reads the listed Replies and shows only while there are some; Letters stay until answered.
 On a Goal, a bell beside each heading chooses whether this browser counts that kind for the
 Root, and the top row turns on [Notification](../using/notifications.md). The menu closes

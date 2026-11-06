@@ -410,9 +410,10 @@ body:has(.extension-panel:not([hidden]),.agent-panel:not([hidden])) .header-acti
 .letters-head { flex-wrap:wrap; justify-content:flex-start; gap:10px; }
 .letters-head .letters-control { display:contents; }
 .letters-head .extension-message { order:1; flex-basis:100%; margin:0; }
-.agent-panel-heading .letters-read { margin-left:auto; min-width:32px; min-height:32px; border:1px solid var(--line); border-radius:8px; color:var(--letter-ink); background:transparent; cursor:pointer; }
+.agent-panel-heading .letters-read { margin-left:auto; gap:4px; min-height:32px; padding:0 10px; border:0; border-radius:8px; color:#fff; background:#2f6650; font-weight:600; white-space:nowrap; cursor:pointer; }
+.agent-panel-heading .letters-read:hover { background:#27574a; }
 .letters-read[hidden] { display:none; }
-.letters-read svg { width:16px; height:16px; }
+.letters-read svg { width:15px; height:15px; }
 .letters-notify input:disabled { cursor:not-allowed; }
 .letters-section { display:flex; align-items:center; justify-content:space-between; min-height:32px; margin-top:10px; }
 .letters-section h3 { margin:0; font-size:13px; font-weight:600; color:var(--muted); }
