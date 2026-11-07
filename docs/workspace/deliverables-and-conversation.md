@@ -36,7 +36,10 @@ the Goal.
 
 A new Canvas starts as HTML (`deliverable.html`): a standalone,
 visual-first page with its own `<style>` and inline SVG diagrams, rendered in an
-isolated frame where scripts, forms and remote assets do not run. Existing
+isolated frame where scripts, forms and remote assets do not run. When its CSS
+never mentions a table element (`table`, `tr`, `th`, `td` and so on), chill draws
+its tables with cell lines, padding and a tinted header, like tables in
+messages; a Canvas that styles its tables keeps only its own look. Existing
 Markdown Canvases still work with `--format markdown`. Switching format keeps
 previous versions and both editable source files. When the published content is
 Markdown, or HTML without any table, SVG, image or grid/flex layout, `update`

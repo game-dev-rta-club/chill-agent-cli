@@ -14,6 +14,14 @@ test('HTML Deliverable isolates author styling and preserves only static content
  assert.ok(doc.indexOf('body{margin:0;padding:')<doc.indexOf('body{color:red}'),'the Deliverable has the card\'s margins unless its own style sets them');assert.match(doc,/class="brief-body"/);assert.ok(!doc.includes('alert(1)'));
  assert.throws(()=>briefHTML('source','pdf'),/format/);assert.equal(briefReadableText('<h1>A</h1><p>B</p>','html'),'A\n\nB');
 });
+test('a Canvas that never styles its tables gets lines, and one that does keeps its own',()=>{
+ const table='<table><tr><th>A</th></tr><tr><td>1</td></tr></table>';
+ assert.match(briefDocument(table),/th,td\{padding:6px 10px;border:1px solid/,'an unstyled table gets lines');
+ assert.match(briefDocument('<style>p{color:red}</style>'+table),/th,td\{padding:6px 10px;border:1px solid/,'CSS for other elements still leaves tables unstyled');
+ const own=briefDocument('<style>td{border-bottom:1px solid #eee}</style>'+table);
+ assert.ok(!own.includes('th,td{padding:6px 10px'),'a Canvas that styles cells keeps only its own look');
+ assert.match(briefDocument('<style>.width{width:1px}</style>'+table),/th,td\{padding:6px 10px/,'a word such as width is not a table rule');
+});
 test('switching Deliverable formats keeps both originals, exact histories and HTML annotation coordinates',async t=>{
  const root=await mkdtemp(join(tmpdir(),'chill-brief-html-'));process.env.CHILL_AGENT_DATA_DIR=root;t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const goal=await createGoal({title:'Compare formats'});
