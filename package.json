@@ -35,7 +35,8 @@
     "parse5": "8.0.1",
     "qrcode": "1.5.4",
     "sanitize-html": "2.18.0",
-    "web-push": "3.6.7"
+    "web-push": "3.6.7",
+    "ws": "8.22.1"
   },
   "devDependencies": {
     "esbuild": "0.28.2",

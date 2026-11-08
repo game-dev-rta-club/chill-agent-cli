@@ -13,6 +13,7 @@ import { lastServerUse, serverOptions } from '../lib/server-lifecycle.mjs';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
 import {fileURLToPath} from 'node:url';
 import {usedChat} from './fake-codex-desktop.mjs';
+import {WebSocket as Socket} from 'ws';
 
 const execute = promisify(execFile);
 const serverFile = fileURLToPath(new URL('../server.mjs',import.meta.url));
@@ -126,6 +127,19 @@ test('manual shutdown also stops the connector; a connector failure keeps local 
   crashed.child.kill('SIGTERM');await crashed.exited;
 });
 
+test('a live socket opens only from the Web\'s own origin and does not hold Web open at idle', {timeout:8000}, async t => {
+  const {url, exited} = await fixture(t, '1500ms');
+  const live = `${url.replace('http','ws')}/api/goals/1/live`;
+  const refused = async (options) => { const socket = new Socket(live, options); const [error] = await once(socket, 'error'); return error.message; };
+  assert.match(await refused({origin:'https://other.example'}), /403/, 'another site cannot open one');
+  assert.match(await refused({origin:url,headers:{'cf-ray':'1'}}), /403/, 'through the tunnel it needs a connected device');
+  const socket = new Socket(live, {origin:url});
+  const [first] = await once(socket, 'message');
+  assert.deepEqual(Object.keys(JSON.parse(first)), ['presence'], 'the page gets the agent status at once');
+  const closed = once(socket, 'close');
+  await exited;
+  await closed;
+});
 test('the service token stops Web only from a local request that no browser can send', {timeout:8000}, async t => {
   const token = 'a'.repeat(64);
   const f = await fixture(t, '1h', {CHILL_AGENT_SERVICE_TOKEN:token});

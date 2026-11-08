@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, imageSizes, saveImageThumbHash, closeLetter, reopenLetter, dataDirectory, initializeStore, listEventsSince, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, imageSizes, saveImageThumbHash, closeLetter, reopenLetter, dataDirectory, initializeStore, listEventsSince, latestChangeId, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import { setRootAutonomy, goalsWithRootAutonomy } from './lib/root-autonomy.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
@@ -28,7 +28,9 @@ import {readAgentPresence} from './lib/agent-presence.mjs';
 import {goalCommentMarks} from './lib/agents/index.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
 import {searchWorkspace} from './lib/workspace-search.mjs';
-import {readAttention,markRead} from './lib/read-marks.mjs';
+import {readAttention,readMarksVersion,markRead} from './lib/read-marks.mjs';
+import {createLiveStatus} from './lib/live-status.mjs';
+import {webNotifications} from './lib/web-notifications.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
 import {largeSize} from './lib/limits.mjs';
 import {recordHidden} from './lib/hidden-failure.mjs';
@@ -88,9 +90,25 @@ async function publicGate(request,response,url,nonce){
   return true;
 }
 
+// Through the public link, a live socket needs the same connected device as a page.
+// Browsers always send Origin on a WebSocket, so another site cannot open one.
+const live=createLiveStatus({
+  allowed:async request=>{
+    if(closing||!allowedOrigin(request))return false;
+    if(request.headers.host===`127.0.0.1:${server.address().port}`&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'])return true;
+    return publicAccess.connected(sessionFrom(request));
+  },
+  read:{
+    presence:readAgentPresence,
+    summary:letterSummary,
+    signature:async()=>JSON.stringify([await latestChangeId(),await readMarksVersion(),(await webNotifications.announcedReplies()).size]),
+  },
+});
+
 function shutdown(preserveTunnel=false) {
   if (closing) return;
   closing = true;
+  live.close();
   stopIdleWatch?.();
   void extensions.stop().catch(error=>console.error(error.message));
   void (preserveTunnel ? publicTunnel.release() : publicTunnel.stop()).catch(error => console.error(error.message));
@@ -108,6 +126,7 @@ const assets = new Map([
   ['/vendor/workspace-app.js', ['vendor/workspace-app.js', 'text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/activity-controls.js', ['activity-controls.js', 'text/javascript; charset=utf-8']],
+  ['/live-status.js', ['live-status.js', 'text/javascript; charset=utf-8']],
   ['/agent-menu.js', ['agent-menu.js', 'text/javascript; charset=utf-8']],
   ['/agent-presence.js', ['agent-presence.js', 'text/javascript; charset=utf-8']],
   ['/extension-buttons.js', ['extension-buttons.js', 'text/javascript; charset=utf-8']],
@@ -139,6 +158,11 @@ async function readJson(request) {
 
 // This browser's ID, which some answers depend on.
 const clientIdOf=url=>/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(url.searchParams.get('clientId')||'')?url.searchParams.get('clientId'):null;
+// The Root's Letter count and title for a Goal, as this browser chose to count them.
+async function letterSummary(goalId,clientId){
+  const [goals,conversation,attention]=await Promise.all([listGoals(),readFeedback(),readAttention(clientId)]);
+  return rootLetterSummary(goals.map(goal=>attention(goal,conversation)),conversation,goalId);
+}
 function acceptsGzip(request) {
   return (request.headers['accept-encoding'] || '').split(',').some(part => {
     const [name, ...parameters] = part.trim().toLowerCase().split(';');
@@ -343,8 +367,7 @@ const server = createServer(async (request, response) => {
   const lettersCountPath=/^\/api\/goals\/([1-9][0-9]*)\/letters\/count$/.exec(path);
   if(lettersCountPath&&request.method==='GET'){
     try{
-      const [goals,conversation,attention]=await Promise.all([listGoals(),readFeedback(),readAttention(clientIdOf(url))]);
-      const summary=rootLetterSummary(goals.map(goal=>attention(goal,conversation)),conversation,lettersCountPath[1]);
+      const summary=await letterSummary(lettersCountPath[1],clientIdOf(url));
       return sendJson(response,summary?200:404,summary||{error:'Goal not found.'});
     }catch{return sendJson(response,500,{error:'Could not count Letters.'});}
   }
@@ -541,6 +564,7 @@ server.listen(port, '127.0.0.1', async () => {
   });
 
 });
+server.on('upgrade',(request,socket,head)=>void live.upgrade(request,socket,head));
 server.on('close', () => stopIdleWatch?.());
 server.on('error', error => {
   console.error(error.code === 'EADDRINUSE' ? `Port ${port} is in use. Set PORT to another port.` : error.message);
