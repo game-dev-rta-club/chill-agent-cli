@@ -51,7 +51,9 @@ is dropped, and with none left, or off a Pro or Max plan, Usage is unavailable.
 
 Under a delivered message, Activity shows the public text the agent wrote in the
 response that received it, from the hook offer until that response stops or the
-user starts another prompt, as a Codex turn does. Thinking, tool input and output,
+user starts another prompt, as a Codex turn does. A comment, Send now or Resume
+the watcher hands while that response runs joins it, so what it already wrote
+stays; only a wake after it stopped starts a new response. Thinking, tool input and output,
 and subagent text are never shown. The transcript is read incrementally and only
 for conversations whose hooks reported it.
 
