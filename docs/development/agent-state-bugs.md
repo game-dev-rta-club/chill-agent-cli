@@ -45,6 +45,7 @@ both the fake Codex and a Claude Code conversation, so each one covers both harn
 | 32 | Per-comment Running was lost when the inbox output was piped (IDs searched in the transcript) | Mechanism gone: no `offerId`; the Goals of the work come from what chill handed | Scenario "the Goal shows Running and Think…"; `claude-actions` "…piping the output changes nothing" |
 | 33 | The agent showed Running after `/reload-skills` (any transcript write opened a turn) | Running comes only from hooks; a local command runs none, so comments saved after it are handed at once | Scenario "a command the user runs in the agent's own app, such as /reload-skills, does not make it Running" |
 | 34 | A conversation holding two Roots had every stop held (each Root kept its own hold mark, so they took turns) | The hold is kept once per conversation, over all its Roots | `claude-continuation` and `codex-work` "with two Roots, the/a stop is held once for both…" |
+| 35 | The agent's first reply after a comment vanished from Think (a Resume or comment the watcher handed mid-response restarted the work, so Think dropped what it had written) | A delivery that joins a running response keeps its work and start time | `claude-actions` "a comment or Resume joining a running response keeps its work, so Think keeps earlier text" |
 
 Bugs 5, 27 and 33 also depend on how the real Claude app behaves, which a test
 cannot settle; [the manual checks](agent-state-manual-checks.md) cover them.

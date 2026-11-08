@@ -219,6 +219,26 @@ test('compact keeps its Goals; clear starts a context that owns nothing',async t
   assert.equal(await claimClaudeFeedbackForWatcher(f.s.record.sessionId),'');
 });
 
+test('a comment or Resume joining a running response keeps its work, so Think keeps earlier text',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs'),{readJson}=await import('../lib/storage.mjs');
+  const work=async()=>(await readJson(claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId).record)).agentWork;
+  const {setClaudePause}=await import('../lib/claude-pause.mjs');
+  const connection={harnessId:s.record.harnessId,sessionId:s.record.sessionId,contextId:s.record.contextId};
+  await reportClaudeHook(s.event('UserPromptSubmit'));
+  const running=await work();assert.equal(running.phase,'working');
+  // Pause then Resume on the Web while the response runs: the watcher hands Resume mid-turn.
+  await setClaudePause(connection,true);await setClaudePause(connection,false);await delay(5);
+  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId,{midTurn:true}),/Resume/);
+  const joined=await work();
+  assert.equal(joined.id,running.id,'the same response goes on');
+  assert.equal(joined.startedAt,running.startedAt,'Think still starts where the response did');
+  await handleClaudeToolHook(s.event('Stop'));
+  const next=await appendFeedback({goalId:goal.id,text:'After it ended'});await deliverFeedback(next.changeId);
+  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId),/After it ended/);
+  assert.notEqual((await work()).id,running.id,'a wake after the response ended starts new work');
+});
+
 test('Pause on a Claude Goal holds the conversation until Resume or a new comment',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
   const {readGoalActivity,controlAgent}=await import('../lib/agent-status.mjs');
