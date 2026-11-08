@@ -12,8 +12,21 @@ The first Web visit loads the tree, latest Canvases and Conversation through
 `GET /api/goals?view=web`. Moving to a known Goal renders that in-memory snapshot
 immediately, then checks for changes in the background. Polling, focus and route
 changes share an in-flight request rather than downloading the same data twice.
-Hidden tabs pause the full workspace refresh. They continue a small count
-request every 15 seconds, subject to the browser's background timer throttling.
+Hidden tabs pause the full workspace refresh.
+
+A Goal page also opens a WebSocket, `/api/goals/:id/live`, through which the
+server pushes the agent's status and the Root's Letter count as soon as either
+changes. Chrome wakes a hidden tab's timers only about once a minute once it has
+been hidden for a minute, but delivers socket messages at once, so a background
+tab's title and icon follow the agent within about a second. The server reads
+each Goal's status once a second and recounts only when an event, a read mark or
+an announced reply changed, or every 15 seconds. The socket accepts only the Web's
+own origin and, through the public link, a connected device; stopping Web closes
+it. It reconnects when the tab is shown again, resumes, comes back from the back
+button or the network returns. While it is down, a hidden tab falls back to a
+count request every 15 seconds and an agent check every 10, both throttled. A
+hidden tab's title follows the server's count and does not redraw the Goal until
+it is shown, since its own copy of the workspace is no longer refreshed.
 
 The header keeps Agent and Notification beside each other. The bell opens the unanswered
 Letters for the current Root and its descendants, and below them, as Replies, the
@@ -46,9 +59,8 @@ the last known value; returning to the tab refreshes the workspace immediately.
 
 While the agent works on the open Goal, the tab icon's sunrise takes color (a
 warm sky, a filled orange sun and a blue sea); the title keeps its space for the
-Letter count. A hidden tab checks the agent
-every 10 seconds instead of every 2, so a background tab still shows when work
-starts and ends.
+Letter count. A background tab learns when work starts and ends through the live
+socket above.
 
 The snapshot includes earlier Canvases' version numbers and dates, not their full
 bodies. Opening one loads `GET /api/goals/:id/briefs/:version` and keeps it in memory

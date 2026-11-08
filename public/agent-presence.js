@@ -29,5 +29,8 @@ export function createAgentPresence({button,getGoalId}){
  render({status:'unknown'});
  const timer=setInterval(refresh,2000);
  window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);
- return {refresh,routeChanged(){const id=getGoalId();if(id===routeGoalId){void refresh();return;}routeGoalId=id;request++;controller?.abort();busy=false;render({status:'unknown'});void refresh();},destroy(){clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);}};
+ return {refresh,
+  // A pushed status counts as a check, so a hidden tab polls no sooner.
+  apply(data){if(!getGoalId())return;checkedAt=Date.now();render(data);},
+  routeChanged(){const id=getGoalId();if(id===routeGoalId){void refresh();return;}routeGoalId=id;request++;controller?.abort();busy=false;render({status:'unknown'});void refresh();},destroy(){clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);}};
 }

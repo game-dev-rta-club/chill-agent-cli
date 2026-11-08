@@ -3,6 +3,7 @@ import {browserClientId} from './browser-context.js';
 import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.js';
+import {createLiveStatus} from './live-status.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
 import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, showsThink, thinkView, waitListMarkup, workDisclosure } from './work-ui.js';
@@ -117,6 +118,10 @@ const tabIcon=createTabIcon(undefined,undefined,document.querySelector('.brand-m
 window.addEventListener('chill-agent-appearance',event=>tabIcon.use(event.detail.tabIcon));
 window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)?'working':isWaitingOnCheck(wake)?'waiting':null);});
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
+// A hidden tab no longer refreshes its Goals, so its title follows the server's count.
+let hiddenSummary=null;
+const showHiddenSummary=(summary,goalId)=>{hiddenSummary={goalId,summary};if(document.visibilityState!=='visible'&&goalId===activeGoalId)document.title=letterTabTitle(summary);};
+const liveStatus=createLiveStatus({getGoalId:()=>activeGoalId,query:()=>clientQuery('?'),onPresence:data=>agentPresence.apply(data),onSummary:showHiddenSummary});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
 let countsSaves=0;
 const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel'),readReplies,countsChanged:(rootId,counts)=>{countsSaves++;const root=goalMetadata.get(rootId);if(root){goalMetadata.set(rootId,{...root,counts});updateTabTitle();}}});
@@ -1255,7 +1260,7 @@ function updateTabTitle(){
   tabTitleGeneration++;
   markActiveRead();
   lettersMenu.update([...goalMetadata.values()],events,activeGoalId);
-  document.title=letterTabTitle(rootLetterSummary([...goalMetadata.values()],events,activeGoalId));
+  document.title=letterTabTitle(document.visibilityState!=='visible'&&hiddenSummary?.goalId===activeGoalId?hiddenSummary.summary:rootLetterSummary([...goalMetadata.values()],events,activeGoalId));
 }
 // A count depends on what this browser chose to show.
 const clientQuery=prefix=>{const id=browserClientId();return id?`${prefix}clientId=${id}`:'';};
@@ -1265,7 +1270,7 @@ async function refreshLetterCount(){
   letterCountRequest=true;
   try{
     const response=await fetch(`/api/goals/${id}/letters/count${clientQuery('?')}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
-    if(response.ok){const summary=await response.json();if(id===activeGoalId&&generation===tabTitleGeneration)document.title=letterTabTitle(summary);}
+    if(response.ok){const summary=await response.json();if(id===activeGoalId&&generation===tabTitleGeneration)showHiddenSummary(summary,id);}
   }catch{/* Keep the last known count until the connection returns. */}
   finally{letterCountRequest=false;}
 }
@@ -1326,6 +1331,7 @@ function renderRoute() {
   agentMenu.routeChanged();
   extensionButtons.routeChanged();
   agentPresence.routeChanged();
+  liveStatus.routeChanged();
   let ready=Promise.resolve();
   if(activeGoalId) {
     if(match?.[3])conversationWindow.reveal(activeGoalId,conversationFor(activeGoalId),Number(match[3]));
@@ -1924,14 +1930,15 @@ loadStoredGoals().then(()=>navigate({refresh:false}),error=>{
    for(const goal of goalMetadata.values())if(goal.execution?.status==='working'&&!(Date.parse(goal.execution.expiresAt)>Date.now())){
      goal.execution={...goal.execution,status:'unknown'};expired=true;
    }
-   if(expired){storeSignature='';if(activeGoalId)refreshGoalFrame();else if(currentRoute==='#/goals')renderIndex();}
+   // A hidden tab redraws on return instead: background work delays its timers.
+   if(expired){storeSignature='';if(document.visibilityState==='visible'){if(activeGoalId)refreshGoalFrame();else if(currentRoute==='#/goals')renderIndex();}}
    if(document.visibilityState!=='visible'||refreshing)return;refreshing=true;
    try{await refreshGoals();await refreshCommentMarks();if(timelineRefreshPending&&activeGoalId&&!interactingWithAnnotation()){updateTimeline(activeGoalId);renderAnnotations();}}
    catch(error){announcement.textContent=error.message;}finally{refreshing=false;}
  }
  setInterval(refresh,5000);
  // Hidden tabs need the Root's count, without fetching Canvases or execution logs.
- setInterval(()=>{if(document.visibilityState!=='visible')void refreshLetterCount();},15000);
+ setInterval(()=>{if(document.visibilityState!=='visible'&&!liveStatus.connected)void refreshLetterCount();},15000);
  // Controls must not wait behind loading the full conversation's execution logs.
  setInterval(()=>{if(document.visibilityState==='visible')void activityControls.refresh();},2000);
  document.addEventListener('visibilitychange',()=>{
