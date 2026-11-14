@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, imageSizes, saveImageThumbHash, closeLetter, reopenLetter, dataDirectory, initializeStore, listEventsSince, latestChangeId, listGoals, numberEvents, readFeedback, readEvent, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, imageSizes, saveImageThumbHash, closeLetter, reopenLetter, dataDirectory, initializeStore, listEventsSince, latestChangeId, listGoals, numberEvents, readFeedback, readEvent, readEventByNumber, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
 import { setRootAutonomy, goalsWithRootAutonomy } from './lib/root-autonomy.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
@@ -353,6 +353,11 @@ const server = createServer(async (request, response) => {
   const eventPath=/^\/api\/goals\/([1-9][0-9]*)\/events\/([1-9][0-9]*)$/.exec(path);
   if(eventPath&&request.method==='GET'){
     try{const event=await readEvent(Number(eventPath[2]));return event?.goalId===eventPath[1]?sendJson(response,200,renderedEvent((await numberEvents([event]))[0])):sendJson(response,404,{error:'Event not found.'});}
+    catch(error){return sendJson(response,400,{error:error.message});}
+  }
+  const numberPath=/^\/api\/goals\/([1-9][0-9]*)\/numbers\/([1-9][0-9]*)$/.exec(path);
+  if(numberPath&&request.method==='GET'){
+    try{const event=await readEventByNumber(numberPath[1],Number(numberPath[2]));return event?sendJson(response,200,renderedEvent(event)):sendJson(response,404,{error:'Comment not found.'});}
     catch(error){return sendJson(response,400,{error:error.message});}
   }
   const conversationPath=/^\/api\/goals\/([1-9][0-9]*)\/conversation$/.exec(path);

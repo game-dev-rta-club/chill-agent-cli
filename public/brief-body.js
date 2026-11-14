@@ -1,7 +1,12 @@
 // HTML is parsed and filtered on the server. Restore only disclosure state here.
-export function briefBody(html, {hasGoal, replyId = null, opened = new Set()}) {
+// A bare C3 or L4 names a comment of the Goal the text is on (goalId).
+export function briefBody(html, {hasGoal, goalId = null, replyId = null, opened = new Set()}) {
   const template = document.createElement('template');
   template.innerHTML = html;
+  template.content.querySelectorAll('a[data-number]:not([data-goal])').forEach(link => {
+    if (!goalId) { link.replaceWith(link.textContent); return; }
+    link.dataset.goal = goalId; link.setAttribute('href', `#/goal/${goalId}/number/${link.dataset.number}`);
+  });
   template.content.querySelectorAll('a[data-goal]').forEach(link => { if (!hasGoal(link.dataset.goal)) link.replaceWith(link.textContent); });
   template.content.querySelectorAll('a[href]').forEach(link => {
     // A link that is not a valid URL stays as text; it must not stop the page.

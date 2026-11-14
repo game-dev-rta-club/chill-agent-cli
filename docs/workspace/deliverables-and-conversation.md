@@ -92,8 +92,18 @@ Copied for a moment.
 links to that Goal unless it is inside code or a link, glued to a word or path
 (`abc#1`, `/#1`), or no such Goal exists. A Goal named from another Goal's
 Conversation shows "Mentioned in #M" in its own Conversation, once per Goal, at
-the first Comment that named it. chill never writes Comment or Letter numbers with
-`#`; it writes `comment 1006` or `Letter 868`.
+the first Comment that named it.
+
+Comments and Letters are numbered within their Goal, in one sequence, as the
+Web shows beside each. `C3` names comment 3 and `L4` Letter 4 of the Goal the
+text is on; `#12 C3` names one in Goal 12. Either letter finds the number, and
+the link opens it by its id. They follow the same exceptions as `#N`. Plain
+words such as "comment 10" are not linked: older text used workspace-wide ids
+there. Resting the pointer on any of these links shows what it names: a Goal's
+title and state, or a comment's author, time and first line (a Letter's
+question). chill writes these forms in what it prints for agents, with the
+workspace-wide `eventId` that commands take beside them:
+`Replied on Goal #12 (C3, eventId 1006)`.
 
 Users answer a Letter with an ordinary Comment on its Goal, or an annotation on
 the Letter; there is no separate Answer button. Any user comment on the Goal

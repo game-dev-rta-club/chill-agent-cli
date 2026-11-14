@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
-const {numberEvents,readFeedback,goalNumbers}=await import('../lib/goal-store.mjs');
+const {numberEvents,readEventByNumber,readFeedback,goalNumbers}=await import('../lib/goal-store.mjs');
 const {listWebRecords}=await import('../lib/web-records.mjs');
 
 test(`comments and Letters are numbered within their Goal on read, and a deleted comment keeps its number`,async t=>{
@@ -30,4 +30,8 @@ test(`comments and Letters are numbered within their Goal on read, and a deleted
  assert.deepEqual(goalNumbers(events),new Map([...numbered]));
  const web=(await listWebRecords()).find(g=>g.id==='1');
  assert.deepEqual(web.conversation.map(e=>e.number).sort(),[1,2,3,4]);
+ assert.deepEqual(await Promise.all([1,2,4].map(async n=>(await readEventByNumber('1',n)).id)),[a.id,letter.id,last.id],'C1, L2 and C4 find their comments by number');
+ assert.equal((await readEventByNumber('1',2)).number,2);
+ assert.equal(await readEventByNumber('1',5),null,'a number past the last comment finds none');
+ assert.equal((await readEventByNumber('2',1)).text,'other Goal');
 });

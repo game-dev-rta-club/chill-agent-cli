@@ -378,7 +378,7 @@ test('one reply answers the Goal, whichever of its comments it answers',async t=
   const output=await s.act('reply',{goalId:goal.id,text:'Done both'});
   for(const event of [first,second])assert.equal((await deliverFeedback(event.changeId)).mark,null);
   const {readEvent}=await import('../lib/goal-store.mjs');
-  const commentId=Number(/comment (\d+)/.exec(output)[1]);
+  const commentId=Number(/eventId (\d+)/.exec(output)[1]);
   assert.equal((await readEvent(commentId)).text,'Done both');assert.equal(await readEvent(commentId+1),null,'the reply is posted once');
 });
 
@@ -388,13 +388,13 @@ test('a reply with --ask is a Letter: it answers the Goal\'s comments, also work
   const comment=await appendFeedback({goalId:goal.id,text:'Should we drop the old export?'});
   await s.act('inbox',{});
   const output=await s.act('reply',{goalId:goal.id,ask:'Drop the old export?',text:'The new one covers it. Shall I remove the old one?'});
-  assert.match(output,/^Replied on Goal #\d+ with a Letter \(comment \d+\)/);
-  const letterId=Number(/comment (\d+)/.exec(output)[1]),letter=await readEvent(letterId);
+  assert.match(output,/^Replied on Goal #\d+ with a Letter \(L\d+, eventId \d+\)/);
+  const letterId=Number(/eventId (\d+)/.exec(output)[1]),letter=await readEvent(letterId);
   assert.equal(letter.type,'letter');assert.equal(letter.title,'Drop the old export?');assert.equal(letter.author,'agent');
   assert.equal((await deliverFeedback(comment.changeId)).mark,null,'the Letter is the reply to the arrived comment');
   assert.deepEqual((await readOpenLetters(goal.id)).map(l=>l.id),[letterId]);
   const unprompted=await s.act('reply',{goalId:goal.id,ask:'Rename the command?',text:'While here: shall I rename it?'});
-  const second=Number(/comment (\d+)/.exec(unprompted)[1]);
+  const second=Number(/eventId (\d+)/.exec(unprompted)[1]);
   assert.deepEqual((await readOpenLetters(goal.id)).map(l=>l.id),[letterId,second],'a question found while working needs no comment');
   const answer=await appendFeedback({goalId:goal.id,text:'Yes to both.'});
   assert.deepEqual(await readOpenLetters(goal.id),[],'the user\'s comment closes the Goal\'s open Letters');
@@ -402,8 +402,8 @@ test('a reply with --ask is a Letter: it answers the Goal\'s comments, also work
   await assert.rejects(s.act('reply',{goalId:goal.id,ask:' ',text:'x'}),/Letter title must be nonempty/);
   await assert.rejects(s.act('reply',{goalId:goal.id,ask:'Two\nlines',text:'x'}),/one line/);
   const plain=await s.act('reply',{goalId:goal.id,text:'Removed it.'});
-  assert.match(plain,/^Replied on Goal #\d+ \(comment \d+\)/);
-  assert.equal((await readEvent(Number(/comment (\d+)/.exec(plain)[1]))).type,'comment','without --ask the reply is a Comment');
+  assert.match(plain,/^Replied on Goal #\d+ \(C\d+, eventId \d+\)/);
+  assert.equal((await readEvent(Number(/eventId (\d+)/.exec(plain)[1]))).type,'comment','without --ask the reply is a Comment');
 });
 
 test('the Goal the agent writes on stays its work Goal, also across compaction, so the Web does not fall back to the Root',async t=>{
