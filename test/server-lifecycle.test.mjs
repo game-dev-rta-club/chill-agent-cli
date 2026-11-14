@@ -135,7 +135,7 @@ test('a live socket opens only from the Web\'s own origin and does not hold Web 
   assert.match(await refused({origin:url,headers:{'cf-ray':'1'}}), /403/, 'through the tunnel it needs a connected device');
   const socket = new Socket(live, {origin:url});
   const [first] = await once(socket, 'message');
-  assert.deepEqual(Object.keys(JSON.parse(first)), ['presence'], 'the page gets the agent status at once');
+  assert.deepEqual(Object.keys(JSON.parse(first)), ['presence', 'update'], 'the page gets the agent status and update phase at once');
   const closed = once(socket, 'close');
   await exited;
   await closed;

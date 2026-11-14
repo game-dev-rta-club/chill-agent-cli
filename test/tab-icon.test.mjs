@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createTabIcon} from '../public/tab-icon.js';
-import {tabIcons,resolveAppearance} from '../public/theme-catalog.js';
+import {tabIcons,resolveAppearance,updatingTabIcon} from '../public/theme-catalog.js';
 
 test('the tab icon and the header icon follow the agent state within the chosen icon set',()=>{
  const attrs={href:'initial'},link={getAttribute:name=>attrs[name],setAttribute:(name,value)=>{attrs[name]=value;}};
@@ -14,6 +14,14 @@ test('the tab icon and the header icon follow the agent state within the chosen 
  const src={},mirror={getAttribute:name=>src[name],setAttribute:(name,value)=>{src[name]=value;}},header=createTabIcon(link,'night',mirror);
  assert.equal(src.src,night.idle);header.set('working');assert.equal(src.src,night.working);assert.equal(attrs.href,night.working);
  assert.doesNotThrow(()=>createTabIcon(null).set('working'));
+});
+
+test('while chill updates, every set shows the same gray arrow, then its own state again',()=>{
+ const attrs={},link={getAttribute:name=>attrs[name],setAttribute:(name,value)=>{attrs[name]=value;}};
+ const icon=createTabIcon(link,'night');icon.set('working');
+ icon.updating(true);assert.equal(attrs.href,updatingTabIcon);assert.match(decodeURIComponent(updatingTabIcon),/fill='#7c838c'.*stroke='#ffffff'/);
+ icon.use('morning');icon.set('waiting');assert.equal(attrs.href,updatingTabIcon,'a state change underneath does not uncover it');
+ icon.updating(false);assert.equal(attrs.href,tabIcons[0].waiting);
 });
 
 test('every icon set tells Waiting from Running by sky and rays',()=>{

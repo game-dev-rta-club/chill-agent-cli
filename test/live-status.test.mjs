@@ -5,11 +5,12 @@ import {once} from 'node:events';
 import {createLiveStatus} from '../lib/live-status.mjs';
 
 async function harness(t,{allowed=async()=>true,...options}={}){
-  const state={presence:{status:'working'},summary:{rootId:'1',title:'Root',count:0},signature:1,reads:0};
+  const state={presence:{status:'working'},summary:{rootId:'1',title:'Root',count:0},signature:1,reads:0,update:'idle'};
   const live=createLiveStatus({allowed,tickMs:20,pingMs:60000,recountMs:60000,...options,read:{
     presence:async()=>state.presence,
     summary:async()=>{state.reads++;return state.summary;},
     signature:async()=>state.signature,
+    ...(options.withUpdate?{update:async()=>state.update}:{}),
   }});
   const server=createServer((request,response)=>response.end());
   server.on('upgrade',(request,socket,head)=>void live.upgrade(request,socket,head));
@@ -32,6 +33,15 @@ test('a live socket sends the current state, then only what changes',async t=>{
   assert.deepEqual(await next(),{presence:{status:'idle'}},'an agent going idle reaches the tab without waiting for a poll');
   state.summary={rootId:'1',title:'Root',count:1};state.signature=2;
   assert.deepEqual(await next(),{summary:{rootId:'1',title:'Root',count:1}},'a new unread reply reaches the tab');
+  socket.close();
+});
+
+test('the update phase reaches every open page as it changes',async t=>{
+  const {state,url}=await harness(t,{withUpdate:true});
+  const socket=new WebSocket(url('/api/goals/1/live'));const next=messages(socket);
+  assert.deepEqual((await next()).update,{phase:'idle'});
+  state.update='restarting';
+  assert.deepEqual(await next(),{update:{phase:'restarting'}},'a background tab hears the update start');
   socket.close();
 });
 
