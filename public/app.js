@@ -6,7 +6,7 @@ import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.j
 import {createLiveStatus} from './live-status.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
-import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, showsThink, thinkView, waitListMarkup, workDisclosure } from './work-ui.js';
+import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, showsThink, thinkView, todoMarkup, waitListMarkup, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
 import { briefBody, addCodeCopy, copyCode } from './brief-body.js';
@@ -361,7 +361,8 @@ function workMarkup(key, work, live) {
     ${think.earlier ? `<button type="button" class="work-earlier" data-action="expand-work" data-work-id="${escapeHTML(key)}"><span class="conversation-gap-marker" aria-hidden="true">${icon('expandOlder')}</span><span>${think.earlier} earlier ${think.earlier === 1 ? 'message' : 'messages'}</span></button>` : ''}
     ${think.shown.map(message => `<p class="work-message${think.clamped ? ' work-latest' : ''}"${think.clamped ? ` data-action="expand-work" data-work-id="${escapeHTML(key)}" title="Show all of Think"` : ''}>${escapeHTML(message.text)}</p>`).join('')}
     ${think.less ? `<button type="button" class="work-earlier work-less" data-action="collapse-work" data-work-id="${escapeHTML(key)}">Show less</button>` : ''}
-    ${!work.messages.length ? '<p class="work-hint">Thinking…</p>' : ''}
+    ${!work.messages.length && !work.todo?.items?.length ? '<p class="work-hint">Thinking…</p>' : ''}
+    ${todoMarkup(work.todo)}
     </div></details>`;
 }
 // The small mark under a comment that still awaits a reply.
