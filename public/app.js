@@ -18,6 +18,7 @@ import {createRuntimeUpdate} from './runtime-update.js';
 import {watchNewDevices} from './device-notice.js';
 import {createTabIcon} from './tab-icon.js';
 import {isRunning} from './goal-state.js';
+import {createReferencePreview} from './reference-preview.js';
 import {createSkillMenu} from './skill-menu.js';
 import {autonomyLevels,autonomyOf} from './autonomy.js';
 
@@ -25,6 +26,13 @@ history.scrollRestoration='manual';
 const briefsByGoal = new Map();
 const goalMetadata = new Map();
 const hasGoal = id => goalMetadata.has(id);
+// The comment or Letter numbered `number` in a Goal (C3, L4), or null.
+async function fetchNumber(goalId,number){
+  const response=await fetch(`/api/goals/${goalId}/numbers/${number}`,{signal:AbortSignal.timeout(12000)});
+  if(response.status===404)return null;
+  if(!response.ok)throw Error('Could not load this comment.');
+  return response.json();
+}
 const events = [];
 const historyPages=new Map();
 const letterStatuses=new Map();
@@ -84,6 +92,7 @@ const fileMarkup = (src, name, className) => src
   ? `<a class="attachment-file ${className}" href="${escapeHTML(src)}" target="_blank" rel="noopener" title="${escapeHTML(name)}">${icon('file')}<span>${escapeHTML(name)}</span></a>`
   : `<span class="attachment-file ${className}" title="${escapeHTML(name)}">${icon('file')}<span>${escapeHTML(name)}</span></span>`;
 const main = document.querySelector('#main');
+createReferencePreview({root:main,goal:id=>goalMetadata.get(id),fetchNumber:(goalId,number)=>fetchNumber(goalId,number)});
 const readingPane = createReadingPane(main,{rectOf:viewportRect});
 const keepReadingPosition = readingPane.preserve;
 createSkillMenu({root:main, goalId:()=>activeGoalId, escapeHTML});
@@ -412,7 +421,7 @@ function mentionMarkup(mention) {
 
 function replyMarkup(event) {
   const source = event.author === 'agent' ? `data-annotation-reply="${event.id}"` : '';
-  return `<div class="event-text markdown-body" ${source}>${briefBody(event.html || '', {hasGoal, replyId:event.id, opened:openReplies})}</div>`;
+  return `<div class="event-text markdown-body" ${source}>${briefBody(event.html || '', {hasGoal, goalId:event.goalId, replyId:event.id, opened:openReplies})}</div>`;
 }
 
 // An open Letter offers Done (an empty circle); the user's own Done is a check
@@ -532,7 +541,7 @@ function refreshGoalFrame() {
   if(slot&&activeGoalId)keepReadingPosition(()=>{slot.innerHTML=goalView().brief(activeGoalId);});
 }
 function renderGoal(id,version) {
-  const brief=briefAt(id,version),isHTML=brief?.format==='html',body=isHTML?'':briefBody(brief?.html||'',{hasGoal}),view=goalView();
+  const brief=briefAt(id,version),isHTML=brief?.format==='html',body=isHTML?'':briefBody(brief?.html||'',{hasGoal,goalId:id}),view=goalView();
   const imageTemplate=document.createElement('template');imageTemplate.innerHTML=body;
   imageNames.clear();
   imageTemplate.content.querySelectorAll('img').forEach((img,index)=>{
@@ -1799,6 +1808,15 @@ async function navigate({refresh=true}={}){
         Object.assign(briefAt(match[1],Number(match[2]))||brief,loaded);
       }
     }
+    // C3 / L4 links name a comment by its number in the Goal: open it by its id.
+    const numberLink=/^#\/goal\/([1-9][0-9]*)\/number\/([1-9][0-9]*)$/.exec(target);
+    if(numberLink){
+      const event=await fetchNumber(numberLink[1],numberLink[2]);
+      if(!event)throw Error(`#${numberLink[1]} has no comment ${numberLink[2]}.`);
+      if(!events.some(e=>e.id===event.id))addEvent(event);
+      if(generation===navigationGeneration&&location.hash===target)location.replace(`#/goal/${numberLink[1]}/activity/${event.id}`);
+      return;
+    }
     // Letter and Activity links (from Search too) may name an event older than the loaded window.
     const letterLink=/^#\/goal\/([1-9][0-9]*)\/(letter|activity)\/([1-9][0-9]*)$/.exec(target);
     if(letterLink&&!events.some(e=>e.id===Number(letterLink[3]))){
@@ -1866,7 +1884,7 @@ async function updateCurrentBrief(version) {
   if(/\/v[1-9][0-9]*$/.test(currentRoute)){
     currentRoute=versionRoute(id,version);history.replaceState(null,'',currentRoute);
   }
-  section.innerHTML=`<div class="section-heading document-heading"><h2>Canvas</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Canvas"><div class="brief-body markdown-body" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal})}</div></article>`;
+  section.innerHTML=`<div class="section-heading document-heading"><h2>Canvas</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Canvas"><div class="brief-body markdown-body" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal,goalId:id})}</div></article>`;
   imageNames.clear();
   section.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
   main.querySelector('.annotation-form').dataset.version=String(version);
