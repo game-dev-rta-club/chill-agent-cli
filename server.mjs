@@ -102,6 +102,7 @@ const live=createLiveStatus({
     presence:readAgentPresence,
     summary:letterSummary,
     signature:async()=>JSON.stringify([await latestChangeId(),await readMarksVersion(),(await webNotifications.announcedReplies()).size]),
+    update:()=>updates.phase(),
   },
 });
 

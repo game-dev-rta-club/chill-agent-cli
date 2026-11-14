@@ -130,12 +130,17 @@ const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>active
 // A hidden tab no longer refreshes its Goals, so its title follows the server's count.
 let hiddenSummary=null;
 const showHiddenSummary=(summary,goalId)=>{hiddenSummary={goalId,summary};if(document.visibilityState!=='visible'&&goalId===activeGoalId)document.title=letterTabTitle(summary);};
-const liveStatus=createLiveStatus({getGoalId:()=>activeGoalId,query:()=>clientQuery('?'),onPresence:data=>agentPresence.apply(data),onSummary:showHiddenSummary});
+// The tab icon turns to the updating arrow while an update runs (seen by this
+// page or pushed live) or while the live socket cannot reach chill.
+const updating={page:'idle',live:'idle',lost:false};
+const showUpdating=change=>{Object.assign(updating,change);tabIcon.updating(updating.page!=='idle'||updating.live!=='idle'||updating.lost);};
+const liveStatus=createLiveStatus({getGoalId:()=>activeGoalId,query:()=>clientQuery('?'),onPresence:data=>agentPresence.apply(data),onSummary:showHiddenSummary,
+ onUpdate:update=>showUpdating({live:update.phase||'idle'}),onReach:reached=>showUpdating({lost:!reached})});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
 let countsSaves=0;
 const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel'),readReplies,countsChanged:(rootId,counts)=>{countsSaves++;const root=goalMetadata.get(rootId);if(root){goalMetadata.set(rootId,{...root,counts});updateTabTitle();}}});
 const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,controlsChanged:controls=>lettersMenu.controlsChanged(controls)});
-createRuntimeUpdate({button:document.getElementById('runtime-update-button'),announce:showToast});
+createRuntimeUpdate({button:document.getElementById('runtime-update-button'),announce:showToast,onPhase:phase=>showUpdating({page:phase})});
 watchNewDevices();
 let activeVersion = null;
 let pendingAnchor = null;

@@ -1,6 +1,7 @@
 import {confirmAction} from './confirmation-dialog.js';
 
-export function createRuntimeUpdate({button,announce=()=>{}}){
+// onPhase(phase) hears each step this page shows, so the tab icon can follow it.
+export function createRuntimeUpdate({button,announce=()=>{},onPhase=()=>{}}){
  let state=null,busy=false,refreshing=false,soon;
  const label='Update';
  // The button names the running step, on every open page and device, so a
@@ -10,6 +11,7 @@ export function createRuntimeUpdate({button,announce=()=>{}}){
  function show(phase){
   const text=phases[phase]||label;
   button.querySelector('span').textContent=text;button.title=text;button.setAttribute('aria-label',text);
+  onPhase(phases[phase]?phase:'idle');
   if(phases[phase]){button.hidden=false;button.disabled=true;button.setAttribute('aria-busy','true');}else button.removeAttribute('aria-busy');
  }
  async function api(body){

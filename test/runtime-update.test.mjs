@@ -35,6 +35,8 @@ test('two clicks launch once; stale confirmation and launch failure do not chang
  const failed=createRuntimeUpdater({...other,provider,launch:async()=>{throw Error('launch failed');}});
  await assert.rejects(failed.start({candidate:b,id:randomUUID()}),/Could not start the update/);
  assert.equal((await failed.status()).phase,'idle');assert.ok((await failed.status()).error);
+ assert.equal(await failed.phase(),'idle');
+ assert.equal(await updater.phase(),'preparing','phase() reads only the running step');
 });
 async function worker(t,{acquireError=false,changePin=false,changePointer=false,restartError=false}={}){
  const options=await fixture(t),id=randomUUID(),target=join(options.directory,'new'),prepared=join(options.directory,'snapshot');

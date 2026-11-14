@@ -26,6 +26,9 @@ export const tabIcons=[
  {id:'cloudy',name:'Cloudy',idle:outline('#e6e7ea','#555b64'),waiting:sunrise('#e6e7ea','#b39a45','#6b7684'),working:sunrise('#e9e2c9','#c98a1d','#555b64',true)},
  {id:'night',name:'Night',idle:outline('#6c7a99','#ffffff'),waiting:sunrise('#6c7a99','#ffd84d','#e6eaf0'),working:sunrise('#a77a96','#ffd27a','#fff4f8',true)},
 ];
+// While chill updates or restarts, every set shows the same gray icon with the
+// Update button's circular arrow; it does not move, so a background tab reads it.
+export const updatingTabIcon=svg(`<rect width='32' height='32' rx='9' fill='#7c838c'/><g transform='translate(4 4)' fill='none' stroke='#ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M20.5 12a8.5 8.5 0 1 1-2.5-6l2.5 2.5'/><path d='M20.5 3.5v5h-5'/></g>`);
 export const defaultTabIcon='morning';
 export const validTabIcon=id=>tabIcons.some(icon=>icon.id===id);
 export const tabIconSet=id=>tabIcons.find(icon=>icon.id===id)||tabIcons[0];
