@@ -72,7 +72,16 @@ export function workDisclosure(previous, live) {
 
 // Think with no text says Thinking… while the agent works, so an empty box does
 // not read as a failed load. Stopped with no text, there is no Think to show.
-export const showsThink = (work, live) => Boolean(work) && (live || work.messages?.length > 0);
+export const showsThink = (work, live) => Boolean(work) && (live || work.messages?.length > 0 || work.todo?.items?.length > 0);
+
+// The agent's own todo list under Think's text: each item marked done, in
+// progress or not started, and how many are done.
+const todoMarks = {done: '✓', active: '●', pending: '○'};
+export function todoMarkup(todo) {
+  const items = todo?.items || [];
+  if (!items.length) return '';
+  return `<div class="work-todo" aria-label="Todo"><p class="work-todo-head">Todo ${items.filter(item => item.status === 'done').length}/${items.length}</p><ul>${items.map(item => `<li data-status="${escapeText(item.status)}"><span class="work-todo-mark" aria-hidden="true">${todoMarks[item.status] || todoMarks.pending}</span><span>${escapeText(item.text)}</span></li>`).join('')}</ul></div>`;
+}
 
 // Think shows only the newest message, held at three lines so its height does
 // not change as messages arrive, and folds the older ones into one row. The
