@@ -1,7 +1,8 @@
 // The small box a reference link shows while the pointer rests on it, so the
 // user can tell what it names without opening it: #12 shows the Goal's title
 // and state at once; C3 or L4 loads the comment or Letter once and shows who
-// wrote it, when, and its first line. Only where a pointer can hover.
+// wrote it, when, and its first line. The heading spells the reference out
+// (Goal #187 comment 3), so the short form reads plainly. Only where a pointer can hover.
 import {escapeHTML} from './goal-view.js';
 
 const stateLabels = {done: 'Done', waiting: 'Waiting'};
@@ -11,10 +12,10 @@ const when = at => new Date(Date.parse(at)).toLocaleString('en-US', {month: 'sho
 // goal(id) gives a Goal the page has; fetchNumber(goalId, number) the event, or null.
 export function referencePreviewMarkup(link, {goal, event}) {
   const goalId = link.dataset.goal, number = link.dataset.number, meta = text => `<span class="reference-preview-meta">${escapeHTML(text)}</span>`;
-  if (!number) { const found = goal(goalId); return found ? `${meta(`#${goalId}${stateLabels[found.state] ? ` · ${stateLabels[found.state]}` : ''}`)}<span>${escapeHTML(found.title)}</span>` : ''; }
-  if (!event) return `${meta(`#${goalId} C${number}`)}<span>Not found in this Goal.</span>`;
-  const ref = `${event.type === 'letter' ? 'L' : 'C'}${number}`, author = event.author === 'agent' ? 'Agent' : 'You';
-  return `${meta(`#${goalId} ${ref} · ${author} · ${when(event.createdAt || event.updatedAt)}`)}<span>${escapeHTML(event.type === 'letter' && event.title ? event.title : firstLine(event.text))}</span>`;
+  if (!number) { const found = goal(goalId); return found ? `${meta(`Goal #${goalId}${stateLabels[found.state] ? ` · ${stateLabels[found.state]}` : ''}`)}<span>${escapeHTML(found.title)}</span>` : ''; }
+  if (!event) return `${meta(`Goal #${goalId} comment ${number}`)}<span>Not found in this Goal.</span>`;
+  const ref = `${event.type === 'letter' ? 'Letter' : 'comment'} ${number}`, author = event.author === 'agent' ? 'Agent' : 'You';
+  return `${meta(`Goal #${goalId} ${ref} · ${author} · ${when(event.createdAt || event.updatedAt)}`)}<span>${escapeHTML(event.type === 'letter' && event.title ? event.title : firstLine(event.text))}</span>`;
 }
 
 export function createReferencePreview({root, goal, fetchNumber}) {
