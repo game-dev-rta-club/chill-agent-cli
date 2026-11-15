@@ -56,11 +56,12 @@ test('Claude Code TaskCreate and TaskUpdate, and the older TodoWrite',async t=>{
  assert.deepEqual(items(await todo()),['done one','active two'],'TodoWrite sends the whole list');
 });
 
-test('a list finished before the current work started is not shown',()=>{
+test('only a list the current work wrote is shown',()=>{
  const at=Date.parse('2026-11-14T08:00:00.000Z'),done={items:[{text:'a',status:'done'}],at},open={items:[{text:'a',status:'active'}],at};
  assert.equal(shownTodo(done,'2026-11-14T09:00:00.000Z'),null);
  assert.equal(shownTodo(done,'2026-11-14T07:00:00.000Z'),done,'finished during this work, it stays');
- assert.equal(shownTodo(open,'2026-11-14T09:00:00.000Z'),open,'an open list stays across wakes');
+ assert.equal(shownTodo(open,'2026-11-14T09:00:00.000Z'),null,'an open list from earlier work is not shown');
+ assert.equal(shownTodo(open,'2026-11-14T07:00:00.000Z'),open,'written during this work, it is shown');
 });
 
 test('Think shows the todo list under its text, each item marked',()=>{
