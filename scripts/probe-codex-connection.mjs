@@ -54,7 +54,7 @@ export async function runConnection({codex, log, options}) {
   if (!rehearsal) symlinkSync(userAuth, authLink);
 
   const cliEnv = {PATH: process.env.PATH, TMPDIR: process.env.TMPDIR, HOME: home, CODEX_HOME: home, CHILL_AGENT_CODEX_PATH: codex.path, CHILL_AGENT_DATA_DIR: data};
-  const chill = (args, input) => run(process.execPath, [cli, ...args], {env: cliEnv, cwd: project, input});
+  const chill = (args, input, env = {}) => run(process.execPath, [cli, ...args], {env: {...cliEnv, ...env}, cwd: project, input});
   const saved = {CHILL_AGENT_DATA_DIR: process.env.CHILL_AGENT_DATA_DIR, CHILL_AGENT_CODEX_PATH: process.env.CHILL_AGENT_CODEX_PATH, CODEX_HOME: process.env.CODEX_HOME, HOME: process.env.HOME};
   Object.assign(process.env, {CHILL_AGENT_DATA_DIR: data, CHILL_AGENT_CODEX_PATH: codex.path, CODEX_HOME: home});
   const A = new AppServer(codex.path, home, 'A', fake ? {FAKE_KEY: 'x'} : {});
@@ -94,8 +94,9 @@ export async function runConnection({codex, log, options}) {
     const first = await direct('thread/queue/add', {threadId: thread.id, input: [{type: 'text', text: 'Reply with the single word ready. Do not run any tool.', text_elements: []}], clientUserMessageId: uuid(1)});
     check('the chat answers its first message', first.result && await waitTurns(1, 120000), first.error?.message);
     const chatId = thread.id;
-    const assigned = await chill(['assign', '--id', goalId, '--thread-id', chatId]);
-    check('goal assign accepts the chat (thread/read and thread/queue/list from chill\'s own app-server)', assigned.code === 0, assigned.stderr || assigned.stdout);
+    // goal adopt names the chat the way Codex does in its shell, by CODEX_THREAD_ID.
+    const adopted = await chill(['adopt', '--id', goalId], undefined, {CODEX_THREAD_ID: chatId});
+    check('goal adopt gives the Root to the chat (thread/read and thread/queue/list from chill\'s own app-server)', adopted.code === 0, adopted.stderr || adopted.stdout);
 
     const text = `Connection probe ${nonce}. Run the shell command pwd as your very first command. Then reply on this Goal with exactly one comment saying "probe reply ${nonce}", using the chill-agent reply command given with this feedback. Do not read, create or edit any file and run no other command.`;
     const mark = A.notes.length, usageBefore = lastUsage(A, chatId);
@@ -117,7 +118,7 @@ export async function runConnection({codex, log, options}) {
     const commands = (turn?.items ?? []).filter(item => item.type === 'commandExecution').map(item => item.command);
     const traces = tap.read();
     check('the PostToolUse hook ran in that turn and handed nothing twice', traces.length > 0 && traces.every(entry => entry.code === 0 && entry.output === ''), `${traces.length} runs, commands: ${commands.join(' | ').slice(0, 300)}`);
-    check('the model replied on the Goal through chill', commands.some(command => new RegExp(`comment --id ${goalId}\\b`).test(command)), commands.join(' | ').slice(0, 400));
+    check('the model replied on the Goal through chill', commands.some(command => new RegExp(`reply --id ${goalId}\\b`).test(command)), commands.join(' | ').slice(0, 400));
     const shown = JSON.parse((await chill(['show', '--id', goalId, '--format', 'json'])).stdout || '{}');
     const reply = shown.conversation?.find(entry => entry.author === 'agent' && String(entry.text).includes(`probe reply ${nonce}`));
     check('the model\'s comment is in the Goal\'s Conversation', Boolean(reply), JSON.stringify(shown.conversation?.map(entry => entry.text)).slice(0, 300));
@@ -156,8 +157,8 @@ function scriptedAgent(nonce) {
     if (at < 0) return [textItem('ready')];
     const calls = request.input.slice(at + 1).filter(item => item.type === 'function_call').length;
     const feedback = request.input[at].content.map(part => part.text).join('\n');
-    const prefix = feedback.match(/this answers it\): (PORT=.*) comment --id <goalId>/)?.[1], goal = feedback.match(/"goalId":"(\d+)"/)?.[1];
-    const steps = ['pwd', `${prefix} comment --id ${goal} --text 'probe reply ${nonce}'`];
+    const prefix = feedback.match(/this answers it\): (.*) reply --id <goalId>/)?.[1], goal = feedback.match(/"goalId":"(\d+)"/)?.[1];
+    const steps = ['pwd', `${prefix} reply --id ${goal} --text 'probe reply ${nonce}'`];
     return calls < steps.length ? [shellCall(steps[calls])] : [textItem('done')];
   };
 }
