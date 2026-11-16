@@ -47,12 +47,15 @@ fix a bad release with a new version. Use immutable commit IDs for development
 inputs without bumping the published version for every merge.
 
 First integrate the release preparation into develop. Promote develop to main
-through a checked PR. Prefer a merge commit where allowed. If main requires linear
-history and squash, respect that rule, then merge the resulting main commit back
-into develop immediately (the trees must match). This restores the common ancestor
-without resetting or force-pushing either branch. Tag only
-the successful main commit. An explicit user request to publish authorizes that release; the consultation
-rule does not require asking again for the same action.
+through a checked PR from `promote/<version>`, a new branch at develop's tip.
+Merging a PR in this repository deletes its head branch, so never open one from
+develop, main or another branch you keep. Prefer a merge commit where allowed. If main requires
+linear history and squash, respect that rule, then merge the resulting main commit
+back into develop immediately (the trees must match) and push it to develop directly,
+not through a PR. This restores the common ancestor without resetting or force-pushing
+either branch. Tag only the successful main commit. An explicit user request to
+publish authorizes that release; the consultation rule does not require asking
+again for the same action.
 
 1. Open a release PR updating `package.json`, the lockfile, and `CHANGELOG.md`.
 2. Run `npm ci`, `npm run check`, and `npm pack`. Test a clean archive install. On a Mac with Codex Desktop, run
