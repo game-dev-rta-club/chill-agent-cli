@@ -406,21 +406,20 @@ test('a reply with --ask is a Letter: it answers the Goal\'s comments, also work
   assert.equal((await readEvent(Number(/eventId (\d+)/.exec(plain)[1]))).type,'comment','without --ask the reply is a Comment');
 });
 
-test('the Goal the agent writes on stays its work Goal, also across compaction, so the Web does not fall back to the Root',async t=>{
+test('the Goals the agent was handed or wrote on last stay its focus, also across compaction, so the Web does not fall back to the Root',async t=>{
   const f=await fixture(t),s=await f.start(),g=await root(s);
   const asked=await createGoal({title:'Asked',parentId:g.id}),other=await createGoal({title:'Other',parentId:g.id}),letter=await createGoal({title:'Letter',parentId:g.id});
-  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs'),{readJson}=await import('../lib/storage.mjs'),{noteAgentComment}=await import('../lib/agents/index.mjs');
-  const work=async()=>(await readJson(claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId).record)).agentWork;
+  const {focusOf,ownedRoots}=await import('../lib/hand-off.mjs'),{claudeOwner}=await import('../lib/agents/owners.mjs');
+  const focus=async()=>focusOf((await ownedRoots(claudeOwner(s.record))).roots);
   await appendFeedback({goalId:asked.id,text:'Please look'});
   await s.act('inbox',{});
-  assert.equal((await work()).lastGoal,asked.id);
+  assert.deepEqual(await focus(),[asked.id],'a handed comment marks its Goal');
   await s.act('reply',{goalId:other.id,text:'Answered here'});
-  assert.equal((await work()).lastGoal,other.id,'a reply marks its Goal');
-  await noteAgentComment(await readGoal(g.id),letter.id,s.env);
-  assert.equal((await work()).lastGoal,letter.id,'a Letter or progress Comment marks its Goal');
-  await noteAgentComment(await readGoal(g.id),asked.id,{CLAUDE_CODE_SESSION_ID:'someone-else'}).catch(()=>{});
-  assert.equal((await work()).lastGoal,letter.id,'another conversation does not move it');
+  assert.deepEqual(await focus(),[other.id,asked.id],'a Comment elsewhere adds its Goal; the handed one still awaits a reply');
+  await s.act('reply',{goalId:letter.id,ask:'Which one?',text:'A or B?'});
+  assert.deepEqual(await focus(),[letter.id,asked.id],'a Letter marks its Goal');
+  await s.act('reply',{goalId:asked.id,text:'Done'});
+  assert.deepEqual(await focus(),[asked.id],'once answered, the Goal it last wrote on stays');
   await f.start(s.record.sessionId,'compact');
-  const kept=await work();
-  assert.equal(kept.lastGoal,letter.id,'compaction keeps it');assert.equal(kept.phase,'idle');
+  assert.deepEqual(await focus(),[asked.id],'compaction keeps it');
 });

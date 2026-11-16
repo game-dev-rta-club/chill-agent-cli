@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {agentStatus,awaitsReply,commentMark,cursorAfter,handing,idleWork,nextWork,pendingComments,quietGoals,runningGoals,unanswered} from '../lib/agent-rules.mjs';
+import {agentStatus,awaitsReply,commentMark,cursorAfter,focusGoals,handing,idleWork,nextWork,pendingComments,quietGoals,runningGoals,unanswered} from '../lib/agent-rules.mjs';
 
 const replay=(...events)=>events.reduce(nextWork,idleWork);
 const status=(work,patch={})=>agentStatus({work,...patch});
@@ -45,7 +45,7 @@ test('a Goal awaits a reply while the user spoke last in it, whichever comment t
 
 test('the Goal is answered by the agent\'s Comment, not by its work ending',()=>{
   const events=[user(1)];
-  const work=replay({type:'started'},{type:'handed',goals:['1']},{type:'finished'});
+  const work=replay({type:'started'},{type:'finished'});
   assert.equal(status(work),'idle');
   assert.equal(awaitsReply(events),true,'Codex once showed Done when the turn ended without a reply');
   assert.equal(awaitsReply([...events,agent(2)]),false,'a reply answers it even while the work still runs');
@@ -116,19 +116,21 @@ test('each comment that awaits a reply shows where it is',()=>{
   for(const [name,comment,state,expected] of cases)assert.equal(commentMark(comment,state),expected,name);
 });
 
-test('the Goals of the running work are Running, together with their parents',()=>{
+test('the current Goals are those owed a reply, the selected one and the one last written in, newest first',()=>{
+  const at=minute=>`2026-11-16T10:${String(minute).padStart(2,'0')}:00.000Z`,item=(goalId,minute)=>({goalId,at:at(minute)});
+  assert.deepEqual(focusGoals({owed:[item('2',1),item('3',2)]}),['3','2'],'comments on two Goals in one work make both current, the newest first');
+  assert.deepEqual(focusGoals({owed:[item('3',2)],written:item('2',3)}),['2','3'],'a progress note on one Goal keeps the other owed one current');
+  assert.deepEqual(focusGoals({owed:[item('3',4)],written:item('2',3)}),['3'],'a Goal written in before the newest hand-off is not current');
+  assert.deepEqual(focusGoals({written:item('3',5)}),['3'],'after replying everywhere, the Goal it last wrote in stays current');
+  assert.deepEqual(focusGoals({owed:[item('2',1)],selected:item('4',2),written:item('4',3)}),['4','2'],'each Goal is listed once');
+  assert.deepEqual(focusGoals({}),[]);
+});
+
+test('the current Goals are Running together with their parents, only while the agent runs',()=>{
   const parents={'2':'1','3':'1','1':null,'4':null},parentOf=id=>parents[id]??null;
-  const awaiting=new Set(['2','3']),awaits=id=>awaiting.has(id);
-  const work=replay({type:'started'},{type:'handed',goals:['2','3']});
-  const running=patch=>runningGoals({status:status(patch.work??work),work:patch.work??work,awaits:patch.awaits??awaits,parentOf,selected:patch.selected}).sort();
-  assert.deepEqual(running({}),['1','2','3'],'comments on two Goals in one work make both Running');
-  assert.deepEqual(running({awaits:id=>id==='3'}),['1','3'],'a Goal leaves Running once the agent replies in it');
-  const replied=nextWork(work,{type:'commented',goalId:'3'});
-  assert.deepEqual(running({work:replied,awaits:()=>false}),['1','3'],'after replying everywhere, the Goal it last spoke in stays Running while it works');
-  assert.deepEqual(running({selected:'4'}),['1','2','3','4']);
-  assert.deepEqual(running({work:nextWork(work,{type:'finished'})}),[],'nothing runs once the work ends');
-  const background=replay({type:'started'},{type:'handed',goals:['2']},{type:'background',tasks:[{id:'a1',type:'subagent',name:'general-purpose',description:'Review'}]},{type:'finished'});
-  assert.deepEqual(running({work:background}),['1','2'],'a background agent keeps its Goal Running');
+  assert.deepEqual(runningGoals({status:'running',focus:['3','2'],parentOf}).sort(),['1','2','3']);
+  assert.deepEqual(runningGoals({status:'running',focus:['4'],parentOf}),['4']);
+  assert.deepEqual(runningGoals({status:'idle',focus:['3','2'],parentOf}),[],'nothing runs once the work ends');
 });
 
 test('a stop is held once while a handed Goal awaits a reply and nothing keeps running',()=>{

@@ -12,7 +12,7 @@ import {runClaudeAction,handleClaudeToolHook,hasSavedClaudeFeedback,claudeSessio
 import {holdClaudeConversation,holdResultText,stallGuard,watchClaudeConversation,watcherWakeText} from '../lib/claude-wait.mjs';
 import {readClaudeConnectionStatus} from '../lib/claude-status.mjs';
 import {logWatcher,watcherLogPath} from '../lib/claude-watch-log.mjs';
-import {listGoals,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
+import {listGoals,appendAgentComment,appendFeedback,createGoal,readFeedback} from '../lib/goal-store.mjs';
 import {deliverFeedback} from '../lib/delivery.mjs';
 import {readJson,replaceRetryMs,withStoreLock,writeJsonAtomically} from '../lib/storage.mjs';
 import {createClaudeFeedbackReader} from '../lib/claude-feedback-cache.mjs';
@@ -244,7 +244,7 @@ test('a Goal whose ended response scheduled a check shows Waiting, and Check ove
  const {claudeAgent}=await import('../lib/agents/claude.mjs');
  const {activityDisplay,isWaitingOnCheck}=await import('../public/work-ui.js');
  const {recordClaudeWork}=await import('../lib/claude-agent-work.mjs');
- const f=await fixture(t);await recordClaudeWork(f.connection.sessionId,[{type:'started'},{type:'commented',goalId:f.root.id},{type:'finished'}],{directory:f.data});
+ const f=await fixture(t);await recordClaudeWork(f.connection.sessionId,[{type:'started'},{type:'finished'}],{directory:f.data});await appendAgentComment({goalId:f.root.id,type:'comment',text:'Checking CI'});
  const agent=claudeAgent((await listGoals()).find(g=>g.id===f.root.id));
  assert.equal((await agent.activity(f.root.id)).wake,undefined);assert.equal((await agent.presence()).wake,undefined);
  const {wake}=await scheduleClaudeWake({minutes:10,reason:'CI of PR #91',env:f.env()});
@@ -263,7 +263,7 @@ test('with several checks scheduled, the Web lists them all, the next one due fi
  const {claudeAgent}=await import('../lib/agents/claude.mjs');
  const {activityDisplay,isWaitingOnCheck}=await import('../public/work-ui.js');
  const {recordClaudeWork}=await import('../lib/claude-agent-work.mjs');
- const f=await fixture(t);await recordClaudeWork(f.connection.sessionId,[{type:'started'},{type:'commented',goalId:f.root.id},{type:'finished'}],{directory:f.data});
+ const f=await fixture(t);await recordClaudeWork(f.connection.sessionId,[{type:'started'},{type:'finished'}],{directory:f.data});await appendAgentComment({goalId:f.root.id,type:'comment',text:'Checking CI'});
  const agent=claudeAgent((await listGoals()).find(g=>g.id===f.root.id));
  await scheduleClaudeWake({minutes:2*24*60,reason:'Recount',env:f.env()});
  const {wake}=await scheduleClaudeWake({minutes:15,reason:'CI of PR #91',env:f.env()});

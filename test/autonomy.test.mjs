@@ -85,10 +85,7 @@ test('the end-of-turn plan lists each owned Root above Normal by name, with its 
   for(const text of [auto,never])assert.match(text,/Keep every Goal in the tree that no other conversation has taken showing .*the real state of its work, such as Done once its criteria are met/,'both levels tidy');
   assert.doesNotMatch(lines,/agent wake/,'the shared text names no command only Claude Code has');
   assert.doesNotMatch(lines,/Lv|Drive|Level/,'levels go by name');
-  const ultra=turnPlan({goals,levels:at(goals,{1:3}),held:new Set(['3'])});
-  assert.deepEqual(ultra.roots,[{id:'1',title:'Goal 1',level:3,open:[{id:'1',title:'Goal 1'},{id:'2',title:'Goal 2'}],taken:[{id:'3',title:'Goal 3'}]}]);
-  assert.match(autonomyLines(ultra),/\n  Unfinished in that tree: #1 “Goal 1”, #2 “Goal 2”\.\n  Taken by other live conversations, so leave them: #3 “Goal 3”\./);
-  assert.deepEqual(turnPlan({goals,levels:at(goals,{1:2})}).roots,[{id:'1',title:'Goal 1',level:2,open:[{id:'1',title:'Goal 1'},{id:'2',title:'Goal 2'},{id:'3',title:'Goal 3'}],taken:[]}],'Auto Continue lists its tree');
+  assert.deepEqual(turnPlan({goals,levels:at(goals,{1:2})}).roots,[{id:'1',title:'Goal 1',level:2,open:[{id:'1',title:'Goal 1'},{id:'2',title:'Goal 2'},{id:'3',title:'Goal 3'}]}],'Auto Continue lists its tree');
   goals[0].state='done';assert.equal(turnPlan({goals,levels:at(goals,{1:3})}),null,'a Done Root asks for nothing');
 });
 
