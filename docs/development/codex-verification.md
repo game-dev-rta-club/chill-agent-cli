@@ -65,7 +65,7 @@ It checks, as named lines:
   `bin/chill-hook.mjs` reads.
 - Stop hook: with feedback the chat took and said nothing about, chill's real Stop hook answers `{decision:"block",reason}`,
   Codex continues the turn and sends the reason to the model, and the next Stop carries `stop_hook_active: true` and ends.
-- `verifyThread`, which `goal assign` uses, on a used chat and on one that is not a saved chat.
+- `verifyThread`, which `goal adopt` uses, on a used chat and on one that is not a saved chat.
 - Schema: every request chill sends and every answer it gets for a method in
   `test/fixtures/codex-app-server-schema.json` is validated, so a drifted field shows up as a failing `schema:` line.
 
@@ -118,7 +118,7 @@ The flow, each step a named check:
 
 1. chill creates a Goal and installs its hook in a disposable project (the data directory lives inside the project, so the
    workspace-write sandbox can write it). The probe trusts the hook as above.
-2. The long-lived app-server starts a chat on the real model and answers its first message. `goal assign` accepts it.
+2. The long-lived app-server starts a chat on the real model and answers its first message. `goal adopt` from that chat accepts it.
 3. `goal feedback` saves a short, explicit message and sends it to the idle chat as one Queue message, which starts a turn.
 4. The turn's first command is `pwd`. The PostToolUse hook runs and hands nothing more: the comment was already handed.
 5. The model replies on the Goal with one `comment`.
@@ -163,7 +163,7 @@ These were observed on `0.163.0-alpha.10.2` and are asserted on every run.
 | A queued input drains into a turn when the chat is idle, even when it was queued from another process | feedback delivery |
 | `thread/turns/list` without `itemsView` returns `summary`: the first user message and the last agent message | callers always pass `itemsView` |
 | Another process reports a live turn as `interrupted` with `completedAt` null | Progress closes a turn only on `completedAt` |
-| A chat is invisible to other processes until its first message, and `thread/turns/list` fails with "not materialized" | `goal assign` needs a chat that has been used |
+| A chat is invisible to other processes until its first message, and `thread/turns/list` fails with "not materialized" | `goal adopt` needs a chat that has been used |
 | `thread/read` with `includeTurns` lists turns oldest first, while `thread/turns/list` lists newest first | `reconcile` and `workReader` |
 | A hook runs only in chats started after it was trusted | the manual checklist starts a new chat |
 | A Stop hook's `{decision:"block",reason}` continues the turn with the reason as model input; the run reports `blocked`, and the continued turn's next Stop has `stop_hook_active: true` | the quiet-stop hold |
@@ -185,9 +185,8 @@ Prepare once:
 2. Open the scratch folder in Codex Desktop. In `/hooks`, review and trust both chill-agent hooks, PostToolUse
    ("Check Web feedback") and Stop ("Check the user has heard back"). Start a new chat,
    because a chat that was open before the hook was trusted does not run it.
-3. In that chat, send `Run echo $CODEX_THREAD_ID and reply with the id`. Copy the id.
-4. Run `chill goal create --title "Desktop check"`, then `chill goal assign --id 1 --thread-id <id>`, then
-   `chill server start --local`. Open the printed URL and open Goal 1.
+3. In that chat, send `Run chill goal create --title "Desktop check"`. The new Root belongs to that chat.
+4. Run `chill server start --local`. Open the printed URL and open Goal 1.
 
 Check:
 
@@ -206,10 +205,15 @@ Check:
    button labeled Agent). Expected: Activity shows Running with a Pause button. Press Pause. The Desktop turn stops
    within a few seconds and the panel shows Paused with a Resume button. Pressing Desktop's own stop instead shows
    Interrupted, not Paused.
-9. **Feedback while paused.** In Web, send "Reply with the word held." Expected: the feedback shows Paused, and
-   Desktop's chat and the Agent panel's Queue stay empty.
-10. **Resume.** Press Resume. Expected: the panel returns to Running, Desktop receives the held message, the agent
-    answers it, and the mark goes away.
+9. **Resume.** Press Resume. Expected: the panel shows Running at once, before the resumed turn's first command ends,
+   and within a few seconds Desktop receives a message asking the agent to go on with the stopped work. The agent
+   finishes the stopped work.
+10. **Feedback resumes the agent and delivers held feedback with it.** Send the five-command request in Desktop
+    again. While it runs, send "Reply with the word held." from Web, and press Pause while that feedback still shows
+    Waiting. Expected: the held feedback shows Paused. Once the panel also shows Paused, send "Reply with the word
+    resumed." from Web without pressing Resume. Expected: within a few seconds both show Sent and the panel shows
+    Running. Desktop receives one message carrying both, and both marks clear once the agent replies. The agent may
+    or may not go on with the stopped commands; either is fine. Wait for Desktop's turn to end before step 11.
 11. **Settings save.** In the Agent panel, change Reasoning to another level. Expected: the panel shows Saving, then the new
     level, and Desktop's composer shows the same level after you reopen the chat. Change it back.
 12. Stop the server with `chill server stop` and delete the scratch folder.

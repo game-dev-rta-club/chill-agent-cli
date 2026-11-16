@@ -1,3 +1,4 @@
+import {goalRule} from '../lib/goal-rule.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,readFile,rm,writeFile} from 'node:fs/promises';
@@ -10,27 +11,27 @@ import {randomUUID} from 'node:crypto';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
 import {recordClaudeWork,reportClaudeHook} from '../lib/claude-agent-work.mjs';
 import {runClaudeAction,handleClaudeToolHook,claimClaudeFeedbackForWatcher} from '../lib/claude-actions.mjs';
-import {createGoal,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
-import {createClaudeRoot} from '../lib/claude-roots.mjs';
-import {assignGoal} from '../lib/agents/codex-execution.mjs';
+import {createGoal,createOwnedRoot,listGoals,appendFeedback,readGoal,updateGoal} from '../lib/goal-store.mjs';
+import {claudeOwner} from '../lib/agents/owners.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {readAgentStatus} from '../lib/agent-status.mjs';
-import {goalCommentMarks} from '../lib/agents/index.mjs';
+import {agentExecutions,goalCommentMarks} from '../lib/agents/index.mjs';
 import {agentMarkup} from '../public/agent-menu.js';
 import {fileURLToPath} from 'node:url';
 import {claudeHook,hookFor} from './claude-fixtures.mjs';
+import {agentAction} from './agent-action.mjs';
 
 async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-claude-actions-'));
   const previous={data:process.env.CHILL_AGENT_DATA_DIR,codex:process.env.CHILL_AGENT_CODEX_PATH};
   process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');process.env.CHILL_AGENT_CODEX_PATH='/never/call/codex';
-  t.after(async()=>{for(const [key,value] of [['CHILL_AGENT_DATA_DIR',previous.data],['CHILL_AGENT_CODEX_PATH',previous.codex]]){if(value===undefined)delete process.env[key];else process.env[key]=value;}await rm(dir,{recursive:true,force:true});});
+  t.after(async()=>{for(const [key,value] of [['CHILL_AGENT_DATA_DIR',previous.data],['CHILL_AGENT_CODEX_PATH',previous.codex]]){if(value===undefined)delete process.env[key];else process.env[key]=value;}await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
   const cwd=join(dir,'project');await mkdir(cwd);
   async function start(sessionId='native/session',source='startup') {
     const envFile=join(dir,randomUUID());await writeFile(envFile,'');
     const record=await captureClaudeEntry(claudeHook('SessionStart',{session_id:sessionId,source,cwd}), {cwd,env:{CLAUDE_ENV_FILE:envFile}});
     const env={CHILL_AGENT_HARNESS:record.harnessId,CHILL_AGENT_SESSION_ID:sessionId,CLAUDE_CODE_SESSION_ID:sessionId};
-    const act=async(action,payload,options={})=>(await runClaudeAction(action,payload,{env,...options})).text;
+    const act=async(action,payload,options={})=>action==='extension'?(await runClaudeAction(action,payload,{env,...options})).text:agentAction(action,payload,env);
     const event=hookFor({session_id:sessionId,cwd}),hook=patch=>event('PostToolUse',patch);
     return {record,env,envFile,act,event,hook};
   }
@@ -54,11 +55,11 @@ test('connection extension actions run at once in the calling conversation',asyn
 test('create-goal binds a Root to the calling conversation at once',async t=>{
   const f=await fixture(t),s=await f.start();
   assert.match(await s.act('create-goal',goalInput),/Created Goal #1/);
-  const g=(await listGoals())[0];assert.equal(g.threadId,null);assert.deepEqual(g.connection,{harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId});
+  const g=(await listGoals())[0];assert.deepEqual(g.owner,{agent:'claude-code',id:s.record.sessionId,context:s.record.contextId});
   const status=await readAgentStatus(g.id);assert.equal(status.connected,true);assert.equal(status.agent.name,'Claude Code');
-  assert.deepEqual(status.capabilities,{settings:false,stop:false,resume:false,approveAll:true});
+  assert.deepEqual(status.capabilities,{settings:false,stop:false,resume:false});
   assert.match(agentMarkup(status),/Claude Code/);assert.doesNotMatch(agentMarkup(status),/Codex account|data-agent-settings/);
-  await assert.rejects(s.act('create-goal',{...goalInput,title:' '}),/Invalid title/);
+  await assert.rejects(s.act('create-goal',{...goalInput,title:' '}),/Goal title must be nonempty/);
 });
 
 test('a command acts for the current context: clear starts a context that owns nothing',async t=>{
@@ -67,29 +68,25 @@ test('a command acts for the current context: clear starts a context that owns n
   const cleared=await f.start(first.record.sessionId,'clear');assert.notEqual(cleared.record.contextId,first.record.contextId);
   await first.act('create-goal',goalInput);
   const [a,b]=await listGoals();
-  assert.equal(a.connection.contextId,first.record.contextId);assert.equal(b.connection.contextId,cleared.record.contextId);
+  assert.equal(a.owner.context,first.record.contextId);assert.equal(b.owner.context,cleared.record.contextId);
   await assert.rejects(runClaudeAction('inbox',{},{env:{CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:'never-started'}}),/not connected/);
 });
 
-test('Root creation stays single when retried with the same ID',async t=>{
-  const f=await fixture(t),s=await f.start(),id=randomUUID();
-  const connection={harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId};
-  const first=await createClaudeRoot(goalInput,connection,id);
-  await rm(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/goals',first.id,'deliverable.html'));
-  await createClaudeRoot(goalInput,connection,id);
-  assert.equal((await listGoals()).length,1);assert.equal(await readFile(join(process.env.CHILL_AGENT_DATA_DIR,'workspace/goals/1/deliverable.html'),'utf8'),'');
-  await assert.rejects(createClaudeRoot({...goalInput,title:'changed'},connection,id),/changed/);
-  await assert.rejects(updateGoal(first.id,{threadId:randomUUID()}),/reassigned/);
-  await assert.rejects(assignGoal(first.id,null),/Reassignment/);
+test('a Root an agent owns changes owner only by adopt and release, and a moved Root leaves its owner',async t=>{
+  const f=await fixture(t),s=await f.start();
+  const first=await createOwnedRoot(goalInput,claudeOwner({sessionId:s.record.sessionId,contextId:s.record.contextId}));
+  await assert.rejects(updateGoal(first.id,{threadId:randomUUID()}),/Unknown Goal field/);
+  await assert.rejects(updateGoal(first.id,{owner:{agent:'codex',id:randomUUID()}}),/Unknown Goal field/);
   const other=await createGoal({title:'Other'}),child=await createGoal({title:'Child',parentId:first.id});
-  await assert.rejects(updateGoal(first.id,{parentId:other.id}),/reassigned/);
-  await assert.rejects(updateGoal(child.id,{parentId:other.id}),/between native/);
+  await updateGoal(child.id,{parentId:other.id});
+  await updateGoal(first.id,{parentId:other.id});
+  assert.equal((await readGoal(first.id)).owner,undefined,'a Root moved under another Goal follows that Root');
 });
 
 test('two Roots and a child hand their comments to the same conversation, and only a reply answers them',async t=>{
   const f=await fixture(t),s=await f.start(),g=await root(s),g2=await root(s),child=await createGoal({title:'Child',parentId:g.id});
   const e1=await appendFeedback({goalId:child.id,text:'first'}),e2=await appendFeedback({goalId:g2.id,text:'second'});
-  assert.deepEqual(e1.connection,g.connection);
+  assert.equal(e1.connection,undefined);
   assert.equal((await deliverFeedback(e1.changeId)).mark,'saved');
   const output=await s.act('inbox');
   assert.match(output,/first/);assert.match(output,/second/);
@@ -101,8 +98,17 @@ test('two Roots and a child hand their comments to the same conversation, and on
   assert.doesNotMatch(again,/"text":"first"/);assert.match(again,/second/);
   assert.equal((await deliverFeedback(e1.changeId)).mark,null);
   assert.equal((await readGoal(g.id)).state,'idle');
-  await assert.rejects(s.act('reply',{goalId:g.id,text:' '}),/Invalid reply/);
-  await assert.rejects(s.act('reply',{text:'no Goal'}),/--goal/);
+  await assert.rejects(s.act('reply',{goalId:g.id,text:' '}),/Comment must contain text/);
+  await assert.rejects(s.act('reply',{text:'no Goal'}),/Goal ID/);
+});
+
+test('one snapshot of a conversation marks Running in each of its Roots',async t=>{
+  const f=await fixture(t),s=await f.start(),g=await root(s),g2=await root(s);
+  await reportClaudeHook(s.event('UserPromptSubmit',{prompt:'go'}));
+  for(const goal of [g,g2])await sendFeedbackNow((await appendFeedback({goalId:goal.id,text:'now'})).changeId);
+  assert.match(context(await handleClaudeToolHook(s.hook())),/now/);
+  const marks=await agentExecutions(await listGoals());
+  assert.deepEqual([...marks.keys()].sort(),[g.id,g2.id].sort());
 });
 
 test('separate, resumed and cleared contexts cannot take or answer another conversation\'s comments',async t=>{
@@ -115,20 +121,24 @@ test('separate, resumed and cleared contexts cannot take or answer another conve
   await assert.rejects(clear.act('reply',{goalId:g.id,text:'Not mine'}),/another conversation/);
 });
 
-test('the connection CLI acts at once and prints its result; piping the output changes nothing',{skip:process.platform==='win32'&&'runs through POSIX /bin/sh'},async t=>{
+test('the goal and agent CLIs act at once and print their result; piping the output changes nothing',{skip:process.platform==='win32'&&'runs through POSIX /bin/sh'},async t=>{
   const f=await fixture(t),s=await f.start();
-  const execute=promisify(execFile),entry=fileURLToPath(new URL('../bin/chill-connection.mjs',import.meta.url));
-  const {stdout,stderr}=await execute('/bin/sh',['-c','"$1" "$2" create-goal --title "CLI outcome" | head -1','probe',process.execPath,entry],{cwd:f.cwd,env:{...process.env,...s.env}});
-  assert.equal(stderr,'');assert.match(stdout,/^Created Goal #1/);assert.equal((await listGoals()).length,1);
+  const execute=promisify(execFile),entry=fileURLToPath(new URL('../bin/chill-conversation.mjs',import.meta.url)),goal=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
+  const {stdout,stderr}=await execute('/bin/sh',['-c','"$1" "$2" create --title "CLI outcome" | cat','probe',process.execPath,goal],{cwd:f.cwd,env:{...process.env,...s.env}});
+  assert.equal(stderr,'');assert.match(JSON.parse(stdout).message,/^Created Goal #1, owned by this conversation/);assert.equal((await listGoals()).length,1);
+  // Root and child alike get the Goal rule.
+  assert.ok(JSON.parse(stdout).message.includes(goalRule));
+  const child=await execute(process.execPath,[goal,'create','--title','CLI step','--parent','1'],{cwd:f.cwd,env:{...process.env,...s.env}});
+  assert.equal(JSON.parse(child.stdout).message,goalRule);
   // Sent now, so the running work's tool hook hands it over.
   const event=await appendFeedback({goalId:'1',text:'CLI feedback'});await sendFeedbackNow(event.changeId);
   const path=join(f.dir,'hook.json');await writeFile(path,JSON.stringify(s.hook({agent_id:'child'})));
-  const run=()=>execute('/bin/sh',['-c','exec "$1" "$2" claude-hook < "$3"','probe',process.execPath,entry,path],{cwd:f.cwd,env:process.env});
+  const run=()=>execute('/bin/sh',['-c','exec "$1" "$2" hook claude < "$3"','probe',process.execPath,entry,path],{cwd:f.cwd,env:process.env});
   assert.equal((await run()).stdout,'','a subagent hook never receives Web input');
   // A hook input of any size is read; a large tool result never stops delivery.
   await writeFile(path,JSON.stringify(s.hook({tool_name:'mcp__screenshot',tool_response:{image:'x'.repeat(2_000_000)}})));
   assert.match(context(JSON.parse((await run()).stdout)),/CLI feedback/);
-  const reply=await execute('/bin/sh',['-c','"$1" "$2" reply --goal 1 --text done | grep -c Replied','probe',process.execPath,entry],{cwd:f.cwd,env:{...process.env,...s.env}});
+  const reply=await execute('/bin/sh',['-c','"$1" "$2" reply --id 1 --text done | grep -c Replied','probe',process.execPath,goal],{cwd:f.cwd,env:{...process.env,...s.env}});
   assert.equal(reply.stdout.trim(),'1');assert.equal((await deliverFeedback(event.changeId)).mark,null);
 });
 
@@ -209,7 +219,27 @@ test('compact keeps its Goals; clear starts a context that owns nothing',async t
   assert.equal(await claimClaudeFeedbackForWatcher(f.s.record.sessionId),'');
 });
 
-test('Pause on a Claude Goal holds the conversation\'s comments until Resume',async t=>{
+test('a comment or Resume joining a running response keeps its work, so Think keeps earlier text',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs'),{readJson}=await import('../lib/storage.mjs');
+  const work=async()=>(await readJson(claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId).record)).agentWork;
+  const {setClaudePause}=await import('../lib/claude-pause.mjs');
+  const connection={harnessId:s.record.harnessId,sessionId:s.record.sessionId,contextId:s.record.contextId};
+  await reportClaudeHook(s.event('UserPromptSubmit'));
+  const running=await work();assert.equal(running.phase,'working');
+  // Pause then Resume on the Web while the response runs: the watcher hands Resume mid-turn.
+  await setClaudePause(connection,true);await setClaudePause(connection,false);await delay(5);
+  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId,{midTurn:true}),/Resume/);
+  const joined=await work();
+  assert.equal(joined.id,running.id,'the same response goes on');
+  assert.equal(joined.startedAt,running.startedAt,'Think still starts where the response did');
+  await handleClaudeToolHook(s.event('Stop'));
+  const next=await appendFeedback({goalId:goal.id,text:'After it ended'});await deliverFeedback(next.changeId);
+  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId),/After it ended/);
+  assert.notEqual((await work()).id,running.id,'a wake after the response ended starts new work');
+});
+
+test('Pause on a Claude Goal holds the conversation until Resume or a new comment',async t=>{
   const f=await fixture(t),s=await f.start(),goal=await root(s);
   const {readGoalActivity,controlAgent}=await import('../lib/agent-status.mjs');
   const {goalCommentMarks}=await import('../lib/agents/index.mjs');
@@ -222,12 +252,17 @@ test('Pause on a Claude Goal holds the conversation\'s comments until Resume',as
   await controlAgent(goal.id,{action:'stop',token:running.token});
   const paused=await readGoalActivity(goal.id);
   assert.equal(paused.status,'paused');assert.deepEqual(paused.capabilities,{stop:false,resume:true});
-  const held=await appendFeedback({goalId:goal.id,text:'While paused'});await deliverFeedback(held.changeId);
-  assert.deepEqual((await goalCommentMarks(goal.id)).map(m=>m.mark),['paused','paused']);
-  assert.equal(await handleClaudeToolHook(s.event('Stop',{stop_hook_active:true})),null,'nothing is handed while paused');
+  assert.deepEqual((await goalCommentMarks(goal.id)).map(m=>m.mark),['paused']);
+  assert.equal(await handleClaudeToolHook(s.event('Stop',{stop_hook_active:true})),null,'nothing continues it while paused');
   await controlAgent(goal.id,{action:'resume',token:running.token});
   assert.notEqual((await readGoalActivity(goal.id))?.status,'paused');
-  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId),/While paused/);
+  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId),/Resume/);
+  // A comment written after Pause resumes the conversation and is handed, without Resume.
+  await controlAgent(goal.id,{action:'stop',token:running.token});
+  assert.equal((await readGoalActivity(goal.id)).status,'paused');
+  const next=await appendFeedback({goalId:goal.id,text:'Go on with this'});await deliverFeedback(next.changeId);
+  assert.notEqual((await readGoalActivity(goal.id))?.status,'paused');
+  assert.match(await claimClaudeFeedbackForWatcher(s.record.sessionId),/Go on with this/);
 });
 
 test('goal work from a Claude conversation marks its Goal Running for the current response',async t=>{
@@ -306,7 +341,7 @@ test('two Claude conversations in one project, each with its own Root, never rec
   const connection=s=>({harnessId:'claude-code',sessionId:s.record.sessionId,contextId:s.record.contextId});
   const forA=await appendFeedback({goalId:rootA.id,text:'For A'}),forB=await appendFeedback({goalId:rootB.id,text:'For B'});
   for(const event of [forA,forB])await deliverFeedback(event.changeId);
-  // Each conversation's waiter and inbox see only its own Root's feedback.
+  // Each conversation's watcher and inbox see only its own Root's feedback.
   assert.equal(await hasSavedClaudeFeedback(connection(a)),true);assert.equal(await hasSavedClaudeFeedback(connection(b)),true);
   const inboxA=await a.act('inbox',{});
   assert.match(inboxA,/For A/);assert.doesNotMatch(inboxA,/For B/);
@@ -324,16 +359,16 @@ test('two Claude conversations in one project, each with its own Root, never rec
   assert.equal(await agentFor(await rootOf(rootB.id)).isCaller(a.env),false);
   // goal work from B on A's Goal is refused.
   await assert.rejects(selectAgentWork(rootA.id,{env:b.env}),/assigned chat/);
-  // Pause and Approve all on A leave B alone.
+  // Pause and Autonomy on A leave B alone.
   const second=await appendFeedback({goalId:rootA.id,text:'A again'});await deliverFeedback(second.changeId);
   await reportClaudeHook(a.event('UserPromptSubmit'));
   await controlAgent(rootA.id,{action:'stop',token:statusA.token});
   assert.equal((await readAgentStatus(rootA.id)).capabilities.resume,true);
   assert.equal((await readAgentStatus(rootB.id)).capabilities.resume,false);
-  await controlAgent(rootA.id,{scope:'permissions',token:statusA.token,approveAll:true});
+  const {setRootAutonomy}=await import('../lib/root-autonomy.mjs');
+  await setRootAutonomy(rootA.id,3);
   const ask=s=>claudePermissionDecision(s.event('PermissionRequest'));
   assert.equal(await ask(b),null,'B still asks for its own permissions');
-  assert.equal((await readAgentStatus(rootB.id)).approveAll,false);
 });
 
 test('one reply answers the Goal, whichever of its comments it answers',async t=>{
@@ -343,6 +378,49 @@ test('one reply answers the Goal, whichever of its comments it answers',async t=
   const output=await s.act('reply',{goalId:goal.id,text:'Done both'});
   for(const event of [first,second])assert.equal((await deliverFeedback(event.changeId)).mark,null);
   const {readEvent}=await import('../lib/goal-store.mjs');
-  const commentId=Number(/comment (\d+)/.exec(output)[1]);
+  const commentId=Number(/eventId (\d+)/.exec(output)[1]);
   assert.equal((await readEvent(commentId)).text,'Done both');assert.equal(await readEvent(commentId+1),null,'the reply is posted once');
+});
+
+test('a reply with --ask is a Letter: it answers the Goal\'s comments, also works with none, and the user\'s next comment closes it',async t=>{
+  const f=await fixture(t),s=await f.start(),goal=await root(s);
+  const {readEvent,readOpenLetters}=await import('../lib/goal-store.mjs');
+  const comment=await appendFeedback({goalId:goal.id,text:'Should we drop the old export?'});
+  await s.act('inbox',{});
+  const output=await s.act('reply',{goalId:goal.id,ask:'Drop the old export?',text:'The new one covers it. Shall I remove the old one?'});
+  assert.match(output,/^Replied on Goal #\d+ with a Letter \(L\d+, eventId \d+\)/);
+  const letterId=Number(/eventId (\d+)/.exec(output)[1]),letter=await readEvent(letterId);
+  assert.equal(letter.type,'letter');assert.equal(letter.title,'Drop the old export?');assert.equal(letter.author,'agent');
+  assert.equal((await deliverFeedback(comment.changeId)).mark,null,'the Letter is the reply to the arrived comment');
+  assert.deepEqual((await readOpenLetters(goal.id)).map(l=>l.id),[letterId]);
+  const unprompted=await s.act('reply',{goalId:goal.id,ask:'Rename the command?',text:'While here: shall I rename it?'});
+  const second=Number(/eventId (\d+)/.exec(unprompted)[1]);
+  assert.deepEqual((await readOpenLetters(goal.id)).map(l=>l.id),[letterId,second],'a question found while working needs no comment');
+  const answer=await appendFeedback({goalId:goal.id,text:'Yes to both.'});
+  assert.deepEqual(await readOpenLetters(goal.id),[],'the user\'s comment closes the Goal\'s open Letters');
+  assert.equal((await readEvent(letterId)).answeredBy,answer.changeId);
+  await assert.rejects(s.act('reply',{goalId:goal.id,ask:' ',text:'x'}),/Letter title must be nonempty/);
+  await assert.rejects(s.act('reply',{goalId:goal.id,ask:'Two\nlines',text:'x'}),/one line/);
+  const plain=await s.act('reply',{goalId:goal.id,text:'Removed it.'});
+  assert.match(plain,/^Replied on Goal #\d+ \(C\d+, eventId \d+\)/);
+  assert.equal((await readEvent(Number(/eventId (\d+)/.exec(plain)[1]))).type,'comment','without --ask the reply is a Comment');
+});
+
+test('the Goal the agent writes on stays its work Goal, also across compaction, so the Web does not fall back to the Root',async t=>{
+  const f=await fixture(t),s=await f.start(),g=await root(s);
+  const asked=await createGoal({title:'Asked',parentId:g.id}),other=await createGoal({title:'Other',parentId:g.id}),letter=await createGoal({title:'Letter',parentId:g.id});
+  const {claudeEntryPaths}=await import('../lib/claude-entry.mjs'),{readJson}=await import('../lib/storage.mjs'),{noteAgentComment}=await import('../lib/agents/index.mjs');
+  const work=async()=>(await readJson(claudeEntryPaths(process.env.CHILL_AGENT_DATA_DIR,s.record.sessionId).record)).agentWork;
+  await appendFeedback({goalId:asked.id,text:'Please look'});
+  await s.act('inbox',{});
+  assert.equal((await work()).lastGoal,asked.id);
+  await s.act('reply',{goalId:other.id,text:'Answered here'});
+  assert.equal((await work()).lastGoal,other.id,'a reply marks its Goal');
+  await noteAgentComment(await readGoal(g.id),letter.id,s.env);
+  assert.equal((await work()).lastGoal,letter.id,'a Letter or progress Comment marks its Goal');
+  await noteAgentComment(await readGoal(g.id),asked.id,{CLAUDE_CODE_SESSION_ID:'someone-else'}).catch(()=>{});
+  assert.equal((await work()).lastGoal,letter.id,'another conversation does not move it');
+  await f.start(s.record.sessionId,'compact');
+  const kept=await work();
+  assert.equal(kept.lastGoal,letter.id,'compaction keeps it');assert.equal(kept.phase,'idle');
 });

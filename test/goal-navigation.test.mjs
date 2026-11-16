@@ -26,8 +26,8 @@ test('Split Goal titles navigate separately from background/disclosure toggles, 
   const data=goals(),html=createGoalView(data,'1',new Set(['2','3'])).brief('1');
   assert.match(html,/<div class="tree-row" data-row-toggle="2">/);
   assert.match(html,/<button[^>]+aria-expanded="true"[^>]+data-toggle="2"/);
-  assert.match(html,/<a class="tree-name" href="#\/goal\/2"[^>]*>Goal 2<\/a>/);
-  assert.match(html,/<a class="tree-name" href="#\/goal\/3"[^>]*>Goal 3<\/a>/);
+  assert.match(html,/<a class="tree-name" href="#\/goal\/2"[^>]*><span class="goal-number">#2<\/span> Goal 2<\/a>/);
+  assert.match(html,/<a class="tree-name" href="#\/goal\/3"[^>]*><span class="goal-number">#3<\/span> Goal 3<\/a>/);
   assert.doesNotMatch(html,/class="goal-open"/);
   data['3'].conversation=[];
   const leaf=createGoalView(data,'2',new Set()).brief('2');

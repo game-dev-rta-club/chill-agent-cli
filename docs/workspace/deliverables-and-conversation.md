@@ -1,81 +1,118 @@
 ---
 keyPoints: >-
-  The Deliverable holds only a Goal's final output; plans and progress go to Conversation.
+  The Canvas holds only a Goal's final output; progress and questions go to Conversation.
   Edit its source and publish a snapshot; comments preserve discussion.
-  Static HTML works in Messages; HTML Deliverable images and SVG diagrams support notes.
-  Letters distinguish questions from reply-free outcomes; neither answers nor viewing complete or unblock work.
+  Static HTML works in Messages; HTML Canvas images and SVG diagrams support notes.
+  A reply that asks the user to decide is marked --ask and becomes a Letter; the user's next comment on the Goal closes it.
+  Neither answers nor viewing complete or unblock work.
 ---
 
 # Keep the final output and the discussion apart
 
-The Deliverable holds only the final output of a Goal: the document, design or
-result it hands over, which may be a draft while the work goes on. Plans,
-progress and questions belong in Conversation, which also keeps feedback tied to
-an older Deliverable version. Updating the Deliverable does not erase that history.
+The Canvas holds only the final output of a Goal: the document, design or
+result it hands over, which may be a draft while the work goes on. A plan or
+proposal the user decides on may be a SubGoal's Canvas. Progress and
+questions belong in Conversation, which also keeps feedback tied to
+an older Canvas version. Updating the Canvas does not erase that history.
 The editable source is `deliverable.html` or `deliverable.md`; files from before the
-rename (`brief.*`) are moved to the new name the first time the workspace opens.
+Brief rename (`brief.*`) are moved to the new name the first time the workspace opens.
+The Canvas was called the Deliverable, and the stored files keep that name.
+`goal deliverable`, `--section deliverable` and `--deliverable-offset` are refused
+with their new names, `goal canvas`, `--section canvas` and `--canvas-offset`.
 
-## Publish the Deliverable
+## Publish the Canvas
 
 ```sh
-chill goal deliverable path --id 1
+chill goal canvas path --id 1
 # Edit the returned file.
-chill goal deliverable update --id 1
+chill goal canvas update --id 1
 ```
 
 Editing the file alone does not change Web. Publishing saves an immutable version
 when the body or format differs. Identical content is not published and the
 command fails, so an edit that never reached the file is noticed. An empty source
-clears the Deliverable. The command does not create a Conversation message or complete
+clears the Canvas. The command does not create a Conversation message or complete
 the Goal.
 
-A new Deliverable starts as HTML (`deliverable.html`): a standalone document
-with inline CSS and SVG, rendered in an isolated frame where scripts, forms and
-remote assets do not run. Markdown remains available with `--format markdown`
-and supports lists, tables, code and Mermaid diagrams. Switching format keeps
-previous versions and both editable source files. How agents write a
-Deliverable is set by the agent guide, not by this CLI.
+A new Canvas starts as HTML (`deliverable.html`): a standalone,
+visual-first page with its own `<style>` and inline SVG diagrams, rendered in an
+isolated frame where scripts, forms and remote assets do not run. When its CSS
+never mentions a table element (`table`, `tr`, `th`, `td` and so on), chill draws
+its tables with cell lines, padding and a tinted header, like tables in
+messages; a Canvas that styles its tables keeps only its own look. Existing
+Markdown Canvases still work with `--format markdown`. Switching format keeps
+previous versions and both editable source files. When the published content is
+Markdown, or HTML without any table, SVG, image or grid/flex layout, `update`
+still publishes and adds a one-line `hint` toward a visual-first page.
 
 Upload images with `goal image` and use the returned `/api/images/<id>` reference.
+Other files, such as a video, upload the same way; they keep their file name, so
+a download from Web has the same extension.
+The Web reads each image's size from its file and reserves its box with a
+placeholder until the image arrives, so a slow image does not hold up the text
+around it. The first browser that shows an image saves its ThumbHash (a blurred
+picture in the image's own colours, about 25 bytes) beside the file; later views
+use it as the placeholder. A saved file never changes, so the browser keeps it instead of
+downloading it again.
 Text annotations retain their source version; image notes retain their attachment
 and location. Read the relevant version when responding to older feedback.
-HTML images have an annotation button. Inline SVG diagrams use the same area
-selector and retain their Deliverable version and SVG index, so changing a diagram
+HTML images, and images an agent message shows in its text, have an annotation button. Its area window closes with ✕, Escape or
+a click outside it; a selection dragged past its edge keeps it open. Inline SVG diagrams use the same area
+selector and retain their Canvas version and SVG index, so changing a diagram
 does not move an old note onto its replacement. The original diagram can be
-opened at `/api/goals/<id>/deliverables/<version>/svg/<index>` (indices start at zero).
+opened at `/api/goals/<id>/briefs/<version>/svg/<index>` (indices start at zero).
 Small SVG icons below 64 pixels in either dimension keep their display without
 an overlaid annotation control.
 
 ## Comments and Letters
 
-Use `goal comment --id 1 --text-file result.txt` for results, completion reports or routine progress. Use
-`goal letter --id 1 --title "Choose a direction" --text-file question.txt` only when a user reply, choice or permission is needed. Files preserve multiline text without shell escaping.
-
-Users answer a Letter with an ordinary Comment; there is no separate Answer
-button. Do not create a Letter just
-to ask the user to acknowledge a report. Pending replies block only the actions
-that actually depend on them; continue independent authorized work. The old
-`--no-reply` option is compatibility-only; historical records stay out of pending
+The agent posts every message with one command, the same in every agent
+conversation: `goal reply --id 1 --text-file reply.txt`. Files
+preserve multiline text without shell escaping. If the message asks the user to
+decide or approve something, the agent adds `--ask '<what to decide>'`; the
+message is then a Letter titled with that line, shown and counted in the Letters
+menu and notified as a Letter. It still answers the comments the agent was
+handed, and works when none arrived. Without `--ask` the message is an ordinary
+Comment. Do not create a Letter just to ask the user to acknowledge a report.
+Pending replies block only the actions that actually depend on them; continue
+independent authorized work. Letters saved by the removed `goal letter` command
+still show as they were, and its historical no-reply records stay out of pending
 counts, so updating does not turn old results into new unanswered questions.
 
 Message bodies already accept static HTML such as paragraphs, lists, tables,
 links and disclosures, alongside Markdown. Both authors use the same sanitizer;
 scripts, forms, custom styles and remote images are removed. Use a standalone
-HTML Deliverable when the explanation needs its own layout or styling.
+HTML Canvas when the explanation needs its own layout or styling.
 
-`#N` in a message or a Markdown Deliverable always names Goal N, as on GitHub. It
+Each code block in a message or Canvas has a Copy button at its top right,
+always shown so a phone can press it; it copies the block's text and shows
+Copied for a moment.
+
+`#N` in a message or a Markdown Canvas always names Goal N, as on GitHub. It
 links to that Goal unless it is inside code or a link, glued to a word or path
 (`abc#1`, `/#1`), or no such Goal exists. A Goal named from another Goal's
 Conversation shows "Mentioned in #M" in its own Conversation, once per Goal, at
-the first Comment that named it. chill never writes Comment or Letter numbers with
-`#`; it writes `comment 1006` or `Letter 868`.
+the first Comment that named it.
 
-When a delivered Comment answers a Letter, the agent records it before other
-work with `goal close-letter --id 1 --event <LETTER_ID> --answer <COMMENT_ID>`,
-and the Letter shows as Replied. Each delivery lists the open Letters with that
-command as a reminder. An unrelated comment leaves the Letter open. If a
-question no longer needs an answer, use `close-letter` without `--answer`. The question and discussion remain
-saved. Answered or received Letters do not appear in the unanswered list.
+Comments and Letters are numbered within their Goal, in one sequence, as the
+Web shows beside each. `C3` names comment 3 and `L4` Letter 4 of the Goal the
+text is on; `#12 C3` names one in Goal 12. Either letter finds the number, and
+the link opens it by its id. They follow the same exceptions as `#N`. Plain
+words such as "comment 10" are not linked: older text used workspace-wide ids
+there. Resting the pointer on any of these links shows what it names: a Goal's
+title and state, or a comment's author, time and first line (a Letter's
+question). chill writes these forms in what it prints for agents, with the
+workspace-wide `eventId` that commands take beside them:
+`Replied on Goal #12 (C3, eventId 1006)`.
+
+Users answer a Letter with an ordinary Comment on its Goal, or an annotation on
+the Letter; there is no separate Answer button. Any user comment on the Goal
+closes the Goal's open Letters and records that comment as the answer, even when
+it is about something else: once the user speaks it is the agent's turn, and it
+asks again with `--ask` if the question still stands. If a question no longer
+needs an answer before the user replies, the agent withdraws it with
+`goal close-letter --id 1 --event <LETTER_ID>`. The question and discussion remain
+saved. Answered or withdrawn Letters do not appear in the unanswered list.
 
 An agent Comment or Letter posted by mistake, for example to the wrong Goal or
 project, can be deleted with `goal delete-comment --id <goal> --event <id>`. Its
@@ -86,5 +123,5 @@ A Letter answer is not automatically approval, an end to Waiting, or completion.
 Read the answer and decide what it changes within the agreed scope. The
 [layered reader](reading-goals.md) keeps the original question with its answers.
 
-Implementation: [Deliverable rendering](../../lib/brief.mjs),
+Implementation: [Canvas rendering](../../lib/brief.mjs),
 [Letter state](../../public/letter-state.js), [event storage](../../lib/goal-store.mjs).

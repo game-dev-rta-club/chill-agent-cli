@@ -7,29 +7,29 @@ keyPoints: >-
 
 # Identify the calling Claude session
 
-The experimental `connection` command qualifies the first step of the
+The `agent` command qualifies the first step of the
 [Claude connection](claude-conversation.md): getting the calling conversation's
 identity into chill without substituting a Codex thread or looking up a Goal
 by its directory. It is not a complete Claude integration. The development-only
 [connection actions](claude-actions.md) now add explicit new-Root creation, inbox
 reads and replies on top of this identity.
 
-In an isolated development session, configure `connection claude-hook` as a
+In an isolated development session, configure `agent hook claude` as a
 native `SessionStart` command. The hook records the main session and, when
 Claude provides one, writes its identity variables to Claude's
 [environment handoff file](https://code.claude.com/docs/en/hooks#persist-environment-variables),
 replacing its own earlier lines and keeping other hooks' lines.
-Use the same chill data directory when invoking `connection show` from that
+Use the same chill data directory when invoking `agent show` from that
 environment. Help describes the command contract:
 
 ```sh
-node bin/chill-entry.mjs connection --help
-node bin/chill-entry.mjs connection claude-hook --help
-node bin/chill-entry.mjs connection show --help
+node bin/chill-entry.mjs agent --help
+node bin/chill-entry.mjs agent hook claude --help
+node bin/chill-entry.mjs agent show --help
 ```
 
 A conversation that was already running when the hooks were written has no
-SessionStart record. `connection join` fills it: the shell records the session
+SessionStart record. `agent join` fills it: the shell records the session
 ID that Claude Code exports as `CLAUDE_CODE_SESSION_ID`, and the same session's
 main PostToolUse hook (never a subagent's) writes the record with a fresh
 generation. An existing record is kept unchanged.
@@ -79,7 +79,7 @@ node scripts/probe-claude-entry.mjs --handshake --claude /absolute/path/to/claud
 The probe creates temporary Claude settings, config and chill data. It runs two
 `--init-only` invocations without a model conversation, invokes the actual hook
 command, and sources Claude's exported environment in a child shell to run
-`connection show`. Temporary files are removed even on failure. Normal settings,
+`agent show`. Temporary files are removed even on failure. Normal settings,
 existing chats, authentication and production Goals are untouched.
 
 On 2026-10-06, Claude Code 2.1.289 passed startup identity and environment-handoff
@@ -88,7 +88,7 @@ not a later model-initiated Bash call, resume/clear behavior in a live conversat
 or feedback delivery. Generation rotation, subagent filtering, concurrent starts,
 shell quoting and failure handling are covered by `test/claude-entry.test.mjs`.
 
-`connection show` reports the identity stage with capability flags false and a
+`agent show` reports the identity stage with capability flags false and a
 separate [recorded connection status](claude-status.md). It distinguishes a running
 watcher and recorded session exit without enabling controls. Its exported
 shell environment cannot establish a main-session return path. The conversation

@@ -1,12 +1,14 @@
 <!doctype html>
-<html lang="en" data-theme="__WORKSPACE_THEME__">
+<html lang="en" data-theme="__WORKSPACE_THEME__" data-tab-icon="__TAB_ICON_SET__">
   <head>
   <meta name="style-nonce" content="__STYLE_NONCE__">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="__BROWSER_THEME_COLOR__">
     <title>Goal · chill</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23dceee9'/%3E%3Cpath d='M5 21h22M9 25h14M10 17a6 6 0 1 1 12 0M16 3v3M5 8l3 3M27 8l-3 3' fill='none' stroke='%23006f66' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
+    <meta name="workspace-appearance" content="__WORKSPACE_APPEARANCE__">
+    <link rel="icon" href="__TAB_ICON__">
+    <script src="/appearance-boot.js"></script>
     <link rel="stylesheet" href="/workspace.css">
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/themes.css">
@@ -17,18 +19,18 @@
     <div class="app-shell">
       <header class="app-header">
         <div class="header-inner">
-          <a href="#/goals" class="brand" aria-label="chill — Goals">
-            <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M5 21h22M9 25h14M10 17a6 6 0 1 1 12 0M16 3v3M5 8l3 3M27 8l-3 3"/></svg></span>
-            <span>chill<span class="brand-period">.</span></span>
-          </a>
+          <div class="brand">
+            <button type="button" class="brand-mark" aria-label="Tab icon"><img src="__TAB_ICON__" alt=""></button>
+            <a href="#/goals" class="brand-link" aria-label="chill — Goals">chill<span class="brand-period">.</span></a>
+          </div>
           <div class="header-actions"><span class="agent-control"><button type="button" id="agent-button" class="agent-trigger" aria-label="Agent" aria-describedby="agent-tooltip" aria-expanded="false" aria-controls="agent-panel" hidden></button><span id="agent-tooltip" class="extension-tooltip" role="tooltip">Agent<small>Settings, usage, and connection.</small></span></span>
-          <button type="button" id="letters-button" class="header-letters" aria-label="Letters" aria-expanded="false" aria-controls="letters-panel" aria-haspopup="dialog"></button>
+          <button type="button" id="letters-button" class="header-letters" aria-label="Notification" aria-expanded="false" aria-controls="letters-panel" aria-haspopup="dialog"></button>
           <button type="button" id="runtime-update-button" class="header-letters runtime-update-button" aria-label="Update" hidden></button>
           <span id="extension-buttons" class="extension-buttons"></span></div>
         </div>
         <div id="update-notice" class="update-notice" role="status" hidden>
           <span id="update-notice-text"></span>
-          <button type="button" id="view-update">View deliverable</button>
+          <button type="button" id="view-update">View Canvas</button>
         </div>
       </header>
       <section id="agent-panel" class="agent-panel" role="dialog" aria-label="Agent" hidden>

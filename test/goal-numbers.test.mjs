@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
+const {numberEvents,readEventByNumber,readFeedback,goalNumbers}=await import('../lib/goal-store.mjs');
+const {listWebRecords}=await import('../lib/web-records.mjs');
+
+test(`comments and Letters are numbered within their Goal on read, and a deleted comment keeps its number`,async t=>{
+ const root=await mkdtemp(join(tmpdir(),'chill-goal-numbers-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
+ const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
+ const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
+ await run('create','--title','One');await run('create','--title','Two');
+ const a=await run('reply','--id','1','--text','first');
+ await run('reply','--id','2','--text','other Goal');
+ const letter=await run('reply','--id','1','--ask','Ask','--text','Question');
+ const gone=await run('reply','--id','1','--text','to delete');
+ await run('delete-comment','--id','1','--event',String(gone.id));
+ const last=await run('reply','--id','1','--text','after the deletion');
+ const saved={...process.env};t.after(()=>{if(saved.CHILL_AGENT_DATA_DIR===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=saved.CHILL_AGENT_DATA_DIR;});
+ process.env.CHILL_AGENT_DATA_DIR=root;
+ const events=await readFeedback();
+ const numbered=new Map((await numberEvents(events)).map(e=>[e.id,e.number]));
+ assert.deepEqual([a.id,letter.id,gone.id,last.id].map(id=>numbered.get(id)),[1,2,3,4],'the deleted comment still counts, so later numbers do not move');
+ assert.equal(numbered.get(events.find(e=>e.goalId==='2').id),1,'each Goal counts from 1');
+ assert.deepEqual(goalNumbers(events),new Map([...numbered]));
+ const web=(await listWebRecords()).find(g=>g.id==='1');
+ assert.deepEqual(web.conversation.map(e=>e.number).sort(),[1,2,3,4]);
+ assert.deepEqual(await Promise.all([1,2,4].map(async n=>(await readEventByNumber('1',n)).id)),[a.id,letter.id,last.id],'C1, L2 and C4 find their comments by number');
+ assert.equal((await readEventByNumber('1',2)).number,2);
+ assert.equal(await readEventByNumber('1',5),null,'a number past the last comment finds none');
+ assert.equal((await readEventByNumber('2',1)).text,'other Goal');
+});

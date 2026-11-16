@@ -13,6 +13,7 @@ import { lastServerUse, serverOptions } from '../lib/server-lifecycle.mjs';
 import { saveMessageSetting } from '../lib/message-settings.mjs';
 import {fileURLToPath} from 'node:url';
 import {usedChat} from './fake-codex-desktop.mjs';
+import {WebSocket as Socket} from 'ws';
 
 const execute = promisify(execFile);
 const serverFile = fileURLToPath(new URL('../server.mjs',import.meta.url));
@@ -42,7 +43,9 @@ async function fixture(t, duration = '800ms', extra = {}, args = [], remote) {
   });
   t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM'); await exited; });
   const url = await ready;
-  const run = args => execute(process.execPath, [cli, ...args], {env});
+  // The CLI runs as the user's shell unless a test names the chat.
+  const {CODEX_THREAD_ID:_chat,...shell}=env;
+  const run = (args,extra={}) => execute(process.execPath, [cli, ...args], {env:{...shell,...extra}});
   return { root, child, url, env, exited, run, output: () => output };
 }
 
@@ -81,7 +84,7 @@ if (process.env.CHILL_TEST_TUNNEL_CRASH) {
   return {...f, pidFile, tunnelPath:join(f.root,'runtime',`web-${new URL(f.url).port}`,'tunnel.json')};
 }
 
-test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:10000}, async t => {
   const f = await tunnelFixture(t);
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const {url: origin, pid} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
@@ -99,7 +102,7 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   const body = join(f.root,'workspace/goals/1/deliverable.md');
   await f.run(['create','--title','Phone']);
   await writeFile(body,'<p>Phone</p>');
-  await f.run(['deliverable','update','--id','1']);
+  await f.run(['canvas','update','--id','1']);
   const saved = await fetch(f.url+'/api/goals/1/feedback',{method:'POST',headers,body:JSON.stringify({text:'Phone comment',attachmentIds:[attachment.id],annotations:[{kind:'text',text:'Phone note',anchor:{start:0,end:5,quote:'Phone'},source:{kind:'brief',version:1}}]})});
   assert.equal(saved.status,201);
   assert.equal((await saved.json()).feedback.text,'Phone comment');
@@ -109,7 +112,7 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   await assert.rejects(readFile(f.tunnelPath),{code:'ENOENT'});
 });
 
-test('manual shutdown also stops the connector; a connector failure keeps local Web available', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:8000}, async t => {
+test('manual shutdown also stops the connector; a connector failure keeps local Web available', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:8000}, async t => {
   const f = await tunnelFixture(t,'1h');
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const pid = Number(await readFile(f.pidFile,'utf8'));
@@ -124,6 +127,19 @@ test('manual shutdown also stops the connector; a connector failure keeps local 
   crashed.child.kill('SIGTERM');await crashed.exited;
 });
 
+test('a live socket opens only from the Web\'s own origin and does not hold Web open at idle', {timeout:8000}, async t => {
+  const {url, exited} = await fixture(t, '1500ms');
+  const live = `${url.replace('http','ws')}/api/goals/1/live`;
+  const refused = async (options) => { const socket = new Socket(live, options); const [error] = await once(socket, 'error'); return error.message; };
+  assert.match(await refused({origin:'https://other.example'}), /403/, 'another site cannot open one');
+  assert.match(await refused({origin:url,headers:{'cf-ray':'1'}}), /403/, 'through the tunnel it needs a connected device');
+  const socket = new Socket(live, {origin:url});
+  const [first] = await once(socket, 'message');
+  assert.deepEqual(Object.keys(JSON.parse(first)), ['presence', 'update'], 'the page gets the agent status and update phase at once');
+  const closed = once(socket, 'close');
+  await exited;
+  await closed;
+});
 test('the service token stops Web only from a local request that no browser can send', {timeout:8000}, async t => {
   const token = 'a'.repeat(64);
   const f = await fixture(t, '1h', {CHILL_AGENT_SERVICE_TOKEN:token});
@@ -164,7 +180,7 @@ test('restart drains an active connection and rejects a pipelined request withou
   assert.doesNotMatch(f.output(), /TypeError/);
 });
 
-test('a request through the tunnel sees nothing until the device connects with the panel code', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+test('a request through the tunnel sees nothing until the device connects with the panel code', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:10000}, async t => {
   const f = await tunnelFixture(t,'1h');
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const {url: origin} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
@@ -205,7 +221,7 @@ test('a request through the tunnel sees nothing until the device connects with t
   assert.equal((await fetch(f.url+'/api/extensions/public-link/disconnect',{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:JSON.stringify({id:device.id})})).status,200);
   assert.equal((await fetch(f.url+'/api/goals',{headers:session})).status,401,'disconnecting removes the device');
 });
-test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:10000}, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'chill-named-connector-'));
   const binary = join(dir, 'cloudflared');
   const credentialsFile = join(dir, 'credentials.json');
@@ -299,8 +315,8 @@ test('opening the page, interaction and CLI mutations renew the idle deadline; C
     () => fetch(f.url),
     () => fetch(f.url + '/api/activity', {method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'}),
     () => f.run(['create','--title','TTL']),
-    () => f.run(['deliverable','update','--id','1']),
-    () => f.run(['comment','--id','1','--text','Still working']),
+    () => f.run(['canvas','update','--id','1']),
+    () => f.run(['reply','--id','1','--text','Still working']),
   ]) {
     await delay(50); // distinct file times
     await action();
@@ -349,8 +365,8 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   await usedChat(f.root,{turns:[{id:'00000000-0000-0000-0000-000000000077',status:'inProgress',completedAt:null}]});
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>Pending delivery</p>');
-  await f.run(['create','--title','Pending delivery','--thread-id',threadId]);
-  await f.run(['deliverable','update','--id','1']);
+  await f.run(['create','--title','Pending delivery'],{CODEX_THREAD_ID:threadId});
+  await f.run(['canvas','update','--id','1']);
   const response = await fetch(f.url + '/api/goals/1/feedback', {method:'POST',
     headers:{Origin:f.url,'Content-Type':'application/json'},
     body:JSON.stringify({text:'Do not interrupt this notification'}),

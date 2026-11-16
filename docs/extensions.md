@@ -18,10 +18,10 @@ Use `@game-dev-rta-club/chill-agent-cli/extension-api` and call
 | Extend a verified native action or Stop | [Connection hooks](extensions/connection-hooks.md) |
 
 The CLI supplies mechanisms. The integrating application owns scheduling policy,
-request wording and its journal. The standalone CLI does not include AutoContinue;
-[chill-agent](https://github.com/game-dev-rta-club/chill-agent) supplies that policy.
+request wording and its journal. The CLI's own end-of-turn check follows the
+[Autonomy](workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own) of the
+Roots a conversation owns, one check for the conversation; it shows no Web control.
 
 The current source of the public exports is [extension-api.mjs](../lib/extension-api.mjs).
 Check the version you package: optional capabilities can be added within protocol v1.
 
-For a packaged agent-policy entry point in handoffs, see [agent guidance](extensions/agent-guidance.md).

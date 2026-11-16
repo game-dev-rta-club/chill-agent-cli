@@ -9,6 +9,8 @@ test('a code connects one device once; the panel shows the same code until it is
  const code=await access.code();
  assert.match(code,/^[0-9]{6}$/);
  assert.equal(await access.code(),code);
+ const issued=await access.issued();
+ assert.equal(issued.code,code);assert.ok(Date.parse(issued.expiresAt)>Date.now());
  const session=await access.connect(`${code.slice(0,3)} ${code.slice(3)}`,{device:'iPhone · Safari'});
  assert.ok(session);
  assert.equal(await access.connected(session),true);
@@ -35,6 +37,26 @@ test('wrong tries and time end a code; a device disconnects alone or with all th
  await access.disconnectAll();
  assert.equal(await access.connected(laptop),false);
  assert.deepEqual(await access.devices(),[]);
+});
+
+test('the newest connection is the one every page announces',async()=>{
+ let now=Date.parse('2026-10-26T07:00:00Z');
+ const access=createPublicAccess({store:memory(),now:()=>now});
+ assert.equal(await access.newest(),null);
+ await access.connect(await access.code(),{device:'iPhone · Safari'});
+ now+=60*1000;
+ await access.connect(await access.code(),{device:'Mac · Chrome'});
+ assert.deepEqual(await access.newest(),{device:'Mac · Chrome',connectedAt:'2026-10-26T07:01:00.000Z'});
+});
+
+test('a reset ends the code and keeps connected devices',async()=>{
+ const access=createPublicAccess({store:memory()});
+ const session=await access.connect(await access.code(),{device:'iPhone · Safari'});
+ const code=await access.code();
+ await access.resetCode();
+ assert.equal(await access.connect(code),null,'the old code no longer connects');
+ assert.notEqual(await access.code(),code);
+ assert.equal(await access.connected(session),true);
 });
 
 test('a device is named by its system and browser',()=>{

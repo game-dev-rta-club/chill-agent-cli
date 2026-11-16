@@ -1,55 +1,84 @@
 ---
 keyPoints: >-
   Web loads a compact workspace snapshot, opens known Goals from memory and refreshes
-  in the background. Tabs count unanswered Letters under their own Root, including
-  hidden tabs. Goal links start at the top; Letter links locate the message while
-  background updates keep visible content in place. Earlier Deliverables load on demand.
+  in the background. Tabs count unanswered Letters and unread replies under
+  their own Root, including hidden tabs. Showing a Goal reads it on every device. Goal links start at the top; Letter links locate the message while
+  background updates keep visible content in place. Earlier Canvases load on demand.
 ---
 
 # Move between Goals without waiting for a poll
 
-The first Web visit loads the tree, latest Deliverables and Conversation through
+The first Web visit loads the tree, latest Canvases and Conversation through
 `GET /api/goals?view=web`. Moving to a known Goal renders that in-memory snapshot
 immediately, then checks for changes in the background. Polling, focus and route
 changes share an in-flight request rather than downloading the same data twice.
-Hidden tabs pause the full workspace refresh. They continue a small Letter-count
-request every 15 seconds, subject to the browser's background timer throttling.
+Hidden tabs pause the full workspace refresh.
 
-The header keeps Agent and Letters beside each other. Letters opens the unanswered
-list for the current Root and its descendants; on the Goals index it includes all
-Roots. The envelope shows a muted zero when empty and a highlighted count when
-there are Letters. Goals navigation lives inside More, even without extensions.
+A Goal page also opens a WebSocket, `/api/goals/:id/live`, through which the
+server pushes the agent's status and the Root's Letter count as soon as either
+changes. Chrome wakes a hidden tab's timers only about once a minute once it has
+been hidden for a minute, but delivers socket messages at once, so a background
+tab's title and icon follow the agent within about a second. The server reads
+each Goal's status once a second and recounts only when an event, a read mark or
+an announced reply changed, or every 15 seconds. The socket accepts only the Web's
+own origin and, through the public link, a connected device; stopping Web closes
+it. It reconnects when the tab is shown again, resumes, comes back from the back
+button or the network returns. While it is down, a hidden tab falls back to a
+count request every 15 seconds and an agent check every 10, both throttled. A
+hidden tab's title follows the server's count and does not redraw the Goal until
+it is shown, since its own copy of the workspace is no longer refreshed.
 
-The browser tab shows the current Root's title and unanswered Letter count,
-including all descendants: `(2) Root title · chill`. Opening a child or an older
-Deliverable keeps that Root's count. Other Roots do not contribute. Answers and explicit
-receipts remove a Letter; ordinary comments do not. When there are none, the
-count prefix disappears. A failed count request keeps the last known value;
-returning to the tab refreshes the workspace immediately.
+The header keeps Agent and Notification beside each other. The bell opens the unanswered
+Letters for the current Root and its descendants, and below them, as Replies, the
+unread replies; on the Goals index it includes all Roots. Both sections show even when
+empty. Each entry opens its message. The **All read** button in the top row, **Mark all read** on hover,
+reads the listed Replies and shows only while there are some; Letters stay until answered.
+On a Goal, a bell beside each heading chooses whether this browser counts that kind for the
+Root, and the top row turns on [Notification](../using/notifications.md). The menu closes
+with Escape or a tap outside it. The header's bell shows a muted zero when nothing counts
+and a highlighted count when anything does, the same number as the tab title, and a slash
+while Notification is off. Goals navigation lives inside More, even without extensions.
+The Goals index lists Root Goals newest first.
+
+The browser tab shows the current Root's title and how many messages need you,
+including all descendants: `(2) Root title · chill`. The count adds unread replies
+to the unanswered Letters, as this browser chose in the Notification menu: with the Replies
+switch Off, only Letters count. A reply counts once its Root's agent stops working.
+With two unread replies and one unanswered Letter, the tab shows `(3)`;
+once the replies are read it shows `(1)` until that Letter is answered. Opening a child
+or an older Canvas keeps that Root's count. Other Roots do not contribute.
+
+A Goal is read when its Conversation is shown in a visible tab; replies that
+arrive while it is shown are read too. A Goal open in a hidden tab stays unread.
+The read mark is saved in the workspace, so reading on the phone also lowers the
+count on the computer. Replies saved before this mark first existed count as
+read. Your next comment on a Letter's Goal answers it and removes it from the
+count, as does the agent withdrawing it.
+When nothing needs you, the count prefix disappears. A failed count request keeps
+the last known value; returning to the tab refreshes the workspace immediately.
 
 While the agent works on the open Goal, the tab icon's sunrise takes color (a
 warm sky, a filled orange sun and a blue sea); the title keeps its space for the
-Letter count. A hidden tab checks the agent
-every 10 seconds instead of every 2, so a background tab still shows when work
-starts and ends.
+Letter count. A background tab learns when work starts and ends through the live
+socket above.
 
-The snapshot includes earlier Deliverables' version numbers and dates, not their full
+The snapshot includes earlier Canvases' version numbers and dates, not their full
 bodies. Opening one loads `GET /api/goals/:id/briefs/:version` and keeps it in memory
-for that visit. HTML Deliverables still load in their isolated document frames. The
+for that visit. HTML Canvases still load in their isolated document frames. The
 unqualified `/api/goals` endpoint retains its full response for existing clients.
 
 Drafts use the existing browser storage and survive route changes. Background
-updates preserve the current reading position and offer a new Deliverable when one is
+updates preserve the current reading position and offer a new Canvas when one is
 published. A failed refresh leaves the last loaded content available; it does not
-claim that content is current. A first visit and an uncached earlier Deliverable still
+claim that content is current. A first visit and an uncached earlier Canvas still
 need a connection. No workspace data is made available offline by this cache.
 
 Opening or reloading a plain Goal starts at the top. A Letter link waits for its
-Deliverable layout, then brings the message into view; a tall Letter starts
-at its heading. Moving between Letters in the same Goal reuses the Deliverable. If the
+Canvas layout, then brings the message into view; a tall Letter starts
+at its heading. Moving between Letters in the same Goal reuses the Canvas. If the
 reader scrolls while a link is loading, that interaction takes priority over the
-pending jump. Background Activity, Deliverable sizing and diagram rendering preserve
-the visible conversation boundary, or the current position when reading the Deliverable.
+pending jump. Background Activity, Canvas sizing and diagram rendering preserve
+the visible conversation boundary, or the current position when reading the Canvas.
 Only the reading pane scrolls; the header stays fixed.
 
 JSON snapshots and static assets support gzip. The main JavaScript is bundled;
@@ -62,9 +91,9 @@ Implementation: [browser navigation](../../public/app.js),
 [snapshot projection](../../lib/web-snapshot.mjs), [HTTP routes](../../server.mjs).
 For changes to positioning or focus, follow the [scrolling guidelines](../development/scrolling.md).
 
-## Read the Deliverable while you talk
+## Read the Canvas while you talk
 
 On a wide screen (at least 1180px), a Goal shows its Conversation as a column on
-the right that scrolls by itself, with the Goal and its Deliverable on the left. You can
-keep reading the Deliverable while you scroll and write in the Conversation; it opens at
+the right that scrolls by itself, with the Goal and its Canvas on the left. You can
+keep reading the Canvas while you scroll and write in the Conversation; it opens at
 the newest message. Narrower screens and phones keep the single column.

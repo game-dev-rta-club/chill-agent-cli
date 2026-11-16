@@ -12,10 +12,10 @@ const root=await mkdtemp(join(tmpdir(),'chill-markdown-web-')),env={...process.e
 const execute=promisify(execFile),cli=new URL('../bin/chill-agent.mjs',import.meta.url).pathname;
 const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
 await run('create','--title','Deliverable and Markdown');
-const source='# What we will realize\n\nA short **shared outcome**.\n\n## Behavior\n\n- First option\n- Second option\n\n### Details\n\n| Item | Status |\n| --- | --- |\n| Table value | Ready |\n\n```mermaid\ngraph LR\n A[Question] --> B[Answer]\n```\n\nParagraph **after diagram**.\n\n## Other\n\n```js\nconst html = "<button>";\n```';
-await writeFile(join(root,'workspace/goals/1/deliverable.md'),source);await run('deliverable','update','--id','1');
-const message='**Formatted** opening.\n\n## Supporting information\n\n### Table\n\n| Item | State |\n| --- | --- |\n| Choice | Ready |\n\n```mermaid\ngraph TD\n A --> B\n```\n\nUse [the guide](https://example.com) after this diagram.';
-const comment=await run('letter','--id','1','--title','Can you read this Letter?','--text',message);
+const source='# What we will realize\n\nA short **shared outcome**.\n\n```\nlong: '+'wide '.repeat(80)+'end\n```\n\n## Behavior\n\n- First option\n- Second option\n\n### Details\n\n| Item | Status |\n| --- | --- |\n| Table value | Ready |\n\n```mermaid\ngraph LR\n A[Question] --> B[Answer]\n```\n\nParagraph **after diagram**.\n\n## Other\n\n```js\nconst html = "<button>";\n```';
+await writeFile(join(root,'workspace/goals/1/deliverable.md'),source);await run('canvas','update','--id','1');
+const message='**Formatted** opening.\n\n## Supporting information\n\n### Table\n\n| Item | State |\n| --- | --- |\n| Choice | Ready |\n\n```mermaid\ngraph TD\n A --> B\n```\n\nUse [the guide](https://example.com) after this diagram. Back to #1.';
+const comment=await run('reply','--id','1','--ask','Can you read this Letter?','--text',message);
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
 const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',code=>reject(new Error(`Server exit ${code}`)));});
 let browser;
@@ -31,12 +31,28 @@ try {
  await brief.getByText('Details',{exact:true}).click();await brief.locator('.mermaid-diagram svg').waitFor();
  assert.equal(await brief.locator('td').first().innerText(),'Table value');assert.equal(await brief.locator('details[open]').count(),2);
  assert.equal(await brief.evaluate(el=>[...el.querySelectorAll('style')].every(s=>s.nonce===document.querySelector('meta[name="style-nonce"]').content)),true);
+ // A Goal link stays in this tab; a link to another site opens a new one.
+ assert.deepEqual(await card.locator('.event-text a').evaluateAll(links=>links.map(a=>[a.getAttribute('href'),a.target])),[['https://example.com','_blank'],['#/goal/1','']]);
  await card.getByText('Supporting information',{exact:true}).click();await card.getByText('Table',{exact:true}).click();await card.locator('.mermaid-diagram svg').waitFor();
  const {annotationTextNodes}=await import('../public/markdown-view.js'); // Browser-independent module import is harmless.
  assert.equal(typeof annotationTextNodes,'function');
  const canonical=await page.evaluate(async()=>{
   const {annotationTextNodes}=await import('/markdown-view.js');return annotationTextNodes(document.querySelector('.brief-body')).map(n=>n.textContent).join('');
  });assert.equal(canonical,markdownText(source));
+ // A line wider than its code block keeps the button inside what the block shows.
+ await brief.locator('pre').first().scrollIntoViewIfNeeded();
+ await page.evaluate(()=>{const pre=document.querySelector('.brief-body pre'),node=document.createTreeWalker(pre,NodeFilter.SHOW_TEXT).nextNode(),r=document.createRange();r.setStart(node,0);r.setEnd(node,node.textContent.indexOf('end'));const s=window.getSelection();s.removeAllRanges();s.addRange(r);});
+ await page.locator('.annotation-action').waitFor();
+ const [codeBox,wideAction]=await Promise.all([brief.locator('pre').first().boundingBox(),page.locator('.annotation-action').boundingBox()]);
+ assert.ok(wideAction.x+wideAction.width<=codeBox.x+codeBox.width,'the button stays inside a code block that scrolls sideways');
+ await page.evaluate(()=>window.getSelection().removeAllRanges());
+ // Its Copy button, at the block's top right, copies the code and says so.
+ await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+ const copy=brief.locator('.code-block').first().locator('.code-copy');
+ const [copyBox,blockBox]=await Promise.all([copy.boundingBox(),brief.locator('.code-block').first().boundingBox()]);
+ assert.ok(copyBox.x+copyBox.width<=blockBox.x+blockBox.width&&copyBox.y-blockBox.y<10,'the Copy button sits at the top right of the code block');
+ await copy.click();await page.locator('.brief-body .code-copy[data-copied="done"]').waitFor();
+ assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),await brief.locator('pre').first().textContent());
  async function annotate(selector,quote,reply) {
   await page.locator(selector).scrollIntoViewIfNeeded();
   await page.evaluate(({selector,quote})=>{const el=document.querySelector(selector),node=el.firstChild;const r=document.createRange();r.setStart(node,node.textContent.indexOf(quote));r.setEnd(node,node.textContent.indexOf(quote)+quote.length);const s=window.getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));},{selector,quote});
@@ -44,7 +60,7 @@ try {
   await page.locator('.annotation-form').getByRole('button',{name:'Save',exact:true}).click();
  }
  await annotate('.brief-body .detail-content p strong','after diagram','Deliverable after a diagram');
- await annotate(`#event-${comment.id} .event-text a`,'the guide','Letter formatted link');
+ await annotate(`#event-${comment.id} .event-text a[href^="https:"]`,'the guide','Letter formatted link');
  const sent=page.waitForResponse(r=>r.url().endsWith('/feedback')&&r.request().method()==='POST');
  await page.locator('.conversation-form').getByRole('button',{name:'Comment',exact:true}).click();const result=await sent;assert.equal(result.status(),201);const event=(await result.json()).feedback;
  assert.equal(event.annotations.length,2);assert.equal(event.annotations[0].anchor.start,markdownText(source).indexOf('after diagram'));
@@ -60,6 +76,6 @@ try {
  assert.equal(await page.evaluate(()=>document.querySelector('.brief-body').scrollWidth<=document.querySelector('.brief-body').clientWidth+1),true);
  await page.setViewportSize({width:1000,height:850});await page.screenshot({path:'/tmp/chill-brief-desktop.png'});
  // Invalid Mermaid keeps its source readable without breaking the page.
- await run('comment','--id','1','--text','```mermaid\nnot a diagram\n```');await page.reload();await page.locator('.mermaid-diagram[data-rendered="error"]').waitFor();
+ await run('reply','--id','1','--text','```mermaid\nnot a diagram\n```');await page.reload();await page.locator('.mermaid-diagram[data-rendered="error"]').waitFor();
  assert.deepEqual(errors,[]);console.log('passed: nested folds, tables, Mermaid, canonical annotations, saved references, mobile layout, invalid diagram fallback');
-} finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+} finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

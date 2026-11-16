@@ -10,7 +10,7 @@ const cached=process.platform!=='win32';
 
 async function fixture(t){
  const directory=await mkdtemp(join(tmpdir(),'chill-event-cache-')),events=join(directory,'workspace/events');
- t.after(()=>rm(directory,{recursive:true,force:true}));
+ t.after(()=>rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  let reads=0;
  const read=async()=>{reads++;return Promise.all((await numberedFiles(events,/^([1-9][0-9]*)\.json$/)).map(id=>readJson(join(events,`${id}.json`))));};
  return {directory,events,read,reads:()=>reads,put:(id,text)=>writeJsonAtomically(join(events,`${id}.json`),{id,text})};
@@ -34,6 +34,6 @@ test('replacing an event directory and using another store cannot reuse the snap
  const a=await fixture(t),b=await fixture(t);await a.put(1,'a');await b.put(1,'b');
  const ar=createClaudeFeedbackReader(a),br=createClaudeFeedbackReader(b);
  assert.equal((await ar())[0].text,'a');assert.equal((await br())[0].text,'b');
- await rm(a.events,{recursive:true});await a.put(1,'replacement');
+ await rm(a.events,{recursive:true,maxRetries:10,retryDelay:100});await a.put(1,'replacement');
  assert.equal((await ar())[0].text,'replacement');assert.equal((await br())[0].text,'b');if(cached)assert.equal(b.reads(),1);
 });

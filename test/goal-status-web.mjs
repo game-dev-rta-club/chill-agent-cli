@@ -18,7 +18,7 @@ try {
  await run('create','--title','成果と活動を見分ける');
  for(const title of ['表示の細部を整える','返信の流れをつなぐ','HTMLの注釈を安定させる','全体の使い心地を確かめる'])await run('create','--title',title,'--parent','1');
  await update('3',{state:'waiting',waitReason:'Choose the display'});await update('4',{state:'done'});
- await run('letter','--id','3','--title','表示の確認','--text','How does it look?');
+ await run('reply','--id','3','--ask','表示の確認','--text','How does it look?');
  await run('assign','--id','1','--thread-id',thread);await run('work','--id','5');
  server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(Error(`Server exit ${c}`)));});
@@ -43,11 +43,14 @@ try {
  await run('work','--id','5','--stop');
  await assert.rejects(update('1',{state:'done'}),/unfinished SubGoals/);
  for(const id of ['2','3','5'])await update(id,{state:'done'});
+ await page.setViewportSize({width:1100,height:800});
  await page.reload();await page.locator('.goal-heading .progress-value').getByText('99%',{exact:true}).waitFor();
  assert.equal(await page.locator('.goal-heading .status').count(),0,'completed children do not complete the parent');
+ const titleBox=()=>page.locator('.goal-heading h1').boundingBox(),plainTitle=await titleBox();
  const result=await update('1',{state:'done'});assert.equal(result.nextActions.ancestors.length,0);
  await page.reload();await page.locator('.goal-heading .status').getByText('Done',{exact:true}).waitFor();
  assert.equal(await page.locator('.goal-heading .progress-value').innerText(),'100%');
+ assert.deepEqual(await titleBox(),plainTitle,'the status under the progress bar never moves the title');
  // A new queued reply to a Done Goal takes precedence in both the tree and header.
  await writeFile(join(root,'fake-history.json'),JSON.stringify({status:{type:'idle'},turns:[{id:turn,status:'completed',completedAt:123}]}));
  const input=join(root,'feedback.json');await writeFile(input,JSON.stringify({text:'Check once more'}));
@@ -65,5 +68,5 @@ try {
  assert.deepEqual(errors,[]);
  console.log('Goal status Web OK: right-side labels, unmarked Open, live Running, Waiting/Letters, explicit parent Done, 99% cap and reopen.');
 } finally {
- await browser?.close();if(server){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});
+ await browser?.close();if(server){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});
 }

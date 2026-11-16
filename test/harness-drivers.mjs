@@ -14,8 +14,9 @@
 //                                   feedback, which starts its response. Resolves to the feedback IDs that reached it.
 //   strangerAnswers(eventId)        a conversation the Goal is not assigned to tries to answer the feedback
 //   agentReplies(eventId, text)     the agent's reply on the feedback's Goal
+//   agentAsks(ask, text)            the agent's reply marked --ask: a Letter titled `ask`, with or without feedback
 //   agentSelectsWork()              `goal work` on the Root Goal for the current response
-//   agentComments(text)             a progress `goal comment` on the Root Goal
+//   agentComments(text)             a progress `goal reply` on the Root Goal
 //   saveFeedback(text)              the user posts feedback in the Web; resolves to its event ID
 //   sendNow(eventId)                the user's Send now
 //   shown(eventId)                  the small mark under the feedback (saved, waiting, paused, handed, interrupted),
@@ -24,8 +25,12 @@
 //   goalRunning()                   whether the Goal list marks the Goal Running
 //   agentStatus()                   the Agent menu data
 //   pauseActivity(action)           the Goal activity's Pause ('stop') or Resume
-//   approveAll(on)                  the Agent menu's Approve all
+//   setAutonomy(level)              the Autonomy control in the Goal's comment box (its Root agent's level)
+//   feedbackText()                  the last feedback text that reached the agent
+//   permissionPrompt()              a tool permission prompt in the agent's app: 'allow' when chill answers it, else
+//                                   null. Only where a hook can answer prompts (capabilities.approvals)
 //   comments()                      the agent's comments on the Goal
+//   letters()                       the titles of the Goal's open Letters, as the Notification menu lists them
 // A capability the harness lacks is declared in `capabilities` and the scenario asserts the interface says so.
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
@@ -33,9 +38,10 @@ import {appendFile,mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {appendFeedback,createGoal,listGoals,readFeedback} from '../lib/goal-store.mjs';
+import {appendFeedback,createGoal,listGoals,readFeedback,readOpenLetters,setRootOwner} from '../lib/goal-store.mjs';
+import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
-import {agentExecutions,assignGoal,goalCommentMarks,selectAgentWork} from '../lib/agents/index.mjs';
+import {agentExecutions,goalCommentMarks,selectAgentWork} from '../lib/agents/index.mjs';
 import {controlAgent,readGoalActivity,readAgentStatus} from '../lib/agent-status.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
 import {captureClaudeEntry} from '../lib/claude-entry.mjs';
@@ -53,7 +59,7 @@ let skew=0;
 Date.now=()=>realNow()+skew;
 const passTime=()=>{skew+=6000;};
 const bin=name=>fileURLToPath(new URL(`../bin/${name}`,import.meta.url));
-const cli=bin('chill-agent.mjs'),connectionCli=bin('chill-connection.mjs'),codexHook=bin('chill-hook.mjs');
+const cli=bin('chill-agent.mjs'),connectionCli=bin('chill-conversation.mjs'),codexHook=bin('chill-hook.mjs');
 const fakeCodex=fileURLToPath(new URL('./fake-codex.mjs',import.meta.url));
 
 async function runWith(file,args,{env,cwd,input}={}) {
@@ -98,32 +104,36 @@ function userSide(goalId,beforeRead=()=>{}) {
       const activity=await readGoalActivity(goalId);
       return controlAgent(goalId,{action,token:activity?.token,turnId:activity?.turnId});
     },
-    async approveAll(on) {
-      const {token}=await readAgentStatus(goalId);
-      return controlAgent(goalId,{scope:'permissions',token,approveAll:on});
-    },
+    setAutonomy:level=>setRootAutonomy(goalId,level),
+    feedbackText:()=>lastFeedback,
     async comments() {
       return (await readFeedback()).filter(event=>event.goalId===goalId&&event.author==='agent').map(event=>event.text);
     },
+    async letters() {return (await readOpenLetters(goalId)).map(letter=>letter.title);},
   };
 }
 
 // Each test gets its own data directory; the process-wide variables the libraries read are restored afterwards.
 async function workspace(t,prefix,env) {
+  // Each test starts from the real clock: Codex hooks stamp their heartbeat with it, and skew piled up over
+  // earlier tests would make a fresh heartbeat look stale.
+  skew=0;lastFeedback='';
   const dir=await mkdtemp(join(tmpdir(),prefix)),previous={};
   for(const [key,value] of Object.entries({CHILL_AGENT_DATA_DIR:join(dir,'data'),...env})) {
     previous[key]=process.env[key];process.env[key]=value;
   }
   t.after(async()=>{
     for(const [key,value] of Object.entries(previous))value===undefined?delete process.env[key]:process.env[key]=value;
-    await rm(dir,{recursive:true,force:true});
+    await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});
   });
   return dir;
 }
 
 // ---- Codex ----------------------------------------------------------------------
 
-const feedbackIds=text=>[...text.matchAll(/"eventId":(\d+),"goalId"/g)].map(match=>Number(match[1]));
+// The IDs in a text that reached the agent; the last feedback text is kept for scenarios that read it.
+let lastFeedback='';
+const feedbackIds=text=>{if(text?.includes('=== chill-agent · User Feedback ==='))lastFeedback=text;return [...(text||'').matchAll(/"eventId":(\d+),"goalId"/g)].map(match=>Number(match[1]));};
 
 async function codexSession(t) {
   const dir=await workspace(t,'chill-scenario-codex-',{CHILL_AGENT_CODEX_PATH:fakeCodex});
@@ -140,7 +150,7 @@ async function codexSession(t) {
   let continuing=false,handoff=[];
   const read=new Set();
   const root=await createGoal({title:'A useful outcome'});
-  await assignGoal(root.id,thread);
+  await setRootOwner(root.id,{agent:'codex',id:thread});
   const session={
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
     async agentStartsResponse() {await chat.startTurn();await tool();},
@@ -171,9 +181,10 @@ async function codexSession(t) {
       return ids;
     },
     // Another chat in the same project replies on the Goal.
-    strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
-    agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
-    agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    strangerAnswers:()=>runWith(cli,['reply','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
+    agentReplies:(eventId,text)=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
+    agentAsks:(ask,text)=>runWith(cli,['reply','--id',root.id,'--ask',ask,'--text',text],{env}),
+    agentComments:text=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
   return session;
@@ -244,7 +255,7 @@ async function codexAppSession(t,codexPath) {
   await call('thread/queue/add',{threadId:thread,...message('Start')});await take();await answer([kit.textItem('Ready.')]);
   const env={...process.env,CODEX_THREAD_ID:thread};
   const root=await createGoal({title:'A useful outcome'});
-  await assignGoal(root.id,thread);
+  await setRootOwner(root.id,{agent:'codex',id:thread});
   return {
     ...userSide(root.id,()=>invalidateAgentObservation(thread)),
     async agentStartsResponse() {await call('thread/queue/add',{threadId:thread,...message('Work')});await take();await tool();},
@@ -268,9 +279,10 @@ async function codexAppSession(t,codexPath) {
       const ids=handoff;handoff=[];
       return ids;
     },
-    strangerAnswers:()=>runWith(cli,['comment','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
-    agentReplies:(eventId,text)=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
-    agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    strangerAnswers:()=>runWith(cli,['reply','--id',root.id,'--text','Not mine'],{env:{...env,CODEX_THREAD_ID:randomUUID()}}),
+    agentReplies:(eventId,text)=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
+    agentAsks:(ask,text)=>runWith(cli,['reply','--id',root.id,'--ask',ask,'--text',text],{env}),
+    agentComments:text=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env}),
   };
 }
@@ -287,12 +299,12 @@ async function claudeSession(t) {
   const agentEnv={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CLAUDE_CODE_SESSION_ID:sessionId};
   const env={...process.env,...agentEnv};
   const hook=async(name,patch)=>{
-    const output=await runWith(connectionCli,['claude-hook'],{env,cwd,input:event(name,patch)});
+    const output=await runWith(connectionCli,['hook','claude'],{env,cwd,input:event(name,patch)});
     return output.trim()?JSON.parse(output):null;
   };
-  const connection=args=>runWith(connectionCli,args,{env,cwd});
+  const goalCommand=args=>runWith(cli,args,{env,cwd});
   const append=entries=>appendFile(transcript,entries.map(claudeLine).join(''));
-  await connection(['create-goal','--title','A useful outcome']);
+  await goalCommand(['create','--title','A useful outcome']);
   const [root]=await listGoals();
   let responding=false,handoff=null,continuing=false;
   const startResponse=async()=>{
@@ -304,11 +316,13 @@ async function claudeSession(t) {
     ...userSide(root.id),
     agentStartsResponse:startResponse,
     async agentEndsResponse({background=false}={}) {
+      // Claude Code writes the response's last message before its Stop hook runs, and passes it to the hook.
+      await append([claudeEntry.text(randomUUID(),'Done.')]);
       // A blocked Stop hands over feedback that waited for the end, or holds the stop; the response then goes on.
-      const output=await hook('Stop',{stop_hook_active:continuing,background_tasks:background?[{id:'a1b2c3',type:'subagent',status:'running',description:'Review the change',agent_type:'general-purpose'}]:[]});
+      const output=await hook('Stop',{stop_hook_active:continuing,last_assistant_message:'Done.',background_tasks:background?[{id:'a1b2c3',type:'subagent',status:'running',description:'Review the change',agent_type:'general-purpose'}]:[]});
       continuing=output?.decision==='block';
       if(continuing){handoff=output.reason;return output.reason;}
-      await append([claudeEntry.text(randomUUID(),'Finished.'),claudeEntry.stop({uuid:randomUUID()})]);
+      await append([claudeEntry.stop({uuid:randomUUID()})]);
       responding=false;handoff=null;
       return null;
     },
@@ -336,10 +350,12 @@ async function claudeSession(t) {
     async strangerAnswers() {
       const other=randomUUID();
       await captureClaudeEntry(hookFor({session_id:other,cwd,transcript_path:transcript})('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:join(dir,'other-env')}});
-      await runWith(connectionCli,['reply','--goal',root.id,'--text','Not mine'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other},cwd});
+      await runWith(cli,['reply','--id',root.id,'--text','Not mine'],{env:{...env,CHILL_AGENT_SESSION_ID:other,CLAUDE_CODE_SESSION_ID:other},cwd});
     },
-    async agentReplies(eventId,text) {await connection(['reply','--goal',root.id,'--text',text]);},
-    agentComments:text=>runWith(cli,['comment','--id',root.id,'--text',text],{env}),
+    async agentReplies(eventId,text) {await goalCommand(['reply','--id',root.id,'--text',text]);},
+    async agentAsks(ask,text) {await goalCommand(['reply','--id',root.id,'--ask',ask,'--text',text]);},
+    async permissionPrompt() {return (await hook('PermissionRequest',{tool_name:'Bash',tool_input:{command:'ls'}}))?.hookSpecificOutput?.decision?.behavior??null;},
+    agentComments:text=>runWith(cli,['reply','--id',root.id,'--text',text],{env}),
     agentSelectsWork:()=>selectAgentWork(root.id,{env:agentEnv}),
   };
   return session;
@@ -347,14 +363,14 @@ async function claudeSession(t) {
 
 const win32Codex=process.platform==='win32'&&'Codex Desktop harness is macOS-only; fake-codex.mjs runs as an executable';
 
-// Approve all and settings are Claude features. Pause goes through Desktop's IPC, which each Codex driver stands in for.
+// Answering tool prompts (Autonomy approvals) and settings are Claude features. Pause goes through Desktop's IPC, which each Codex driver stands in for.
 // Codex's Stop hook input names no background work, so chill cannot see it.
-const codexCapabilities={approveAll:false,pause:true,backgroundWork:false};
+const codexCapabilities={approvals:false,pause:true,backgroundWork:false};
 const appCodex=process.env.CHILL_SCENARIO_CODEX;
 export const drivers=appCodex?[
   {name:'Codex app-server',start:t=>codexAppSession(t,appCodex),agentName:'Codex',pending:'handed',capabilities:codexCapabilities},
 ]:[
   {name:'Codex',skip:win32Codex,start:codexSession,agentName:'Codex',pending:'handed',capabilities:codexCapabilities},
   {name:'Claude Code',start:claudeSession,agentName:'Claude Code',pending:'saved',
-    capabilities:{approveAll:true,pause:true,backgroundWork:true}},
+    capabilities:{approvals:true,pause:true,backgroundWork:true}},
 ];

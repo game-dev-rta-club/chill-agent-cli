@@ -28,7 +28,7 @@ test('each data directory has its own task in the chill-agent folder', () => {
 });
 
 test('a Web task starts Node through a headless console host, so no window opens', async t => {
-  const runtime = await mkdtemp(join(tmpdir(), 'chill-web-service-'));t.after(() => rm(runtime, { recursive: true, force: true }));
+  const runtime = await mkdtemp(join(tmpdir(), 'chill-web-service-'));t.after(() => rm(runtime, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const calls = [];
   const service = windowsWebService({ directory: runtime, runtime, log: join(runtime, 'server.log'), execute: async (...args) => { calls.push(args); return { stdout: '' }; } });
   await service.start({ node: 'C:\\Program Files\\nodejs\\node.exe', entry: join(runtime, 'server.mjs'), args: ['--idle-timeout', '3d'], env: { PORT: '4173' }, cwd: runtime });

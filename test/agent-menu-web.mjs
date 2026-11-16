@@ -14,7 +14,7 @@ const run=async(...args)=>JSON.parse((await exec(process.execPath,[cli,...args],
 let server,browser;
 try {
  await run('create','--title','Root','--thread-id','00000000-0000-0000-0000-000000000001');await run('create','--title','Child','--parent','1');await run('create','--title','Unassigned');
- const brief=await run('deliverable','path','--id','1','--format','html');await writeFile(brief.path,'<style>body{height:950px;padding:25px}</style><h1>Deliverable test</h1><p>Click outside the Agent menu here.</p>');await run('deliverable','update','--id','1','--format','html');
+ const brief=await run('canvas','path','--id','1','--format','html');await writeFile(brief.path,'<style>body{height:950px;padding:25px}</style><h1>Deliverable test</h1><p>Click outside the Agent menu here.</p>');await run('canvas','update','--id','1','--format','html');
  server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(new Error(`Server exit ${c}`)));});
  browser=await chromium.launch({headless:true});const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let reads=0;page.on('request',r=>{if(/\/agent$/.test(r.url()))reads++;});
@@ -83,4 +83,4 @@ try {
  await page.goto(`${url}/#/goals`);await page.locator('#agent-button').waitFor({state:'hidden'});assert.equal(await page.locator('#agent-button').isVisible(),false);assert.equal(await page.locator('#agent-panel').isVisible(),false);
  await page.goto(`${url}/#/goal/1`);await page.getByRole('button',{name:'Agent',exact:true}).click();await page.getByText('GPT-6 Astra',{exact:true}).waitFor();await page.screenshot({path:'/tmp/chill-agent-menu.png'});assert.deepEqual(errors,[]);
  console.log('passed: icon-only entry, on-demand reads, settings and usage, responsive overflow, Escape/close/iframe outside click, draft and scroll retention, stale route isolation and unassigned Goals');
-}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

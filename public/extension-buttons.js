@@ -1,21 +1,22 @@
 import {createThemeMenu} from './theme-menu.js';
+import {createSearchDialog} from './search-dialog.js';
 import {browserClientId} from './browser-context.js';
 import {confirmAction} from './confirmation-dialog.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const repeatIcon=`<svg class="monitor-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="coffee-fill" d="M3 6h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6z"/><path d="M17 8h2a3 3 0 0 1 0 6h-2"/><path class="coffee-steam" d="M7 4c-2-1 2-2 0-3m6 3c-2-1 2-2 0-3"/></svg>`;
 const bellIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>';
-export const extensionIcon=icon=>icon==='bell'?bellIcon:icon==='repeat'?repeatIcon:icon==='globe'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>';
-// Other header parts (the Agent button's AutoContinue mark) follow the
-// extension states shown for the current Goal.
+export const extensionIcon=icon=>icon==='bell'?bellIcon:icon==='globe'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>';
+// Other parts of the page follow the extension states shown for the current Goal.
 export const announceControls=controls=>window.dispatchEvent(new CustomEvent('chill-extension-controls',{detail:{controls}}));
-export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
+export function createExtensionButtons({container,getGoalId,controlsChanged=()=>{}}){
  let controls=[],generation=0,controller=null,opened=null,panelController=null,cleanup=null;
  const more=document.createElement('button');more.type='button';more.className='extension-more';more.setAttribute('aria-label','More');more.setAttribute('aria-expanded','false');more.setAttribute('aria-controls','extension-list');
  more.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>More</span>';
  const list=document.createElement('div');list.id='extension-list';list.className='extension-list';list.setAttribute('aria-label','Settings');
  const goals=document.createElement('a');goals.href='#/goals';goals.className='extension-trigger';goals.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span class="extension-name">Goals</span>';goals.onclick=()=>showMore(false);list.append(goals);
+ const search=document.createElement('button');search.type='button';search.className='extension-trigger';search.setAttribute('aria-haspopup','dialog');search.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg><span class="extension-name">Search</span>';list.append(search);
+ const searchDialog=createSearchDialog();search.onclick=()=>{themeMenu.close();close();showMore(false);searchDialog.open();};
  const theme=document.createElement('button');theme.type='button';theme.className='extension-trigger';theme.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16Z"/></svg><span class="extension-name">Color theme</span>';list.append(theme);
- const themeMenu=createThemeMenu({button:theme,closeMore:()=>showMore(false),restoreMore:()=>showMore(true)});
+ const themeMenu=createThemeMenu({button:theme,iconButton:document.querySelector('.brand-mark'),closeMore:()=>showMore(false),restoreMore:()=>showMore(true)});
  container.hidden=false;container.append(more,list);
  function showMore(value,restore=false){container.classList.toggle('is-open',value);more.setAttribute('aria-expanded',String(value));if(restore)more.focus({preventScroll:true});}
  more.onclick=()=>{themeMenu.close();const next=more.getAttribute('aria-expanded')!=='true';close();showMore(next);};
@@ -23,17 +24,18 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  function close(restore=false){const id=opened;opened=null;panelController?.abort();cleanup?.();cleanup=null;panel.hidden=true;render();if(restore)more.focus({preventScroll:true});}
  function render(unknown=false){
   const retained=new Set();container.hidden=false;
+  for(const c of controls)if(c.manifest?.startsWith(`/extensions/${c.id}/`)&&!document.querySelector('link[rel="manifest"]')){const link=document.createElement('link');link.rel='manifest';link.href=c.manifest;document.head.append(link);}
   for(const c of controls.filter(c=>c.placement==='header')){
-   if(c.manifest?.startsWith(`/extensions/${c.id}/`)&&!document.querySelector('link[rel="manifest"]')){const link=document.createElement('link');link.rel='manifest';link.href=c.manifest;document.head.append(link);}
    retained.add(c.id);let wrapper=container.querySelector(`[data-header-extension="${c.id}"]`)?.parentElement;
    if(!wrapper){wrapper=document.createElement('span');wrapper.className='extension-control';wrapper.innerHTML=`<button type="button" class="extension-trigger" data-header-extension="${esc(c.id)}"></button><span class="extension-tooltip" role="tooltip" id="extension-tip-${esc(c.id)}"></span>`;list.append(wrapper);}
    const button=wrapper.querySelector('button');button.setAttribute('aria-label',c.label);button.setAttribute('aria-describedby',`extension-tip-${c.id}`);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded',String(opened===c.id));
    button.setAttribute('aria-pressed',String(c.enabled));button.disabled=unknown;button.removeAttribute('title');
    const icon=extensionIcon(c.icon)+`<span class="extension-name">${esc(c.label)}</span><span class="extension-value">${unknown?'Unavailable':c.enabled?'On':'Off'}</span>`;if(button.innerHTML!==icon)button.innerHTML=icon;
-   wrapper.querySelector('[role="tooltip"]').innerHTML=`${esc(c.label)} · ${unknown?'Unavailable':c.enabled?'On':'Off'}<small>${esc(c.description||'Prompts the agent to keep going.')}</small>`;
+   wrapper.querySelector('[role="tooltip"]').innerHTML=`${esc(c.label)} · ${unknown?'Unavailable':c.enabled?'On':'Off'}${c.description?`<small>${esc(c.description)}</small>`:''}`;
   }
   for(const button of container.querySelectorAll('[data-header-extension]'))if(!retained.has(button.dataset.headerExtension))button.parentElement.remove();
   announceControls(unknown?[]:controls);
+  if(!unknown)controlsChanged(controls);
  }
  async function refresh(){
   const id=getGoalId();if(!id)return;
@@ -60,8 +62,9 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
     const module=await import(control.panelModule);if(signal.aborted)return;
     cleanup=await module.mount({element,control,goalId,clientId:browserClientId(),api,changed,signal,confirm:options=>confirmAction({...options,signal})});
    }else{
-    element.innerHTML=`<label class="agent-extension"><span>On / Off</span><input type="checkbox" role="switch" aria-label="${esc(control.label)}" ${control.enabled?'checked':''}></label><p class="agent-muted">${esc(control.description||'Prompts the agent to keep going.')}</p><p class="extension-message" role="status"></p>`;
+    element.innerHTML=`<label class="agent-extension"><span>On / Off</span><input type="checkbox" role="switch" aria-label="${esc(control.label)}" ${control.enabled?'checked':''}></label>${control.description?`<p class="agent-muted">${esc(control.description)}</p>`:''}<p class="extension-message" role="status"></p>`;
     const toggle=element.querySelector('input');toggle.onchange=async()=>{
+     if(toggle.checked&&control.confirmOn&&!await confirmAction({...control.confirmOn,signal})){toggle.checked=false;return;}
      toggle.disabled=true;
      try{const response=await fetch(`/api/goals/${goalId}/extensions/${id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rootId:control.rootId,enabled:toggle.checked}),signal});const result=await response.json();if(!response.ok)throw Error(result.error||'Could not save.');changed();}
      catch(error){if(!signal.aborted){toggle.checked=!toggle.checked;element.querySelector('[role="status"]').textContent=error.message;}}
@@ -78,5 +81,5 @@ export function createExtensionButtons({container,getGoalId,announce=()=>{}}){
  const timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
  window.addEventListener('focus',refresh);window.addEventListener('chill-extensions-changed',refresh);
- return {routeChanged(){showMore(false);close();generation++;controller?.abort();if(!getGoalId())controls=[];render(true);void refresh();},refresh,destroy(){close();panel.remove();clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);window.removeEventListener('chill-extensions-changed',refresh);}};
+ return {themeRootChanged:id=>themeMenu.rootChanged(id),routeChanged(){showMore(false);close();generation++;controller?.abort();if(!getGoalId())controls=[];render(Boolean(getGoalId()));void refresh();},refresh,destroy(){close();panel.remove();clearInterval(timer);controller?.abort();window.removeEventListener('focus',refresh);window.removeEventListener('chill-extensions-changed',refresh);}};
 }

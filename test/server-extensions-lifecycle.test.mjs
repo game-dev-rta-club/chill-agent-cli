@@ -40,7 +40,9 @@ async function fixture(t, duration = '800ms', extra = {}, args = [], remote) {
   });
   t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM'); await exited; });
   const url = await ready;
-  const run = args => execute(process.execPath, [cli, ...args], {env});
+  // The CLI runs as the user's shell unless a test names the chat.
+  const {CODEX_THREAD_ID:_chat,...shell}=env;
+  const run = (args,extra={}) => execute(process.execPath, [cli, ...args], {env:{...shell,...extra}});
   return { root, child, url, env, exited, run, output: () => output };
 }
 
@@ -79,7 +81,7 @@ if (process.env.CHILL_TEST_TUNNEL_CRASH) {
   return {...f, pidFile, tunnelPath:join(f.root,'runtime',`web-${new URL(f.url).port}`,'tunnel.json')};
 }
 
-test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+test('tunnel permits its exact origin for activity, images and feedback; idle stop removes URL and connector', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:10000}, async t => {
   const f = await tunnelFixture(t);
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const {url: origin, pid} = JSON.parse(await readFile(f.tunnelPath, 'utf8'));
@@ -97,7 +99,7 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   const body = join(f.root,'workspace/goals/1/deliverable.md');
   await f.run(['create','--title','Phone']);
   await writeFile(body,'<p>Phone</p>');
-  await f.run(['deliverable','update','--id','1']);
+  await f.run(['canvas','update','--id','1']);
   const saved = await fetch(f.url+'/api/goals/1/feedback',{method:'POST',headers,body:JSON.stringify({text:'Phone comment',attachmentIds:[attachment.id],annotations:[{kind:'text',text:'Phone note',anchor:{start:0,end:5,quote:'Phone'},source:{kind:'brief',version:1}}]})});
   assert.equal(saved.status,201);
   assert.equal((await saved.json()).feedback.text,'Phone comment');
@@ -107,7 +109,7 @@ test('tunnel permits its exact origin for activity, images and feedback; idle st
   await assert.rejects(readFile(f.tunnelPath),{code:'ENOENT'});
 });
 
-test('manual shutdown also stops the connector; a connector failure keeps local Web available', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:8000}, async t => {
+test('manual shutdown also stops the connector; a connector failure keeps local Web available', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:8000}, async t => {
   const f = await tunnelFixture(t,'1h');
   for (let i=0; i<100 && !f.output().includes('Tunnel:'); i++) await delay(20);
   const pid = Number(await readFile(f.pidFile,'utf8'));
@@ -122,7 +124,7 @@ test('manual shutdown also stops the connector; a connector failure keeps local 
   crashed.child.kill('SIGTERM');await crashed.exited;
 });
 
-test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the public link connector is macOS-only',timeout:10000}, async t => {
+test('configured named tunnel uses Access ingress, accepts only its Origin, and closes with the server', {skip:process.platform==='win32'&&'the fake connector is a POSIX script; test/tunnel.test.mjs covers the Windows lookup',timeout:10000}, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'chill-named-connector-'));
   const binary = join(dir, 'cloudflared');
   const credentialsFile = join(dir, 'credentials.json');
@@ -216,8 +218,8 @@ test('opening the page, interaction and CLI mutations renew the idle deadline; C
     () => fetch(f.url),
     () => fetch(f.url + '/api/activity', {method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:'{}'}),
     () => f.run(['create','--title','TTL']),
-    () => f.run(['deliverable','update','--id','1']),
-    () => f.run(['comment','--id','1','--text','Still working']),
+    () => f.run(['canvas','update','--id','1']),
+    () => f.run(['reply','--id','1','--text','Still working']),
   ]) {
     await delay(50); // distinct file times
     await action();
@@ -266,8 +268,8 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   await usedChat(f.root,{turns:[{id:'00000000-0000-0000-0000-000000000077',status:'inProgress',completedAt:null}]});
   const body = join(f.root, 'body.html');
   await writeFile(body, '<p>Pending delivery</p>');
-  await f.run(['create','--title','Pending delivery','--thread-id',threadId]);
-  await f.run(['deliverable','update','--id','1']);
+  await f.run(['create','--title','Pending delivery'],{CODEX_THREAD_ID:threadId});
+  await f.run(['canvas','update','--id','1']);
   const response = await fetch(f.url + '/api/goals/1/feedback', {method:'POST',
     headers:{Origin:f.url,'Content-Type':'application/json'},
     body:JSON.stringify({text:'Do not interrupt this notification'}),
@@ -291,21 +293,21 @@ test('idle expiry waits for Codex notification even after the Web save receipt w
   assert.equal((await f.exited)[0],0);
 });
 
-test('extension controls share Root settings, reject foreign origins, and leave Web alive when disabled', {timeout:8000}, async t=>{
+test('the Autonomy API saves the level of the Goal\'s Root agent apart from comments, rejects foreign origins and shows no extension switch', {timeout:8000}, async t=>{
  const f=await fixture(t,'1h');
- await f.run(['create','--title','Root','--thread-id',threadId]);
+ await f.run(['create','--title','Root']);
  await f.run(['create','--title','Child','--parent','1']);
- const read=async id=>(await fetch(`${f.url}/api/goals/${id}/extensions`)).json();
- const change=(id,enabled,origin=f.url)=>fetch(`${f.url}/api/goals/${id}/extensions/continuation`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({rootId:'1',enabled})});
- assert.deepEqual((await read('2')).filter(c=>c.id==='continuation'),[{id:'continuation',label:'Auto-continue',rootId:'1',enabled:false,placement:'header',icon:'repeat'}]);
- assert.equal((await change('2',true,'https://foreign.example')).status,403);
- assert.equal((await change('2',true)).status,200);
- assert.equal((await read('1'))[0].enabled,true);
- assert.equal((await change('1',false)).status,200);
- assert.equal((await read('2'))[0].enabled,false);
+ const set=(id,level,origin=f.url)=>fetch(`${f.url}/api/goals/${id}/autonomy`,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({level})});
+ const shown=async id=>(await (await fetch(`${f.url}/api/goals?view=web&history=paged`)).json()).find(g=>g.id===id).autonomy;
+ assert.equal(await shown('1'),1);assert.equal(await shown('2'),1);
+ assert.deepEqual((await (await fetch(`${f.url}/api/goals/2/extensions`)).json()).filter(c=>['continuation','approve-all'].includes(c.id)),[],'no AutoContinue or Approve all switch');
+ assert.equal((await set('1',2,'https://foreign.example')).status,403);
+ const saved=await set('1',2);assert.equal(saved.status,200);assert.deepEqual(await saved.json(),{goalId:'1',rootId:'1',autonomy:2});
+ assert.equal(await shown('1'),2);assert.equal(await shown('2'),2,'every Goal of the tree shows the Root agent\'s level');
+ assert.deepEqual(await (await set('2',3)).json(),{goalId:'2',rootId:'1',autonomy:3},'set on a child, it is the Root\'s');assert.equal(await shown('1'),3);
+ assert.equal((await set('1',4)).status,400,'there are three levels');assert.equal((await set('1','2')).status,400);assert.equal((await set('99',2)).status,404);
+ await f.run(['create','--title','Later child','--parent','1']);assert.equal(await shown('3'),3,'a new Goal shows its Root\'s level');
+ await f.run(['create','--title','Other Root']);assert.equal(await shown('4'),1,'another Root has its own');
  assert.equal((await fetch(f.url+'/')).status,200);
- assert.equal(JSON.parse(await readFile(join(f.root,'workspace','continuation','1.json'),'utf8')).enabled,false);
- const empty=await fixture(t,'1h',{CHILL_AGENT_EXTENSIONS:'none'});
- assert.deepEqual(await (await fetch(empty.url+'/api/goals/1/extensions')).json(),[]);
- assert.equal((await fetch(empty.url+'/api/goals/1/extensions/continuation',{method:'POST',headers:{Origin:empty.url,'Content-Type':'application/json'},body:JSON.stringify({enabled:true,rootId:'1'})})).status,409);
+ assert.equal((await fetch(`${f.url}/api/goals/1/extensions/continuation`,{method:'POST',headers:{Origin:f.url,'Content-Type':'application/json'},body:JSON.stringify({enabled:true,rootId:'1'})})).status,409,'the old switch API is gone');
 });

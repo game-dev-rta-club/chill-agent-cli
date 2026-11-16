@@ -8,7 +8,7 @@ import {openSqliteWorkspace} from '../lib/sqlite-workspace.mjs';
 import {withSqliteLease} from '../lib/sqlite-leases.mjs';
 import {withSqliteTransaction,withDatabase} from '../lib/workspace-records.mjs';
 
-async function directory(t){const dir=await mkdtemp(join(tmpdir(),'chill-busy-'));t.after(()=>rm(dir,{recursive:true,force:true}));return dir;}
+async function directory(t){const dir=await mkdtemp(join(tmpdir(),'chill-busy-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));return dir;}
 // Deterministically reproduce the WAL recovery error seen when parallel hooks
 // reopen a database. Real connections/schema/leases exercise the retry boundary.
 function failFirstIdentityRead(t,error){

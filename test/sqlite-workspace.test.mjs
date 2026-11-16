@@ -9,7 +9,7 @@ import {openSqliteWorkspace} from '../lib/sqlite-workspace.mjs';
 
 async function fixture(t) {
   const directory=await mkdtemp(join(tmpdir(),'chill-sqlite-'));
-  t.after(()=>rm(directory,{recursive:true,force:true}));return directory;
+  t.after(()=>rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100}));return directory;
 }
 
 test('SQLite persists IDs and indexed change cursors across connections; isolates projects',async t=>{
@@ -51,7 +51,7 @@ test('failed transactions do not leave partial records; foreign keys and change 
 test('legacy and future stores are rejected without silently initializing or downgrading',async t=>{
   const legacy=await fixture(t);
   await writeFile(join(legacy,'schema.json'),'existing-data');
-  await assert.rejects(openSqliteWorkspace(legacy),/explicit migration/);
+  await assert.rejects(openSqliteWorkspace(legacy),/old JSON format.*chill-migrate/);
   await assert.rejects(readFile(join(legacy,'workspace.sqlite')), {code:'ENOENT'});
   const dir=await fixture(t),store=await openSqliteWorkspace(dir);
   store.db.exec('PRAGMA user_version=99');store.close();

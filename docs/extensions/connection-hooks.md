@@ -10,7 +10,8 @@ keyPoints: >-
 
 Protocol v1's optional `connection-hooks` capability lets a packaged extension
 participate in the experimental [Claude connection](../agent/claude-actions.md).
-The standalone CLI contains no Auto mode policy. Register trusted modules in the
+The CLI's own `continuation` module sends the end-of-turn check that a Goal's
+[Autonomy](../workspace/goals.md#autonomy-how-far-the-agent-goes-on-its-own) asks for. Register trusted modules in the
 composed runtime's `extensions.json`:
 
 ```json
@@ -49,8 +50,8 @@ reservation decides whether a repeated Stop continues again.
 
 Persist a reservation **before** returning a reason. A lost hook output is an
 uncertain request, not permission to resend. Each provider owns its allowance,
-Off/Pause handling, result receipts and reconciliation. A result alone is not
-proof of response completion; a later main Stop supplies that fact.
+Off/Pause handling, results and reconciliation. A later main Stop is the proof
+that the response ended; the continuation policy records its result then.
 An unresolved request must not be bypassed through another Root in the same chat.
 
 Saved Web input that the [watcher hook](../agent/claude-wait.md) has detected
@@ -59,7 +60,7 @@ must observe that pending delivery and abstain. There is no second transport fal
 Agent process.
 
 Use `connectionPolicyLock(connection, run)` to serialize a native policy journal.
-`continuationWorkspace(rootId)` supplies saved Goal, Deliverable and user-input revisions,
+`continuationWorkspace(rootId)` supplies saved Goal, Canvas and user-input revisions,
 not live execution facts. Do not call entry-locking native actions
 from inside these callbacks. Native queue state, permissions and interruption
 remain Claude's responsibility; a Stop is not a general live-status signal.

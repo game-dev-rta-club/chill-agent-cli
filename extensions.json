@@ -20,8 +20,8 @@
       "detail": "Use chill session --help for the supported harness IDs and interface."
     },
     "monitor": {
-      "summary": "Optional continuation checks with durable attempt limits.",
-      "detail": "Use chill monitor --help for controls and internal results."
+      "summary": "End-of-turn checks that Autonomy asks for, with durable attempt limits.",
+      "detail": "Use chill monitor --help to read a Root's check record."
     }
   }
 }

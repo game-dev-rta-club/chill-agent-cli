@@ -18,9 +18,9 @@ Default Codex setup does not install them.
 ## Commands act at once
 
 ```sh
-chill connection create-goal --title 'The agreed outcome' --scope 'Scope' --criteria 'Evidence of success'
-chill connection inbox
-chill connection reply --goal 1 --text 'What I did'
+chill goal create --title 'The agreed outcome' --scope 'Scope' --criteria 'Evidence of success'
+chill goal inbox
+chill goal reply --id 1 --text 'What I did'
 ```
 
 Use the prepared runtime's `runtime/chill` entry in place of `chill`. Each
@@ -28,7 +28,7 @@ command finds its conversation from `CLAUDE_CODE_SESSION_ID`, which Claude Code
 sets in every shell, and the recorded entry for it: the current context is
 always used, so compact or resume never breaks a running command and a command
 after clear acts for the new context. The command does its work and prints the
-result, such as `Created Goal #1` or `Replied on Goal #1 (comment 2)`. Its
+result, such as `Created Goal #1` or `Replied on Goal #1 (C1, eventId 2)`. Its
 output can be piped or shortened like any other command.
 
 `reply` posts the answer in the Goal's Conversation. There are no per-comment
@@ -46,24 +46,36 @@ Native tool permissions remain with Claude. No permission mode is changed.
 
 ## Preserve ownership
 
-A new Root stores `connection: {harnessId, sessionId, contextId}` and no Codex
-`threadId`. A child inherits its Root. Native-owned trees cannot be moved to
-another Root. Resume and compact retain the context ID; startup, clear and fork
-replace it.
+A new Root stores its owner as `owner: {agent, id, context}`: for Claude the
+agent `claude-code`, the session ID and the context ID. Codex owners have the
+same shape without a context. A child inherits its Root, so Goals moved into another Root, even a
+whole Root, belong to that Root's owner (see [Move Goals between Roots](../workspace/goals.md#move-goals-between-roots)).
+Resume and compact retain the context ID; startup, clear and fork replace it.
 
 When Claude continues a conversation in a new session, for example after its
 context limit, the new session owns nothing. If the user asks it to continue a
 Goal, it takes the Root over:
 
 ```sh
-chill connection adopt --goal 1
+chill goal adopt --id 1
 ```
 
-The Root and its Split Goals move to the new connection, the earlier one is kept
-in `previousConnections`, and feedback saved for the earlier owner is delivered
-to the new one. A comment in Web records the move. The earlier owner's watcher
-ends when it next finds that conversation owns nothing. Goals that no Claude
-conversation owns cannot be taken over.
+The Root and its Split Goals move to the new conversation, the earlier owner is
+kept in `previousOwners`, and feedback saved for the earlier owner is delivered
+to the new one. Web gets no note of the move: an agent comment would count as a
+reply and drop the comments still awaiting one. The earlier owner's watcher
+ends when it next finds that conversation owns nothing. Taken from another
+conversation, the Root starts at Autonomy Normal, so that conversation's tool
+approval does not come along. `goal adopt` works the same from any agent and on
+a Root with no owner, which keeps the level set for it. `goal release`, run from
+the conversation that owns the Root, leaves it with no owner.
+
+To hand part of a Root to another conversation, first make that Split Goal a Root
+of its own (`chill goal update --id 58 --input-file patch.json` with
+`{"parentId":null}`). It stays with the same conversation, keeps its Split Goals,
+Conversation and Canvases, and starts from the Root's hand-off cursor, so a
+comment already handed is not handed again. The other conversation then runs
+`chill goal adopt --id 58`.
 
 Each Root keeps one hand-off cursor: the last user comment handed to the
 conversation that owns it. Comments after the cursor wait; handing them moves
@@ -111,7 +123,7 @@ When a response ends, the Stop hook applies the shared
 [quiet-stop rule](feedback-and-controls.md#when-the-agent-stops): if a Goal it
 was handed feedback on still waits for a reply and has had no Comment since it
 last stopped, and Claude Code lists no background work in the Stop input's `background_tasks`
-(chill's own `connection wait` task does not count), the hook blocks once and
+(chill's own `agent wait` task does not count), the hook blocks once and
 asks the agent to reply or post a progress comment. The stop right after that
 hold ends. A trusted composed
 [connection extension](../extensions/connection-hooks.md) may separately request
@@ -155,7 +167,7 @@ failed native return path.
 
 Native clear/fork behavior and packaged user-facing setup still require
 qualification. Explicit project installation is covered separately
-in the [setup guide](claude-setup.md). A composed Auto mode extension has passed its
+in the [setup guide](claude-setup.md). The end-of-turn check (Autonomy) has passed its
 separate native Stop probe through [connection hooks](../extensions/connection-hooks.md).
 Replies after a response ends use the [watcher hook](claude-wait.md). See the
 full [connection criteria](claude-conversation.md#qualify-before-exposing-controls).

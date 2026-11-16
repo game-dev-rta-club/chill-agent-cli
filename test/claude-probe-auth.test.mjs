@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {probeAuthSettings} from '../scripts/claude-probe-auth.mjs';
 
 async function fixture(t,value) {
-  const dir=await mkdtemp(join(tmpdir(),'chill-probe-auth-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const dir=await mkdtemp(join(tmpdir(),'chill-probe-auth-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   const path=join(dir,'settings.json'),body=JSON.stringify(value);await writeFile(path,body);
   return {path,body};
 }

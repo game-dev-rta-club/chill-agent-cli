@@ -9,7 +9,7 @@ import {parseArgs} from 'node:util';
 import {projectDirectory} from '../lib/project-workspace.mjs';
 import {readPackageSpec,readVersionSource} from '../lib/version-source.mjs';
 
-const usage=`Usage: npm run use-in -- --project <directory> [--version-file <cli.json>]
+const usage=`Usage: npm run use-in -- --project <directory> [--version-file <chill-agent.json>]
 
 Writes {"package": "<this checkout's pushed commit>"} to the version file that the
 project's setup recorded. Pass --version-file the first time, before the project

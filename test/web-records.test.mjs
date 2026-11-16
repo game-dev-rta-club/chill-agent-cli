@@ -6,15 +6,16 @@ import {join} from 'node:path';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const execute=promisify(execFile),store=new URL('../lib/goal-store.mjs',import.meta.url).href,web=new URL('../lib/web-records.mjs',import.meta.url).href,letters=new URL('../public/letter-state.js',import.meta.url).href;
-for(const backend of ['json','sqlite'])test(`${backend} compact Web keeps open Letters and off-page reply status without history bodies`,async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-web-records-'));t.after(()=>rm(root,{recursive:true,force:true}));
+test(`compact Web keeps open Letters and off-page reply status without history bodies`,async t=>{
+ const root=await mkdtemp(join(tmpdir(),'chill-web-records-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import * as s from ${JSON.stringify(store)};
  import {listWebRecords} from ${JSON.stringify(web)};import {letterState} from ${JSON.stringify(letters)};
  await s.createGoal({title:'A'});await s.createGoal({title:'B'});
  const answered=await s.appendAgentComment({goalId:'1',type:'letter',title:'Answered',text:'Historical question'});
- const open=await s.appendAgentComment({goalId:'1',type:'letter',title:'Open',text:'Still needs attention'});
  const answer=await s.appendFeedback({goalId:'1',text:'Yes',annotations:[{kind:'letter',source:{kind:'comment',eventId:answered.id},text:'Yes'}]});
+ // Asked after the answer, so that comment leaves it open.
+ const open=await s.appendAgentComment({goalId:'1',type:'letter',title:'Open',text:'Still needs attention'});
  for(let i=0;i<65;i++)await s.appendAgentComment({goalId:'1',type:'comment',text:'Body '+i});
  const [goal,other]=await listWebRecords();
  assert.equal(goal.conversation.length,31);assert.equal(other.conversation.length,0);
@@ -26,16 +27,18 @@ for(const backend of ['json','sqlite'])test(`${backend} compact Web keeps open L
  assert.ok(older.events.every(e=>e.changeId<goal.conversationInfo.nextBefore));
  const latestAnswer=await s.appendFeedback({goalId:'1',text:'Again',annotations:[{kind:'letter',source:{kind:'comment',eventId:answered.id},text:'Yes'}]});
  const updated=(await listWebRecords())[0];assert.ok(updated.conversation.some(e=>e.id===answered.id));
- assert.equal(updated.letterStates.find(e=>e.id===answered.id).lastAnswerId,latestAnswer.id);
- await s.closeLetter('1',open.id);
- const closed=(await listWebRecords())[0].letterStates.find(e=>e.id===open.id);
- assert.equal(letterState({...open,letterStatus:closed},[]).status,'received');
+ assert.ok(latestAnswer.id>answer.id);assert.deepEqual(updated.letterStates.find(e=>e.id===answered.id),{id:answered.id,status:'answered',lastAnswerId:answer.id},'the comment that closed it stays its answer');
+ assert.deepEqual(updated.letterStates.find(e=>e.id===open.id),{id:open.id,status:'answered',lastAnswerId:latestAnswer.id},'the next comment answers the open Letter');
+ const withdrawn=await s.appendAgentComment({goalId:'1',type:'letter',title:'Withdrawn',text:'No longer needed'});
+ await s.closeLetter('1',withdrawn.id);
+ const closed=(await listWebRecords())[0].letterStates.find(e=>e.id===withdrawn.id);
+ assert.equal(letterState({...withdrawn,letterStatus:closed},[]).status,'received');
  `;
- const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:backend}});
+ const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root}});
  assert.equal(result.stdout,'');
 });
-for(const backend of ['json','sqlite'])test(`${backend} Web records carry the Goals that mention each Goal`,async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-web-mentions-'));t.after(()=>rm(root,{recursive:true,force:true}));
+test(`Web records carry the Goals that mention each Goal`,async t=>{
+ const root=await mkdtemp(join(tmpdir(),'chill-web-mentions-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import * as s from ${JSON.stringify(store)};
  import {listWebRecords} from ${JSON.stringify(web)};
@@ -46,6 +49,6 @@ for(const backend of ['json','sqlite'])test(`${backend} Web records carry the Go
  assert.deepEqual(a.mentions.map(m=>[m.goalId,m.eventId]),[['2',named.id]]);
  assert.deepEqual(b.mentions.map(m=>m.goalId),['1']);
  `;
- const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:backend}});
+ const result=await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root}});
  assert.equal(result.stdout,'');
 });

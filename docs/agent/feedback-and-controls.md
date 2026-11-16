@@ -28,8 +28,9 @@ receives only what the earlier one was never handed.
 How the comments are carried depends on the harness. An idle Codex chat is sent
 every waiting comment as one message; a Codex chat that cannot be reached keeps
 them Saved and is sent them once chill can reach it. Claude Code receives them
-through its hooks or its reply waiter. Either way, the text lists the comments as
-data, with the command to read each Goal and the command to reply.
+through its hooks: a tool hook while it works, the watcher hook while it is idle. Either way, the same text lists the
+comments as data, with the command to read each Goal and the command to reply on it, which answers it (`feedbackText` in
+[delivery](../../lib/delivery.mjs)).
 
 ## Waiting: feedback saved while the agent works
 
@@ -47,8 +48,10 @@ The comments before it go too, so the cursor keeps the order.
 A Goal waits for a reply while the user commented after the agent's last Comment
 or Letter on it. The agent answers by commenting on the Goal; one Comment answers
 all of the user's comments before it. No comment ID and no receipt is needed, and
-a progress Comment answers the Goal as well. A Comment from another agent
-conversation is refused.
+a progress Comment answers the Goal as well. A reply that asks the user to
+decide or approve something carries `--ask '<what to decide>'` and is saved as
+a Letter; it answers the Goal the same way. The user's next comment on that Goal
+closes its open Letters. A Comment from another agent conversation is refused.
 
 ## When the agent stops
 
@@ -57,7 +60,8 @@ handed comments on still waits for a reply, with nothing of it running to wake i
 later, makes the Web look stopped. chill holds that stop once and asks the agent
 to tell the user where things stand: reply if it is handled, or post a progress
 Comment that says what it waits for and when it will check. The stop right after a
-hold always ends. Claude Code names its background work in the Stop input; Codex's
+hold always ends. A conversation holding several Roots is held once for all of
+them, never once per Root. Claude Code names its background work in the Stop input; Codex's
 Stop input names none, so a Codex chat is held even while a background terminal
 runs. The rule is `quietGoals` in [agent rules](../../lib/agent-rules.mjs).
 
@@ -77,9 +81,11 @@ runs. The rule is `quietGoals` in [agent rules](../../lib/agent-rules.mjs).
 ## Pause, Resume and Interrupted
 
 Pause is the user's: it stops the agent's current work where the harness can
-(Codex interrupts the turn), and hands no feedback until Resume. Comments saved
-meanwhile show Paused. Resume hands them in one message, or asks the agent to go
-on with the stopped work. A stop in the agent's own app (Esc, Desktop's stop, an
+(Codex interrupts the turn), and hands no feedback until Resume. Resume hands
+what waits in one message, or asks the agent to go on with the stopped work. A
+new comment from the user resumes the agent the same way, so it is handed
+without a separate Resume; if resuming fails, the comment stays saved and shows
+Paused. A stop in the agent's own app (Esc, Desktop's stop, an
 API error) is Interrupted, shown on the agent and on the comments it was handed;
 feedback is handed to an interrupted agent at once, and its next work shows
 Running again.

@@ -18,7 +18,7 @@ For the ready-to-use experience, start with [chill-agent](https://github.com/gam
 
 | This package owns | The integrating application owns |
 | --- | --- |
-| Goal hierarchy, Deliverable versions, Conversation, and Letters | How the agent plans and carries out work |
+| Goal hierarchy, Canvas versions, Conversation, and Letters | How the agent plans and carries out work |
 | Local Web interface, feedback delivery, notifications and the public link | Skills and user onboarding |
 | Harness observations, queue coordination, and pause state | When to request more work |
 | Runtime preparation and extension hosting | Continuation policy and its configuration |
@@ -52,7 +52,12 @@ The foreground server prints the local Web URL. Goal data and runtime snapshots 
 [Find the right guide](docs/README.md) for workspace concepts, runtime updates,
 agent delivery and extension contracts. To inspect a project,
 [start with a one-line Goal index](docs/workspace/reading-goals.md), filter by
-state, then open the relevant Deliverable and recent conversation.
+state, then open the relevant Canvas and recent conversation.
+
+To keep an idle conversation's Claude Code prompt cache, install
+[Cache Keep](https://github.com/game-dev-rta-club/cache-keep) for your user. chill
+no longer ships it; Claude setup places only a small mod that
+[records the plan's usage](docs/agent/claude-usage.md).
 
 ## Command reference
 
@@ -76,8 +81,8 @@ Continue with the stable command prefix returned by setup. See
 and a server restart adopt a new version without moving the workspace.
 
 To open the workspace from a phone or another computer, turn on **More → Public
-link** in Web. A device connects once with the access code shown on the computer;
-see [the public link guide](docs/using/public-link.md).
+link** in Web. A device connects once with the access code shown on the computer,
+or printed for your agent by `chill settings access-code`; see [the public link guide](docs/using/public-link.md).
 
 ## Integrating an execution policy
 

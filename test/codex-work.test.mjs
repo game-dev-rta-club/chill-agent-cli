@@ -7,11 +7,12 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {appendAgentComment,appendFeedback,createGoal,listGoals,readFeedback} from '../lib/goal-store.mjs';
-import {agentExecutions,assignGoal} from '../lib/agents/index.mjs';
+import {appendAgentComment,appendFeedback,createGoal,listGoals,readFeedback,setRootOwner} from '../lib/goal-store.mjs';
+import {agentExecutions} from '../lib/agents/index.mjs';
 import {deliverFeedback,sendFeedbackNow} from '../lib/delivery.mjs';
 import {codexFeedbackText,codexSnapshot,codexStop,codexToolHook,handIdleCodex,pauseCodex,readCodexWork,resumeCodex} from '../lib/agents/codex-work.mjs';
 import {invalidateAgentObservation} from '../lib/agents/codex-observation.mjs';
+import {setRootAutonomy} from '../lib/root-autonomy.mjs';
 import {hookOutput} from '../bin/chill-hook.mjs';
 import {expectHidden} from './hidden-failures.mjs';
 import {desktopChat} from './fake-codex-desktop.mjs';
@@ -22,10 +23,10 @@ const ids=text=>[...text.matchAll(/"eventId":(\d+),"goalId"/g)].map(m=>Number(m[
 async function fixture(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-codex-work-')),previous={};
   for(const [key,value] of Object.entries({CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:fake})){previous[key]=process.env[key];process.env[key]=value;}
-  t.after(async()=>{for(const [key,value] of Object.entries(previous))value===undefined?delete process.env[key]:process.env[key]=value;await rm(dir,{recursive:true,force:true});});
+  t.after(async()=>{for(const [key,value] of Object.entries(previous))value===undefined?delete process.env[key]:process.env[key]=value;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
   const thread=randomUUID(),chat=await desktopChat(dir,thread,()=>invalidateAgentObservation(thread),{codexHome:process.env.CODEX_HOME});
   t.after(chat.close);
-  const root=await createGoal({title:'Outcome'});await assignGoal(root.id,thread);
+  const root=await createGoal({title:'Outcome'});await setRootOwner(root.id,{agent:'codex',id:thread});
   return {dir,thread,root,...chat,
     // Chill knows a turn works from its tool hooks: Codex shows a second process no live turn as running.
     async tool(){const turn=(await chat.running()).id;await hookOutput({hook_event_name:'PostToolUse',session_id:thread,turn_id:turn},thread);return turn;},
@@ -39,15 +40,16 @@ test('an idle chat is sent waiting comments as one message, quoting the user as 
   const [text]=await f.sent();
   assert.deepEqual(ids(text),[first]);
   assert.deepEqual(await f.queue(),[],'Codex runs it as a turn at once');
+  assert.equal((await codexSnapshot(f.thread,{fresh:true})).status,'running','Running from the start of the turn chill\'s message began, before its first tool');
   assert.match(text,/"text":"Please start"/);assert.match(text,new RegExp(`show --id ${f.root.id} --since ${first-1} --format text`));
-  assert.match(text,/comment --id <goalId> --text/);assert.doesNotMatch(text,/activity --event|--state/);
+  assert.match(text,/Reply on the Goal \(this answers it\): .* reply --id <goalId> --text '<reply>'\nIf your message asks the user to decide or approve something, add --ask '<what to decide>'; it then appears as a Letter\./);assert.doesNotMatch(text,/activity --event|--state/);
   await f.endTurn();
   const letter=await appendAgentComment({goalId:child.id,type:'letter',title:'Which one?',text:'A or B?'});
   await appendAgentComment({goalId:child.id,type:'letter',title:'Still open?',text:'And this?'});
   const second=await appendFeedback({goalId:child.id,text:'And the child',annotations:[{kind:'letter',source:{kind:'comment',eventId:letter.changeId},text:'A'}]});await deliverFeedback(second.changeId);
   const sent=await f.sent();
   assert.equal(JSON.parse(sent[1].split('\n')[2])[0].notes[0].source.eventId,letter.changeId,'notes keep their source');
-  assert.match(sent[1],/Open Letters[\s\S]*Letter \d+ "Still open\?"/);
+  assert.doesNotMatch(sent[1],/Open Letters|close-letter/,'the comment closed the Goal\'s Letters, so none is listed to close');
   assert.deepEqual(sent.map(ids),[[first],[second.changeId]]);
   await f.endTurn();
   assert.equal((await handIdleCodex(f.thread)).length,0,'nothing is sent twice');
@@ -80,8 +82,10 @@ test('a lost answer to an accepted message is checked against the turns and the 
   assert.deepEqual((await f.sent()).map(ids),[[ran]]);assert.deepEqual(await f.queue(),[]);
   await f.endTurn();
   assert.deepEqual(await handIdleCodex(f.thread),[],'handed already, though it runs as a turn');
-  // A turn the user started in Desktop, before its first tool: chill cannot tell it works, and Codex queues the message.
-  await f.startTurn();
+  // A turn the user started in Desktop long after chill's last message, before its first tool: chill cannot tell it works, and Codex queues the message.
+  const record=join(f.dir,'workspace','codex-work',`${f.thread}.json`);
+  await writeFile(record,JSON.stringify({...JSON.parse(await readFile(record,'utf8')),sentAt:new Date(Date.now()-600000).toISOString()}));
+  await f.startTurn();invalidateAgentObservation(f.thread);
   const waits=await lose('Waits in the queue');
   assert.equal((await f.queue()).length,1);
   assert.deepEqual(await handIdleCodex(f.thread),[],'handed already, though it waits in the queue');
@@ -133,36 +137,67 @@ test('hooks of a subagent or another chat hand nothing and leave the comments wa
 test('the Stop is held once while a handed Goal awaits a reply, and a reply on it ends that',async t=>{
   const f=await fixture(t),event=await f.save('Fix it');
   const turn=await f.startTurn();
-  const held=await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread);
-  assert.equal(held.decision,'block');assert.match(held.reason,new RegExp(`Goal #${f.root.id}\\b`));assert.match(held.reason,/comment --id <goalId>/);
+  // What the chat wrote is never posted for it: only its own comment answers the Goal.
+  const transcript=join(f.dir,'rollout.jsonl');
+  await writeFile(transcript,JSON.stringify({timestamp:new Date().toISOString(),type:'response_item',payload:{type:'message',role:'assistant',content:[{type:'output_text',text:'Fixed it.'}],phase:'final_answer'}})+'\n');
+  const held=await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn,last_assistant_message:'Fixed it.',transcript_path:transcript},f.thread);
+  assert.deepEqual((await readFeedback()).filter(e=>e.author==='agent'),[],'nothing is posted at Stop');
+  assert.equal(held.decision,'block');assert.match(held.reason,new RegExp(`Goal #${f.root.id}\\b`));assert.match(held.reason,/reply --id <goalId>/);
   assert.equal(await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread),null,'the stop right after a hold ends');
   await appendAgentComment({goalId:f.root.id,type:'comment',text:'Fixed'});
   assert.equal(await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread),null);
   assert.equal((await codexSnapshot(f.thread)).roots[0].awaiting.size,0,`#${event} is answered`);
 });
 
-test('Pause stops the turn and holds comments; Resume sends them, or asks the chat to go on',async t=>{
+test('with two Roots, the Stop is held once for both and the stop right after it ends',async t=>{
+  const f=await fixture(t),second=await createGoal({title:'Second Root'});
+  await setRootOwner(second.id,{agent:'codex',id:f.thread});
+  // One starts a turn, so Two waits for that turn's Stop, which hands it and goes on.
+  await f.save('One');await deliverFeedback((await appendFeedback({goalId:second.id,text:'Two'})).changeId);
+  const turn=await f.tool();
+  assert.match((await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread))?.reason,/"text":"Two"/);
+  const held=await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread);
+  assert.equal(held?.decision,'block');
+  for(const id of [f.root.id,second.id])assert.match(held.reason,new RegExp(`Goal #${id}\\b`));
+  assert.equal(await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread),null,'the stop right after a hold ends, whichever Root it was held for');
+});
+
+test('Pause stops the turn; a new comment resumes and is sent, and Resume asks the chat to go on',async t=>{
   const f=await fixture(t),turn=await f.work(),calls=[];
   const interrupt=async(threadId,turnId)=>{calls.push(turnId);await f.endTurn('interrupted');return {ok:true,interruptedTurnId:turnId};};
   await pauseCodex(f.thread,turn,{interrupt});
   assert.deepEqual(calls,[turn]);assert.equal((await codexSnapshot(f.thread,{fresh:true})).status,'paused');
-  const event=await f.save('While paused');
-  assert.deepEqual(await f.sent(),[],'held until Resume');
   assert.equal(await codexStop({threadId:f.thread,turnId:turn}),null,'a paused chat is handed nothing and not held');
-  await resumeCodex(f.thread);
-  assert.deepEqual((await f.sent()).map(ids),[[event]]);
+  const event=await f.save('While paused');
+  assert.deepEqual((await f.sent()).map(ids),[[event]],'the comment resumes the chat and is sent');
+  assert.notEqual((await codexSnapshot(f.thread,{fresh:true})).status,'paused');
   await f.endTurn();
   await f.work();await pauseCodex(f.thread,(await codexSnapshot(f.thread,{fresh:true})).work.id,{interrupt});
   await resumeCodex(f.thread);
   assert.match((await f.running()).items[0].content[0].text,/continue the stopped work/);
+  assert.equal((await codexSnapshot(f.thread,{fresh:true})).status,'running','Running as soon as Resume starts the turn, before its first tool');
   await assert.rejects(resumeCodex(f.thread),/Nothing to resume/);
 });
 
 test('a reassigned Root keeps its cursor: the new chat receives only what was never handed',async t=>{
   const f=await fixture(t),handed=await f.save('Handed before');
   await f.tool();const waiting=await f.save('Waits for the turn');await f.endTurn();
-  const next=randomUUID();await assignGoal(f.root.id,next);
+  const next=randomUUID();await setRootOwner(f.root.id,{agent:'codex',id:next});
   invalidateAgentObservation(next);
   assert.deepEqual((await handIdleCodex(next)).map(e=>e.id),[waiting]);
   assert.notEqual(handed,waiting);
+});
+
+test('a level the user changes is told once: at the chat\'s next tool hook, or with the next message to an idle chat',async t=>{
+  const f=await fixture(t);await setRootAutonomy(f.root.id,3);
+  const turn=await f.work();
+  assert.equal(await codexToolHook({threadId:f.thread,turnId:turn}),null,'a Root seen first is recorded, not told');
+  await setRootAutonomy(f.root.id,2);
+  assert.match(await codexToolHook({threadId:f.thread,turnId:turn}),/^chill-agent: the user changed the Autonomy level of Root Goal #\d+ “Outcome” from Never Stop to Auto Continue\. The new level applies to work already under way: .* From now on: After each turn/);
+  assert.equal(await codexToolHook({threadId:f.thread,turnId:turn}),null,'once');
+  assert.doesNotMatch(await codexToolHook({threadId:f.thread,turnId:turn})??'',/agent wake/,'Codex has no checks to cancel');
+  await f.endTurn();await setRootAutonomy(f.root.id,1);
+  await f.save('Next step');
+  const [,text]=[null,...(await f.sent())].slice(-2);
+  assert.match(text,/^chill-agent: the user changed the Autonomy level of Root Goal #\d+ “Outcome” from Auto Continue to Normal\.[^\n]*\n/,'the notice comes first');assert.match(text,/"text":"Next step"/);
 });

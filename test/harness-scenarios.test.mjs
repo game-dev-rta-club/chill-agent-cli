@@ -57,6 +57,22 @@ scenario('the agent\'s reply clears the marks at once, while its work still runs
   assert.equal(await s.shown(first),null);
 });
 
+// A reply that asks the user to decide is marked --ask and becomes a Letter; the user's next comment on its Goal closes it.
+scenario('a reply that asks the user to decide is a Letter until the user comments on its Goal',async s=>{
+  const event=await s.saveFeedback('Which export should stay?');
+  await s.agentTakesFeedback(event);
+  assert.match(s.feedbackText(),/If your message asks the user to decide or approve something, add --ask '<what to decide>'; it then appears as a Letter\./);
+  assert.doesNotMatch(s.feedbackText(),/close-letter|stands on its own/);
+  await s.agentAsks('Drop the old export?','The new export covers everything. Shall I drop the old one?');
+  assert.equal(await s.shown(event),null,'the Letter is the reply');
+  assert.deepEqual(await s.letters(),['Drop the old export?']);
+  await s.agentAsks('Rename the command?','While here: shall I rename it?');
+  assert.deepEqual(await s.letters(),['Drop the old export?','Rename the command?'],'a question found while working needs no comment to answer');
+  await s.agentEndsResponse();
+  await s.saveFeedback('Drop it; keep the name.');
+  assert.deepEqual(await s.letters(),[],'the user\'s comment answers the Goal\'s Letters');
+});
+
 scenario('the end of the work without a reply leaves the comment marked, awaiting one',async s=>{
   const event=await s.saveFeedback('Just do it');
   await s.agentTakesFeedback(event);
@@ -113,29 +129,36 @@ scenario('the Agent menu reads the agent\'s name, model and status',async (s,dri
   assert.ok(done.agent.model.model,'the model it answered with');
 });
 
-scenario('Approve all is offered where the harness supports it, and refused where it does not',async (s,driver) => {
-  assert.equal((await s.agentStatus()).capabilities.approveAll,driver.capabilities.approveAll);
-  if(driver.capabilities.approveAll) {
-    assert.equal((await s.approveAll(true)).approveAll,true);
-    assert.equal((await s.approveAll(false)).approveAll,false);
-  } else await assert.rejects(s.approveAll(true),/not available/);
+// Autonomy (public/autonomy.js) is the level of the Root's agent; the agent meets it at its next hook.
+scenario('Autonomy reaches the agent: feedback text stays the same, and tool prompts are approved at 2 where a hook can answer them',async (s,driver) => {
+  await s.setAutonomy(2);
+  const event=await s.saveFeedback('Choose the safer migration');
+  assert.deepEqual(await s.agentTakesFeedback(event),[event]);
+  assert.doesNotMatch(s.feedbackText(),/Autonomy|Think in the user's place/);
+  if(driver.capabilities.approvals) {
+    await s.setAutonomy(1);
+    assert.equal(await s.permissionPrompt(),null,'Normal still asks');
+    await s.setAutonomy(2);
+    assert.equal(await s.permissionPrompt(),'allow','Continue approves');
+  } else {
+    assert.equal(s.permissionPrompt,undefined,'the harness has no prompt a hook can answer');
+  }
 });
 
 // Pause is the user's (R17); a stop in the agent's own app is Interrupted (R17b). Both show the same on the agent and the comments.
-scenario('Pause holds new feedback and Resume releases it where the harness can pause, and is refused where it cannot',async (s,driver) => {
+scenario('Pause holds the agent until a new comment resumes it where the harness can pause, and is refused where it cannot',async (s,driver) => {
   const first=await s.saveFeedback('Start');
   await s.agentTakesFeedback(first);
   assert.equal((await s.activity()).capabilities.stop,driver.capabilities.pause);
   if(driver.capabilities.pause) {
     await s.pauseActivity('stop');
-    assert.equal((await s.activity()).state,'paused');
-    const held=await s.saveFeedback('Hold this');
-    assert.equal(await s.shown(held),'paused');assert.equal(await s.shown(first),'paused');
-    assert.deepEqual(await s.agentTakesFeedback(held),[],'nothing is handed while paused');
-    await s.pauseActivity('resume');
-    assert.notEqual(await s.shown(held),'paused');
+    assert.equal((await s.activity()).state,'paused');assert.equal(await s.shown(first),'paused');
+    // The user's next comment resumes the agent, so it is handed without Resume.
+    const next=await s.saveFeedback('Go on with this');
+    assert.notEqual((await s.activity()).state,'paused');
+    assert.notEqual(await s.shown(next),'paused');
     await s.agentEndsResponse();
-    assert.deepEqual(await s.agentTakesFeedback(held),[held]);
+    assert.deepEqual(await s.agentTakesFeedback(next),[next]);
   } else await assert.rejects(s.pauseActivity('stop'),/Status changed/);
 });
 
@@ -167,6 +190,7 @@ scenario('a stop with nothing running and nothing said about feedback the agent 
   const hold=await s.agentEndsResponse();
   assert.match(hold??'',/tell the user where things stand/,'the user has heard nothing since the feedback');
   assert.match(hold,new RegExp(`Goal #${s.goalId}\\b`));
+  assert.deepEqual(await s.comments(),[],'what the agent wrote is not posted for it');
   assert.equal(await s.agentEndsResponse(),null,'the stop right after a hold ends');
   await s.agentStartsResponse();
   assert.match(await s.agentEndsResponse()??'',/where things stand/,'a later stop with still nothing said is held again');

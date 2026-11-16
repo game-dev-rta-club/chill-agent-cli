@@ -38,7 +38,7 @@ export async function tryLocal({project,reset=false,restartWeb=false,repo=fileUR
   }
   // Remember the setup's version file once, so a later --reset can return to it.
   await mkdir(local,{recursive:true});
-  if(!recorded)await writeJsonAtomically(saved,{versionFile:source.versionFile,...(source.agentGuide?{agentGuide:source.agentGuide}:{})});
+  if(!recorded)await writeJsonAtomically(saved,{versionFile:source.versionFile});
   const git=args=>run('git',args,{cwd:repo,encoding:'utf8'}).trim();
   const sha=git(['rev-parse','--short','HEAD']),dirty=git(['status','--porcelain','--untracked-files=no'])!=='';
   const packStarted=now();
@@ -47,12 +47,12 @@ export async function tryLocal({project,reset=false,restartWeb=false,repo=fileUR
   const hash=createHash('sha256').update(await readFile(join(local,name))).digest('hex').slice(0,10);
   // A new file name per build gives a new package spec, so the Web installs it.
   const tarball=join(local,`chill-agent-cli-${sha}-${hash}.tgz`);await rename(join(local,name),tarball);
-  const packMs=now()-packStarted,versionFile=join(local,'cli.json'),spec=`file:${tarball}`;
+  const packMs=now()-packStarted,versionFile=join(local,'chill-agent.json'),spec=`file:${tarball}`;
   // What a failed restart returns to: the selected file, its source and the installed runtime.
   const installation=join(directory,'runtime','installation.json');
   const before={versionFile:await readFile(versionFile,'utf8').catch(()=>null),installation:await readJson(installation)};
   await writeJsonAtomically(versionFile,{package:spec});
-  await recordVersionSource(directory,{versionFile,...(source.agentGuide?{agentGuide:source.agentGuide}:{})});
+  await recordVersionSource(directory,{versionFile});
   let restartMs;
   try{restartMs=restart();}
   catch(error){

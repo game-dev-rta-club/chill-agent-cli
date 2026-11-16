@@ -29,7 +29,7 @@ test('empty filters point to remaining states; Done is not inferred from no Lett
  assert.match(done,/No unfinished Goals/);assert.match(done,/All: chill goal review --id 1/);
 });
 test('review CLI returns an index, not Deliverable or conversation bodies, with functional filters',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-review-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-review-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
  const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
  const run=async(...args)=>(await exec(process.execPath,[cli,...args],{env})).stdout;
@@ -37,9 +37,9 @@ test('review CLI returns an index, not Deliverable or conversation bodies, with 
  const child=JSON.parse(await run('create','--title','Child','--parent',root.id));
  const leaf=JSON.parse(await run('create','--title','Leaf','--parent',child.id));
  await run('create','--title','Unrelated');
- const brief=JSON.parse(await run('deliverable','path','--id',leaf.id));
- await writeFile(brief.path,'Unique leaf Deliverable');await run('deliverable','update','--id',leaf.id);
- await run('letter','--id',child.id,'--title','Question title','--text','Question detail');
+ const brief=JSON.parse(await run('canvas','path','--id',leaf.id));
+ await writeFile(brief.path,'Unique leaf Deliverable');await run('canvas','update','--id',leaf.id);
+ await run('reply','--id',child.id,'--ask','Question title','--text','Question detail');
  const patch=join(dir,'patch.json');await writeFile(patch,JSON.stringify({state:'done'}));await run('update','--id',leaf.id,'--input-file',patch);
  const text=await run('review','--id',root.id);
  assert.deepEqual([...text.matchAll(/^\s*#(\d+) \[/gm)].map(m=>m[1]),[root.id,child.id,leaf.id]);
@@ -51,16 +51,16 @@ test('review CLI returns an index, not Deliverable or conversation bodies, with 
 });
 
 test('show CLI defaults to five messages only in ordinary text browsing; since and JSON retain all',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-show-pages-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-show-pages-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const env={...process.env,CHILL_AGENT_DATA_DIR:dir,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
  const cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
  const run=async(...args)=>(await exec(process.execPath,[cli,...args],{env})).stdout;
  await run('create','--title','Root');
- for(let i=0;i<8;i++)await run('comment','--id','1','--text',`Item ${i}`);
- assert.equal((await run('show','--id','1','--format','text')).match(/^comment \d+ · agent/gm).length,5);
- assert.equal((await run('show','--id','1','--format','text','--since','0')).match(/^comment \d+ · agent/gm).length,8);
- assert.equal((await run('show','--id','1','--format','text','--full')).match(/^comment \d+ · agent/gm).length,8);
+ for(let i=0;i<8;i++)await run('reply','--id','1','--text',`Item ${i}`);
+ assert.equal((await run('show','--id','1','--format','text')).match(/^C\d+ \(eventId \d+\) · comment · agent/gm).length,5);
+ assert.equal((await run('show','--id','1','--format','text','--since','0')).match(/^C\d+ \(eventId \d+\) · comment · agent/gm).length,8);
+ assert.equal((await run('show','--id','1','--format','text','--full')).match(/^C\d+ \(eventId \d+\) · comment · agent/gm).length,8);
  assert.equal(JSON.parse(await run('show','--id','1')).conversation.length,8);
  const older=await run('show','--id','1','--format','text','--section','conversation','--before','4','--limit','5');
- assert.equal(older.match(/^comment \d+ · agent/gm).length,3);assert.doesNotMatch(older,/Deliverable/);
+ assert.equal(older.match(/^C\d+ \(eventId \d+\) · comment · agent/gm).length,3);assert.doesNotMatch(older,/Deliverable/);
 });

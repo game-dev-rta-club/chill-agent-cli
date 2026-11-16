@@ -21,8 +21,8 @@ or qualified through a live integration test yet.
 ## Transport candidates
 
 For the current outcome, investigate the [native Claude entry](claude-conversation.md)
-first: hooks for session observations and in-turn input, with a background reply
-waiter for idle wake. This uses the existing conversation instead of requiring a
+first: hooks for session observations and in-turn input, with the watcher hook
+for idle wake. This uses the existing conversation instead of requiring a
 library-owned one.
 
 - [HarnessRouter](https://github.com/HarnessRouter/harnessrouter) provides a service

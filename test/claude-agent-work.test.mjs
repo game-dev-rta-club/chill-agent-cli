@@ -13,7 +13,7 @@ import {claudeEntry,claudeHook,claudeLine,hookFor,subagentHook} from './claude-f
 async function conversation(t) {
   const dir=await mkdtemp(join(tmpdir(),'chill-claude-work-')),previous=process.env.CHILL_AGENT_DATA_DIR;
   process.env.CHILL_AGENT_DATA_DIR=join(dir,'data');
-  t.after(async()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;await rm(dir,{recursive:true,force:true});});
+  t.after(async()=>{if(previous===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=previous;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
   const cwd=join(dir,'project'),transcript=join(dir,'session.jsonl'),sessionId='native/session';
   await mkdir(cwd);await writeFile(join(dir,'env'),'');await writeFile(transcript,'');
   const shared={session_id:sessionId,cwd,transcript_path:transcript},event=hookFor(shared);
@@ -30,13 +30,15 @@ test('each main hook reports what the conversation is doing; a subagent reports 
   ];
   for(const [name,type] of cases)assert.equal(hookWorkEvent(claudeHook(name))?.type??null,type,name);
   assert.equal(hookWorkEvent(claudeHook('StopFailure')).type,'interrupted','an API error ends the response without Stop');
+  for(const name of ['PreToolUse','PostToolUse'])assert.equal(hookWorkEvent(claudeHook(name,{tool_use_id:'toolu_plugin_810ac164'})),null,`a plugin's own ${name} is not the agent working`);
+  assert.equal(hookWorkEvent(claudeHook('PreToolUse',{tool_use_id:'toolu_01ELQtbimgfwLwL5'})).type,'started');
   assert.deepEqual(hookWorkEvent(subagentHook('PostToolUse',{agent_id:'a1'}),new Date('2026-10-19T10:00:00Z')),{type:'subagent',task:{id:'a1',type:'subagent',name:'general-purpose',description:null},at:'2026-10-19T10:00:00.000Z'},'a subagent\'s tool shows it is active');
   assert.deepEqual(hookWorkEvent(subagentHook('SubagentStop',{agent_id:'a1'})),{type:'subagent-stopped',id:'a1'});
   assert.equal(hookWorkEvent(subagentHook('Stop')),null);
 });
 
-test('background agents count; shells such as a dev server or chill\'s own waiter do not',()=>{
-  assert.deepEqual(backgroundTasks([{id:'1',type:'subagent',status:'running',agent_type:'general-purpose',description:'Review'},{id:'2',type:'monitor',status:'running',server:'ci',tool:'watch'},{id:'3',type:'shell',status:'running',command:'npm run dev'},{id:'4',type:'shell',status:'running',command:'chill connection wait'},{id:'5',type:'subagent',status:'completed'}]),
+test('background agents count; shells such as a dev server or chill\'s own hold task do not',()=>{
+  assert.deepEqual(backgroundTasks([{id:'1',type:'subagent',status:'running',agent_type:'general-purpose',description:'Review'},{id:'2',type:'monitor',status:'running',server:'ci',tool:'watch'},{id:'3',type:'shell',status:'running',command:'npm run dev'},{id:'4',type:'shell',status:'running',command:'chill agent wait'},{id:'5',type:'subagent',status:'completed'}]),
     [{id:'1',type:'subagent',name:'general-purpose',description:'Review'},{id:'2',type:'monitor',name:'ci watch',description:null}]);
   assert.deepEqual(backgroundTasks(undefined),[]);
 });

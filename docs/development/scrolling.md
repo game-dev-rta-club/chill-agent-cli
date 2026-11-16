@@ -7,7 +7,7 @@ keyPoints: >-
 
 # Keep the reader in control of scrolling
 
-Read this when changing navigation, Activity, Deliverable rendering, conversation
+Read this when changing navigation, Activity, Canvas rendering, conversation
 folding or focus behavior. The user should never have to fight an update to keep
 reading. [Web navigation](../workspace/web-navigation.md) describes the public
 behavior; this page explains how to preserve it when developing the interface.
@@ -16,7 +16,7 @@ behavior; this page explains how to preserve it when developing the interface.
 
 Use [reading-pane.js](../../public/reading-pane.js) for programmatic changes to
 the main pane. On screens at least 1180px wide, a Goal's Conversation is a second
-column that scrolls by itself (`data-scroll-pane`) beside the Goal and Deliverable; the
+column that scrolls by itself (`data-scroll-pane`) beside the Goal and Canvas; the
 same rules apply inside it, it opens at its newest message, and the composer stays
 at its bottom. When typing makes the composer taller, the column moves up by the
 same amount so the messages above it stay visible (an input handler, not an observer). Narrower screens keep one column. Keep the header and window fixed. Do not add `scrollIntoView`,
@@ -28,13 +28,13 @@ for this pane so they cannot compete with explicit position correction.
 | --- | --- | --- |
 | Open or reload a plain Goal, or return to its plain route | Start at the top | `setTop(0)` |
 | Open a Letter or locate an annotation / Activity | Reveal that target; tall targets start at the heading | `reveal`, after required layout is ready |
-| Step through Deliverable history | Keep the current vertical position, within the new page's bounds | `setTop(previousTop)` |
-| View an updated Deliverable | Reveal the Deliverable heading | `reveal(..., 'start')` |
+| Step through Canvas history | Keep the current vertical position, within the new page's bounds | `setTop(previousTop)` |
+| View an updated Canvas | Reveal the Canvas heading | `reveal(..., 'start')` |
 | Expand earlier/later comments | First revealed comment starts at the opened edge | `align` |
 | Collapse earlier comments | Keep the Conversation heading reachable | `reveal(..., 'nearest')` |
 | Save a comment or Answer | Bring the saved item into view only as needed | `reveal(..., 'nearest')` |
-| Receive Activity, refresh metadata, resize an iframe or render a diagram | Keep the visible message boundary in place; when reading a Deliverable, retain the vertical position | `preserve` around the DOM mutation |
-| Replace the current Deliverable asynchronously | Keep the current reading position unless the reader moves | `capture` before the replacement, restore after layout |
+| Receive Activity, refresh metadata, resize an iframe or render a diagram | Keep the visible message boundary in place; when reading a Canvas, retain the vertical position | `preserve` around the DOM mutation |
+| Replace the current Canvas asynchronously | Keep the current reading position unless the reader moves | `capture` before the replacement, restore after layout |
 
 A background update does not follow new output to the bottom, with one exception:
 a wide Conversation column that the reader left at its very end (within 2px) stays
@@ -50,17 +50,17 @@ position may be impossible; use the previous offset, clamped by the browser.
 
 ## Treat delayed layout as part of the same action
 
-In [app.js](../../public/app.js), a Letter route waits for Deliverable layout once.
+In [app.js](../../public/app.js), a Letter route waits for Canvas layout once.
 Activity requests do not delay navigation; their later layout changes preserve
 the visible target. Capture both the navigation generation and the reading pane's
 interaction revision; discard the move if either changed. Wheel, touch, scrolling
 keys, scrollbar dragging and a newer explicit move invalidate older work. Do not
 interpret a programmatic scroll correction as fresh user intent.
 
-Reuse the Deliverable on same-Goal Letter navigation and unchanged conversation nodes
+Reuse the Canvas on same-Goal Letter navigation and unchanged conversation nodes
 on polling. Preserve position around iframe sizing and diagram replacement rather
 than trying to guess their final height with a timeout. Keep drafts and selections
-alive. HTML Deliverable coordinates must be translated into the outer viewport before
+alive. HTML Canvas coordinates must be translated into the outer viewport before
 revealing an annotation.
 
 Menus and dialogs are separate scroll regions. Preserve the Agent panel's own
@@ -79,7 +79,7 @@ Set `PLAYWRIGHT_MODULE` when Playwright is installed outside the checkout. These
 trials supplement the repository's required `npm run check`; they are not native
 phone testing.
 
-Check desktop and mobile widths, a long HTML Deliverable, delayed iframe/delivery
+Check desktop and mobile widths, a long HTML Canvas, delayed iframe/delivery
 responses, repeated Activity growth above the reader, same-Goal links, reload,
 user interaction while loading, drafts, keyboard focus and folded history. Record
 intermediate target positions as well as the final one: several jumps that return

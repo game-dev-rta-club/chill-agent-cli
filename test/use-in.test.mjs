@@ -15,13 +15,13 @@ test('GitHub remotes become npm github specs; other remotes keep their git URL',
 });
 
 test('use-in writes the pushed commit to the recorded version file and refuses unpushed commits',async t=>{
- const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-use-in-')));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-use-in-')));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const git=(cwd,...args)=>execFileSync('git',args,{cwd,encoding:'utf8'}).trim();
  const remote=join(dir,'remote.git'),repo=join(dir,'repo'),project=join(dir,'project'),base=join(dir,'base');
  git(dir,'init','-q','--bare',remote);await mkdir(repo);git(repo,'init','-q');
  git(repo,'-c','user.name=t','-c','user.email=t@example.invalid','commit','-q','--allow-empty','-m','one');
  git(repo,'remote','add','origin',remote);git(repo,'push','-q','origin','HEAD:refs/heads/main');
- await mkdir(join(project,'skill'),{recursive:true});const versionFile=join(project,'skill/cli.json');
+ await mkdir(join(project,'skill'),{recursive:true});const versionFile=join(project,'skill/chill-agent.json');
  await writeFile(versionFile,JSON.stringify({package:'old'}));
  await assert.rejects(useIn({project,repo,base}),/has not recorded a version file/);
  await recordVersionSource(await projectDirectory(project,base),{versionFile});

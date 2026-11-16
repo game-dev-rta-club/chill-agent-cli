@@ -2,13 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {mkdtemp,mkdir,writeFile,readFile,rm,realpath} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,rm,realpath,rename} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join,resolve} from 'node:path';
-import {fileURLToPath,pathToFileURL} from 'node:url';
-import {readPackageSpec,packageKey,readVersionSource,snapshotPackage,prepareSelectedPackage,acquirePackage,npmCommand} from '../lib/version-source.mjs';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {readPackageSpec,packageKey,readVersionSource,recordVersionSource,snapshotPackage,prepareSelectedPackage,acquirePackage,npmCommand} from '../lib/version-source.mjs';
 import {createRuntimeUpdates} from '../lib/runtime-update-provider.mjs';
-import {agentGuide} from '../lib/agent-guidance.mjs';
 
 const execute=promisify(execFile);
 const root=fileURLToPath(new URL('../',import.meta.url));
@@ -16,10 +15,10 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 async function fixture(t,spec='github:example/chill#aaaa'){
  const dir=await realpath(await mkdtemp(join(tmpdir(),'chill-version-'))),skill=join(dir,'skill'),project=join(dir,'project'),data=join(dir,'data');
  await mkdir(skill);await mkdir(project);
- const versionFile=join(skill,'cli.json'),guide=join(skill,'SKILL.md');
+ const versionFile=join(skill,'chill-agent.json'),guide=join(skill,'SKILL.md');
  await writeFile(versionFile,JSON.stringify({package:spec}));await writeFile(guide,'# Guide\n');
  const old=process.env.CHILL_AGENT_DATA_DIR;process.env.CHILL_AGENT_DATA_DIR=data;
- t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true});});
+ t.after(async()=>{if(old===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const env={...process.env,CHILL_AGENT_DATA_DIR:data,CHILL_AGENT_CODEX_PATH:'/never/call/codex'};
  delete env.CHILL_AGENT_HARNESS;delete env.CHILL_AGENT_SESSION_ID;delete env.CHILL_AGENT_CONNECTION_GENERATION;
  const setup=async(...extra)=>JSON.parse((await execute(process.execPath,[join(root,'bin/chill-setup.mjs'),'prepare','--harness','claude-code','--project',project,...extra],{env,timeout:30000,maxBuffer:4*1024*1024})).stdout);
@@ -33,21 +32,29 @@ test('a version file holds exactly one npm package spec',async t=>{
   await writeFile(f.versionFile,JSON.stringify(value));
   await assert.rejects(readPackageSpec(f.versionFile),/only \{"package"/);
  }
- await assert.rejects(readPackageSpec('relative/cli.json'),/absolute/);
+ await assert.rejects(readPackageSpec('relative/chill-agent.json'),/absolute/);
 });
 
-test('setup records the version file, its package and the agent guide, then names the session command',async t=>{
+test('a project set up when the file was cli.json reads chill-agent.json once the skill holds only that',async t=>{
+ const f=await fixture(t),old=join(f.skill,'cli.json');
+ await rename(f.versionFile,old);await recordVersionSource(f.data,{versionFile:old});
+ assert.equal((await readVersionSource(f.data)).versionFile,old,'the recorded file is read while it exists');
+ await rename(old,f.versionFile);
+ assert.equal((await readVersionSource(f.data)).versionFile,f.versionFile);
+ await rm(f.versionFile);
+ assert.equal((await readVersionSource(f.data)).versionFile,old,'with neither file, the record is unchanged and the Web keeps its version');
+});
+
+test('setup records the version file and its package, then names the session command',async t=>{
  const f=await fixture(t);
- const result=await f.setup('--version-file',f.versionFile,'--agent-guide',f.guide);
+ const result=await f.setup('--version-file',f.versionFile);
  assert.equal(result.package,f.spec);
  assert.match(result.next,/session start --harness claude-code --project/);
- assert.deepEqual(await readVersionSource(f.data),{version:1,versionFile:f.versionFile,agentGuide:f.guide});
+ assert.deepEqual(await readVersionSource(f.data),{version:1,versionFile:f.versionFile});
  assert.equal(await snapshotPackage(f.data,result.root),f.spec);
- assert.equal(agentGuide(pathToFileURL(resolve('/nonexistent/extensions.json'))),f.guide,'a runtime without its own guide uses the recorded one');
  // Setup without the option, as session start runs it, keeps the snapshot's package record.
  const again=await f.setup();
  assert.equal(again.root,result.root);assert.equal(again.package,f.spec);assert.doesNotMatch(again.next,/session start/);
- await assert.rejects(f.setup('--agent-guide',f.guide),/requires --version-file/);
 });
 
 test('the update provider compares the running snapshot with the version file',async t=>{

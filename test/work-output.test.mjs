@@ -4,7 +4,7 @@ import {mkdtemp, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {workReader} from '../lib/agents/codex-work-output.mjs';
-import {activityDisplay, commentMarkDisplay, workDisclosure} from '../public/work-ui.js';
+import {activityDisplay, commentMarkDisplay, showsThink, thinkView, workDisclosure} from '../public/work-ui.js';
 import {codexThread, contractStub} from './codex-contract.mjs';
 
 const thread='00000000-0000-0000-0000-000000000001';
@@ -101,17 +101,29 @@ test('a comment shows a mark only until its Goal has a reply, and the agent show
   assert.equal(activityDisplay({status:'idle',work:{messages:[]}}),null,'nothing to show where the agent did nothing');
   assert.equal(activityDisplay({status:'running',work:{live:true,messages:[]}}).live,true);
   const background=activityDisplay({status:'running',background:[{id:'a1',type:'subagent',name:'general-purpose',description:'Review',activeAt:'2026-10-19T10:47:00Z'},{id:'m1',type:'monitor',name:'ci watch',description:null,activeAt:null}],work:{live:true,messages:[]}},Date.parse('2026-10-19T10:50:00Z'));
-  assert.equal(background.label,'Background','a response that ended with background tasks is not shown as Running');
-  assert.equal(background.description,'The response ended. Still running: subagent (general-purpose): Review, active 3 min ago; monitor (ci watch).');
+  assert.equal(background.state,'running');assert.equal(background.label,'Running','subagents it left running keep it Running, so the user waits as for any work');
+  assert.deepEqual(background.items,[{kind:'Subagent',text:'Review',when:'active 3 min ago'},{kind:'Monitor',text:'ci watch',when:''}]);
   assert.equal(background.live,false);
 });
 
-test('an AutoContinue run is found by its exact result command',async()=>{
- const command='chill monitor result --id 1 --attempt 00000000-0000-0000-0000-000000000123 --outcome worked';
- const queued={threadId:thread,matchText:command,history:[]};
- assert.equal((await workReader(clientFor([],{...meta,items:[userMessage(command)]}))(queued)).turnId,turn);
- for(const text of [command.replace('--id 1','--id 2'),command+'other',command.replace('000123','000124')]) {
-  const reader=workReader(clientFor([],{...meta,items:[userMessage(text)]}));
-  assert.equal(await reader(queued),null);
- }
+test('an end-of-turn check run is found by the ID its request was queued with',async()=>{
+ const id='00000000-0000-0000-0000-000000000123',queued={threadId:thread,messageId:id,history:[]};
+ const sent=clientId=>({...userMessage('=== chill-agent · Keep going ==='),clientId});
+ assert.equal((await workReader(clientFor([],{...meta,items:[sent(id)]}))(queued)).turnId,turn);
+ for(const item of [sent(id.replace('000123','000124')),userMessage(id)])assert.equal(await workReader(clientFor([],{...meta,items:[item]}))(queued),null);
+});
+
+test('Think shows the newest message and folds the earlier ones until opened',()=>{
+ const m=['one','two','three'].map(text=>({text}));
+ assert.deepEqual(thinkView(m),{earlier:2,shown:[m[2]],clamped:true,less:false});
+ assert.deepEqual(thinkView(m,true),{earlier:0,shown:m,clamped:false,less:true});
+ assert.deepEqual(thinkView([m[0]]),{earlier:0,shown:[m[0]],clamped:true,less:false},'a single long message is also held at three lines');
+ assert.deepEqual(thinkView([]),{earlier:0,shown:[],clamped:false,less:false});
+});
+
+test('Think with no text shows only while the agent works', () => {
+  assert.equal(showsThink({messages: []}, true), true);
+  assert.equal(showsThink({messages: []}, false), false);
+  assert.equal(showsThink({messages: [{text: 'Done.'}]}, false), true);
+  assert.equal(showsThink(null, true), false);
 });

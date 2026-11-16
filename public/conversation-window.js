@@ -1,5 +1,5 @@
 // Conversation is still one chronological stream. This state only controls
-// which older messages are shown; it is independent of Deliverable history.
+// which older messages are shown; it is independent of Canvas history.
 import {letterState} from './letter-state.js';
 export const INITIAL_COMMENT_COUNT = 3;
 export const EXPANSION_COMMENT_COUNT = 3;

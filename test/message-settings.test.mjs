@@ -17,7 +17,7 @@ const remote={mode:'named',url:'https://plans.example.com',tunnelId:'00000000-00
 const notifications={enabled:true,tool:'slack-send',destination:'chosen-channel',on:['comment','letter']};
 
 test('settings are optional, private, independently writable, and independently disabled',async t=>{
-  const root=await mkdtemp(join(tmpdir(),'chill-settings-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await mkdtemp(join(tmpdir(),'chill-settings-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   assert.deepEqual(await readMessageSettings(root),{remote:{mode:'off'},notifications:{enabled:false}});
   await Promise.all([saveMessageSetting('remote',remote,root),saveMessageSetting('notifications',notifications,root)]);
   assert.deepEqual(await readMessageSettings(root),{remote,notifications});
@@ -30,7 +30,7 @@ test('settings are optional, private, independently writable, and independently 
 });
 
 test('named tunnel uses exact HTTPS hostname and per-ingress Access verification; invalid settings do not replace good ones',async t=>{
-  const root=await mkdtemp(join(tmpdir(),'chill-settings-validation-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await mkdtemp(join(tmpdir(),'chill-settings-validation-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   await saveMessageSetting('remote',remote,root);
   for(const patch of [{url:'http://plans.example.com'}, {url:'https://user:password@plans.example.com'}, {url:'https://plans.example.com/path'}, {url:'https://plans.example.com/?token=x'}, {url:'https://plans.trycloudflare.com'}, {accessAud:[]},{accessTeam:''},{credentialsFile:'relative.json'},{token:'secret'}]){
     assert.throws(()=>validateRemote({...remote,...patch}));
@@ -44,36 +44,39 @@ test('named tunnel uses exact HTTPS hostname and per-ingress Access verification
   assert.deepEqual(config.ingress[1],{service:'http_status:404'});
 });
 
-test('notification preparation uses only a live configured URL and failures leave saved results intact',async t=>{
-  const root=await mkdtemp(join(tmpdir(),'chill-notice-'));t.after(()=>rm(root,{recursive:true,force:true}));
+test('without the runtime\'s provider there are no notifications: notice and the global switch are refused',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'chill-notice-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   const env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'4173',CHILL_AGENT_CODEX_PATH:fileURLToPath(new URL('./fake-codex.mjs',import.meta.url))};
   const run=(name,args)=>execute(process.execPath,[fileURLToPath(new URL(`../bin/${name}.mjs`,import.meta.url)),...args],{env});
   await run('chill-agent',['create','--title','Saved result']);
-  await run('chill-agent',['comment','--id','1','--text','Done']);
-  const args=['notice','--id','1','--event','1'];
-  assert.deepEqual(JSON.parse((await run('chill-settings',args)).stdout),{enabled:false});
+  await run('chill-agent',['reply','--id','1','--text','Done']);
   await saveMessageSetting('notifications',notifications,root);
-  await saveMessageSetting('remote',remote,root);
-  assert.equal(JSON.parse((await run('chill-settings',args)).stdout).url,null);
-  const tunnel=join(root,'runtime/web-4173/tunnel.json'); await mkdir(join(root,'runtime/web-4173'),{recursive:true});
-  await writeFile(tunnel,JSON.stringify({pid:process.pid,url:remote.url}));
-  assert.equal(JSON.parse((await run('chill-settings',args)).stdout).url,`${remote.url}/#/goal/1`);
-  await saveMessageSetting('remote',{mode:'off'},root);
-  assert.equal(JSON.parse((await run('chill-settings',args)).stdout).url,null,'disabled exposure never advertises an old URL');
-  const saved=await readFile(join(root,'workspace/events/1.json'),'utf8');
-  await assert.rejects(run('chill-settings',['notice','--id','1','--event','999']));
-  assert.equal(await readFile(join(root,'workspace/events/1.json'),'utf8'),saved);
+  await assert.rejects(run('chill-settings',['notice','--id','1','--event','1']),/does not provide notifications/);
+  await assert.rejects(run('chill-settings',['notifications','--off']),/does not provide notifications/);
 });
 
-test('reminders respect selected occasions without depending on remote settings or sending tools', async t => {
-  const root=await mkdtemp(join(tmpdir(),'chill-reminder-'));t.after(()=>rm(root,{recursive:true,force:true}));
-  assert.equal(await notificationReminder({directory:root}), '');
+test('settings access-code prints the panel\'s code only while the public link runs',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'chill-access-code-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
+  const env={...process.env,CHILL_AGENT_DATA_DIR:root,PORT:'4173'};
+  const run=args=>execute(process.execPath,[fileURLToPath(new URL('../bin/chill-settings.mjs',import.meta.url)),...args],{env});
+  await assert.rejects(run(['access-code']),/Public link is not running/);
+  await saveMessageSetting('remote',{mode:'quick'},root);
+  await mkdir(join(root,'runtime/web-4173'),{recursive:true});
+  await writeFile(join(root,'runtime/web-4173/tunnel.json'),JSON.stringify({pid:process.pid,url:'https://quiet-river.trycloudflare.com'}));
+  const first=JSON.parse((await run(['access-code'])).stdout);
+  assert.match(first.code,/^[0-9]{6}$/);
+  assert.equal(first.link,'https://quiet-river.trycloudflare.com/');
+  assert.ok(Date.parse(first.expiresAt)>Date.now());
+  const saved=JSON.parse(await readFile(join(root,'workspace/public-access/1.json'),'utf8'));
+  assert.equal(saved.code.value,first.code,'the Web panel reads the same stored code');
+  assert.deepEqual(JSON.parse((await run(['access-code'])).stdout),first,'asking again does not change it');
+  await mkdir(join(root,'workspace/public-link'),{recursive:true});
+  await writeFile(join(root,'workspace/public-link/1.json'),JSON.stringify({enabled:false}));
+  await assert.rejects(run(['access-code']),/Public link is not running/,'a link turned Off gives no code');
+});
+
+test('without the runtime\'s provider a global notification setting gives no reminder', async t => {
+  const root=await mkdtemp(join(tmpdir(),'chill-reminder-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   await saveMessageSetting('notifications', {...notifications,on:['comment']}, root);
-  await writeFile(join(root,'settings/remote.json'), '{bad remote config');
-  assert.equal(await notificationReminder({directory:root,goalId:'1',eventId:2,when:'letter'}), '');
-  const reminder=await notificationReminder({directory:root,goalId:'1',eventId:2,when:'comment'});
-  assert.match(reminder,/notice --id 1 --event 2/);
-  assert.doesNotMatch(reminder,/chosen-channel|slack-send/,'tool and recipient are looked up at send time, not frozen into context');
-  await saveMessageSetting('notifications',{enabled:false},root);
-  assert.equal(await notificationReminder({directory:root}), '');
+  assert.equal(await notificationReminder({directory:root,goalId:'1',eventId:2,when:'comment'}), '');
 });

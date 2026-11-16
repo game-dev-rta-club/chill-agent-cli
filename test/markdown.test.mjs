@@ -59,3 +59,10 @@ test('#N links to Goal N as on GitHub, except in code, links and words', () => {
   assert.deepEqual(goalReferences(source), ['52', '3', '4']);
   assert.equal(markdownText(source), markdownText(source.replaceAll('#', '＃')).replaceAll('＃', '#'));
 });
+
+test('C3 and L4 link a comment or Letter by its number; #12 C3 one in another Goal', () => {
+  const html = markdownHTML('C9 の案、#185 C8 と L2。#5C6、abcC1 /C2 C3a `C4` [C5](https://e.com/) https://e.com/#C7');
+  const refs = [...html.matchAll(/<a (?:href="#\/goal\/(\d+)\/number\/\d+" data-goal="\d+" )?data-number="(\d+)">([^<]*)<\/a>/g)].map(m => [m[1] || '', m[2], m[3]]);
+  assert.deepEqual(refs, [['', '9', 'C9'], ['185', '8', '#185 C8'], ['', '2', 'L2'], ['5', '6', '#5C6']]);
+  assert.deepEqual(goalReferences('#185 C8 and C3'), ['185'], 'a comment in another Goal mentions that Goal');
+});

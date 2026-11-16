@@ -22,9 +22,9 @@ test('presence covers runs without feedback, interrupted turns, idle, and unavai
  assert.equal(agentPresence({threadState:'idle'}),'idle');
 });
 test('extension messages render as escaped text; missing old snapshots are not reconstructed',()=>{
- const html=activityMarkup([{id:'test',label:'Policy',activity:{label:'AutoContinue',status:'Off',entries:[{id:'1',summary:'<img src=x>',message:'<script>alert(1)</script>\nnext line',result:{label:'No work reported'}},{id:'2',summary:'Old check',message:null,status:'Run ended'}],total:2}}]);
+ const html=activityMarkup([{id:'test',label:'Policy',activity:{label:'AutoContinue',status:'Off',entries:[{id:'1',summary:'<img src=x>',message:'<script>alert(1)</script>\nnext line',result:{label:'No work'}},{id:'2',summary:'Old check',message:null,status:'Run ended'}],total:2}}]);
  assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>|<img/);assert.match(html,/next line/);
- assert.match(html,/Message not saved/);assert.match(html,/No work reported/);assert.match(html,/History/);
+ assert.match(html,/Message not saved/);assert.match(html,/No work/);assert.match(html,/History/);
 });
 
 test('presence collects turn and thread state with one native connection',async()=>{
@@ -41,6 +41,17 @@ test('AutoContinue omits counts and empty labels while retaining its toggle and 
   assert.doesNotMatch(markup(count),/class="agent-count"|>Empty</);
   assert.match(markup(count),/>History/);assert.match(markup(count),/aria-pressed="false"/);
  }
+});
+
+test('a turn that starts soon after chill sent the chat a message is working before its first hook',()=>{
+ const now=Date.now(),sentAt=new Date(now-5000).toISOString(),seconds=at=>Math.floor(at/1000);
+ const live={threadState:'notLoaded',turn:{id:'new',status:'interrupted',startedAt:seconds(now-4000),completedAt:null},sentAt};
+ assert.equal(agentPresence(live,now),'working');
+ assert.equal(agentPresence({...live,sentAt:undefined},now),'unknown','no message sent: chill cannot tell');
+ assert.equal(agentPresence({...live,turn:{...live.turn,startedAt:seconds(now-60000)}},now),'unknown','a turn that began before the message is not its turn');
+ assert.equal(agentPresence({...live,sentAt:new Date(now-600000).toISOString()},now),'unknown','a turn long after the message is the user\'s');
+ assert.equal(agentPresence(live,now+130000),'unknown','without a hook, the claim ends like a heartbeat');
+ assert.equal(agentPresence({...live,turn:{...live.turn,completedAt:seconds(now)}},now),'paused');
 });
 
 test('hooks confirm a live chat before selecting a Goal, but cannot outlive its turn',()=>{

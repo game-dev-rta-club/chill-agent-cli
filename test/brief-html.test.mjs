@@ -14,8 +14,16 @@ test('HTML Deliverable isolates author styling and preserves only static content
  assert.ok(doc.indexOf('body{margin:0;padding:')<doc.indexOf('body{color:red}'),'the Deliverable has the card\'s margins unless its own style sets them');assert.match(doc,/class="brief-body"/);assert.ok(!doc.includes('alert(1)'));
  assert.throws(()=>briefHTML('source','pdf'),/format/);assert.equal(briefReadableText('<h1>A</h1><p>B</p>','html'),'A\n\nB');
 });
+test('a Canvas that never styles its tables gets lines, and one that does keeps its own',()=>{
+ const table='<table><tr><th>A</th></tr><tr><td>1</td></tr></table>';
+ assert.match(briefDocument(table),/th,td\{padding:6px 10px;border:1px solid/,'an unstyled table gets lines');
+ assert.match(briefDocument('<style>p{color:red}</style>'+table),/th,td\{padding:6px 10px;border:1px solid/,'CSS for other elements still leaves tables unstyled');
+ const own=briefDocument('<style>td{border-bottom:1px solid #eee}</style>'+table);
+ assert.ok(!own.includes('th,td{padding:6px 10px'),'a Canvas that styles cells keeps only its own look');
+ assert.match(briefDocument('<style>.width{width:1px}</style>'+table),/th,td\{padding:6px 10px/,'a word such as width is not a table rule');
+});
 test('switching Deliverable formats keeps both originals, exact histories and HTML annotation coordinates',async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-brief-html-'));process.env.CHILL_AGENT_DATA_DIR=root;t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-brief-html-'));process.env.CHILL_AGENT_DATA_DIR=root;t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const goal=await createGoal({title:'Compare formats'});
  assert.match(goal.briefPath,/deliverable.html$/,'a new Goal starts with an HTML source');
  await writeFile((await briefSource(goal.id,'markdown')).path,'# Markdown\n\nOriginal');const markdown=await updateBrief(goal.id);
@@ -30,7 +38,7 @@ test('switching Deliverable formats keeps both originals, exact histories and HT
 });
 
 test('one-time format conversion preserves snapshots, originals and conversations in a backup',async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-html-migration-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-html-migration-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const work=join(root,'workspace');await mkdir(join(work,'goals/1/briefs'),{recursive:true});await mkdir(join(work,'events'));
  const old={goalId:1,version:1,body:'# Original',createdAt:'2026-10-04T00:00:00Z'};
  await writeFile(join(work,'schema.json'),JSON.stringify({format:'goal-workspace',version:6}));
@@ -45,7 +53,7 @@ test('one-time format conversion preserves snapshots, originals and conversation
 test('agents see annotation sources named deliverable while stored ones keep the internal name',async()=>{
  const {agentAnnotations}=await import('../lib/brief.mjs');
  const stored=[{kind:'text',source:{kind:'brief',version:2}},{kind:'text',source:{kind:'comment',eventId:5}}];
- assert.deepEqual(agentAnnotations(stored).map(n=>n.source.kind),['deliverable','comment']);
+ assert.deepEqual(agentAnnotations(stored).map(n=>n.source.kind),['canvas','comment']);
  assert.equal(stored[0].source.kind,'brief','the stored record is not changed');
  assert.equal(agentAnnotations(undefined),undefined);
 });

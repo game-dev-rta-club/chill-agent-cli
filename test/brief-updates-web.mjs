@@ -12,9 +12,9 @@ const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...arg
 await run('create','--title','Auto Deliverable');
 let version=0;
 async function publish(format='markdown'){
- version++;const path=await run('deliverable','path','--id','1','--format',format);
+ version++;const path=await run('canvas','path','--id','1','--format',format);
  await writeFile(path.path,format==='html'?`<!doctype html><html><body><h1>Deliverable ${version}</h1><p>HTML current</p><div style="height:700px"></div></body></html>`:`# Deliverable ${version}\n\nAnnotation target\n\n${'Long reading paragraph. '.repeat(version===1?150:200)}`);
- await run('deliverable','update','--id','1','--format',format);
+ await run('canvas','update','--id','1','--format',format);
 }
 await publish();
 const server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
@@ -51,4 +51,4 @@ try{
  await publish();await page.getByRole('heading',{name:'Deliverable 5',exact:true}).waitFor();await page.locator('#update-notice:not([hidden])').waitFor();
  await page.locator('main').focus();await page.keyboard.press('PageDown');await page.locator('#update-notice').waitFor({state:'hidden'});
  assert.deepEqual(errors,[]);console.log('passed: auto-update, retained reading position and drafts, original annotation version, View brief scroll only, wheel/keyboard dismissal, HTML, history, mobile');
-}finally{await browser?.close();server.kill();await once(server,'exit');await rm(root,{recursive:true,force:true});}
+}finally{await browser?.close();server.kill();await once(server,'exit');await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

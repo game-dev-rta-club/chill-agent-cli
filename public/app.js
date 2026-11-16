@@ -1,25 +1,38 @@
 import {createLettersMenu} from './letters-menu.js';
+import {browserClientId} from './browser-context.js';
 import {createActivityControls} from './activity-controls.js';
 import {createAgentMenu} from './agent-menu.js';
 import {createAgentPresence,presenceMark,presenceLabel} from './agent-presence.js';
+import {createLiveStatus} from './live-status.js';
 import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
-import { activityDisplay, commentMarkDisplay, workDisclosure } from './work-ui.js';
+import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, showsThink, thinkView, todoMarkup, waitListMarkup, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
-import { briefBody } from './brief-body.js';
+import { briefBody, addCodeCopy, copyCode } from './brief-body.js';
 import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-view.js';
 import { createConversationWindow, EXPANSION_COMMENT_COUNT } from './conversation-window.js';
+import { thumbHashOf, thumbHashPicture } from './image-placeholder.js';
 import { createReadingPane } from './reading-pane.js';
 import {createRuntimeUpdate} from './runtime-update.js';
+import {watchNewDevices} from './device-notice.js';
 import {createTabIcon} from './tab-icon.js';
 import {isRunning} from './goal-state.js';
+import {createReferencePreview} from './reference-preview.js';
 import {createSkillMenu} from './skill-menu.js';
+import {autonomyLevels,autonomyOf} from './autonomy.js';
 
 history.scrollRestoration='manual';
 const briefsByGoal = new Map();
 const goalMetadata = new Map();
 const hasGoal = id => goalMetadata.has(id);
+// The comment or Letter numbered `number` in a Goal (C3, L4), or null.
+async function fetchNumber(goalId,number){
+  const response=await fetch(`/api/goals/${goalId}/numbers/${number}`,{signal:AbortSignal.timeout(12000)});
+  if(response.status===404)return null;
+  if(!response.ok)throw Error('Could not load this comment.');
+  return response.json();
+}
 const events = [];
 const historyPages=new Map();
 const letterStatuses=new Map();
@@ -34,6 +47,8 @@ const icons = {
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   comment: '<path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z"/>',
   letter: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>',
+  check: '<path d="m5 12 5 5 9-10"/>',
+  circle: '<circle cx="12" cy="12" r="8"/>',
   pending: '<circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/>',
   send: '<path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="m9 11-4 4 4 4"/>',
   annotate: '<path d="M4 20h16M5 16l11-11 3 3L8 19H5v-3Z"/>',
@@ -44,19 +59,32 @@ const icons = {
   mention: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">${icons[name]}</svg>`;
-const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-  <path d="${presence?'M20 9V7l5-2.5':'M20 9V5l4-2'}" stroke="#373e42" stroke-width="1.8"/>${presence?`<circle class="agent-antenna-light" cx="25" cy="-1" r="5.5"/>
-  <circle class="agent-antenna-track" cx="25" cy="-1" r="8"/>
-  <circle class="agent-antenna-orbit" cx="25" cy="-1" r="8" pathLength="100" stroke-dasharray="32 68"/>
-  <path class="agent-antenna-paused" d="M23 -4v6m4-6v6" stroke="#fff" stroke-width="1.8"/>
-  <text class="agent-antenna-unknown" x="25" y="2.5" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">?</text>`:'<circle cx="25" cy="3" r="2.5" fill="#e4b854"/>'}
-  <rect x="3.5" y="8.5" width="33" height="29" rx="12" fill="#f3d486" stroke="#373e42" stroke-width="1.5"/>
+// The agent's face (40x40), shared by its avatar and the Autonomy icons.
+const agentAntenna = '<path d="M20 9V5l4-2" stroke="#373e42" stroke-width="1.8" fill="none"/><circle cx="25" cy="3" r="2.5" fill="#e4b854"/>';
+const agentFace = `<rect x="3.5" y="8.5" width="33" height="29" rx="12" fill="#f3d486" stroke="#373e42" stroke-width="1.5"/>
   <rect x="7" y="14" width="26" height="18" rx="8" fill="#fff9e9"/>
   <path d="M3 20v7m34-7v7" stroke="#373e42" stroke-width="3"/>
   <ellipse cx="10.5" cy="25" rx="2.5" ry="1.5" fill="#efb3a4"/><ellipse cx="29.5" cy="25" rx="2.5" ry="1.5" fill="#efb3a4"/>
   <circle cx="14" cy="21" r="1.8" fill="#373e42"/><circle cx="26" cy="21" r="1.8" fill="#373e42"/>
-  <path d="M17 26q3 3 6 0" stroke="#373e42" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M17 26q3 3 6 0" stroke="#373e42" stroke-width="1.7" stroke-linecap="round" fill="none"/>`;
+const agentAvatar = (presence=false) => `<svg class="agent-avatar" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+  ${presence?`<path d="M20 9V7l5-2.5" stroke="#373e42" stroke-width="1.8"/><circle class="agent-antenna-light" cx="25" cy="-1" r="5.5"/>
+  <circle class="agent-antenna-track" cx="25" cy="-1" r="8"/>
+  <circle class="agent-antenna-orbit" cx="25" cy="-1" r="8" pathLength="100" stroke-dasharray="32 68"/>
+  <path class="agent-antenna-paused" d="M23 -4v6m4-6v6" stroke="#fff" stroke-width="1.8"/>
+  <text class="agent-antenna-unknown" x="25" y="2.5" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">?</text>`:agentAntenna}
+  ${agentFace}
   </svg>`;
+// Autonomy icons (48x48): the agent with what its level adds around it,
+// nothing (Normal), an arrow going round (Auto Continue), a car (Never Stop).
+// The effects follow the current colour; the face and wheels keep their own.
+const agentIn = (x, y, scale) => `<g transform="translate(${x} ${y}) scale(${scale})" stroke="none">${agentAntenna}${agentFace}</g>`;
+const autonomyIcons = {
+  1: agentIn(9.6, 9.9, .72),
+  2: `<path d="M42.79 18.16A20 20 0 1 1 27.47 5.3" stroke-width="2.6"/><path d="M25.2 1.6l5.4 4.2-6.2 2.6z" fill="currentColor" stroke="none"/>${agentIn(9.6, 9.9, .72)}`,
+  3: `${agentIn(10, 6.8, .6)}<path d="M0.8 24h4.5M0 30h5M0.8 36h4" stroke-width="2.2"/><path d="M34 25.5l3-6" stroke="#373e42" stroke-width="1.6"/><path d="M7 27.5q0-2 2-2h28.5q3 0 5 3l2.2 3.2q1.3 1.6 1.3 3.3v1.5q0 1.5-1.5 1.5H8.5Q7 38 7 36.5z" fill="currentColor" stroke="none"/><circle cx="43" cy="31" r="1.4" fill="#f3d486" stroke="none"/><circle cx="15" cy="38.5" r="4.6" fill="#373e42" stroke="none"/><circle cx="15" cy="38.5" r="1.6" fill="#fff9e9" stroke="none"/><circle cx="37" cy="38.5" r="4.6" fill="#373e42" stroke="none"/><circle cx="37" cy="38.5" r="1.6" fill="#fff9e9" stroke="none"/>`,
+};
+const autonomyIcon = level => `<svg class="autonomy-svg" viewBox="0 0 48 48" aria-hidden="true">${autonomyIcons[level]}</svg>`;
 const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
 const attachmentFiles = new Map();
 const isImageFile = file => ['image/png', 'image/jpeg', 'image/webp'].includes(file.type);
@@ -64,6 +92,7 @@ const fileMarkup = (src, name, className) => src
   ? `<a class="attachment-file ${className}" href="${escapeHTML(src)}" target="_blank" rel="noopener" title="${escapeHTML(name)}">${icon('file')}<span>${escapeHTML(name)}</span></a>`
   : `<span class="attachment-file ${className}" title="${escapeHTML(name)}">${icon('file')}<span>${escapeHTML(name)}</span></span>`;
 const main = document.querySelector('#main');
+createReferencePreview({root:main,goal:id=>goalMetadata.get(id),fetchNumber:(goalId,number)=>fetchNumber(goalId,number)});
 const readingPane = createReadingPane(main,{rectOf:viewportRect});
 const keepReadingPosition = readingPane.preserve;
 createSkillMenu({root:main, goalId:()=>activeGoalId, escapeHTML});
@@ -93,21 +122,26 @@ const viewUpdate = document.querySelector('#view-update');
 let currentRoute = '';
 let activeGoalId = null;
 const agentButton=document.getElementById('agent-button');
-// The AutoContinue cup, set on a saucer.
-const coffeeOnSaucer='<svg class="monitor-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(1.5 1) scale(.88)"><path class="coffee-fill" d="M3 6h14v6a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6z"/><path d="M17 8h2a3 3 0 0 1 0 6h-2"/><path class="coffee-steam" d="M7 4c-2-1 2-2 0-3m6 3c-2-1 2-2 0-3"/></g><path d="M1.5 18.6c2.5 2.2 16.5 2.2 19 0"/></svg>';
-agentButton.innerHTML=agentAvatar(true)+`<span class="agent-auto-mark" aria-hidden="true">${coffeeOnSaucer}</span>`;
-// A small coffee at the Agent's lower left while AutoContinue is on for this Goal.
-window.addEventListener('chill-extension-controls',event=>{
-  const on=event.detail.controls.some(c=>c.id==='continuation'&&c.enabled);
-  agentButton.toggleAttribute('data-autocontinue',on);
-});
-const tabIcon=createTabIcon();
-window.addEventListener('chill-agent-presence',event=>tabIcon.set(event.detail.routeGoalId===activeGoalId&&isRunning(event.detail.status)));
+agentButton.innerHTML=agentAvatar(true);
+const tabIcon=createTabIcon(undefined,undefined,document.querySelector('.brand-mark img'));
+window.addEventListener('chill-agent-appearance',event=>tabIcon.use(event.detail.tabIcon));
+window.addEventListener('chill-agent-presence',event=>{const {routeGoalId,status,wake}=event.detail;tabIcon.set(routeGoalId!==activeGoalId?null:isRunning(status)?'working':isWaitingOnCheck(wake)?'waiting':null);});
 const agentPresence=createAgentPresence({button:agentButton,getGoalId:()=>activeGoalId});
+// A hidden tab no longer refreshes its Goals, so its title follows the server's count.
+let hiddenSummary=null;
+const showHiddenSummary=(summary,goalId)=>{hiddenSummary={goalId,summary};if(document.visibilityState!=='visible'&&goalId===activeGoalId)document.title=letterTabTitle(summary);};
+// The tab icon turns to the updating arrow while an update runs (seen by this
+// page or pushed live) or while the live socket cannot reach chill.
+const updating={page:'idle',live:'idle',lost:false};
+const showUpdating=change=>{Object.assign(updating,change);tabIcon.updating(updating.page!=='idle'||updating.live!=='idle'||updating.lost);};
+const liveStatus=createLiveStatus({getGoalId:()=>activeGoalId,query:()=>clientQuery('?'),onPresence:data=>agentPresence.apply(data),onSummary:showHiddenSummary,
+ onUpdate:update=>showUpdating({live:update.phase||'idle'}),onReach:reached=>showUpdating({lost:!reached})});
 const agentMenu=createAgentMenu({button:agentButton,panel:document.getElementById('agent-panel'),content:document.getElementById('agent-content'),getGoalId:()=>activeGoalId});
-const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel')});
-const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,announce:showToast});
-createRuntimeUpdate({button:document.getElementById('runtime-update-button'),announce:showToast});
+let countsSaves=0;
+const lettersMenu=createLettersMenu({button:document.getElementById('letters-button'),panel:document.getElementById('letters-panel'),readReplies,countsChanged:(rootId,counts)=>{countsSaves++;const root=goalMetadata.get(rootId);if(root){goalMetadata.set(rootId,{...root,counts});updateTabTitle();}}});
+const extensionButtons=createExtensionButtons({container:document.getElementById('extension-buttons'),getGoalId:()=>activeGoalId,controlsChanged:controls=>lettersMenu.controlsChanged(controls)});
+createRuntimeUpdate({button:document.getElementById('runtime-update-button'),announce:showToast,onPhase:phase=>showUpdating({page:phase})});
+watchNewDevices();
 let activeVersion = null;
 let pendingAnchor = null;
 let annotationOpen = false;
@@ -147,7 +181,7 @@ function noteLabel(note) {
   return note.kind === 'text' ? note.anchor.quote : note.imageName || imageNames.get(note.imageId) || 'Image';
 }
 const selectedNotes = (id = activeGoalId) => notesFor(id).filter(note => note.selected !== false);
-const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Deliverable v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent comment'} ${note.source?.eventId} · ` : '';
+const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Canvas v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent comment'} ${note.source?.eventId} · ` : '';
 function noteImageMarkup(note, preview = false) {
   const images=attachmentIdsFor(note).map(id=>`/api/images/${escapeHTML(id)}`);
   if(note.kind==='image'&&note.source?.kind==='brief')images.unshift(`/api/goals/${activeGoalId}/briefs/${Number(note.source.version)}/svg/${Number(note.source.svgIndex)}`);
@@ -215,9 +249,114 @@ function composerMarkup(id, comment) {
     <div class="comment-field"><label class="sr-only" for="conversation-comment">Reply</label>
       <textarea id="conversation-comment" data-input="comment" rows="3" placeholder="Write a comment">${escapeHTML(comment)}</textarea></div>
     ${imageControl('comment')}<div data-notes-slot>${notesPanelMarkup(id)}</div>
-    <div class="composer-actions"><div class="composer-buttons">${imagePicker('comment')}<button type="submit" class="composer-submit comment" data-submit-mode="comment">${icon('comment')}Comment</button></div></div>
+    <div class="composer-actions">${autonomyMarkup(id)}<div class="composer-buttons">${imagePicker('comment')}<button type="submit" class="composer-submit comment" data-submit-mode="comment">${icon('comment')}Comment</button></div></div>
   </fieldset></form>`;
 }
+
+// Autonomy: the level of the Root's agent, the same on every Goal of the tree.
+// The comment row shows it as one button, [icon] name ▾. The button opens the
+// page's one Autonomy panel, built like the Color theme panel (theme-menu.js):
+// the levels with their descriptions. Choosing a row saves at once, apart from
+// any comment, and closes the panel. Levels are stored as numbers, shown by name.
+const autonomySaves = new Map();
+const autonomyName = level => autonomyLevels[level-1].name;
+const autonomyCurrent = level => `<span class="autonomy-current">${autonomyIcon(level)}<span class="autonomy-name">${escapeHTML(autonomyName(level))}</span><svg class="autonomy-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>`;
+function autonomyMarkup(id) {
+  const level = autonomyOf(goalMetadata.get(id));
+  return `<div class="autonomy" data-autonomy data-goal-id="${id}" data-level="${level}"><button type="button" class="autonomy-button" data-autonomy-button aria-haspopup="dialog" aria-expanded="false" aria-controls="autonomy-panel" aria-label="Autonomy: ${escapeHTML(autonomyName(level))}">${autonomyCurrent(level)}</button></div>`;
+}
+// The panel lives in the body, so the conversation column's scroll box cannot
+// clip it; CSS anchors it to the open button (styles.css).
+const autonomyPanel = document.createElement('section');
+autonomyPanel.id = 'autonomy-panel';
+autonomyPanel.className = 'autonomy-panel';
+autonomyPanel.hidden = true;
+autonomyPanel.setAttribute('role', 'dialog');
+autonomyPanel.setAttribute('aria-label', 'Autonomy');
+autonomyPanel.innerHTML = `<h2 class="autonomy-heading">Autonomy</h2>
+  <div class="autonomy-choices">${autonomyLevels.map(l => `<button type="button" class="autonomy-choice" data-autonomy-level="${l.level}" aria-pressed="false">${autonomyIcon(l.level)}<span class="autonomy-choice-text"><b>${escapeHTML(l.name)}</b><span>${escapeHTML(l.description)}</span></span><span class="autonomy-check" aria-hidden="true">✓</span></button>`).join('')}</div>
+  <p class="autonomy-message" role="status"></p>`;
+document.body.append(autonomyPanel);
+const autonomyMessage = autonomyPanel.querySelector('.autonomy-message');
+const autonomyChoices = () => [...autonomyPanel.querySelectorAll('[data-autonomy-level]')];
+let autonomyTrigger = null;
+const autonomyBox = () => autonomyTrigger?.closest('[data-autonomy]');
+const markAutonomy = level => { for (const choice of autonomyChoices()) choice.setAttribute('aria-pressed', String(Number(choice.dataset.autonomyLevel) === level)); };
+// Show a level in every comment box of the Root without rendering them again.
+function showAutonomy(id, level = autonomyOf(goalMetadata.get(id))) {
+  const rootId = rootGoalId(id);
+  for (const box of main.querySelectorAll('[data-autonomy]')) {
+    if ((box.dataset.goalId !== id && rootGoalId(box.dataset.goalId) !== rootId) || box.dataset.level === String(level)) continue;
+    box.dataset.level = String(level);
+    const button = box.querySelector('[data-autonomy-button]');
+    button.innerHTML = autonomyCurrent(level);
+    button.setAttribute('aria-label', `Autonomy: ${autonomyName(level)}`);
+  }
+  if (autonomyBox()) markAutonomy(Number(autonomyBox().dataset.level));
+}
+function closeAutonomy(restore = false) {
+  if (autonomyPanel.hidden) return;
+  autonomyPanel.hidden = true;
+  const button = autonomyTrigger;
+  autonomyTrigger = null;
+  button.setAttribute('aria-expanded', 'false');
+  if (restore && button.isConnected) button.focus();
+}
+function openAutonomy(button) {
+  closeAutonomy();
+  autonomyTrigger = button;
+  markAutonomy(Number(autonomyBox().dataset.level));
+  autonomyMessage.textContent = '';
+  autonomyPanel.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  autonomyPanel.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});
+}
+async function saveAutonomy(choice) {
+  const box = autonomyBox(), id = box.dataset.goalId, level = Number(choice.dataset.autonomyLevel);
+  if (level === autonomyOf(goalMetadata.get(id))) { closeAutonomy(true); return; }
+  const request = {};
+  autonomySaves.set(id, request);
+  autonomyMessage.textContent = 'Saving…';
+  for (const c of autonomyChoices()) c.disabled = true;
+  try {
+    const response = await fetch(`/api/goals/${id}/autonomy`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level}), signal:AbortSignal.timeout(15000)});
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error);
+    // The level belongs to the Root's agent, so every Goal of the tree shows it.
+    const rootId = rootGoalId(id);
+    for (const goal of goalMetadata.values()) if (goal.id === id || rootGoalId(goal.id) === rootId) goalMetadata.set(goal.id, {...goal, autonomy:result.autonomy});
+    showAutonomy(id, result.autonomy);
+    autonomyMessage.textContent = '';
+    if (autonomyBox() === box) closeAutonomy(true);
+  } catch (error) {
+    autonomyMessage.textContent = error.name === 'TimeoutError' ? 'Save unconfirmed. Reload to check.' : 'Could not save. Autonomy is unchanged.';
+  } finally {
+    for (const c of autonomyChoices()) c.disabled = false;
+    if (!autonomyPanel.hidden && !autonomyPanel.contains(document.activeElement)) choice.focus({preventScroll:true});
+    if (autonomySaves.get(id) === request) autonomySaves.delete(id);
+  }
+}
+main.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-autonomy-button]');
+  if (!button) return;
+  if (autonomyTrigger === button) closeAutonomy(); else openAutonomy(button);
+});
+autonomyPanel.addEventListener('click', event => {
+  const choice = event.target.closest('[data-autonomy-level]');
+  if (choice && autonomyBox()?.isConnected && !autonomySaves.has(autonomyBox().dataset.goalId)) void saveAutonomy(choice);
+});
+document.addEventListener('pointerdown', event => {
+  if (!autonomyPanel.hidden && !autonomyPanel.contains(event.target) && !autonomyTrigger.contains(event.target)) closeAutonomy();
+});
+document.addEventListener('keydown', event => {
+  if (autonomyPanel.hidden) return;
+  const items = autonomyChoices().filter(b => !b.disabled), at = items.indexOf(document.activeElement);
+  if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); closeAutonomy(true); }
+  else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && items.length) { event.preventDefault(); items[(at + (event.key === 'ArrowDown' ? 1 : items.length - 1 + (at < 0 ? 1 : 0))) % items.length].focus(); }
+  else if (event.key === 'Tab' && items.length && (event.shiftKey ? at <= 0 : at === items.length - 1)) { event.preventDefault(); items[event.shiftKey ? items.length - 1 : 0].focus(); }
+}, true);
+// A new page renders new comment boxes; the panel does not stay with an old one.
+window.addEventListener('hashchange', () => closeAutonomy());
 
 const commentMarks = new Map();
 const activityControls=createActivityControls({main,getGoalId:()=>activeGoalId,onChange:()=>{
@@ -226,14 +365,18 @@ const activityControls=createActivityControls({main,getGoalId:()=>activeGoalId,o
 }});
 const workViews = new Map();
 function workMarkup(key, work, live) {
-  if (!work) return '';
+  if (!showsThink(work, live)) return '';
   const view = workDisclosure(workViews.get(key), live);
   workViews.set(key, view);
+  const think = thinkView(work.messages, view.all);
   const settings = work.settings?.model ? `<p class="activity-settings">${escapeHTML(work.settings.model)}${work.settings.reasoning ? ` · ${escapeHTML(work.settings.reasoning)}` : ''}</p>` : '';
   return `<details class="work-progress" data-work-id="${escapeHTML(key)}" ${view.open ? 'open' : ''}>
     <summary>Think</summary><div class="work-output" aria-label="Think">${settings}
-    ${work.messages.map(message => `<p class="work-message">${escapeHTML(message.text)}</p>`).join('')}
-    ${!work.messages.length ? '<p class="work-hint">No text yet.</p>' : ''}
+    ${think.earlier ? `<button type="button" class="work-earlier" data-action="expand-work" data-work-id="${escapeHTML(key)}"><span class="conversation-gap-marker" aria-hidden="true">${icon('expandOlder')}</span><span>${think.earlier} earlier ${think.earlier === 1 ? 'message' : 'messages'}</span></button>` : ''}
+    ${think.shown.map(message => `<p class="work-message${think.clamped ? ' work-latest' : ''}"${think.clamped ? ` data-action="expand-work" data-work-id="${escapeHTML(key)}" title="Show all of Think"` : ''}>${escapeHTML(message.text)}</p>`).join('')}
+    ${think.less ? `<button type="button" class="work-earlier work-less" data-action="collapse-work" data-work-id="${escapeHTML(key)}">Show less</button>` : ''}
+    ${!work.messages.length && !work.todo?.items?.length ? '<p class="work-hint">Thinking…</p>' : ''}
+    ${todoMarkup(work.todo)}
     </div></details>`;
 }
 // The small mark under a comment that still awaits a reply.
@@ -250,8 +393,12 @@ function activityEnd(id) {
   if (!shown || activity.goalId !== id || liveActivity.has(shown.state)) return Infinity;
   return Math.max(Date.parse(activity.work?.startedAt) || 0, ...(activity.work?.messages || []).map(message => Number(message.at) || 0)) || Infinity;
 }
+// The Waiting list starts closed, its count in view, so it does not push the
+// rest down. Goals whose list the user opened stay open while this page does.
+const openWaits = new Set();
 function activityMarkup(id) {
   const activity = activityControls.current(), shown = activityDisplay(activity);
+  const waits = shown?.items || [], waitsClosed = !openWaits.has(id);
   if (!shown || activity.goalId !== id) return '';
   if (activity.in) {
     const title = goalMetadata.get(activity.in)?.title;
@@ -262,12 +409,15 @@ function activityMarkup(id) {
   return `<li class="timeline-event activity-event" id="goal-activity">
     <span class="timeline-marker agent" aria-hidden="true">${agentAvatar()}</span>
     <div class="activity-entry" data-state="${shown.state}"><div class="activity-heading"><span class="activity-dot" aria-hidden="true"></span><strong>${escapeHTML(shown.label)}</strong>${activityControls.controls()}</div>
-      <p>${escapeHTML(shown.description)}</p>
+      ${shown.description ? `<p>${escapeHTML(shown.description)}</p>` : ''}${waits.length ? `<details class="work-progress wait-box" data-wait-goal="${escapeHTML(id)}" ${waitsClosed ? '' : 'open'}><summary>Wait · ${waits.length}</summary><div class="work-output">${waitListMarkup(waits)}</div></details>` : ''}
       ${workMarkup(`goal:${id}:${activity.work?.startedAt || ''}`, activity.work, shown.live)}
     </div></li>`;
 }
 
 const timeMarkup = at => `<time datetime="${at.toISOString()}">${at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time>`;
+// A comment's number in its Goal, small beside the time. It opens and copies the
+// comment's link; the workspace-wide id, which older text may use, is in the tooltip.
+const eventNumberMarkup = event => event.number ? `<a class="event-number" href="#/goal/${escapeHTML(event.goalId)}/activity/${escapeHTML(event.id)}" data-copy-event-link title="${event.type === 'letter' ? 'Letter' : 'comment'} ${escapeHTML(event.number)} · id ${escapeHTML(event.id)} · Copy link">${escapeHTML(event.number)}</a>` : '';
 function mentionMarkup(mention) {
   const title = goalMetadata.get(mention.goalId)?.title;
   return `<li class="timeline-event"><span class="timeline-marker" aria-hidden="true">${icon('mention')}</span>
@@ -276,9 +426,17 @@ function mentionMarkup(mention) {
 
 function replyMarkup(event) {
   const source = event.author === 'agent' ? `data-annotation-reply="${event.id}"` : '';
-  return `<div class="event-text markdown-body" ${source}>${briefBody(event.html || '', {hasGoal, replyId:event.id, opened:openReplies})}</div>`;
+  return `<div class="event-text markdown-body" ${source}>${briefBody(event.html || '', {hasGoal, goalId:event.goalId, replyId:event.id, opened:openReplies})}</div>`;
 }
 
+// An open Letter offers Done (an empty circle); the user's own Done is a check
+// they can press to take back. Other closed Letters say who closed them.
+function letterMetaMarkup(event,letter){
+  const button=(done,label,title)=>`<button type="button" class="letter-done-button${done?' is-done':''}" data-action="letter-done" data-done="${done?'false':'true'}" data-goal-id="${escapeHTML(event.goalId)}" data-event-id="${event.id}" title="${title}">${icon(done?'check':'circle')}${label}</button>`;
+  if(letter.status==='open')return button(false,'Done','Mark this Letter done without replying');
+  if(letter.status==='received'&&event.receivedBy==='user')return button(true,'Done','Mark this Letter not done');
+  return ['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:'';
+}
 function timelineMarkup(id) {
   const visible = conversationFor(id);
   const pinned = conversationPins(id, visible);
@@ -305,7 +463,7 @@ function timelineMarkup(id) {
     const waiting = event.author === 'user' && commentMarks.get(event.changeId)?.mark === 'waiting';
     const item = `<li id="event-${event.id}" class="timeline-event comment-event${waiting ? ' is-waiting' : ''}">
       <span class="timeline-marker ${event.author}" aria-hidden="true">${event.author==='agent'?agentAvatar():icon('comment')}</span>
-      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${['answered','received'].includes(letter.status)?`<span class="answered-label">${letter.status==='received'?'Received':'Replied'}</span>`:''}${time}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}</header>`}
+      <article class="timeline-entry${letter?` letter-comment ${['answered','received'].includes(letter.status)?'is-answered':''}`:''}">${letter?`<header class="letter-comment-heading"><h3 class="letter-comment-title">${icon('letter')}<span data-annotation-reply="${event.id}" data-reply-field="title">${escapeHTML(event.title)}</span></h3><div class="letter-comment-meta">${time}${eventNumberMarkup(event)}${letterMetaMarkup(event,letter)}</div></header>`:`<header class="event-meta"><strong>${event.author==='agent'?'Agent':'You'}</strong>${time}${eventNumberMarkup(event)}</header>`}
       ${event.text?replyMarkup(event):''}
       ${savedNotesMarkup(event)}${attachmentIdsFor(event).map(id=>{const src=`/api/images/${escapeHTML(id)}`,file=attachmentFiles.get(id);return file?fileMarkup(src,file.name,'event-file'):`<img class="event-image" src="${src}" alt="Attached image">`;}).join('')}${event.author==='user'?commentMarkMarkup(event):''}</article></li>`;
     if (waiting) { waitingMarkup += item; return ''; }
@@ -388,7 +546,7 @@ function refreshGoalFrame() {
   if(slot&&activeGoalId)keepReadingPosition(()=>{slot.innerHTML=goalView().brief(activeGoalId);});
 }
 function renderGoal(id,version) {
-  const brief=briefAt(id,version),isHTML=brief?.format==='html',body=isHTML?'':briefBody(brief?.html||'',{hasGoal}),view=goalView();
+  const brief=briefAt(id,version),isHTML=brief?.format==='html',body=isHTML?'':briefBody(brief?.html||'',{hasGoal,goalId:id}),view=goalView();
   const imageTemplate=document.createElement('template');imageTemplate.innerHTML=body;
   imageNames.clear();
   imageTemplate.content.querySelectorAll('img').forEach((img,index)=>{
@@ -400,10 +558,10 @@ function renderGoal(id,version) {
   updateTabTitle();
   // On a wide screen the Conversation becomes its own scrolling column beside the rest.
   main.innerHTML=`<div class="goal-layout"><div class="goal-primary"><div id="goal-frame">${view.brief(id)}</div><div class="history-grid">
-    <section class="document-section"><div class="section-heading document-heading"><h2>Deliverable</h2>${brief?view.pager(id,version):''}</div>
-      <article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable">
-        <div class="brief-body markdown-body" ${isHTML?'hidden':''}>${body||'<p class="empty-state">No Deliverable yet. You can start the conversation below.</p>'}</div>
-      </article>${brief&&version<latestVersion(id)?`<div class="history-notice"><span>Earlier Deliverable</span><a href="${versionRoute(id,latestVersion(id))}">View current →</a></div>`:''}
+    <section class="document-section"><div class="section-heading document-heading"><h2>Canvas</h2>${brief?view.pager(id,version):''}</div>
+      <article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Canvas">
+        <div class="brief-body markdown-body" ${isHTML?'hidden':''}>${body||'<p class="empty-state">No Canvas yet. You can start the conversation below.</p>'}</div>
+      </article>${brief&&version<latestVersion(id)?`<div class="history-notice"><span>Earlier Canvas</span><a href="${versionRoute(id,latestVersion(id))}">View current →</a></div>`:''}
     </section>
     <form class="annotation-form" data-form="annotation" data-goal-id="${id}" data-version="${version}" hidden><fieldset>
       <div class="annotation-heading"><strong data-editor-heading>Annotation</strong><button type="button" class="text-button" data-action="close-annotation" aria-label="Close annotation">✕</button></div><blockquote class="annotation-quote"></blockquote>
@@ -436,40 +594,58 @@ function viewportRect(element) {
 }
 const scrollInReadingPane = readingPane.reveal;
 function mountHTMLBrief(id,version) {
-  const frame=document.createElement('iframe');frame.className='html-brief-frame';frame.title='HTML Deliverable';
+  const frame=document.createElement('iframe');frame.className='html-brief-frame';frame.title='HTML Canvas';
   frame.setAttribute('sandbox','allow-same-origin');frame.src=`/api/goals/${id}/briefs/${version}/document`;
-  let ready;const loaded=new Promise(resolve=>{ready=resolve;});
-  frame.addEventListener('load',async()=>{
+  let ready,started=false;const loaded=new Promise(resolve=>{ready=resolve;});
+  let size=()=>{};
+  // Set up as soon as the document is parsed: its load waits for every image,
+  // and the frame would stay short until then.
+  const early=()=>{if(started||!frame.isConnected)return;const doc=frame.contentDocument;if(doc?.readyState!=='loading'&&doc?.querySelector('.brief-body'))void start();else requestAnimationFrame(early);};
+  requestAnimationFrame(early);
+  frame.addEventListener('load',()=>{if(started)size();else void start();});
+  const start=async()=>{
+    started=true;
     if(!frame.isConnected){ready();return;}
     const doc=frame.contentDocument,body=doc?.querySelector('.brief-body');if(!body){ready();return;}
+    for(const type of ['load','error'])doc.addEventListener(type,imageArrived,true);
+    body.querySelectorAll('img[data-image-placeholder]').forEach(img=>{
+      if(img.complete){img.removeAttribute('data-image-placeholder');if(!img.dataset.thumbhash)rememberThumbHash(img);return;}
+      if(img.dataset.thumbhash)paintPlaceholder(img);else needsThumbHash.add(img);
+    });
     body.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
-    const size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(doc.body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
+    size=()=>{if(frame.isConnected)keepReadingPosition(()=>{frame.style.height=`${Math.ceil(Math.max(doc.body.getBoundingClientRect().height,body.scrollHeight))+1}px`;});};
     const observer=new ResizeObserver(size);observer.observe(body);
     for(const type of ['wheel','touchmove','keydown'])doc.addEventListener(type,briefScrollIntent,{passive:true});
     doc.addEventListener('selectionchange',updateSelectionAction);
-    // The Deliverable and the page each keep a selection; only the one the user is making counts.
+    // The Canvas and the page each keep a selection; only the one the user is making counts.
     doc.addEventListener('pointerdown',()=>window.getSelection()?.removeAllRanges());
     // Do not rely only on selectionchange timing across frame focus changes.
-    // Read the completed selection as well, without moving focus out of the Deliverable.
+    // Read the completed selection as well, without moving focus out of the Canvas.
     doc.addEventListener('pointerup',updateSelectionAction);
     doc.addEventListener('keyup',updateSelectionAction);
     doc.addEventListener('toggle',()=>renderAnnotations(),true);
+    addCodeCopy(body);
     doc.addEventListener('click',event=>{
+      const copy=event.target.closest('[data-action="copy-code"]');if(copy){event.preventDefault();void copyCode(copy);return;}
       const mark=event.target.closest('.annotation-mark, .image-note-box');
       if(mark){event.preventDefault();openNoteReference(mark.dataset.noteRef);return;}
       const image=event.target.closest('[data-action="annotate-image"]');if(image){event.preventDefault();openImageSelection(image.dataset.imageId,image.dataset.svgIndex);return;}
       // Clicking the image or diagram itself opens the same annotation screen, shown large.
       const picture=event.target.closest('.annotatable-image')?.querySelector(':scope > [data-action="annotate-image"]');
       if(picture&&!event.target.closest('button')){event.preventDefault();openImageSelection(picture.dataset.imageId,picture.dataset.svgIndex);return;}
-      const link=event.target.closest('a[href]');if(link){event.preventDefault();window.open(link.href,'_blank','noopener,noreferrer');}
+      const link=event.target.closest('a[href]');if(!link)return;event.preventDefault();
+      // A link to a Goal (#N) moves this page there; any other link opens a new tab.
+      const route=link.getAttribute('href');if(route.startsWith('#/')){location.hash=route;return;}
+      window.open(link.href,'_blank','noopener,noreferrer');
     });
     doc.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches('.annotation-mark')){event.preventDefault();event.target.click();}});
+    doc.addEventListener('keydown',annotateKey);
     renderAnnotations();size();
     // Stop observers when the route replaces this frame.
     const cleanup=new MutationObserver(()=>{if(!frame.isConnected){observer.disconnect();cleanup.disconnect();}});
     cleanup.observe(main,{childList:true,subtree:true});
     await doc.fonts.ready;size();ready();
-  });
+  };
   main.querySelector('.html-brief').append(frame);
   return loaded;
 }
@@ -601,8 +777,9 @@ const annotationAction = document.createElement('button');
 annotationAction.type = 'button';
 annotationAction.className = 'annotation-action';
 annotationAction.setAttribute('aria-label', 'Annotate selected text');
-annotationAction.title = 'Annotate selected text';
-annotationAction.innerHTML = icon('annotate');
+annotationAction.setAttribute('aria-keyshortcuts', 'E');
+// The hint above the button names its key; it replaces the title tooltip.
+annotationAction.innerHTML = `${icon('annotate')}<span class="annotation-key-hint" aria-hidden="true">Annotate <kbd>E</kbd></span>`;
 annotationAction.hidden = true;
 document.body.append(annotationAction);
 function hideAnnotationAction() { annotationAction.hidden = true; }
@@ -630,7 +807,14 @@ function selectionAnchor() {
   const quote = annotationTextNodes(body).map(n => n.textContent).join('').slice(start - base, end - base).trim();
   if (!quote) return null;
   const source = body.dataset.annotationReply ? {kind: 'comment', eventId: Number(body.dataset.annotationReply), ...(body.dataset.replyField==='title'?{field:'title'}:{})} : {kind: 'brief',version:activeVersion};
-  return {start, end, quote, source, document:body.ownerDocument, rect: (()=>{const r=range.getBoundingClientRect(),f=htmlBriefFrame();if(body.ownerDocument===document||!f)return r;const p=f.getBoundingClientRect();return {left:r.left+p.left,right:r.right+p.left,top:r.top+p.top,bottom:r.bottom+p.top};})()};
+  // A long line in a code block can run past what its scroll box shows, so the
+  // button keeps to the right edge of every box that clips the selection.
+  const f=body.ownerDocument===document?null:htmlBriefFrame(),p=f?.getBoundingClientRect(),dx=p?.left||0,dy=p?.top||0,r=range.getBoundingClientRect();
+  let clipRight=f?p.left+f.clientLeft+f.clientWidth:Infinity;
+  for(let el=range.commonAncestorContainer.nodeType===Node.ELEMENT_NODE?range.commonAncestorContainer:range.commonAncestorContainer.parentElement;el&&el!==body.ownerDocument.documentElement;el=el.parentElement){
+    if(getComputedStyle(el).overflowX==='visible')continue;const box=el.getBoundingClientRect();clipRight=Math.min(clipRight,box.left+el.clientLeft+el.clientWidth+dx);
+  }
+  return {start, end, quote, source, document:body.ownerDocument, clipRight, rect:{left:r.left+dx,right:r.right+dx,top:r.top+dy,bottom:r.bottom+dy}};
 }
 
 let selectionActionTimer;
@@ -643,7 +827,7 @@ function updateSelectionAction() {
     pendingAnchor = {start: anchor.start, end: anchor.end, quote: anchor.quote, source: anchor.source};
     const viewport = window.visualViewport;
     const leftEdge = viewport?.offsetLeft || 0;
-    const rightEdge = (viewport?.offsetLeft || 0) + (viewport?.width || window.innerWidth) - 8;
+    const rightEdge = Math.min((viewport?.offsetLeft || 0) + (viewport?.width || window.innerWidth), anchor.clipRight) - 8;
     const right = Math.min(anchor.rect.right, rightEdge);
     const left = Math.max(leftEdge, right - 44);
     if (right - left < 24) return hideAnnotationAction();
@@ -673,6 +857,15 @@ annotationAction.addEventListener('click', event => {
   const {source, ...anchor} = pendingAnchor;
   openNoteEditor({id: crypto.randomUUID(), kind: 'text', anchor, source, text: ''});
 });
+// E opens the annotation while its button shows, unless the key types text
+// or belongs to a shortcut.
+function annotateKey(event) {
+  if (event.key.toLowerCase() !== 'e' || event.metaKey || event.ctrlKey || event.altKey || event.isComposing || annotationAction.hidden) return;
+  if (event.target.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+  event.preventDefault();
+  annotationAction.click();
+}
+document.addEventListener('keydown', annotateKey);
 function openNoteEditor(note) {
   if (annotationSaves.has(notesKey()) || submitting.has(formKey(activeGoalId, 'comment'))) return;
   removePendingImage('annotation');
@@ -759,6 +952,19 @@ imageAreaImage.addEventListener('error', () => {
 });
 imageAreaDialog.querySelector('[data-area-close]').addEventListener('click', closeImageSelection);
 imageAreaDialog.addEventListener('cancel', event => { event.preventDefault(); closeImageSelection(); });
+// A click outside the window closes it, as ✕ does. The backdrop is the dialog
+// itself, so only a press and release both beyond its box count: a selection
+// dragged past the edge keeps the window open.
+const outsideImageArea = event => {
+  const box = imageAreaDialog.getBoundingClientRect();
+  return event.target === imageAreaDialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom);
+};
+let imageAreaPressedOutside = false;
+imageAreaDialog.addEventListener('pointerdown', event => { imageAreaPressedOutside = outsideImageArea(event); });
+imageAreaDialog.addEventListener('click', event => {
+  if (imageAreaPressedOutside && outsideImageArea(event)) closeImageSelection();
+  imageAreaPressedOutside = false;
+});
 imageAreaWhole.addEventListener('click', () => {
   if (!imageSelection) return;
   imageSelection.rect = {x: 0, y: 0, width: 1, height: 1};
@@ -811,6 +1017,69 @@ function imageIdFromSource(source) {
   try { return /^\/api\/images\/([0-9a-f-]{36})$/.exec(new URL(source, location.origin).pathname)?.[1] || null; }
   catch { return null; }
 }
+// Reserve each saved image's box from its size and show a placeholder until
+// the image arrives, so slow images do not hold up or shift the page.
+const imageSizes = new Map(), sizeWaiting = new Set();
+let sizeRequest = null;
+function reserveImage(img) {
+  const id = imageIdFromSource(img.getAttribute('src'));
+  if (!id || img.hasAttribute('data-image-placeholder')) return;
+  if (!imageSizes.has(id)) { sizeWaiting.add(img); requestImageSizes(); return; }
+  const size = imageSizes.get(id);
+  if (!size) return;
+  // An image already here needs no placeholder, but may still lack its colours.
+  if (img.complete) { if (!size.thumbhash) rememberThumbHash(img); return; }
+  // A thumbnail keeps its fixed box; others take the image's shape within their maximum height.
+  if (!img.classList.contains('note-thumbnail') && !img.getAttribute('width') && !img.getAttribute('height')) {
+    const scale = Math.min(1, parseFloat(getComputedStyle(img).maxHeight) / size.height || 1);
+    img.width = Math.round(size.width * scale); img.height = Math.round(size.height * scale);
+    img.setAttribute('data-image-reserved', '');
+  }
+  img.setAttribute('data-image-placeholder', '');
+  if (size.thumbhash) { img.dataset.thumbhash = size.thumbhash; paintPlaceholder(img); }
+  else needsThumbHash.add(img);
+}
+// Show the image's own colours, blurred; the first browser to load an image
+// without them works them out and saves them for everyone after.
+const needsThumbHash = new WeakSet(), savedThumbHashes = new Set();
+function paintPlaceholder(img) {
+  try { img.style.background = `center / cover no-repeat url("${thumbHashPicture(img.dataset.thumbhash)}")`; }
+  catch { /* Keep the plain placeholder. */ }
+}
+function rememberThumbHash(img) {
+  const id = imageIdFromSource(img.getAttribute('src'));
+  if (!id || savedThumbHashes.has(id) || !img.naturalWidth) return;
+  savedThumbHashes.add(id);
+  try {
+    const thumbhash = thumbHashOf(img);
+    if (imageSizes.get(id)) imageSizes.set(id, {...imageSizes.get(id), thumbhash});
+    void fetch('/api/image-thumbhashes', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, thumbhash})}).catch(() => {});
+  } catch { /* Leave it for the next browser. */ }
+}
+function requestImageSizes() {
+  if (sizeRequest) return;
+  sizeRequest = Promise.resolve().then(async () => {
+    const waiting = [...sizeWaiting], ids = [...new Set(waiting.map(img => imageIdFromSource(img.getAttribute('src'))))].filter(id => !imageSizes.has(id));
+    sizeWaiting.clear();
+    let sizes = {};
+    try { if (ids.length) sizes = (await (await fetch(`/api/image-sizes?ids=${ids.join(',')}`)).json()).sizes || {}; } catch { /* Show the image without a placeholder. */ }
+    ids.forEach(id => imageSizes.set(id, sizes[id] || null));
+    sizeRequest = null;
+    waiting.forEach(img => { if (img.isConnected) reserveImage(img); });
+    if (sizeWaiting.size) requestImageSizes();
+  });
+}
+// The Canvas frame's images come from another document, so match by selector, not by class.
+const imageArrived = event => {
+  const img = event.target;
+  if (!img?.matches?.('img[data-image-placeholder]')) return;
+  img.removeAttribute('data-image-placeholder'); img.style.removeProperty('background');
+  if (event.type === 'load' && needsThumbHash.has(img)) rememberThumbHash(img);
+};
+for (const type of ['load', 'error']) document.addEventListener(type, imageArrived, true);
+const reserveImagesIn = node => { if (node.nodeType !== 1) return; if (node.matches('img')) reserveImage(node); else node.querySelectorAll('img').forEach(reserveImage); };
+new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(reserveImagesIn))).observe(document.body, {childList: true, subtree: true});
+reserveImagesIn(document.body);
 function noteEntries() {
   const saved = events.filter(event => event.goalId === activeGoalId).flatMap(event => [
     ...(event.annotations || []).map((note, index) => ({ref: `event-${event.id}-${index}`, note, event})),
@@ -867,16 +1136,19 @@ function renderAnnotations(openingEditor=false) {
       markText(target, {...entry.note.anchor, start: entry.note.anchor.start - base, end: entry.note.anchor.end - base}, entry.ref, entry.draft, entry.editing);
     }
   }
-  annotationSources('.brief-body img, .brief-body svg[data-brief-svg], .image-preview img, .event-image').forEach(img => {
+  annotationSources('.brief-body img, .brief-body svg[data-brief-svg], .image-preview img, .event-image, [data-annotation-reply] img').forEach(img => {
     const svgIndex=img.dataset.briefSvg===undefined?null:Number(img.dataset.briefSvg);
     const imageId = svgIndex===null?imageIdFromSource(img.src):null;
     const attachment = Boolean(img.closest('.image-preview'));
     if (!imageId && !attachment && svgIndex===null) return;
+    // A reply image is named by its alt text unless a Canvas already named it.
+    const label = img.closest('[data-annotation-reply]') && (img.title || img.alt);
+    if (imageId && label && !imageNames.has(imageId)) imageNames.set(imageId, label.slice(0, 200));
     const matching = entries.filter(item => item.note.kind === 'image' && (svgIndex!==null?item.note.source?.kind==='brief'&&item.note.source.version===activeVersion&&item.note.source.svgIndex===svgIndex:imageId ? item.note.imageId === imageId : item.note.target === 'attachment'));
     const bounds=svgIndex!==null?img.getBoundingClientRect():null;
     // Small decorative SVG icons keep their layout; a diagram-sized SVG gets
     // the same control as an uploaded image.
-    const editable = (imageId||svgIndex!==null&&bounds.width>=64&&bounds.height>=64) && (img.closest('.brief-body')||img.classList.contains('event-image'));
+    const editable = (imageId||svgIndex!==null&&bounds.width>=64&&bounds.height>=64) && (img.closest('.brief-body, [data-annotation-reply]')||img.classList.contains('event-image'));
     if (!matching.length && !editable) return;
     const wrapper = document.createElement('span');
     wrapper.className = 'annotatable-image';
@@ -927,7 +1199,7 @@ function openNoteReference(ref, scroll = false) {
   if (!entry) return;
   if (entry.note.source?.kind === 'comment') revealConversationEvent(entry.note.source.eventId);
   else if (entry.note.kind === 'image') {
-    const source=conversationFor(activeGoalId).find(e=>attachmentIdsFor(e).includes(entry.note.imageId));
+    const source=conversationFor(activeGoalId).find(e=>attachmentIdsFor(e).includes(entry.note.imageId)||String(e.html||'').includes(`/api/images/${entry.note.imageId}`));
     if(source)revealConversationEvent(source.id);
   }
   const target = (entry.note.kind==='letter'?document.getElementById(`event-${entry.note.source.eventId}`):null)
@@ -980,22 +1252,40 @@ main.addEventListener('scroll', () => { hideAnnotationAction(); updateSelectionA
 window.addEventListener('resize', () => { hideAnnotationAction(); updateSelectionAction(); hideAnnotationPreview(); });
 
 function updateBrandTarget(){
-  const brand=document.querySelector('.brand'),target=goalView().brandTarget();
+  const brand=document.querySelector('.brand-link'),target=goalView().brandTarget();
   brand.href=target.href;brand.setAttribute('aria-label',target.label);brand.title=target.label;
 }
 let tabTitleGeneration=0,letterCountRequest=false;
+function markRead(goal,through){
+  if(goal.readThrough===undefined||through<=goal.readThrough)return;
+  goal.readThrough=through;
+  fetch(`/api/goals/${goal.id}/read`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({through})}).catch(()=>{});
+}
+// Showing a Goal in the front tab reads its replies on every device.
+function markActiveRead(){
+  const goal=goalMetadata.get(activeGoalId);
+  if(goal&&document.visibilityState==='visible')markRead(goal,events.reduce((n,e)=>e.goalId===goal.id&&e.id>n?e.id:n,0));
+}
+function readReplies(replies){
+  const latest=new Map();for(const reply of replies)latest.set(reply.goalId,Math.max(latest.get(reply.goalId)||0,reply.id));
+  for(const [id,through] of latest){const goal=goalMetadata.get(id);if(goal)markRead(goal,through);}
+  updateTabTitle();
+}
 function updateTabTitle(){
   tabTitleGeneration++;
+  markActiveRead();
   lettersMenu.update([...goalMetadata.values()],events,activeGoalId);
-  document.title=letterTabTitle(rootLetterSummary([...goalMetadata.values()],events,activeGoalId));
+  document.title=letterTabTitle(document.visibilityState!=='visible'&&hiddenSummary?.goalId===activeGoalId?hiddenSummary.summary:rootLetterSummary([...goalMetadata.values()],events,activeGoalId));
 }
+// A count depends on what this browser chose to show.
+const clientQuery=prefix=>{const id=browserClientId();return id?`${prefix}clientId=${id}`:'';};
 async function refreshLetterCount(){
   if(!activeGoalId||letterCountRequest)return;
   const id=activeGoalId,generation=tabTitleGeneration;
   letterCountRequest=true;
   try{
-    const response=await fetch(`/api/goals/${id}/letters/count`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
-    if(response.ok){const summary=await response.json();if(id===activeGoalId&&generation===tabTitleGeneration)document.title=letterTabTitle(summary);}
+    const response=await fetch(`/api/goals/${id}/letters/count${clientQuery('?')}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
+    if(response.ok){const summary=await response.json();if(id===activeGoalId&&generation===tabTitleGeneration)showHiddenSummary(summary,id);}
   }catch{/* Keep the last known count until the connection returns. */}
   finally{letterCountRequest=false;}
 }
@@ -1019,6 +1309,24 @@ function fillRootAgents(){
 }
 function renderIndex(){updateTabTitle();main.innerHTML=goalView().index();fillRootAgents();}
 let stepFocus=null,routeReady=Promise.resolve();
+// The Root whose theme and tab icon the open Goal uses; none on the Goal list.
+function rootGoalId(id) {
+  let goal=goalMetadata.get(id);
+  for(let n=0;goal?.parentId&&goalMetadata.has(goal.parentId)&&n<goalMetadata.size;n++)goal=goalMetadata.get(goal.parentId);
+  return goal?.id||null;
+}
+// The notification worker picks a tab of the notified Goal's Root, then
+// moves it to that Goal without reloading it.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', event => {
+    const data = event.data || {};
+    if (data.type === 'chill-open') {
+      const target = new URL(data.url, location.origin);
+      if (target.origin === location.origin && target.hash.startsWith('#/goal/')) location.hash = target.hash;
+    }
+  });
+  navigator.serviceWorker.startMessages();
+}
 function renderRoute() {
   hasNewBrief.dismiss();
   closeImageSelection();
@@ -1033,10 +1341,12 @@ function renderRoute() {
   activeVersion=activeGoalId?Number(match[2]||latestVersion(activeGoalId)):null;
   if(activeGoalId&&(match[2]||activeVersion)&&!briefAt(activeGoalId,activeVersion))activeGoalId=null;
   updateTabTitle();
+  extensionButtons.themeRootChanged(rootGoalId(activeGoalId));
   lettersMenu.close();
   agentMenu.routeChanged();
   extensionButtons.routeChanged();
   agentPresence.routeChanged();
+  liveStatus.routeChanged();
   let ready=Promise.resolve();
   if(activeGoalId) {
     if(match?.[3])conversationWindow.reveal(activeGoalId,conversationFor(activeGoalId),Number(match[3]));
@@ -1046,14 +1356,14 @@ function renderRoute() {
     }else ready=routeReady=renderGoal(activeGoalId,activeVersion||0);
     main.querySelectorAll('.brief-detail[data-detail-id]').forEach(detail=>{detail.open=openDetails.has(`${activeGoalId}:v${activeVersion}:${detail.dataset.detailId}`);});
   } else if(currentRoute==='#/goals')renderIndex();
-  else {main.innerHTML='<div class="not-found"><h1>Goal or Deliverable not found</h1><a href="#/goals">Back to Goals</a></div>';}
+  else {main.innerHTML='<div class="not-found"><h1>Goal or Canvas not found</h1><a href="#/goals">Back to Goals</a></div>';}
   readingPane.setTop(beforeId===activeGoalId&&(match?.[2]||match?.[3])?top:0);
   if(activeGoalId&&beforeId!==activeGoalId&&!match?.[3])readingPane.showLatest();
   activityControls.routeChanged();
   void refreshCommentMarks().catch(()=>{});
   if(match?.[3]) {
     const routeFrame=main.firstElementChild,generation=navigationGeneration,interaction=readingPane.interaction;
-    // Wait for the Deliverable, but don't gate navigation on Activity network traffic.
+    // Wait for the Canvas, but don't gate navigation on Activity network traffic.
     // Later Activity/diagram changes preserve the visible target themselves.
     Promise.resolve(ready).then(()=>requestAnimationFrame(()=>{
       if(main.firstElementChild===routeFrame&&navigationGeneration===generation&&readingPane.interaction===interaction)scrollInReadingPane(document.getElementById(`event-${match[3]}`));
@@ -1090,6 +1400,11 @@ main.addEventListener('toggle', event => {
   if (detail.matches?.('.reply-detail')) {
     if (!detail.isConnected) return;
     if (detail.open) openReplies.add(detail.dataset.replyDetail); else openReplies.delete(detail.dataset.replyDetail);
+    return;
+  }
+  if (detail.matches?.('.wait-box')) {
+    if (!detail.isConnected) return;
+    if (detail.open) openWaits.add(detail.dataset.waitGoal); else openWaits.delete(detail.dataset.waitGoal);
     return;
   }
   if (detail.matches?.('.work-progress')) {
@@ -1156,6 +1471,12 @@ main.addEventListener('change', event => {
   if (input?.files?.length) setPendingImages(input.dataset.imageType, [...input.files]);
 });
 
+main.addEventListener('click', event => {
+  const link = event.target.closest('[data-copy-event-link]');
+  if (!link) return;
+  navigator.clipboard?.writeText(new URL(link.getAttribute('href'), location.href).href).then(() => showToast(`Copied the link to ${link.title.split(' · ')[0]}`)).catch(() => {});
+});
+
 main.addEventListener('paste', event => {
   if (!event.target.matches('textarea')) return;
   const images = [...(event.clipboardData?.files || [])];
@@ -1165,9 +1486,40 @@ main.addEventListener('paste', event => {
   }
 });
 
+// Files dropped on the comment or annotation form are attached like Add file.
+// A drop anywhere else does nothing: the browser must not leave the page to
+// open the file.
+const draggingFiles = event => [...(event.dataTransfer?.types || [])].includes('Files');
+const dropForm = target => target instanceof Element ? target.closest('form[data-form="comment"], form[data-form="annotation"]:not([hidden])') : null;
+const clearDropTarget = () => document.querySelectorAll('.is-drop-target').forEach(form => form.classList.remove('is-drop-target'));
+document.addEventListener('dragover', event => {
+  if (!draggingFiles(event)) return;
+  event.preventDefault();
+  const form = dropForm(event.target), open = form && !form.querySelector('fieldset').disabled;
+  event.dataTransfer.dropEffect = open ? 'copy' : 'none';
+  document.querySelectorAll('.is-drop-target').forEach(other => { if (other !== form) other.classList.remove('is-drop-target'); });
+  form?.classList.toggle('is-drop-target', Boolean(open));
+});
+document.addEventListener('dragleave', event => { if (!event.relatedTarget) clearDropTarget(); });
+document.addEventListener('dragend', clearDropTarget);
+document.addEventListener('drop', event => {
+  if (!draggingFiles(event)) return;
+  event.preventDefault();
+  clearDropTarget();
+  const form = dropForm(event.target), files = [...(event.dataTransfer.files || [])];
+  if (form && files.length) setPendingImages(form.dataset.form, files);
+});
+
 main.addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
   if (!button || !activeGoalId) return;
+  if(button.dataset.action==='expand-work'||button.dataset.action==='collapse-work'){
+    // Selecting text in the newest message must not open Think.
+    if(button.matches('p')&&!window.getSelection()?.isCollapsed)return;
+    const view=workViews.get(button.dataset.workId);if(!view)return;
+    view.all=button.dataset.action==='expand-work';updateTimeline(activeGoalId);renderAnnotations();return;
+  }
+  if(button.dataset.action==='copy-code'){void copyCode(button);return;}
   if(button.dataset.action==='load-older-conversation'){
     const id=activeGoalId,state=historyPages.get(id);if(!state?.hasMore||state.loading)return;
     state.loading=true;button.disabled=true;
@@ -1184,18 +1536,21 @@ main.addEventListener('click', async event => {
   if (button.dataset.action === 'expand-conversation' || button.dataset.action === 'collapse-conversation') {
     if (annotationOpen || submitting.size) return;
     const messages=conversationFor(activeGoalId),side=button.dataset.side;
-    const gap=button.closest('.conversation-gap'),edge=gap?.getBoundingClientRect()[side==='top'?'top':'bottom'];
+    const gap=button.closest('.conversation-gap'),edge=gap?.getBoundingClientRect()[side==='top'?'top':'bottom'],buttonTop=button.getBoundingClientRect().top;
     let added=[];
     if(gap)added=conversationWindow.expand(activeGoalId,messages,Number(button.dataset.firstId),Number(button.dataset.lastId),side);
     else conversationWindow.collapse(activeGoalId,messages);
     updateTimeline(activeGoalId);renderAnnotations();
     if(added.length) {
       const target=document.getElementById(`event-${added[0].id}`);
-      // Start reading at the first revealed comment in either direction.
-      readingPane.align(target,edge);
       const next=[...main.querySelectorAll('.conversation-gap')].find(item=>side==='top'
         ?Number(item.dataset.gapLast)===Number(button.dataset.lastId):Number(item.dataset.gapFirst)===Number(button.dataset.firstId));
-      const focus=next?.querySelector(`[data-side="${side}"]`)||target?.querySelector('article');
+      const again=next?.querySelector(`[data-side="${side}"]`);
+      // Later comments open below the gap: while some remain, the same button
+      // stays under the pointer so it can be pressed again. Otherwise reading
+      // starts at the first revealed comment.
+      if(side==='bottom'&&again)readingPane.align(again,buttonTop);else readingPane.align(target,edge);
+      const focus=again||target?.querySelector('article');
       if(focus){if(focus.tagName==='ARTICLE')focus.tabIndex=-1;focus.focus({preventScroll:true});}
       announcement.textContent=`Showing ${added.length} ${side==='top'?'earlier':'later'} ${added.length===1?'comment':'comments'}.`;
     } else {
@@ -1304,6 +1659,9 @@ main.addEventListener('submit', async event => {
     const note = {...editingNote, text};
     const editor = editingNote;
     const sendNow=note.kind==='letter'&&event.submitter?.value==='comment';
+    // Command+Enter submits without a button; a second press then sends the comment.
+    const fromShortcut=!event.submitter;
+    let focusComment=false;
     annotationSaves.add(notesKey(id));
     updateNoteEditorState(); updateComposerState();
     form.querySelector('.save-error')?.remove();
@@ -1327,13 +1685,18 @@ main.addEventListener('submit', async event => {
           updateTimeline(id);refreshGoalFrame();renderAnnotations();
           scrollInReadingPane(document.getElementById(`event-${entry.id}`),'nearest');
           announcement.textContent='Comment saved.';
-        } else showToast('Added to your comment.');
+        } else {
+          showToast('Added to your comment.');
+          focusComment=fromShortcut&&editingNote===null;
+        }
       }
     } catch (error) {
       if (editingNote === editor) showSaveError(form, error);
     } finally {
       annotationSaves.delete(notesKey(id));
       if (activeGoalId === id && form.isConnected) { updateNoteEditorState(); updateComposerState(); }
+      // The comment fieldset is enabled again only now.
+      if (focusComment && activeGoalId === id && !editingNote) main.querySelector(`form[data-form="comment"][data-goal-id="${id}"] textarea`)?.focus({preventScroll:true});
     }
     return;
   }
@@ -1385,6 +1748,26 @@ main.addEventListener('submit', async event => {
 });
 
 main.addEventListener('click', async event => {
+  const button = event.target.closest('[data-action="letter-done"]');
+  if (!button) return;
+  button.disabled = true;
+  try {
+    const done = button.dataset.done === 'true';
+    const response = await fetch(`/api/goals/${button.dataset.goalId}/letters/${button.dataset.eventId}/done`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({done})});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not change the Letter.');
+    // Show it at once on the event as the Web loaded it (rendered text, number);
+    // the next poll brings the same change.
+    const shown = events.find(e => e.id === result.id);
+    if (!shown) return;
+    const {receivedAt, receivedBy, letterStatus, ...rest} = shown, status = {id: shown.id, status: 'open', lastAnswerId: null};
+    if (!done) letterStatuses.set(shown.id, status);
+    const next = done ? {...shown, changeId: result.changeId, receivedAt: result.receivedAt, receivedBy: result.receivedBy} : {...rest, changeId: result.changeId};
+    if (addEvent(next) && activeGoalId) {updateTimeline(activeGoalId); renderAnnotations(); void refreshLetterCount();}
+  } catch (error) { announcement.textContent = error.message; button.disabled = false; }
+});
+
+main.addEventListener('click', async event => {
   const button = event.target.closest('[data-action="send-now"]');
   if (!button) return;
   button.disabled = true;
@@ -1417,23 +1800,33 @@ async function navigate({refresh=true}={}){
   const generation=++navigationGeneration,target=location.hash;
   const match=/^#\/goal\/([1-9][0-9]*)(?:\/v([1-9][0-9]*))?/.exec(target);
   try{
-    // The latest Deliverables and tree are already in memory. Never put a network
+    // The latest Canvases and tree are already in memory. Never put a network
     // round trip in front of a normal move through the workspace.
     if(match&&!goalMetadata.has(match[1]))await loadStoredGoals();
     if(match?.[2]){
       const brief=briefAt(match[1],Number(match[2]));
       if(brief&&brief.html===undefined){
-        announcement.textContent='Loading earlier Deliverable…';
+        announcement.textContent='Loading earlier Canvas…';
         const response=await fetch(`/api/goals/${match[1]}/briefs/${match[2]}`,{signal:AbortSignal.timeout(12000)});
-        if(!response.ok)throw Error('Could not load this Deliverable. Your draft is kept.');
+        if(!response.ok)throw Error('Could not load this Canvas. Your draft is kept.');
         const loaded=await response.json();
         Object.assign(briefAt(match[1],Number(match[2]))||brief,loaded);
       }
     }
-    const letterLink=/^#\/goal\/([1-9][0-9]*)\/letter\/([1-9][0-9]*)$/.exec(target);
-    if(letterLink&&!events.some(e=>e.id===Number(letterLink[2]))){
-      const response=await fetch(`/api/goals/${letterLink[1]}/events/${letterLink[2]}`,{signal:AbortSignal.timeout(12000)});
-      if(!response.ok)throw Error('Could not load this Letter.');
+    // C3 / L4 links name a comment by its number in the Goal: open it by its id.
+    const numberLink=/^#\/goal\/([1-9][0-9]*)\/number\/([1-9][0-9]*)$/.exec(target);
+    if(numberLink){
+      const event=await fetchNumber(numberLink[1],numberLink[2]);
+      if(!event)throw Error(`#${numberLink[1]} has no comment ${numberLink[2]}.`);
+      if(!events.some(e=>e.id===event.id))addEvent(event);
+      if(generation===navigationGeneration&&location.hash===target)location.replace(`#/goal/${numberLink[1]}/activity/${event.id}`);
+      return;
+    }
+    // Letter and Activity links (from Search too) may name an event older than the loaded window.
+    const letterLink=/^#\/goal\/([1-9][0-9]*)\/(letter|activity)\/([1-9][0-9]*)$/.exec(target);
+    if(letterLink&&!events.some(e=>e.id===Number(letterLink[3]))){
+      const response=await fetch(`/api/goals/${letterLink[1]}/events/${letterLink[3]}`,{signal:AbortSignal.timeout(12000)});
+      if(!response.ok)throw Error(letterLink[2]==='letter'?'Could not load this Letter.':'Could not load this Comment.');
       addEvent(await response.json());
     }
     if(generation!==navigationGeneration||location.hash!==target)return;
@@ -1461,7 +1854,8 @@ function loadStoredGoals() {
   // Polling, returning to the tab and navigation share one request.
   if(storeRequest)return storeRequest;
   storeRequest=(async()=>{
-    const response=await fetch('/api/goals?view=web&history=paged',{cache:'no-store',signal:AbortSignal.timeout(12000)});
+    const saves=countsSaves;
+    const response=await fetch(`/api/goals?view=web&history=paged${clientQuery('&')}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
     if(!response.ok)throw new Error('Could not load Goals. Your draft is kept.');
     const stored=await response.json(),signature=JSON.stringify(stored,(key,value)=>['checkedAt','expiresAt'].includes(key)?undefined:value),changed=signature!==storeSignature;
     storeSignature=signature;
@@ -1471,8 +1865,9 @@ function loadStoredGoals() {
       if(conversationInfo&&historyPages.get(id)?.head!==conversationInfo.head)historyPages.set(id,{...conversationInfo});
       for(const status of letterStates||[]){letterStatuses.set(status.id,status);const cached=events.find(e=>e.id===status.id);if(cached)cached.letterStatus=status;}
       const previous=briefsByGoal.get(id)||[];
-      goalMetadata.set(id,{id,...metadata});
-      // Published versions are immutable. Keep older Deliverables once opened.
+      // A load that overlapped a save must not bring back the old choice.
+      goalMetadata.set(id,{id,...metadata,...(saves===countsSaves?{}:{counts:goalMetadata.get(id)?.counts})});
+      // Published versions are immutable. Keep older Canvases once opened.
       briefsByGoal.set(id,briefs.map(brief=>brief.html===undefined?{...previous.find(b=>b.version===brief.version),...brief}:brief));
       conversation.forEach(addEvent);
     }
@@ -1486,7 +1881,7 @@ async function updateCurrentBrief(version) {
   const restore=readingPane.capture();
   const brief=briefAt(id,version),isHTML=brief?.format==='html',height=section.offsetHeight;
   document.body.append(annotationAction);hideAnnotationAction();hideAnnotationPreview();pendingAnchor=null;
-  // Only replace the Deliverable; keep the composer, active annotation editor and drafts.
+  // Only replace the Canvas; keep the composer, active annotation editor and drafts.
   section.style.minHeight=`${height}px`;
   activeVersion=version;
   // A diagram selection belongs to the version actually shown in its editor.
@@ -1494,7 +1889,7 @@ async function updateCurrentBrief(version) {
   if(/\/v[1-9][0-9]*$/.test(currentRoute)){
     currentRoute=versionRoute(id,version);history.replaceState(null,'',currentRoute);
   }
-  section.innerHTML=`<div class="section-heading document-heading"><h2>Deliverable</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Deliverable"><div class="brief-body markdown-body" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal})}</div></article>`;
+  section.innerHTML=`<div class="section-heading document-heading"><h2>Canvas</h2>${goalView().pager(id,version)}</div><article class="surface document-card brief${isHTML?' html-brief':''}" aria-label="Canvas"><div class="brief-body markdown-body" ${isHTML?'hidden':''}>${isHTML?'':briefBody(brief.html||'',{hasGoal,goalId:id})}</div></article>`;
   imageNames.clear();
   section.querySelectorAll('img').forEach((img,index)=>{const imageId=imageIdFromSource(img.getAttribute('src'));if(imageId)imageNames.set(imageId,(img.title||img.alt||`Image ${index+1}`).slice(0,200));});
   main.querySelector('.annotation-form').dataset.version=String(version);
@@ -1512,8 +1907,9 @@ async function refreshGoals(){
     updateNoticeForRoute();
     if(activeGoalId===id&&activeVersion===previousLatest&&latestVersion(id)>previousLatest)await (routeReady=updateCurrentBrief(latestVersion(id)));
     refreshGoalFrame();updateTimeline(activeGoalId);renderAnnotations();updateNoticeForRoute();
+    if(!autonomySaves.has(activeGoalId))showAutonomy(activeGoalId);
     const heading=main.querySelector('.document-heading');
-    if(heading&&!main.querySelector('.version-pager:focus-within'))heading.innerHTML=`<h2>Deliverable</h2>${briefAt(activeGoalId,activeVersion)?goalView().pager(activeGoalId,activeVersion):''}`;
+    if(heading&&!main.querySelector('.version-pager:focus-within'))heading.innerHTML=`<h2>Canvas</h2>${briefAt(activeGoalId,activeVersion)?goalView().pager(activeGoalId,activeVersion):''}`;
   }else if(currentRoute==='#/goals')renderIndex();
 }
 
@@ -1558,17 +1954,18 @@ loadStoredGoals().then(()=>navigate({refresh:false}),error=>{
    for(const goal of goalMetadata.values())if(goal.execution?.status==='working'&&!(Date.parse(goal.execution.expiresAt)>Date.now())){
      goal.execution={...goal.execution,status:'unknown'};expired=true;
    }
-   if(expired){storeSignature='';if(activeGoalId)refreshGoalFrame();else if(currentRoute==='#/goals')renderIndex();}
+   // A hidden tab redraws on return instead: background work delays its timers.
+   if(expired){storeSignature='';if(document.visibilityState==='visible'){if(activeGoalId)refreshGoalFrame();else if(currentRoute==='#/goals')renderIndex();}}
    if(document.visibilityState!=='visible'||refreshing)return;refreshing=true;
    try{await refreshGoals();await refreshCommentMarks();if(timelineRefreshPending&&activeGoalId&&!interactingWithAnnotation()){updateTimeline(activeGoalId);renderAnnotations();}}
    catch(error){announcement.textContent=error.message;}finally{refreshing=false;}
  }
  setInterval(refresh,5000);
- // Hidden tabs need the Root's count, without fetching Deliverables or execution logs.
- setInterval(()=>{if(document.visibilityState!=='visible')void refreshLetterCount();},15000);
+ // Hidden tabs need the Root's count, without fetching Canvases or execution logs.
+ setInterval(()=>{if(document.visibilityState!=='visible'&&!liveStatus.connected)void refreshLetterCount();},15000);
  // Controls must not wait behind loading the full conversation's execution logs.
  setInterval(()=>{if(document.visibilityState==='visible')void activityControls.refresh();},2000);
  document.addEventListener('visibilitychange',()=>{
-   if(document.visibilityState==='visible'){void refresh();void activityControls.refresh();}
+   if(document.visibilityState==='visible'){updateTabTitle();void refresh();void activityControls.refresh();}
  });
 });

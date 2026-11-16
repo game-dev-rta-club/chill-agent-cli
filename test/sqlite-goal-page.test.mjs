@@ -7,7 +7,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const execute=promisify(execFile),moduleURL=name=>new URL('../lib/'+name+'.mjs',import.meta.url).href;
 test('SQLite CLI pages match complete-history output while selecting only requested bodies',async t=>{
- const root=await mkdtemp(join(tmpdir(),'chill-cli-page-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(join(tmpdir(),'chill-cli-page-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const code=`
  import assert from 'node:assert/strict';import {writeFile} from 'node:fs/promises';
  import * as s from ${JSON.stringify(moduleURL('goal-store'))};
@@ -19,15 +19,19 @@ test('SQLite CLI pages match complete-history output while selecting only reques
   await s.updateBrief(id);
  }
  const answered=await s.appendAgentComment({goalId:'2',type:'letter',title:'Old question',text:'Choose'});
- const open=await s.appendAgentComment({goalId:'2',type:'letter',title:'Still open',text:'Pending'});
  for(let i=0;i<40;i++)await s.appendAgentComment({goalId:'2',type:'comment',text:'History '+i});
  await s.appendAgentComment({goalId:'3',type:'comment',text:'Other root body'});
+ // The answer closes the Letters before it; the one asked after it stays open.
  const answer=await s.appendFeedback({goalId:'2',text:'Answer',annotations:[{kind:'letter',source:{kind:'comment',eventId:answered.id},text:'Yes'}]});
+ const open=await s.appendAgentComment({goalId:'2',type:'letter',title:'Still open',text:'Pending'});
  const received=await s.appendAgentComment({goalId:'1',type:'letter',title:'Received',text:'Already seen'});await s.closeLetter('1',received.id);
  const all=await readConnectedGoals();
  for(const id of ['1','2','3'])for(const options of [{},{limit:5},{limit:5,before:30},{version:1,limit:3},{since:15},{since:20,before:30,limit:2},{since:10000}]){
   const expected=goalPage(all,id,options),actual=await readGoalPage(id,options);
-  const {attachments,...page}=actual;assert.deepEqual(attachments,[]);assert.deepEqual(page,expected);
+  // readGoalPage adds each record's number in its Goal; the projection is otherwise the same.
+  const strip=list=>list.map(({number,...e})=>{assert.ok(Number.isSafeInteger(number)&&number>0);return e;});
+  const {attachments,...page}=actual;assert.deepEqual(attachments,[]);
+  assert.deepEqual({...page,conversation:strip(page.conversation),answerTargets:strip(page.answerTargets),letters:strip(page.letters)},expected);
  }
  const projection=await sqliteGoalPageRecords('2',{limit:3,version:1});
  assert.equal(projection.selection.events.length,3);
@@ -40,6 +44,6 @@ test('SQLite CLI pages match complete-history output while selecting only reques
  await assert.rejects(readGoalPage('99'),/Goal not found/);
  await s.createGoal({title:'Empty'});assert.equal((await readGoalPage('4')).brief,null);
  `;
- await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_STORAGE:'sqlite',CHILL_AGENT_CODEX_PATH:'/missing/codex'},maxBuffer:1024*1024});
+ await execute(process.execPath,['--input-type=module','-e',code],{env:{...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'},maxBuffer:1024*1024});
  assert.ok(true);
 });

@@ -6,24 +6,29 @@ keyPoints: >-
 
 # Keep data separate from installed code
 
-Fresh setup allocates a [separate workspace for each project](projects.md).
-Within a workspace, use one data directory for the CLI, Web server, project hook and any composed
-application that shares the workspace. `CHILL_AGENT_DATA_DIR` overrides the
-default. On macOS the default is `~/Library/Application Support/chill-agent`;
-on Windows it is `%USERPROFILE%\.chill-agent`; elsewhere it is
-`$XDG_DATA_HOME/chill-agent`, falling back to `~/.local/share/chill-agent`.
+Setup allocates a [separate workspace for each project](projects.md): its data
+folder is `projects/<hash>` inside a shared folder. On macOS the shared folder
+is `~/Library/Application Support/chill-agent`; on Windows it is
+`%USERPROFILE%\.chill-agent`; elsewhere it is `$XDG_DATA_HOME/chill-agent`,
+falling back to `~/.local/share/chill-agent`. The CLI, Web server, project hook
+and any composed application that shares the workspace use the same data
+folder, which `CHILL_AGENT_DATA_DIR` selects; the project's own command sets it.
+A command run with none selected stops instead of falling back to the shared
+folder, and so does one pointed at the shared folder itself: it once held one
+workspace for every project, and is no longer a data folder. What it holds
+stays as it is.
 Windows avoids AppData because packaged apps such as Claude Desktop have their
 AppData writes redirected to a private folder that other processes cannot see.
 
 | Area | Purpose |
 | --- | --- |
-| `workspace/` | Goals, Deliverable versions, Conversation, attachments and coordination records |
+| `workspace/` | Goals, Canvas versions, Conversation, attachments and coordination records |
 | `settings/` | Shared notification and remote-access preferences |
 | `runtime/` | Prepared code snapshots, installation pointer and server records |
 
 These paths explain ownership, not a storage API. Use CLI commands and the
 [public extension API](../extensions.md), rather than editing internal JSON.
-The editable Deliverable path returned by `goal deliverable path` is the intended exception.
+The editable Canvas path returned by `goal canvas path` is the intended exception.
 
 ## Prepare once, use the stable command
 
@@ -68,15 +73,18 @@ Implementation: [data directory](../../lib/data-directory.mjs),
 ## Update from Web
 
 The built-in provider follows the [version file](version-file.md) recorded at
-setup. On a managed macOS server, Web shows an update icon when that file
+setup. On a background server (launchd on macOS, Task Scheduler on Windows), Web shows an update icon when that file
 selects a different package than the running snapshot, on the computer and on
 devices connected through the public link. Confirming it acquires the candidate,
-prepares a snapshot and restarts Web at the same URL. Closing the confirmation
+prepares a snapshot and restarts Web at the same URL. Meanwhile the button reads
+**Updating…** and then **Restarting…** on every open page, and the page that
+confirmed reloads into the new version. Closing the confirmation
 leaves the current version running. Detection alone never downloads or activates
 code, and a request cannot choose the package: only the computer's version file
-names it. Foreground and Windows servers retain the explicit CLI update path.
+names it. Foreground servers retain the explicit CLI update path.
 
-The updater uses a separate launchd worker so replacing Web cannot kill its own
+The updater runs as a separate launchd job on macOS, or as its own Task Scheduler
+task on Windows (removed when it finishes), so replacing Web cannot kill its own
 update. It rechecks the selection before switching, coalesces simultaneous clicks,
 and restores the previous program if restart fails. This recovery does not reverse
 schema migrations. Diagnostics remain in `runtime/update.json` and the per-attempt
@@ -92,6 +100,6 @@ for the installed skill's durable source reference. Neither paths nor package
 URLs are accepted from browser input. Providers must bound downloads and verify
 that the acquired package matches the confirmed key.
 
-Run `node test/runtime-update-native.mjs` on macOS for an isolated launchd
-roundtrip. It uses disposable code and data and verifies the URL, Goal records,
+Run `node test/runtime-update-native.mjs` on macOS or Windows for an isolated
+roundtrip through launchd or Task Scheduler. It uses disposable code and data and verifies the URL, Goal records,
 request restrictions and completed receipt; it does not touch a user's server.

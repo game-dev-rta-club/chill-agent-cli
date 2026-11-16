@@ -14,13 +14,13 @@ let server,browser,page;
 try{
  await exec(process.execPath,[cli,'create','--title','A calm workspace','--thread-id','00000000-0000-0000-0000-000000000001'],{env});
  await exec(process.execPath,[cli,'create','--title','Another workspace'],{env});
- await exec(process.execPath,[cli,'comment','--id','1','--text','A saved report.'],{env});
+ await exec(process.execPath,[cli,'reply','--id','1','--text','A saved report.'],{env});
  server=spawn(process.execPath,[new URL('../server.mjs',import.meta.url).pathname,'--local'],{env,stdio:['ignore','pipe','pipe']});
  const url=await new Promise((resolve,reject)=>{server.stdout.on('data',b=>{const m=String(b).match(/http:\/\/127\.0\.0\.1:\d+/);if(m)resolve(m[0]);});server.on('error',reject);server.on('exit',c=>reject(Error(`Server exit ${c}`)));});
  browser=await chromium.launch({headless:true});page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  let status='idle',fail=false,extFail=false,delay=0,agentReads=0,enabled=false,posts=0,queued=false,saveFail=false,saveDelay=0;
  const message='Every Goal is marked Done. Check for anything missed.\n\n1. Read the index.\n2. Continue agreed work.\n\n<not-html>\n'+'chill goal review --id 1\n'.repeat(16);
- const activity={label:'AutoContinue',status:'Off',activeCount:0,total:2,entries:[{id:'latest',at:'2026-10-05T00:10:00Z',summary:'Check for anything missed in the completed Goals.',message,result:{label:'No work reported',at:'2026-10-05T00:11:00Z'}},{id:'old',at:'2026-10-04T23:10:00Z',summary:'Automatic check',message:null,status:'Run ended'}]};
+ const activity={label:'AutoContinue',status:'Off',activeCount:0,total:2,entries:[{id:'latest',at:'2026-10-05T00:10:00Z',summary:'Check for anything missed in the completed Goals.',message,result:{label:'No work',at:'2026-10-05T00:11:00Z'}},{id:'old',at:'2026-10-04T23:10:00Z',summary:'Automatic check',message:null,status:'Run ended'}]};
  await page.route('**/api/goals/*/agent/presence',async route=>{
   const requested=status,pause=delay;await new Promise(r=>setTimeout(r,pause));
   await route.fulfill({status:fail?503:200,json:{connected:true,status:requested}}).catch(()=>{});
@@ -107,4 +107,4 @@ try{
  await page.keyboard.press('Escape');
  await page.goto(`${url}/#/goals`);await page.locator('#agent-button').waitFor({state:'hidden'});assert.deepEqual(errors,[]);
  console.log('passed: ordered sections, exact escaped messages/history, preserved disclosures, responsive layout, closed-menu presence, status transitions/failure/stale routes, keyboard close, isolated extension failure, one-click toggle');
-}catch(error){if(page){console.error(await page.locator('body').innerText());await page.screenshot({path:'/tmp/chill-381-test-failure.png'});}throw error;}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true});}
+}catch(error){if(page){console.error(await page.locator('body').innerText());await page.screenshot({path:'/tmp/chill-381-test-failure.png'});}throw error;}finally{await browser?.close();if(server&&server.exitCode===null){server.kill();await once(server,'exit');}await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

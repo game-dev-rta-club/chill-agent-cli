@@ -1,5 +1,5 @@
-import {browserThemeColor} from './public/theme-catalog.js';
-import {readWorkspaceTheme,saveWorkspaceTheme} from './lib/workspace-theme.mjs';
+import {browserThemeColor,tabIconSet} from './public/theme-catalog.js';
+import {readWorkspaceTheme,saveWorkspaceTheme,appearanceBoot} from './lib/workspace-theme.mjs';
 import {join} from 'node:path';
 import {writeJsonAtomically} from './lib/storage.mjs';
 import {projectProfile,selectProjectPort,projectExtensionEnabled} from './lib/project-workspace.mjs';
@@ -14,7 +14,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { attachmentInfo, dataDirectory, initializeStore, listEventsSince, listGoals, readFeedback, readEvent, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { attachmentInfo, imageSizes, saveImageThumbHash, closeLetter, reopenLetter, dataDirectory, initializeStore, listEventsSince, latestChangeId, listGoals, numberEvents, readFeedback, readEvent, readEventByNumber, readGoal, readConversationPage, saveAttachment, readBrief } from './lib/goal-store.mjs';
+import { setRootAutonomy, goalsWithRootAutonomy } from './lib/root-autonomy.mjs';
 import {rootLetterSummary} from './public/letter-state.js';
 import { recordServerUse, serverOptions, watchServerIdle } from './lib/server-lifecycle.mjs';
 import { createTunnelController } from './lib/tunnel-controller.mjs';
@@ -26,6 +27,10 @@ import {readAgentStatus,saveAgentSettings,controlAgent,readGoalActivity} from '.
 import {readAgentPresence} from './lib/agent-presence.mjs';
 import {goalCommentMarks} from './lib/agents/index.mjs';
 import {readConnectedGoals} from './lib/workspace-reader.mjs';
+import {searchWorkspace} from './lib/workspace-search.mjs';
+import {readAttention,readMarksVersion,markRead} from './lib/read-marks.mjs';
+import {createLiveStatus} from './lib/live-status.mjs';
+import {webNotifications} from './lib/web-notifications.mjs';
 import {createRuntimeUpdater} from './lib/runtime-update.mjs';
 import {largeSize} from './lib/limits.mjs';
 import {recordHidden} from './lib/hidden-failure.mjs';
@@ -50,7 +55,8 @@ const renewing = request => !['GET','HEAD'].includes(request.method);
 let activeWrites = 0, activeCommands = 0, stopIdleWatch;
 let tunnelOrigin = null, closing = false;
 const instanceToken=randomBytes(32).toString('hex');
-const updates=createRuntimeUpdater({port:()=>server.address().port,duration});
+// On Windows only Task Scheduler's Web has a service token; a foreground server is not replaced.
+const updates=createRuntimeUpdater({port:()=>server.address().port,duration,...(process.platform==='win32'?{supported:serviceToken!==null}:{})});
 const publicAccess=createPublicAccess();
 const publicTunnel=createTunnelController({directory:dataDirectory(),port:()=>server.address().port,onOrigin:origin=>{tunnelOrigin=origin;}});
 const extensions=createExtensionHost(registeredExtensions({tunnel:publicTunnel,access:publicAccess,configured}));
@@ -63,7 +69,7 @@ function connectPage(response,nonce,{status=401,message=''}={}){
   response.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Referrer-Policy':'same-origin'});
   response.end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect · chill</title>
 <style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui,-apple-system,sans-serif;background:#f4f6f2;color:#243b3e}form{width:min(320px,calc(100vw - 32px));display:grid;gap:12px}h1{font-size:20px;margin:0}p{margin:0;color:#56655f;font-size:14px}input{font:600 22px ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;padding:12px;border:1px solid #b9c4bd;border-radius:8px}button{font:600 16px system-ui,sans-serif;padding:12px;border:0;border-radius:8px;background:#2f5d50;color:#fff}.error{color:#a03a2c}</style>
-<form method="post"><h1>Connect to chill</h1><p>Enter the 6-digit access code shown in Public link on your computer.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required inputmode="numeric" autocomplete="one-time-code" spellcheck="false" maxlength="8" pattern="[0-9 -]{6,8}" aria-label="Access code" autofocus><button>Connect</button></form></html>`);
+<form method="post"><h1>Connect to chill</h1><p>Enter the 6-digit access code shown in Public link on your computer or a connected device.</p>${message?`<p class="error" role="alert">${message}</p>`:''}<input name="code" required inputmode="numeric" autocomplete="one-time-code" spellcheck="false" maxlength="8" pattern="[0-9 -]{6,8}" aria-label="Access code" autofocus><button>Connect</button></form></html>`);
 }
 // Not connected, every page is the connect form. The form posts back to its own page,
 // so after connecting the browser returns there with its #/goal/N.
@@ -75,18 +81,35 @@ async function publicGate(request,response,url,nonce){
     if(tunnelOrigin===null||request.headers.origin!==tunnelOrigin){sendJson(response,403,{error:'Connect from the public link.'});return true;}
     let code=null;try{code=new URLSearchParams((await readUpload(request)).toString()).get('code');}catch{}
     const session=await publicAccess.connect(code,{device:deviceName(request.headers['user-agent'])});
-    if(!session){connectPage(response,nonce,{message:'That code is wrong, used or expired. Check the access code on your computer.'});return true;}
+    if(!session){connectPage(response,nonce,{message:'That code is wrong, used or expired. Check the access code in Public link.'});return true;}
     response.writeHead(303,{'Set-Cookie':`${sessionCookie}=${session}; Path=/; Max-Age=34560000; HttpOnly; Secure; SameSite=Lax`,Location:url.pathname});
     response.end();return true;
   }
   if(request.method==='GET'&&(request.headers.accept||'').includes('text/html'))connectPage(response,nonce);
-  else sendJson(response,401,{error:'Connect with the access code shown in Public link on your computer.'});
+  else sendJson(response,401,{error:'Connect with the access code shown in Public link.'});
   return true;
 }
+
+// Through the public link, a live socket needs the same connected device as a page.
+// Browsers always send Origin on a WebSocket, so another site cannot open one.
+const live=createLiveStatus({
+  allowed:async request=>{
+    if(closing||!allowedOrigin(request))return false;
+    if(request.headers.host===`127.0.0.1:${server.address().port}`&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'])return true;
+    return publicAccess.connected(sessionFrom(request));
+  },
+  read:{
+    presence:readAgentPresence,
+    summary:letterSummary,
+    signature:async()=>JSON.stringify([await latestChangeId(),await readMarksVersion(),(await webNotifications.announcedReplies()).size]),
+    update:()=>updates.phase(),
+  },
+});
 
 function shutdown(preserveTunnel=false) {
   if (closing) return;
   closing = true;
+  live.close();
   stopIdleWatch?.();
   void extensions.stop().catch(error=>console.error(error.message));
   void (preserveTunnel ? publicTunnel.release() : publicTunnel.stop()).catch(error => console.error(error.message));
@@ -96,6 +119,7 @@ function shutdown(preserveTunnel=false) {
 // Fixed CLI commands handle input. Neither command nor chat ID comes from the browser.
 const assets = new Map([
   ['/themes.css', ['themes.css', 'text/css; charset=utf-8']],
+  ['/appearance-boot.js', ['appearance-boot.js', 'text/javascript; charset=utf-8']],
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
   ['/goals', ['index.html', 'text/html; charset=utf-8']],
@@ -103,6 +127,7 @@ const assets = new Map([
   ['/vendor/workspace-app.js', ['vendor/workspace-app.js', 'text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/activity-controls.js', ['activity-controls.js', 'text/javascript; charset=utf-8']],
+  ['/live-status.js', ['live-status.js', 'text/javascript; charset=utf-8']],
   ['/agent-menu.js', ['agent-menu.js', 'text/javascript; charset=utf-8']],
   ['/agent-presence.js', ['agent-presence.js', 'text/javascript; charset=utf-8']],
   ['/extension-buttons.js', ['extension-buttons.js', 'text/javascript; charset=utf-8']],
@@ -114,6 +139,7 @@ const assets = new Map([
   ['/goal-progress.js', ['goal-progress.js', 'text/javascript; charset=utf-8']],
   ['/goal-state.js', ['goal-state.js', 'text/javascript; charset=utf-8']],
   ['/letter-state.js', ['letter-state.js', 'text/javascript; charset=utf-8']],
+  ['/autonomy.js', ['autonomy.js', 'text/javascript; charset=utf-8']],
   ['/brief-navigation.js', ['brief-navigation.js', 'text/javascript; charset=utf-8']],
   ['/brief-body.js', ['brief-body.js', 'text/javascript; charset=utf-8']],
   ['/markdown-view.js', ['markdown-view.js', 'text/javascript; charset=utf-8']],
@@ -131,6 +157,13 @@ async function readJson(request) {
   return JSON.parse(body);
 }
 
+// This browser's ID, which some answers depend on.
+const clientIdOf=url=>/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(url.searchParams.get('clientId')||'')?url.searchParams.get('clientId'):null;
+// The Root's Letter count and title for a Goal, as this browser chose to count them.
+async function letterSummary(goalId,clientId){
+  const [goals,conversation,attention]=await Promise.all([listGoals(),readFeedback(),readAttention(clientId)]);
+  return rootLetterSummary(goals.map(goal=>attention(goal,conversation)),conversation,goalId);
+}
 function acceptsGzip(request) {
   return (request.headers['accept-encoding'] || '').split(',').some(part => {
     const [name, ...parameters] = part.trim().toLowerCase().split(';');
@@ -147,11 +180,17 @@ function sendJson(response, status, data) {
 function callCli(args, input, response, receipt, status = 200) {
   activeCommands += 1;
   const child = spawn(process.execPath, [fileURLToPath(new URL('./bin/chill-agent.mjs', import.meta.url)), ...args], { stdio: ['pipe', 'pipe', 'pipe'] });
-  let responded = false, errorText = '';
+  let responded = false, errorText = '', numbering = null;
   const finish = (code, data) => { if (!responded) { responded = true; sendJson(response, code, data); } };
   const lines = createInterface({ input: child.stdout });
   lines.on('line', line => {
-    try { const data = JSON.parse(line); if (data[receipt]) {if (receipt === 'feedback') data.feedback = renderedEvent(data.feedback); finish(status, data);} } catch { /* Ignore non-receipt output. */ }
+    try {
+      const data = JSON.parse(line);
+      if (!data[receipt]) return;
+      // A saved comment comes back with its number in the Goal, like any other read.
+      if (receipt === 'feedback') numbering = numberEvents([data.feedback]).catch(() => [data.feedback]).then(([event]) => finish(status, {...data, feedback: renderedEvent(event)}));
+      else finish(status, data);
+    } catch { /* Ignore non-receipt output. */ }
   });
   child.stderr.on('data', chunk => { if (errorText.length < 1000) errorText += chunk.toString().slice(0, 1000 - errorText.length); });
   child.stdin.on('error', () => {});
@@ -163,9 +202,10 @@ function callCli(args, input, response, receipt, status = 200) {
     child.once('exit', () => clearTimeout(force));
     finish(503, { error: 'The CLI timed out. Check the conversation before retrying.' });
   }, 45000);
-  child.on('close', () => {
+  child.on('close', async () => {
     activeCommands -= 1;
     clearTimeout(timer); lines.close();
+    await numbering;
     const code = /not found/i.test(errorText) ? 404 : 400;
     finish(code, { error: errorText.trim() || 'The CLI could not complete this request.' });
   });
@@ -190,7 +230,9 @@ const server = createServer(async (request, response) => {
   const release = () => { if (!finished) { finished = true; if (write) activeWrites -= 1; } };
   response.once('finish', release);
   response.once('close', release);
-  response.setHeader('Cache-Control', 'no-store');
+  // no-transform: a proxy such as a Cloudflare tunnel must not rewrite pages
+  // (it hides email addresses), or annotation offsets no longer match.
+  response.setHeader('Cache-Control', 'no-store, no-transform');
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
   // Existing sockets can pipeline more requests after server.close() has
@@ -217,8 +259,11 @@ const server = createServer(async (request, response) => {
     const local=request.socket.remoteAddress==='127.0.0.1'&&request.headers.host===`127.0.0.1:${server.address().port}`&&!request.headers.origin&&!request.headers['sec-fetch-site']&&!request.headers['cf-ray']&&!request.headers['cf-connecting-ip'];
     if(!serviceToken||request.method!=='POST'||!local||supplied.length!==expected.length||!timingSafeEqual(supplied,expected))return sendJson(response,404,{});
     response.setHeader('Connection','close');sendJson(response,202,{stopping:true});
-    console.log('Service stop requested. Stopping server.');shutdown();return;
+    // A restart keeps the public link connector for the next Web, like SIGUSR2 on macOS.
+    const preserve=request.headers['x-chill-preserve-tunnel']==='1';
+    console.log(`Service ${preserve?'restart':'stop'} requested. Stopping server.`);shutdown(preserve);return;
   }
+  if(path==='/api/devices/newest'&&request.method==='GET')return sendJson(response,200,{newest:await publicAccess.newest()});
   if(path==='/api/workspace-instance')return sendJson(response,request.headers['x-chill-instance']===instanceToken?200:404,request.headers['x-chill-instance']===instanceToken?{token:instanceToken}:{});
   if(path==='/api/runtime-update'){
     // A device connected through the public link may update too: the
@@ -233,7 +278,11 @@ const server = createServer(async (request, response) => {
     if(request.method==='GET')return sendJson(response,200,await readWorkspaceTheme());
     if(request.method!=='POST')return sendJson(response,405,{error:'Method not allowed.'});
     if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
-    try{return sendJson(response,200,await saveWorkspaceTheme(await readJson(request)));}
+    try{
+      const input=await readJson(request);
+      if(input?.rootId!==undefined){const root=await readGoal(String(input.rootId)).catch(()=>null);if(!root||root.parentId)throw Error('Choose a Root Goal.');}
+      return sendJson(response,200,await saveWorkspaceTheme(input));
+    }
     catch(error){return sendJson(response,400,{error:error.message});}
   }
   const extensionAsset=extensions.asset(path);
@@ -256,7 +305,7 @@ const server = createServer(async (request, response) => {
   }
   const extensionPath=/^\/api\/goals\/([1-9][0-9]*)\/extensions(?:\/([a-z][a-z0-9-]*))?$/.exec(path);
   if(extensionPath&&request.method==='GET'&&!extensionPath[2]){
-    try{return sendJson(response,200,await extensions.controls(extensionPath[1],{activity:url.searchParams.get('activity')==='1',clientId:/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(url.searchParams.get('clientId')||'')?url.searchParams.get('clientId'):null}));}
+    try{return sendJson(response,200,await extensions.controls(extensionPath[1],{activity:url.searchParams.get('activity')==='1',clientId:clientIdOf(url)}));}
     catch(error){recordHidden('server.extension-controls',error);return sendJson(response,503,{error:error.message});}
   }
   if(extensionPath&&request.method==='POST'&&extensionPath[2]){
@@ -295,9 +344,21 @@ const server = createServer(async (request, response) => {
     try{return sendJson(response,200,await controlAgent(controlPath[1],await readJson(request)));}
     catch(error){return sendJson(response,409,{error:error.message});}
   }
+  // The comment box's Autonomy control saves the level of the Goal's Root agent by itself, apart from any comment.
+  const autonomyPath=/^\/api\/goals\/([1-9][0-9]*)\/autonomy$/.exec(path);
+  if(autonomyPath&&request.method==='POST'){
+    if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    try{return sendJson(response,200,await setRootAutonomy(autonomyPath[1],(await readJson(request)).level));}
+    catch(error){return sendJson(response,/not found/i.test(error.message)?404:400,{error:error.message});}
+  }
   const eventPath=/^\/api\/goals\/([1-9][0-9]*)\/events\/([1-9][0-9]*)$/.exec(path);
   if(eventPath&&request.method==='GET'){
-    try{const event=await readEvent(Number(eventPath[2]));return event?.goalId===eventPath[1]?sendJson(response,200,renderedEvent(event)):sendJson(response,404,{error:'Event not found.'});}
+    try{const event=await readEvent(Number(eventPath[2]));return event?.goalId===eventPath[1]?sendJson(response,200,renderedEvent((await numberEvents([event]))[0])):sendJson(response,404,{error:'Event not found.'});}
+    catch(error){return sendJson(response,400,{error:error.message});}
+  }
+  const numberPath=/^\/api\/goals\/([1-9][0-9]*)\/numbers\/([1-9][0-9]*)$/.exec(path);
+  if(numberPath&&request.method==='GET'){
+    try{const event=await readEventByNumber(numberPath[1],Number(numberPath[2]));return event?sendJson(response,200,renderedEvent(event)):sendJson(response,404,{error:'Comment not found.'});}
     catch(error){return sendJson(response,400,{error:error.message});}
   }
   const conversationPath=/^\/api\/goals\/([1-9][0-9]*)\/conversation$/.exec(path);
@@ -306,42 +367,56 @@ const server = createServer(async (request, response) => {
       const before=url.searchParams.has('before')?Number(url.searchParams.get('before')):undefined;
       const limit=url.searchParams.has('limit')?Number(url.searchParams.get('limit')):30;
       const page=await readConversationPage(conversationPath[1],{before,limit});
-      return sendJson(response,200,{...page,events:page.events.map(renderedEvent),answerTargets:page.answerTargets.map(renderedEvent)});
+      return sendJson(response,200,{...page,events:(await numberEvents(page.events)).map(renderedEvent),answerTargets:(await numberEvents(page.answerTargets)).map(renderedEvent)});
     }catch(error){return sendJson(response,error.status||400,{error:error.message});}
   }
   const lettersCountPath=/^\/api\/goals\/([1-9][0-9]*)\/letters\/count$/.exec(path);
   if(lettersCountPath&&request.method==='GET'){
     try{
-      const [goals,conversation]=await Promise.all([listGoals(),readFeedback()]);
-      const summary=rootLetterSummary(goals,conversation,lettersCountPath[1]);
+      const summary=await letterSummary(lettersCountPath[1],clientIdOf(url));
       return sendJson(response,summary?200:404,summary||{error:'Goal not found.'});
     }catch{return sendJson(response,500,{error:'Could not count Letters.'});}
   }
-  const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
+  const readPath=/^\/api\/goals\/([1-9][0-9]*)\/read$/.exec(path);
+  if(readPath&&request.method==='POST'){
+    if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    try{return sendJson(response,200,await markRead(readPath[1],(await readJson(request)).through));}
+    catch(error){return sendJson(response,400,{error:error.message});}
+  }
+  // The user marks a Letter Done when its question no longer needs an answer, or takes it back.
+  const letterDonePath=/^\/api\/goals\/([1-9][0-9]*)\/letters\/([1-9][0-9]*)\/done$/.exec(path);
+  if(letterDonePath&&request.method==='POST'){
+    if(!allowedOrigin(request)||!request.headers['content-type']?.startsWith('application/json'))return sendJson(response,403,{error:'Only same-origin JSON requests are accepted.'});
+    // {done:false} takes the user's Done back.
+    try{const {done=true}=await readJson(request),id=Number(letterDonePath[2]);return sendJson(response,200,done===false?await reopenLetter(letterDonePath[1],id):await closeLetter(letterDonePath[1],id,'','user'));}
+    catch(error){return sendJson(response,400,{error:error.message});}
+  }
+  const briefSVGPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/svg\/([0-9]+)$/.exec(path);
   if(briefSVGPath&&request.method==='GET'){
     try{
       const brief=await readBrief(briefSVGPath[1],Number(briefSVGPath[2]));
       const svg=brief?.format==='html'?briefSVG(brief.body,Number(briefSVGPath[3])):null;
-      if(!svg)return sendJson(response,404,{error:'Deliverable image not found.'});
+      if(!svg)return sendJson(response,404,{error:'Canvas image not found.'});
       response.setHeader('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; sandbox");
       response.writeHead(200,{'Content-Type':'image/svg+xml; charset=utf-8'});
       return response.end(svg);
-    }catch{return sendJson(response,500,{error:'Could not load Deliverable image.'});}
+    }catch{return sendJson(response,500,{error:'Could not load Canvas image.'});}
   }
-  const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)$/.exec(path);
+  const briefDataPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)$/.exec(path);
   if(briefDataPath&&request.method==='GET'){
-    try{const brief=await readBrief(briefDataPath[1],Number(briefDataPath[2]));return sendJson(response,brief?200:404,brief?webBrief(brief):{error:'Deliverable not found.'});}
-    catch{return sendJson(response,500,{error:'Could not load Deliverable.'});}
+    try{const brief=await readBrief(briefDataPath[1],Number(briefDataPath[2]));return sendJson(response,brief?200:404,brief?webBrief(brief):{error:'Canvas not found.'});}
+    catch{return sendJson(response,500,{error:'Could not load Canvas.'});}
   }
-  const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/(?:briefs|deliverables)\/([1-9][0-9]*)\/document$/.exec(path);
+  const briefDocumentPath=/^\/api\/goals\/([1-9][0-9]*)\/briefs\/([1-9][0-9]*)\/document$/.exec(path);
   if(briefDocumentPath&&request.method==='GET') {
     try {
       const brief=await readBrief(briefDocumentPath[1],Number(briefDocumentPath[2]));
-      if(!brief||brief.format!=='html')return sendJson(response,404,{error:'HTML Deliverable not found.'});
+      if(!brief||brief.format!=='html')return sendJson(response,404,{error:'HTML Canvas not found.'});
       response.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'; sandbox allow-same-origin");
       response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-      return response.end(briefDocument(brief.body));
-    } catch {return sendJson(response,500,{error:'Could not load HTML Deliverable.'});}
+      const ids=[...brief.body.matchAll(/\/api\/images\/([0-9a-f-]{36})/g)].map(match=>match[1]);
+      return response.end(briefDocument(brief.body,await imageSizes(ids)));
+    } catch {return sendJson(response,500,{error:'Could not load HTML Canvas.'});}
   }
   const feedbackPath = /^\/api\/goals\/([1-9][0-9]*)\/feedback$/.exec(path);
   const marksPath = /^\/api\/goals\/([1-9][0-9]*)\/comment-marks$/.exec(path);
@@ -370,6 +445,11 @@ const server = createServer(async (request, response) => {
       return sendJson(response, 400, { error: error.message });
     }
   }
+  if (path === '/api/image-thumbhashes' && request.method === 'POST') {
+    if (!allowedOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) return sendJson(response, 403, { error: 'Only same-origin JSON requests are accepted.' });
+    try { const { id, thumbhash } = await readJson(request); return sendJson(response, 200, await saveImageThumbHash(id, thumbhash)); }
+    catch (error) { return sendJson(response, 400, { error: error.message }); }
+  }
   if (feedbackPath && request.method === 'POST') {
     if (!allowedOrigin(request) || !request.headers['content-type']?.startsWith('application/json')) {
       return sendJson(response, 403, { error: 'Only same-origin JSON requests are accepted.' });
@@ -395,10 +475,18 @@ const server = createServer(async (request, response) => {
     if (!file) return sendJson(response, 404, { error: 'Attachment not found.' });
     return sendJson(response, 200, { id: file.id, mimeType: file.mimeType, name: file.name ?? null, image: !file.name });
   }
+  if (path === '/api/image-sizes') {
+    const ids = (new URL(request.url, 'http://localhost').searchParams.get('ids') || '').split(',').filter(id => /^[0-9a-f-]{36}$/.test(id)).slice(0, 200);
+    return sendJson(response, 200, { sizes: await imageSizes(ids) });
+  }
   const imagePath = /^\/api\/images\/([0-9a-f-]{36})$/.exec(path);
   if (imagePath) {
     const image = await attachmentInfo(imagePath[1]);
     if (!image) return sendJson(response, 404, { error: 'Attachment not found.' });
+    // A saved file never changes, so the browser keeps it instead of fetching it again.
+    response.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    response.setHeader('ETag', `"${image.id}"`);
+    if (request.headers['if-none-match'] === `"${image.id}"`) { response.writeHead(304); return response.end(); }
     const data = await readFile(image.path);
     // Images and PDFs open in the browser. Other files download, so an
     // attached HTML or script never runs inside the Web's origin.
@@ -413,16 +501,22 @@ const server = createServer(async (request, response) => {
     try {
       const since = Number(new URL(request.url, 'http://localhost').searchParams.get('since') || 0);
       const delta = await listEventsSince(since);
-      return sendJson(response, 200, {...delta, events:delta.events.map(renderedEvent)});
+      return sendJson(response, 200, {...delta, events:(await numberEvents(delta.events)).map(renderedEvent)});
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
     }
   }
+  if(path==='/api/search'){
+    if(request.method!=='GET')return sendJson(response,405,{error:'Method not allowed.'});
+    try{return sendJson(response,200,await searchWorkspace(url.searchParams.get('q')||''));}
+    catch(error){recordHidden('server.search',error);return sendJson(response,500,{error:'Could not search. Please try again.'});}
+  }
   if (path === '/api/goals') {
     try {
       const web=url.searchParams.get('view')==='web';
-      const goals=await readConnectedGoals({render:!web,paged:web&&url.searchParams.get('history')==='paged'});
-      let body = Buffer.from(JSON.stringify(web?webSnapshot(goals):goals));
+      const [goals,attention]=await Promise.all([readConnectedGoals({render:!web,paged:web&&url.searchParams.get('history')==='paged'}),readAttention(clientIdOf(url))]);
+      // Every Goal shows the Autonomy of its Root's agent.
+      let body = Buffer.from(JSON.stringify(web?webSnapshot(await goalsWithRootAutonomy(goals)).map(goal=>attention(goal,goal.conversation)):goals));
       response.setHeader('Vary','Accept-Encoding');
       if(acceptsGzip(request)){body=gzipSync(body);response.setHeader('Content-Encoding','gzip');}
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -439,7 +533,12 @@ const server = createServer(async (request, response) => {
   }
   try {
     let data = await readFile(fileURLToPath(new URL(`./public/${asset[0]}`, import.meta.url)));
-    if(asset[0]==='index.html'){const {theme}=await readWorkspaceTheme();data=Buffer.from(data.toString().replace('__STYLE_NONCE__',styleNonce).replace('__WORKSPACE_THEME__',theme).replace('__BROWSER_THEME_COLOR__',browserThemeColor(theme)));}
+    if(asset[0]==='index.html'){
+      const stored=await readWorkspaceTheme(),boot=appearanceBoot(stored,Object.keys(stored.roots).length?await listGoals():[]);
+      const attribute=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const fill={__STYLE_NONCE__:styleNonce,__WORKSPACE_THEME__:stored.theme,__BROWSER_THEME_COLOR__:browserThemeColor(stored.theme),__TAB_ICON_SET__:stored.tabIcon,__TAB_ICON__:attribute(tabIconSet(stored.tabIcon).idle),__WORKSPACE_APPEARANCE__:attribute(JSON.stringify(boot))};
+      data=Buffer.from(data.toString().replace(/__[A-Z_]+__/g,key=>fill[key]??key));
+    }
     if (request.method === 'GET' && asset[0] === 'index.html') await recordServerUse(dataDirectory());
     if(asset[0]!=='index.html'){
       const etag='W/"'+createHash('sha256').update(data).digest('hex')+'"';
@@ -471,6 +570,7 @@ server.listen(port, '127.0.0.1', async () => {
   });
 
 });
+server.on('upgrade',(request,socket,head)=>void live.upgrade(request,socket,head));
 server.on('close', () => stopIdleWatch?.());
 server.on('error', error => {
   console.error(error.code === 'EADDRINUSE' ? `Port ${port} is in use. Set PORT to another port.` : error.message);

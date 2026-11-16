@@ -13,21 +13,22 @@ import {runClaudeAction,handleClaudeToolHook} from '../lib/claude-actions.mjs';
 import {listGoals,readFeedback,appendAgentComment} from '../lib/goal-store.mjs';
 import {deliverFeedback} from '../lib/delivery.mjs';
 import {hookFor} from './claude-fixtures.mjs';
+import {agentAction} from './agent-action.mjs';
 
 test('composed SQLite runtime carries Web feedback through native hooks and persists the reply',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'chill-sqlite-runtime-')),cwd=join(dir,'project'),data=join(dir,'data');await mkdir(cwd);
- const previous={CHILL_AGENT_DATA_DIR:process.env.CHILL_AGENT_DATA_DIR,CHILL_AGENT_STORAGE:process.env.CHILL_AGENT_STORAGE};
- process.env.CHILL_AGENT_DATA_DIR=data;delete process.env.CHILL_AGENT_STORAGE;
+ const previous={CHILL_AGENT_DATA_DIR:process.env.CHILL_AGENT_DATA_DIR};
+ process.env.CHILL_AGENT_DATA_DIR=data;
  let server,exit;
- t.after(async()=>{if(server){if(server.exitCode===null&&server.signalCode===null)server.kill();await exit;}for(const [k,v] of Object.entries(previous)){if(v===undefined)delete process.env[k];else process.env[k]=v;}await rm(dir,{recursive:true,force:true});});
+ t.after(async()=>{if(server){if(server.exitCode===null&&server.signalCode===null)server.kill();await exit;}for(const [k,v] of Object.entries(previous)){if(v===undefined)delete process.env[k];else process.env[k]=v;}await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const envFile=join(dir,'env');await writeFile(envFile,'');
  const sessionId=randomUUID(),promptId=randomUUID();
  const event=hookFor({session_id:sessionId,prompt_id:promptId,cwd});
  const entry=await captureClaudeEntry(event('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});
  const env={CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId,CHILL_AGENT_CONNECTION_GENERATION:entry.generation};
- async function action(name,payload) {const r=await runClaudeAction(name,payload,{env});return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
+ async function action(name,payload) {const r={text:await agentAction(name,payload,env)};return {hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:r.text}};}
  await action('create-goal',{title:'SQLite roundtrip',scope:'One isolated Web conversation',criteria:'Web input and reply persist'});
- const [goal]=await listGoals();assert.equal(goal.connection.sessionId,sessionId);
+ const [goal]=await listGoals();assert.equal(goal.owner.id,sessionId);
  server=spawn(process.execPath,[fileURLToPath(new URL('../server.mjs',import.meta.url)),'--local'],{cwd,env:{...process.env,PORT:'0'},stdio:['ignore','pipe','pipe']});exit=once(server,'exit');
  const url=await new Promise((resolve,reject)=>{let output='';server.stdout.on('data',chunk=>{output+=chunk;const match=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(match)resolve(match[0]);});server.once('error',reject);server.once('exit',()=>reject(Error('Web exited before startup')));});
  const response=await fetch(url+'/api/goals/'+goal.id+'/feedback',{method:'POST',headers:{'Content-Type':'application/json',Origin:url},body:JSON.stringify({text:'Please report SQLite result'}),signal:AbortSignal.timeout(10000)});

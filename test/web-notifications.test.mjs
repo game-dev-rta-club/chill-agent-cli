@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWebNotifications,validateSubscription} from '../lib/web-notifications.mjs';
+import {createWebNotifications,validateSubscription,pushPayload,pushLimit,nearestGoalIds} from '../lib/web-notifications.mjs';
+import {randomUUID} from 'node:crypto';
 const device='00000000-0000-0000-0000-000000000001',other='00000000-0000-0000-0000-000000000002';
 const subscription={endpoint:'https://fcm.googleapis.com/fcm/send/test',keys:{auth:Buffer.alloc(16).toString('base64url'),p256dh:Buffer.concat([Buffer.from([4]),Buffer.alloc(64)]).toString('base64url')}};
-function fixture(seed=null){let saved=seed,queue=Promise.resolve(),time=100000,mode='ok',origin=null;const sends=[],events=[{id:1,goalId:'2',author:'agent',type:'letter',title:'Choose',text:'A decision'}];
+function fixture(seed=null){let saved=seed,queue=Promise.resolve(),time=100000,mode='ok',origin=null,busy=false,settle=0,readMark=0;const sends=[],events=[{id:1,goalId:'2',author:'agent',type:'letter',title:'Choose',text:'A decision'}];
  const store={read:async()=>structuredClone(saved),write:async(_,s)=>saved=structuredClone(s),lock:(_,run)=>{const result=queue.then(run);queue=result.catch(()=>{});return result;}};
- const api=createWebNotifications({store,context:async id=>({root:{id:'1',threadId:'chat'},goal:{id,title:'An outcome'}}),events:async()=>events,eventsSince:async since=>({cursor:Math.max(0,...events.map(e=>e.id)),events:events.filter(e=>e.id>since)}),publicOrigin:async()=>origin,owns:async root=>root.threadId==='chat',agentKey:root=>root.threadId||null,use:async()=>{},now:()=>time,generateKeys:()=>({publicKey:'public',privateKey:'private'}),send:async(s,p)=>{sends.push({endpoint:s.endpoint,...JSON.parse(p)});if(mode==='expired')throw {statusCode:410};}});
+ const api=createWebNotifications({goalIds:async id=>[id,'2'],activity:async()=>({running:busy,settleMs:settle}),readThrough:async()=>readMark,store,context:async id=>({root:{id:'1',threadId:'chat'},goal:{id,title:'An outcome'}}),events:async()=>events,eventsSince:async since=>({cursor:Math.max(0,...events.map(e=>e.id)),events:events.filter(e=>e.id>since)}),publicOrigin:async()=>origin,owns:async root=>root.threadId==='chat',agentKey:root=>root.threadId||null,use:async()=>{},now:()=>time,generateKeys:()=>({publicKey:'public',privateKey:'private'}),send:async(s,p)=>{sends.push({endpoint:s.endpoint,...JSON.parse(p)});if(mode==='expired')throw {statusCode:410};}});
  const on=(id=device)=>api.configure({goalId:'2',rootId:'1',deviceId:id,enabled:true,subscription:{...subscription,endpoint:subscription.endpoint+id},origin:'https://phone.test'});
  const off=(id=device)=>api.configure({goalId:'2',rootId:'1',deviceId:id,enabled:false});
- return {api,on,off,sends,events,state:()=>saved,time:v=>time=v,mode:v=>mode=v,origin:v=>origin=v};
+ return {api,on,off,sends,events,state:()=>saved,time:v=>time=v,mode:v=>mode=v,origin:v=>origin=v,busy:v=>busy=v,settle:v=>settle=v,read:v=>readMark=v};
 }
 test('invalid endpoints and key lengths cannot be used to send arbitrary network requests',()=>{
  for(const endpoint of ['http://fcm.googleapis.com/x','https://127.0.0.1/x','https://fcm.googleapis.com.evil.test/x','https://google.com.evil.test/x','https://evil.test/x'])assert.throws(()=>validateSubscription({...subscription,endpoint}));
@@ -41,18 +42,18 @@ test('expired subscriptions turn off usable status; disconnect stops future deli
  await f.on();await f.api.remove('2',device);assert.equal((await f.api.settings('2')).enabled,false);assert.equal(f.state().devices[device],undefined);
 });
 test('migration preserves the old choice for each registered device without a welcome replay',async()=>{
- for(const enabled of [true,false]){const f=fixture({version:1,keys:{publicKey:'public',privateKey:'private'},devices:{[device]:{subscription,origin:'https://phone.test'}},roots:{'1':{enabled,cutoff:9,devices:{[device]:true}}},jobs:{},claims:{}});await f.api.initialize();assert.equal(f.state().version,2);assert.deepEqual(f.state().roots['1'].devices[device],{enabled,cutoff:9});assert.equal((await f.api.read('2',device)).enabled,enabled);assert.deepEqual(f.state().jobs,{});}
+ for(const enabled of [true,false]){const f=fixture({version:1,keys:{publicKey:'public',privateKey:'private'},devices:{[device]:{subscription,origin:'https://phone.test'}},roots:{'1':{enabled,cutoff:9,devices:{[device]:true}}},jobs:{},claims:{}});await f.api.initialize();assert.equal(f.state().version,3);assert.deepEqual(f.state().roots['1'].devices[device],{enabled,cutoff:9,...(enabled?{letters:true,replies:true}:{})});assert.equal((await f.api.read('2',device)).enabled,enabled);assert.deepEqual(f.state().jobs,{});}
 });
 test('reads do not expose credentials, endpoints or receipt tokens, and moved roots fail',async()=>{
  const f=fixture();await f.api.initialize();await f.on();const output=JSON.stringify(await f.api.read('2',device));for(const secret of ['private','endpoint','receipt'])assert.equal(output.includes(secret),false);
  await assert.rejects(f.api.configure({goalId:'2',rootId:'9',deviceId:device,enabled:true,subscription,origin:'https://phone.test'}),/moved/);
 });
-test('Letters and Replies are separate switches; both On by default, both Off turns the device off',async()=>{
+test('Notification sends what the count shows; both counts Off turns it off',async()=>{
  const f=fixture();await f.api.initialize();
- assert.deepEqual(await f.api.read('2',device).then(r=>[r.enabled,r.letters,r.replies]),[false,false,false]);
+ assert.deepEqual(await f.api.read('2',device).then(r=>[r.enabled,r.letters,r.replies]),[false,true,true]);
  await f.on();assert.deepEqual(await f.api.read('2',device).then(r=>[r.letters,r.replies]),[true,true]);assert.deepEqual((await f.api.settings('2')).on,['comment','letter']);
  f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'Here is the result'});
- assert.equal((await f.api.prepare('2',2)).handled,true);assert.equal(f.sends.length,1);assert.equal(f.sends[0].title,'An outcome');assert.match(f.sends[0].url,/#\/goal\/2\/letter\/2$/);
+ assert.equal((await f.api.prepare('2',2)).handled,true);assert.equal(f.sends.length,1);assert.equal(f.sends[0].title,'An outcome');assert.match(f.sends[0].url,/#\/goal\/2\/letter\/2$/);assert.equal(f.sends[0].rootId,'1');assert.deepEqual(f.sends[0].goalIds,[1,2]);
  await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:true,replies:false});
  assert.deepEqual((await f.api.settings('2')).on,['letter']);
  f.events.push({id:3,goalId:'2',author:'agent',type:'comment',text:'Progress'});assert.equal((await f.api.prepare('2',3)).handled,false);
@@ -60,7 +61,7 @@ test('Letters and Replies are separate switches; both On by default, both Off tu
  await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:false,replies:true});
  f.events.push({...f.events[0],id:5},{id:6,goalId:'2',author:'agent',type:'comment',text:'Another result'});
  assert.equal((await f.api.prepare('2',5)).handled,false);assert.equal((await f.api.prepare('2',6)).handled,true);
- // Both Off is Off for this device, and a later first switch On registers it again.
+ // Counting nothing turns Notification Off, and a later On registers it again.
  const off=await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:false,replies:false});
  assert.deepEqual([off.enabled,off.letters,off.replies],[false,false,false]);assert.equal((await f.api.settings('2')).enabled,false);
  await f.api.configure({goalId:'2',rootId:'1',deviceId:device,enabled:true,subscription:{...subscription,endpoint:subscription.endpoint+device},origin:'https://phone.test',letters:false,replies:true});
@@ -68,7 +69,7 @@ test('Letters and Replies are separate switches; both On by default, both Off tu
  // Registering again without switches keeps this device's choice.
  await f.on();assert.deepEqual(await f.api.read('2',device).then(r=>[r.letters,r.replies]),[false,true]);
  await assert.rejects(f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:'yes',replies:true}),/Choose Letters and Replies/);
- await assert.rejects(f.api.kinds({goalId:'2',rootId:'1',deviceId:other,letters:true,replies:false}),/Turn notifications on/);
+ await assert.rejects(f.api.kinds({goalId:'2',rootId:'1',deviceId:'nope',letters:true,replies:true}),/Invalid device/);
  await assert.rejects(f.api.configure({goalId:'2',rootId:'1',deviceId:other,enabled:true,subscription,origin:'https://phone.test',letters:false,replies:false}),/Letters, Replies or both/);
 });
 
@@ -95,6 +96,77 @@ test('Web sends new Agent replies by itself, once, for Codex and Claude alike',a
  await f.api.drain();assert.equal(f.sends.length,3);
  // Off stops replies for this device.
  await f.off();f.events.push({id:7,goalId:'2',author:'agent',type:'comment',text:'After Off',updatedAt:at});await f.api.drain();assert.equal(f.sends.length,3);
+});
+test('every reply counts once its Root\'s work ends, with no device; a browser counts without notifications',async()=>{
+ const f=fixture();const start=Date.parse('2026-10-14T00:00:00Z'),at=new Date(start).toISOString();f.time(start);
+ await f.api.initialize();await f.api.drain();
+ f.busy(true);f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'On it',updatedAt:at});await f.api.drain();
+ assert.deepEqual([...await f.api.announcedReplies()],[],'the count waits like a notification');
+ f.busy(false);await f.api.drain();assert.deepEqual([...await f.api.announcedReplies()],[2]);assert.equal(f.sends.length,0);
+ // The count's switches need no permission, and do not choose the Web provider.
+ assert.deepEqual((await f.api.counts(device))('1'),{letters:true,replies:true});
+ const saved=await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:true,replies:false});
+ assert.deepEqual([saved.enabled,saved.letters,saved.replies],[false,true,false]);
+ assert.deepEqual((await f.api.counts(device))('1'),{letters:true,replies:false});
+ assert.deepEqual((await f.api.counts(other))('1'),{letters:true,replies:true},'another browser keeps its own');
+ assert.equal((await f.api.settings('2')).selected,false);
+ // Notification On then sends only what this browser counts.
+ await f.on();assert.deepEqual((await f.api.read('2',device)).replies,false);assert.deepEqual((await f.api.settings('2')).on,['letter']);
+ await assert.rejects(f.api.configure({goalId:'2',rootId:'1',deviceId:device,enabled:true,subscription,origin:'https://phone.test',letters:false,replies:false}),/Turn on Letters, Replies or both/);
+});
+test('claims stay bounded with no device; a Root\'s work rewrites nothing while it lasts',async()=>{
+ const f=fixture();const start=Date.parse('2026-10-14T00:00:00Z'),at=new Date(start).toISOString();f.time(start);
+ await f.api.initialize();await f.api.drain();
+ for(let id=2;id<1100;id++)f.events.push({id,goalId:'2',author:'agent',type:'letter',title:'Q',text:'Q',updatedAt:at});
+ await f.api.drain();assert.equal(Object.keys(f.state().claims).length,1000);
+ f.busy(true);f.events.push({id:1200,goalId:'2',author:'agent',type:'comment',text:'On it',updatedAt:at});await f.api.drain();
+ assert.deepEqual(Object.keys(f.state().held),['1200']);
+ const before=f.state();await f.api.drain();assert.equal(f.state(),before,'still working: the store is not written');
+});
+test('a device whose ID changed keeps its notifications and the count the new ID chose',async()=>{
+ const f=fixture();await f.api.initialize();await f.on(other);
+ await f.api.kinds({goalId:'2',rootId:'1',deviceId:device,letters:true,replies:false});
+ await f.api.configure({goalId:'2',rootId:'1',deviceId:device,enabled:true,subscription:{...subscription,endpoint:subscription.endpoint+other},origin:'https://phone.test'});
+ const entry=f.state().roots['1'].devices;assert.equal(entry[other],undefined);
+ assert.deepEqual([entry[device].enabled,entry[device].letters,entry[device].replies,'cutoff' in entry[device]],[true,true,false,true]);
+});
+test('an Off device from before the count starts at the defaults; an On device keeps what it was sent',async()=>{
+ const f=fixture({version:2,keys:{publicKey:'public',privateKey:'private'},devices:{[device]:{subscription,origin:'https://phone.test'}},roots:{'1':{devices:{[device]:{enabled:false,cutoff:9,letters:false,replies:false},[other]:{enabled:true,cutoff:9,scope:'letters'}}}},jobs:{},claims:{}});
+ await f.api.initialize();assert.equal(f.state().version,3);
+ assert.deepEqual((await f.api.counts(device))('1'),{letters:true,replies:true});
+ assert.deepEqual((await f.api.counts(other))('1'),{letters:true,replies:false});
+ assert.equal((await f.api.settings('2')).selected,true,'a Root that used Web notifications stays with them');
+});
+test('replies saved while the agent works wait for the work to end; only the unread ones are announced, once, with how many more',async()=>{
+ const f=fixture();const start=Date.parse('2026-10-14T00:00:00Z'),at=new Date(start).toISOString();f.time(start);
+ await f.api.initialize();await f.on();f.time(start+6000);await f.api.drain();assert.equal(f.sends.length,1,'only the confirmation');
+ f.busy(true);
+ f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'On it',updatedAt:at},{id:3,goalId:'2',author:'agent',type:'letter',title:'Pick one',text:'A or B',updatedAt:at},
+  {id:4,goalId:'2',author:'agent',type:'comment',text:'Halfway',updatedAt:at},{id:5,goalId:'2',author:'agent',type:'comment',text:'Done: the result',updatedAt:at});
+ await f.api.drain();
+ assert.deepEqual(f.sends.slice(1).map(s=>s.title),['Pick one'],'a Letter is not held');
+ assert.deepEqual(Object.keys(f.state().held).map(Number),[2,4,5]);
+ assert.deepEqual([...await f.api.announcedReplies()],[],'held replies do not count as unread yet');
+ f.read(2);f.busy(false);await f.api.drain();
+ assert.deepEqual(f.sends.slice(2).map(s=>[s.title,s.body]),[['An outcome','Done: the result\n(+1 more reply)']],'one notification: the newest unread, with the count of the others');
+ assert.deepEqual([...await f.api.announcedReplies()].sort(),[4,5],'the unread ones count, the read one does not');
+ assert.deepEqual(f.state().held,{});await f.api.drain();assert.equal(f.sends.length,3,'released once');
+ // Read before the work ends: nothing is announced.
+ f.busy(true);f.events.push({id:6,goalId:'2',author:'agent',type:'comment',text:'Will do',updatedAt:at});await f.api.drain();
+ f.read(6);f.busy(false);await f.api.drain();assert.equal(f.sends.length,3);
+ // The agent's own request waits too.
+ f.busy(true);f.events.push({id:7,goalId:'2',author:'agent',type:'comment',text:'Asked to notify',updatedAt:at});
+ const asked=await f.api.prepare('2',7);assert.equal(asked.held,true);assert.equal(f.sends.length,3);
+ f.busy(false);await f.api.drain();assert.deepEqual(f.sends.slice(3).map(s=>s.body),['Asked to notify']);
+});
+test('an agent continued by polling must stay stopped for a while before held replies go out',async()=>{
+ const f=fixture();const start=Date.parse('2026-10-14T00:00:00Z'),at=new Date(start).toISOString();f.time(start);
+ await f.api.initialize();await f.on();f.time(start+6000);await f.api.drain();
+ f.busy(true);f.settle(45000);f.events.push({id:2,goalId:'2',author:'agent',type:'comment',text:'Result',updatedAt:at});await f.api.drain();
+ f.busy(false);await f.api.drain();assert.equal(f.sends.length,1,'a short stop between turns');
+ f.time(start+30000);f.busy(true);await f.api.drain();f.busy(false);await f.api.drain();
+ f.time(start+60000);await f.api.drain();assert.equal(f.sends.length,1,'the stop restarted after the agent ran again');
+ f.time(start+76000);await f.api.drain();assert.deepEqual(f.sends.slice(1).map(s=>s.body),['Result']);
 });
 test('a new public URL retires old registrations and pending jobs, retaining all devices on the current URL',async()=>{
  const third='00000000-0000-0000-0000-000000000003';
@@ -142,9 +214,29 @@ test('no-reply outcome uses the same once-only Letter delivery and respects Off'
 test('local notification permission is scoped to the automatic project port',async t=>{
  const {prepareProject,workspacePort}=await import('../lib/project-workspace.mjs');const {mkdtemp,mkdir,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const {join}=await import('node:path');
  const base=await mkdtemp(join(tmpdir(),'chill-webpush-port-')),oldDir=process.env.CHILL_AGENT_DATA_DIR,oldPort=process.env.PORT;
- t.after(async()=>{if(oldDir===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=oldDir;if(oldPort===undefined)delete process.env.PORT;else process.env.PORT=oldPort;await rm(base,{recursive:true,force:true});});
+ t.after(async()=>{if(oldDir===undefined)delete process.env.CHILL_AGENT_DATA_DIR;else process.env.CHILL_AGENT_DATA_DIR=oldDir;if(oldPort===undefined)delete process.env.PORT;else process.env.PORT=oldPort;await rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
  const project=join(base,'project');await mkdir(project);process.env.CHILL_AGENT_DATA_DIR=await prepareProject(project,{base});delete process.env.PORT;
  const f=fixture(),port=workspacePort(),input={goalId:'2',rootId:'1',enabled:true,deviceId:device,subscription};
  await f.api.configure({...input,origin:`http://127.0.0.1:${port}`});
  await assert.rejects(f.api.configure({...input,origin:`http://127.0.0.1:${port===43199?43200:43199}`}),/Use HTTPS or the local workspace/);
+});
+
+test('a push names the Goals of its Root within the size a push service accepts',()=>{
+ const job={id:randomUUID(),receipt:randomUUID(),title:'題'.repeat(300),message:'本文'.repeat(175),url:'https://phone.test/#/goal/2/letter/9',rootId:'1'};
+ const small=JSON.parse(pushPayload(job,['1','2','3']));
+ assert.deepEqual(small.goalIds,[1,2,3]);assert.equal(Array.from(small.title).length,120);
+ const many=Array.from({length:2000},(_,i)=>String(i+1)),payload=pushPayload(job,many);
+ assert.ok(Buffer.byteLength(payload)<=pushLimit);
+ const ids=JSON.parse(payload).goalIds;assert.ok(ids.length>200,'about 200 Goals always fit');assert.deepEqual(ids,ids.map((_,i)=>i+1),'in the order given');
+});
+
+test('a push lists the Goals nearest the notified one first, within its Root',()=>{
+ // 200 ─ 210 ─ 211, 212 · 220 ─ 221; 300 is another Root.
+ const goals=[[200,null],[210,200],[211,210],[212,210],[220,200],[221,220],[300,null],[310,300]].map(([id,parentId])=>({id:String(id),parentId:parentId&&String(parentId)}));
+ const ids=nearestGoalIds(goals,'200','211');
+ // One step, then two (its sibling and the Root), then three and four.
+ assert.deepEqual(ids.slice(0,2),['211','210']);assert.deepEqual(new Set(ids.slice(2,4)),new Set(['212','200']));
+ assert.deepEqual(ids.slice(4),['220','221']);
+ assert.ok(!ids.includes('300')&&!ids.includes('310'),'another Root stays out');
+ assert.deepEqual(nearestGoalIds(goals,'200','999')[0],'200','an unknown Goal starts from its Root');
 });

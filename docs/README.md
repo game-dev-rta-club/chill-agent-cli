@@ -13,15 +13,15 @@ The integrating application decides what work to pursue and when to continue it.
 | I want to… | Read |
 | --- | --- |
 | Understand Goals, completion and progress | [Goal lifecycle](workspace/goals.md) |
-| Publish a plan or ask a question | [Deliverables and Conversation](workspace/deliverables-and-conversation.md) |
+| Publish a plan or ask a question | [Canvases and Conversation](workspace/deliverables-and-conversation.md) |
 | Find the next relevant Goal without reading everything | [Read in layers](workspace/reading-goals.md) |
-| Understand page loading, live updates and Deliverable history | [Web navigation](workspace/web-navigation.md) |
+| Understand page loading, live updates and Canvas history | [Web navigation](workspace/web-navigation.md) |
 | Separate projects, ports and extension choices | [Project workspaces](runtime/projects.md) |
 | Choose branches, commit milestones and prepare a PR | [Development workflow](development/workflow.md) |
 | Try a local CLI change in a project's Web, without GitHub | [Try a local change](development/try-local.md) |
 | Try an unreleased CLI commit in another project | [Use a development version](development/use-development-version.md) |
 | Add a host or change host-specific setup and operation guidance | [Harness boundaries](development/harness-boundaries.md) |
-| Qualify Auto mode continuation in a native Claude conversation | [Claude Auto mode](development/claude-auto-mode.md) |
+| Qualify the end-of-turn check (Autonomy) in a native Claude conversation | [Claude end-of-turn check](development/claude-auto-mode.md) |
 | Keep test data tied to a real Claude Code release | [Claude contract samples](development/claude-contract.md) |
 | Check chill against the installed Codex and Codex Desktop before a release | [Codex verification](development/codex-verification.md) |
 | Change Web navigation, layout updates or focus without scroll jumps | [Scrolling guidelines](development/scrolling.md) |
@@ -36,7 +36,7 @@ The integrating application decides what work to pursue and when to continue it.
 | Qualify Claude's local hook-to-CLI identity handoff | [Claude entry handshake](agent/claude-entry.md) |
 | Prepare project-local hooks for the same Claude conversation | [Experimental Claude setup](agent/claude-setup.md) |
 | Create a new Claude Root and read its feedback | [Experimental Claude actions](agent/claude-actions.md) |
-| Receive a reply after Claude finishes responding | [Reply waiter](agent/claude-wait.md) |
+| Receive a reply after Claude finishes responding | [Watcher hook](agent/claude-wait.md) |
 | Check whether Claude is waiting for Web replies | [Recorded Claude connection status](agent/claude-status.md) |
 | Interpret Running, Done or an unknown state | [Execution state](agent/execution-state.md) |
 | Host a policy or add its Web control | [Extension API](extensions.md) |

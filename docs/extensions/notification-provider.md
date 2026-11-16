@@ -26,10 +26,11 @@ not send that notification again. Outcomes are `sent`, `failed`, `unconfirmed`;
 the service decides what evidence each receipt represents. The host sends
 nothing and stores no credentials for external services.
 
-No provider means the standalone CLI keeps its shared notification settings.
-A configured provider that cannot load fails explicitly; it must not fall back
-to a stale global On setting. `CHILL_AGENT_EXTENSIONS=none` suppresses server
-extension registration, not the provider used by explicit settings commands.
+No provider means no notifications: `settings notifications` and `settings
+notice` are refused, and hand-offs carry no reminder. A shared setting an earlier
+version saved is not read. A configured provider that cannot load fails
+explicitly; it never falls back to a global setting. `CHILL_AGENT_EXTENSIONS=none`
+turns the provider off along with server extension registration.
 
 The public extension API exposes shared settings readers, validation,
 `saveMessageSetting`, `readPublicOrigin()` and `notificationUrl(goalId, event)`.

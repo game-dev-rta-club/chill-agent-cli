@@ -1,9 +1,9 @@
 {
   "name": "@game-dev-rta-club/chill-agent-cli",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": false,
   "type": "module",
-  "description": "A local Goal workspace with editable Deliverables and Letters in Conversation.",
+  "description": "A local Goal workspace with editable Canvases and Letters in Conversation.",
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
@@ -35,11 +35,13 @@
     "parse5": "8.0.1",
     "qrcode": "1.5.4",
     "sanitize-html": "2.18.0",
-    "web-push": "3.6.7"
+    "web-push": "3.6.7",
+    "ws": "8.22.1"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
-    "mermaid": "11.17.2"
+    "mermaid": "11.17.2",
+    "thumbhash": "0.1.1"
   },
   "license": "MIT",
   "repository": {
@@ -60,7 +62,8 @@
     "README.md",
     "npm-shrinkwrap.json",
     "extensions",
-    "extensions.json"
+    "extensions.json",
+    "claude-mods"
   ],
   "bundleDependencies": [
     "marked",

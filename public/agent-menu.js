@@ -2,6 +2,7 @@ import {isRunning} from './goal-state.js';
 import {presenceMark,presenceLabel} from './agent-presence.js';
 import {extensionIcon,announceControls} from './extension-buttons.js';
 import {confirmAction} from './confirmation-dialog.js';
+import {isWaitingOnCheck,waitItems,waitListMarkup} from './work-ui.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const period=m=>m===null?'Usage':m%1440===0?`${m/1440}d`:m%60===0?`${m/60}h`:`${m}m`;
 const date=seconds=>new Intl.DateTimeFormat('en-US',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}).format(new Date(seconds*1000));
@@ -14,10 +15,18 @@ function settingsMarkup(data){
 function timeMarkup(at,seconds=false){
  const value=new Date(at);return Number.isNaN(value.getTime())?'':`<time datetime="${esc(at)}" title="${esc(value.toLocaleString('en-US'))}">${esc(value.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}))}</time>`;
 }
+// An idle agent waiting on checks it scheduled (agent wake), and a running one
+// with subagents it left running, list each, as the Goal page does.
+const clock='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/></svg>';
+const waitsOn=work=>work?.status==='idle'&&work.wake;
+function waitMarkup(work){
+ const items=waitItems(work),overdue=!work.background?.length&&!isWaitingOnCheck(work.wake);
+ return `<span class="agent-run-state"><span class="status ${overdue?'unknown':'waiting'}" aria-hidden="true">${clock}</span>${overdue?'Check overdue':items.length>1?`Waiting · ${items.length}`:'Waiting'}</span>${waitListMarkup(items)}`;
+}
 function workMarkup(work,root={}){
  const active=isRunning(work?.status)||work?.status==='paused';
  const id=work?.goalId||root.rootId,title=work?.goalId?work.title:root.rootTitle;
- return `<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${!active&&!root.recent?.length&&work?.last?.goalId?`<a class="agent-work-link" href="#/goal/${esc(work.last.goalId)}${work.last.eventId?`/activity/${esc(work.last.eventId)}`:''}">Last · #${esc(work.last.goalId)} ${esc(work.last.title||'Goal')} →</a>`:''}${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}${work?.goalId&&work.eventId?`/activity/${esc(work.eventId)}`:''}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
+ return `${waitsOn(work)?waitMarkup(work):`<span class="agent-run-state">${presenceMark(work?.status)}${presenceLabel(work?.status)}</span>${isRunning(work?.status)&&work?.background?.length?waitListMarkup(waitItems(work)):''}`}${!active&&!root.recent?.length&&work?.last?.goalId?`<a class="agent-work-link" href="#/goal/${esc(work.last.goalId)}${work.last.eventId?`/activity/${esc(work.last.eventId)}`:''}">Last · #${esc(work.last.goalId)} ${esc(work.last.title||'Goal')} →</a>`:''}${active&&id?`<a class="agent-work-link" href="#/goal/${esc(id)}${work?.goalId&&work.eventId?`/activity/${esc(work.eventId)}`:''}">${work?.goalId?'':'Root Goal · '}#${esc(id)} ${esc(title||'Goal')} →</a>`:''}`;
 }
 function entryMarkup(entry,id){return `<article class="agent-auto-entry"><div class="agent-auto-meta">${timeMarkup(entry.at)}<span>${esc(entry.result?.label||entry.status)}</span></div><p>${esc(entry.summary)}</p>${entry.detail?`<p class="agent-muted">${esc(entry.detail)}</p>`:''}${entry.message?`<details data-agent-detail="${esc(id)}"><summary>View message</summary><pre class="agent-auto-message">${esc(entry.message)}</pre></details>`:'<p class="agent-muted">Message not saved.</p>'}</article>`;}
 export function runActivityMarkup(controls){
@@ -34,7 +43,7 @@ export function activityMarkup(controls){
   return `<section class="agent-section agent-auto"><div class="agent-section-heading"><h3>${esc(a.label||c.label)}</h3>${c.configured===false?`<button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup?.label||'Set up')}</button>`:`<button type="button" class="extension-trigger agent-auto-toggle" data-agent-extension="${esc(c.id)}" aria-label="${esc(c.label)}" aria-pressed="${c.enabled}" title="${esc(c.label)}: ${c.enabled?'ON · Turn off':'OFF · Turn on'}">${extensionIcon(c.icon)}<span>${c.enabled?'On':'Off'}</span></button>`}</div>${c.detail?`<p class="agent-muted agent-auto-empty agent-extension-detail" title="${esc(c.detail)}">${esc(c.detail)}${c.configured&&c.setup?` <button type="button" class="agent-extension-setup" data-extension-setup="${esc(c.id)}">${esc(c.setup.label)}</button>`:''}</p>`:''}${entries.length?`<details class="agent-auto-history" data-agent-detail="${esc(c.id)}-activity"><summary>History</summary>${a.total>entries.length?`<p class="agent-muted">Latest ${entries.length}</p>`:''}${entries.map(e=>entryMarkup(e,`${c.id}-${e.id}`)).join('')}</details>`:''}<p class="agent-muted" data-extension-message role="status"></p></section>`;
  }).join('');
 }
-// Every agent shares the same extension sections, such as AutoContinue.
+// Every agent shares the same extension sections, such as Notifications.
 // Recent Goals of this agent, newest first, each once.
 const currentGoal=id=>new RegExp(`^#/goal/${id}(?:/|$)`).test(globalThis.location?.hash||'');
 const recentMarkup=recent=>recent?.length?`<h4 class="agent-recent-heading">Recent</h4><ol class="agent-recent">${recent.map(g=>`<li><a href="#/goal/${esc(g.goalId)}" class="${currentGoal(g.goalId)?'is-current':''}"><span class="agent-recent-id">#${esc(g.goalId)}</span><span class="agent-recent-title">${esc(g.title||'Goal')}</span></a></li>`).join('')}</ol>`:'';
@@ -46,9 +55,8 @@ function headerMarkup(data){
  const a=data.agent||{},caps=data.capabilities||{};
  const model=caps.settings?`<div class="agent-settings-section" aria-label="Settings">${settingsMarkup(data)}</div>`:a.model?.model?`<p class="agent-muted">${esc(a.model.model)}${a.model.reasoning?` · ${esc(a.model.reasoning)}`:''}</p>`:'';
  const status=a.status?`<p title="${esc(a.status.detail||'')}">${esc(a.status.label)}${a.status.at?` · ${timeMarkup(a.status.at)}`:''}</p>`:'';
- const approve=caps.approveAll?`<label class="agent-extension"><span>Approve all</span><input type="checkbox" role="switch" data-agent-approve-all aria-label="Approve all permission prompts" ${data.approveAll?'checked':''}></label><p class="extension-message" data-approve-message role="status"></p>`:'';
- const usage=data.usage===undefined?'':`<section class="agent-section"><h3 title="${esc(data.usageScope||'')}">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}</section>`;
- return `<section class="agent-section"><h3>${esc(a.name||'Agent')}</h3>${model}${status}${approve}</section>${usage}`;
+ const usage=data.usage===undefined?'':`<section class="agent-section"><h3 title="${esc(data.usageScope||'')}">Usage</h3>${data.usage===null?'<p>Usage unavailable.</p>':(data.usage||[]).flatMap(bucket=>bucket.windows.map(w=>`<div class="agent-window"><div class="agent-usage-label"><span>${esc(bucket.name)} · ${period(w.minutes)}</span><strong>${w.remaining===null?'Unavailable':`${Math.round(w.remaining)}% left`}</strong></div>${w.remaining===null?'':`<progress max="100" value="${w.remaining}" aria-label="${esc(bucket.name)} ${Math.round(w.remaining)}% left"></progress>`}<p class="agent-muted">${w.resetAt===null?'Reset time unavailable':`Resets ${date(w.resetAt)}`}</p></div>`)).join('')||'<p>No usage data.</p>'}${data.usage&&data.usageAt?`<p class="agent-muted">As of ${timeMarkup(data.usageAt)}</p>`:''}</section>`;
+ return `<section class="agent-section"><h3>${esc(a.name||'Agent')}</h3>${model}${status}</section>${usage}`;
 }
 const controlsMarkup=data=>`<div class="agent-current-controls">${data.capabilities?.stop?'<button type="button" class="action" data-agent-control="stop">Ⅱ Pause</button>':data.capabilities?.resume?'<button type="button" class="action" data-agent-control="resume">▶ Resume</button>':''}<span data-agent-control-message role="status"></span></div>`;
 function queueMarkup(queue){
@@ -69,7 +77,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  const refreshButton=panel.querySelector('[data-agent-refresh]');
  function render(data){
   const expanded=new Set([...content.querySelectorAll('details[open][data-agent-detail]')].map(d=>d.dataset.agentDetail)),scroll=panel.scrollTop;
-  current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>c.placement!=='header'&&!c.activity));
+  current=data;content.innerHTML=agentMarkup(data)+extensionMarkup(data.extensions?.filter(c=>!['header','letters'].includes(c.placement)&&!c.activity));
   if(data.extensions)announceControls(data.extensions);
   for(const d of content.querySelectorAll('details[data-agent-detail]'))d.open=expanded.has(d.dataset.agentDetail);
   panel.scrollTop=scroll;
@@ -100,6 +108,12 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   }catch(error){runLogs.delete(key);if(target.isConnected&&goalId===getGoalId())target.innerHTML='<p class="agent-muted">Log unavailable.</p><button type="button" class="text-button" data-run-refresh>Retry</button>';}
  }
  content.addEventListener('toggle',event=>{if(event.target.matches('[data-extension-run]'))void loadRun(event.target);},true);
+ // A control that is consequential to turn on asks first.
+ async function toggleExtension(controlId,enabled,selector){
+  const control=current?.extensions?.find(c=>c.id===controlId);
+  if(enabled&&control?.confirmOn&&!await confirmAction(control.confirmOn))return;
+  void saveExtension(controlId,enabled,selector);
+ }
  async function saveExtension(controlId,enabled,selector){
   if(saving)return;
   const id=getGoalId(),data=current,control=data.extensions.find(c=>c.id===controlId);if(!control)return;
@@ -134,7 +148,7 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
   const refresh=event.target.closest('[data-run-refresh]');if(refresh){void loadRun(refresh.closest('[data-extension-run]'),{fresh:true});return;}
   const setup=event.target.closest('[data-extension-setup]');if(setup){void requestSetup(setup.dataset.extensionSetup);return;}
   const button=event.target.closest('[data-agent-extension]');if(!button)return;
-  void saveExtension(button.dataset.agentExtension,button.getAttribute('aria-pressed')!=='true',`[data-agent-extension="${button.dataset.agentExtension}"]`);
+  void toggleExtension(button.dataset.agentExtension,button.getAttribute('aria-pressed')!=='true',`[data-agent-extension="${button.dataset.agentExtension}"]`);
  });
  async function controlCurrent(action){
   if(saving||!current)return;
@@ -152,20 +166,6 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
    }
   }finally{saving=false;refreshButton.disabled=false;}
  }
- // When the agent supports it: answer its permission prompts automatically.
- content.addEventListener('change',async event=>{
-  const input=event.target.closest('[data-agent-approve-all]');if(!input||saving)return;
-  // Turning it on is consequential, so the explanation lives in a confirmation.
-  if(input.checked&&!await confirmAction({title:'Approve all',message:"The agent's permission prompts in this conversation will be answered with Allow, so unattended work keeps going without asking you. Prompts the agent never lets an automatic answer approve, such as removing critical paths, still ask.",confirmLabel:'Turn on'})){input.checked=false;return;}
-  const id=getGoalId(),snapshot=current,token=++request;controller?.abort();saving=true;input.disabled=true;
-  const message=content.querySelector('[data-approve-message]');if(message)message.textContent='';
-  try{
-   const response=await fetch(`/api/goals/${id}/agent/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:'permissions',token:snapshot?.token,approveAll:input.checked}),signal:AbortSignal.timeout(30000)});
-   const result=await response.json();if(!response.ok)throw Error(result.error||'Could not save.');
-   if(opened&&id===getGoalId()&&token===request)render({...result,extensions:snapshot.extensions});
-  }catch(error){if(opened&&id===getGoalId()&&token===request){input.checked=!input.checked;input.disabled=false;const m=content.querySelector('[data-approve-message]');if(m)m.textContent=error.name==='TimeoutError'?'Save unconfirmed. Refresh to check.':error.message;}}
-  finally{saving=false;}
- });
  content.addEventListener('change',async event=>{
   if(event.target.matches('[data-extension]')){
    void saveExtension(event.target.dataset.extension,event.target.checked,`[data-extension="${event.target.dataset.extension}"]`);return;

@@ -11,7 +11,7 @@ test('frontmatter reads name and plain or folded descriptions',()=>{
  assert.deepEqual(skillFrontmatter('No frontmatter'),{});
 });
 test('project skills, user skills and commands are listed; the project wins a name clash',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-skills-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-skills-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const project=join(dir,'project'),home=join(dir,'home');
  const skill=async(base,parts,name,description)=>{await mkdir(join(base,...parts,name),{recursive:true});await writeFile(join(base,...parts,name,'SKILL.md'),`---\nname: ${name}\ndescription: ${description}\n---\n`);};
  await skill(project,['.agents','skills'],'deploy','Project deploy');
@@ -26,7 +26,7 @@ test('project skills, user skills and commands are listed; the project wins a na
  ]);
 });
 test('skills named in feedback come with the file to read, user skills included',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'chill-skills-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const dir=await mkdtemp(join(tmpdir(),'chill-skills-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  const project=join(dir,'project'),home=join(dir,'home');
  await mkdir(join(home,'.claude','skills','grilling'),{recursive:true});await writeFile(join(home,'.claude','skills','grilling','SKILL.md'),'---\nname: grilling\ndescription: Ask\n---\n');
  await mkdir(join(project,'.claude','commands'),{recursive:true});await writeFile(join(project,'.claude','commands','review.md'),'---\ndescription: Review\n---\n');

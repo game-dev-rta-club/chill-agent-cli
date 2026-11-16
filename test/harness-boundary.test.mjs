@@ -21,7 +21,7 @@ const names=/claude-code|codex-desktop|CODEX_THREAD_ID|nativeConnection|harnessI
 const mayImportAdapters=new Map([
  ['bin/chill-hook.mjs',"Codex's own hook command; Codex is the app that runs it"],
  ['bin/chill-setup.mjs','setup prepares the harness the user names with --harness'],
- ['bin/chill-connection.mjs',"its hook subcommands are Claude Code's own hook commands"],
+ ['bin/chill-conversation.mjs',"its hook subcommands are Claude Code's and Codex's own hook commands"],
 ]);
 
 const importSpecifier=/(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)['"](\.{1,2}\/[^'"]*)['"]/gm;

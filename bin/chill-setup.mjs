@@ -26,8 +26,7 @@ async function main() {
   if(command!=='status'&&Number(process.versions.node.split('.')[0])<20)throw Error('Node.js 20 or later is required.');
   // The application's version file selects this CLI; recording it lets Web
   // startup and the update button follow that file later.
-  if(values['--agent-guide']!==undefined&&values['--version-file']===undefined)throw Error('--agent-guide requires --version-file.');
-  const version=command==='prepare'&&values['--version-file']!==undefined?{versionFile:resolve(values['--version-file']),...(values['--agent-guide']===undefined?{}:{agentGuide:resolve(values['--agent-guide'])})}:null;
+  const version=command==='prepare'&&values['--version-file']!==undefined?{versionFile:resolve(values['--version-file'])}:null;
   if(version)version.spec=await readPackageSpec(version.versionFile);
   const sessionNext=()=>version?` Then run <command> session start --harness ${values['--harness']||'codex-desktop'} --project ${quote(resolve(values['--project']))} to start Web and prepare the first Goal.`:'';
   if(values['--harness']==='claude-code'){
@@ -35,8 +34,9 @@ async function main() {
     if(command==='status'){console.log(JSON.stringify(await claudeSetupStatus(values['--project']),null,2));return;}
     if(command==='remove'){console.log(JSON.stringify(await configureClaudeHooks(values['--project'],{remove:true}),null,2));return;}
     if(process.platform==='win32'&&!findGitBash())throw Error('Claude Code on Windows runs these hooks with Git Bash, which was not found. Install Git for Windows (https://git-scm.com/downloads/win), or set CLAUDE_CODE_GIT_BASH_PATH to its bash.exe, then run setup again.');
-    // Inspect before preparing a runtime; never consult Codex for this route.
-    const status=await claudeSetupStatus(values['--project']);if(status.conflict)throw Error('A Claude chill hook is untracked or edited. Review it before preparing again.');
+    // Read the settings before preparing a runtime, so a malformed or symlinked
+    // file stops setup first; never consult Codex for this route.
+    await claudeSetupStatus(values['--project']);
     const prepared=await prepareRuntime(fileURLToPath(new URL('../',import.meta.url)),undefined,{package:version?.spec});
     if(version)await recordVersionSource(prepared.dataDirectory,version);
     // Match the launcher's canonical spelling (for example /var -> /private/var).
@@ -44,7 +44,7 @@ async function main() {
     const installed={...prepared,root:await realpath(prepared.root),dataDirectory:directory,launcher:join(directory,'runtime/chill.mjs'),entry:join(directory,'runtime/chill')};
     const hook=await configureClaudeHooks(values['--project'],{entry:installed.entry,directory});
     const prefix=quote(installed.entry);
-    console.log(JSON.stringify({...installed,project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,hook,command:prefix,next:'Experimental Claude hooks are written, not yet verified in the conversation. Review them with native /hooks when Claude asks. From its main Bash tool, run <command> connection show; if it reports no connection, run <command> connection join once (no resume needed), then connection create-goal. The installed watcher hook wakes the conversation for Web replies. No Auto mode is enabled by setup. Local settings created by hand should be excluded from Git. Native policy and existing permissions still apply.'+sessionNext()},null,2));
+    console.log(JSON.stringify({...installed,project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,hook,command:prefix,next:'Experimental Claude hooks are written, not yet verified in the conversation. Review them with native /hooks when Claude asks. From its main Bash tool, run <command> agent show; if it reports no connection, run <command> agent join once (no resume needed), then <command> goal create. The installed watcher hook wakes the conversation for Web replies. Setup leaves every Root at Autonomy Normal. Local settings created by hand should be excluded from Git. Native policy and existing permissions still apply.'+sessionNext()},null,2));
     return;
   }
   if(command==='remove')throw Error('This option requires --harness claude-code.');
@@ -61,7 +61,7 @@ async function main() {
   const installed = await prepareRuntime(fileURLToPath(new URL('../', import.meta.url)), undefined, { package: version?.spec });
   if (version) await recordVersionSource(installed.dataDirectory, version);
   const prefix = quote(installed.entry);
-  const hook = await installHook(resolve(values['--project']), { command: `${prefix} hook` });
+  const hook = await installHook(resolve(values['--project']), { command: `${prefix} agent hook codex` });
   console.log(JSON.stringify({ ...installed, project:projectProfile(),url:`http://127.0.0.1:${workspacePort()}`,codex, hook, command: prefix,
     next: 'Review/trust a new or changed hook in Codex /hooks. Start with: <command> server start --configured. Existing servers keep their previous runtime until restarted.' + sessionNext() }, null, 2));
 }

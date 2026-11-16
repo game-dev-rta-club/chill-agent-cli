@@ -1,0 +1,203 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {mkdtemp,mkdir,readFile,rm,writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {approvesTools,turnPlan,autonomyLines} from '../lib/autonomy.mjs';
+import {journalOwnership,journalAutonomy,withAutonomy} from '../lib/continuation-owner.mjs';
+import {autonomyLevels,autonomyOf} from '../public/autonomy.js';
+import {expectHidden} from './hidden-failures.mjs';
+const execute=promisify(execFile),cli=fileURLToPath(new URL('../bin/chill-agent.mjs',import.meta.url));
+
+const goal=(id,patch={})=>({id,title:`Goal ${id}`,parentId:null,state:'idle',...patch});
+// Root 1 with 2 and 3 under it, and Root 4.
+const tree=()=>[goal('1'),goal('2',{parentId:'1'}),goal('3',{parentId:'1'}),goal('4')];
+const at=(goals,levels)=>Object.entries(levels).map(([id,level])=>({root:goals.find(g=>g.id===id),level}));
+
+test('the three levels go by name, with their descriptions',()=>{
+  assert.deepEqual(autonomyLevels.map(l=>[l.level,l.name]),[[1,'Normal'],[2,'Auto Continue'],[3,'Never Stop']]);
+  assert.deepEqual(autonomyLevels.map(l=>l.description),[
+    'Does what each comment asks, then waits for you.',
+    'Carries out what you\'ve agreed anywhere in the Root Goal and keeps its Goals up to date. Questions come as Letters. No tool prompts.',
+    'Plans its own way to the Root Goal\'s success criteria, reads whatever helps on the web and this machine, except secrets, and keeps going. In Claude Code it always schedules its next check. Letters only for your decisions. No tool prompts.',
+  ]);
+  assert.equal(autonomyOf({}),1,'a record without a level reads as Normal');assert.equal(autonomyOf({autonomy:4}),1,'4 is not a level');
+});
+
+test('the journal record is the Root owner\'s: the same owner or one it took over keeps it, another starts over, a record with no owner goes to the first',()=>{
+  const claude=id=>({agent:'claude-code',id,context:'00000000-0000-4000-8000-00000000000'+id.length});
+  const root={id:'1',owner:claude('a'),previousOwners:[{...claude('old'),until:'t'}]};
+  const record=patch=>({rootId:'1',attempts:[{id:'x',at:'t'}],autonomy:3,...patch});
+  assert.equal(journalOwnership(root,null),'none');
+  assert.equal(journalOwnership(root,record({owner:claude('a')})),'same');
+  assert.equal(journalOwnership(root,record({owner:claude('old')})),'adopted','a previous owner\'s record');
+  assert.equal(journalOwnership(root,record({})),'adopted','a record written before any owner');
+  assert.equal(journalOwnership(root,record({owner:claude('b')})),'other');
+  assert.equal(journalOwnership(root,record({owner:{agent:'codex',id:'a'}})),'other','the same ID from another agent');
+  assert.deepEqual([claude('a'),claude('old'),undefined,claude('b')].map(owner=>journalAutonomy(root,record(owner?{owner}:{}))),[3,3,3,1]);
+  const codex={id:'1',owner:{agent:'codex',id:'t'}};
+  assert.deepEqual([{agent:'codex',id:'t'},{agent:'codex',id:'u'},undefined,claude('a')].map(owner=>journalOwnership(codex,record(owner?{owner}:{}))),['same','other','adopted','other']);
+  const unowned={id:'1'};
+  assert.deepEqual([{},{owner:{agent:'codex',id:'t'}}].map(owner=>journalAutonomy(unowned,record(owner))),[3,1],'a Root without an owner keeps only a record without one');
+  // Setting the level.
+  assert.deepEqual(withAutonomy(unowned,null,2,'now'),{rootId:'1',autonomy:2,updatedAt:'now'});
+  assert.deepEqual(withAutonomy(codex,null,2,'now'),{rootId:'1',owner:{agent:'codex',id:'t'},autonomy:2,updatedAt:'now'});
+  assert.equal(withAutonomy(root,record({owner:claude('a')}),3),null,'unchanged');
+  assert.deepEqual(withAutonomy(root,record({owner:claude('old'),revision:'r'}),2,'now'),record({owner:claude('a'),revision:'r',autonomy:2,updatedAt:'now'}),'a record taken over is written for its new owner');
+  assert.deepEqual(withAutonomy(root,record({}),3,'now'),record({owner:claude('a'),autonomy:3,updatedAt:'now'}),'so is one written before any owner, even at the same level');
+  assert.deepEqual(withAutonomy(codex,record({owner:{agent:'codex',id:'u'},revision:'r',history:[{id:'h'}]}),2,'now'),
+    {rootId:'1',owner:{agent:'codex',id:'t'},autonomy:2,updatedAt:'now'},'another owner\'s record starts over, with only the level: checks are the conversation\'s');
+  assert.throws(()=>withAutonomy(root,null,4),/Normal, Auto Continue or Never Stop/);
+});
+
+test('approvals follow the owned Root the user wrote to last, else the newest; owning none means asking',()=>{
+  const goals=[{id:'1'},{id:'2',parentId:'1'},{id:'5'},{id:'9'}];
+  const levels=map=>Object.entries(map).map(([id,level])=>({root:{id},level}));
+  const said=(...ids)=>ids.map((goalId,i)=>({author:'user',goalId,changeId:i+1}));
+  assert.equal(approvesTools([]),false,'no owned Root');
+  assert.equal(approvesTools(levels({1:1})),false);assert.equal(approvesTools(levels({1:2})),true);assert.equal(approvesTools(levels({1:3})),true);
+  assert.equal(approvesTools(levels({1:2,5:1}),{goals,events:said('5','2')}),true,'a comment in a Goal under Root 1 is the latest');
+  assert.equal(approvesTools(levels({1:2,5:1}),{goals,events:said('2','5')}),false,'the Normal Root was written to last');
+  assert.equal(approvesTools(levels({1:2,5:1}),{goals,events:[...said('2','5'),{author:'agent',goalId:'1',changeId:9}]}),false,'the agent\'s own replies do not count');
+  assert.equal(approvesTools(levels({1:2,9:1}),{goals,events:said('2')}),true,'a new Root without comments leaves the last one deciding');
+  assert.equal(approvesTools(levels({1:1,9:2}),{goals,events:[]}),true,'with no comment anywhere, the newest Root decides');
+});
+
+test('the end-of-turn plan lists each owned Root above Normal by name, with its unfinished Goals',()=>{
+  const goals=tree();
+  assert.equal(turnPlan({goals,levels:at(goals,{1:1,4:1})}),null,'nothing above Normal');
+  assert.equal(turnPlan({goals,levels:[]}),null,'no owned Root');
+  const plan=turnPlan({goals,levels:at(goals,{1:2,4:3})});
+  assert.equal(plan.level,3);assert.equal(plan.rootId,'4');assert.equal(plan.goalId,'4');
+  assert.deepEqual(plan.roots.map(r=>[r.id,r.level]),[['1',2],['4',3]]);
+  const lines=autonomyLines(plan);
+  const [auto,never]=lines.split(/\n(?=- )/);
+  assert.match(auto,/^- Root Goal #1 “Goal 1”, Auto Continue: After each turn, keep carrying out what you and the user clearly see the same way, in any Goal under Root Goal #1: work they asked for and plans you settled together\./);
+  assert.match(auto,/Do not start what they have not agreed to or change what was agreed; suggest it in its Goal instead\./);
+  assert.match(auto,/\n  Unfinished in that tree: #1 “Goal 1”, #2 “Goal 2”, #3 “Goal 3”\.$/,'Auto Continue lists its tree too');
+  assert.match(never,/^- Root Goal #4 “Goal 4”, Never Stop: Root Goal #4 is delegated to you: its success criteria are fixed, how to reach them is your call/);
+  assert.match(never,/reading whatever helps on the web or anywhere on this machine, other projects included, but not secrets such as keys, passwords or private mail\./);
+  assert.match(never,/a first pass is not enough while any criterion might still not hold\./);assert.match(never,/Whenever you resume, first check what has changed in the work and around it/);
+  assert.match(never,/anything irreversible or that changes something beyond this workspace/);
+  for(const text of [auto,never])assert.match(text,/Keep every Goal in the tree that no other conversation has taken showing .*the real state of its work, such as Done once its criteria are met/,'both levels tidy');
+  assert.doesNotMatch(lines,/agent wake/,'the shared text names no command only Claude Code has');
+  assert.doesNotMatch(lines,/Lv|Drive|Level/,'levels go by name');
+  const ultra=turnPlan({goals,levels:at(goals,{1:3}),held:new Set(['3'])});
+  assert.deepEqual(ultra.roots,[{id:'1',title:'Goal 1',level:3,open:[{id:'1',title:'Goal 1'},{id:'2',title:'Goal 2'}],taken:[{id:'3',title:'Goal 3'}]}]);
+  assert.match(autonomyLines(ultra),/\n  Unfinished in that tree: #1 “Goal 1”, #2 “Goal 2”\.\n  Taken by other live conversations, so leave them: #3 “Goal 3”\./);
+  assert.deepEqual(turnPlan({goals,levels:at(goals,{1:2})}).roots,[{id:'1',title:'Goal 1',level:2,open:[{id:'1',title:'Goal 1'},{id:'2',title:'Goal 2'},{id:'3',title:'Goal 3'}],taken:[]}],'Auto Continue lists its tree');
+  goals[0].state='done';assert.equal(turnPlan({goals,levels:at(goals,{1:3})}),null,'a Done Root asks for nothing');
+});
+
+// A disposable workspace driven through the CLI, with its stored records and
+// continuation journals read and written directly, as an older runtime left them.
+async function workspace(t) {
+  const root=await mkdtemp(join(tmpdir(),'chill-autonomy-migration-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
+  const env={...process.env,CHILL_AGENT_DATA_DIR:root,CHILL_AGENT_CODEX_PATH:'/missing/codex'};
+  const run=async(...args)=>JSON.parse((await execute(process.execPath,[cli,...args],{env})).stdout);
+  const sqlite=async edit=>{const {DatabaseSync}=await import('node:sqlite');const db=new DatabaseSync(join(root,'workspace','workspace.sqlite'));try{return edit(db);}finally{db.close();}};
+  const bodies=async()=>sqlite(db=>Object.fromEntries(db.prepare('SELECT id,body FROM goals').all().map(row=>[String(row.id),JSON.parse(row.body)])));
+  // Each Goal's own stored level (none since the move to Roots).
+  const stored=async()=>Object.fromEntries(Object.entries(await bodies()).map(([id,body])=>[id,body.autonomy]));
+  // A workspace this runtime has not migrated yet (one-time): what an older one left.
+  const older=()=>rm(join(root,'workspace','migrations.json'),{force:true});
+  // Edit stored Goals as an older runtime left them: fields to set, undefined removing one.
+  const patch=async changes=>{
+    await older();
+    const set=body=>{const next={...body};for(const [key,value] of Object.entries(changes[body.id]))if(value===undefined)delete next[key];else next[key]=value;return next;};
+    await sqlite(db=>{for(const row of db.prepare('SELECT id,body FROM goals').all())if(Object.hasOwn(changes,String(row.id)))db.prepare('UPDATE goals SET body=? WHERE id=?').run(JSON.stringify(set(JSON.parse(row.body))),row.id);});
+  };
+  // Write each Goal's stored level as an older runtime did (undefined: no level of its own).
+  const seed=levels=>patch(Object.fromEntries(Object.entries(levels).map(([id,autonomy])=>[id,{autonomy}])));
+  const scale=join(root,'workspace','autonomy-scale.json');
+  // A workspace the renumbering has not reached yet.
+  const unrenumbered=async()=>{await older();await rm(scale,{force:true});};
+  const journal=id=>join(root,'workspace','continuation',`${id}.json`);
+  const readJournal=async id=>JSON.parse(await readFile(journal(id),'utf8').catch(()=>'null'));
+  const writeJournal=async(id,value)=>{await mkdir(join(root,'workspace','continuation'),{recursive:true});await writeFile(journal(id),JSON.stringify(value));};
+  // Each Root's level, as its journal keeps it.
+  const levels=async()=>Object.fromEntries(await Promise.all(Object.entries(await bodies()).filter(([,body])=>!body.parentId).map(async([id])=>[id,(await readJournal(id))?.autonomy])));
+  const without=({updatedAt,...rest})=>rest;
+  return {run,stored,patch,seed,scale,unrenumbered,journal,readJournal,writeJournal,levels,without};
+}
+const none=(...ids)=>Object.fromEntries(ids.map(id=>[id,undefined]));
+
+test(`a workspace from before Autonomy: AutoContinue On becomes Auto Continue on its Root, once, and leaves no switch behind`,async t=>{
+  const w=await workspace(t);
+  await w.run('create','--title','On');await w.run('create','--title','Child','--parent','1');await w.run('create','--title','Off');await w.run('create','--title','None');
+  // Goals saved before Autonomy existed have no level of their own.
+  await w.seed(none('1','2','3','4'));await w.unrenumbered();
+  await w.writeJournal('1',{rootId:'1',enabled:true,paused:false,revision:'r',attempts:[{id:'a'}]});
+  await w.writeJournal('3',{rootId:'3',enabled:false,attempts:[]});
+  await w.run('tree','--id','1');
+  assert.deepEqual(await w.stored(),none('1','2','3','4'),'no Goal keeps a level');
+  assert.deepEqual(await w.levels(),{1:2,3:undefined,4:undefined},'the AutoContinue move, the renumbering, then the move to the Root; Off and no journal read as Normal');
+  assert.deepEqual(w.without(await w.readJournal('1')),{rootId:'1',revision:'r',attempts:[{id:'a'}],autonomy:2},'the attempts and revision stay; the switch is gone');
+  assert.equal('enabled' in await w.readJournal('3'),false);
+  assert.deepEqual(JSON.parse(await readFile(w.scale,'utf8')),{levels:3});
+  // Once migrated, the workspace never looks for the old switch again: one an older runtime wrote is not a level.
+  await w.writeJournal('3',{rootId:'3',enabled:true,attempts:[]});
+  await w.run('create','--title','Fresh','--parent','1');
+  assert.deepEqual(await w.levels(),{1:2,3:undefined,4:undefined});assert.equal((await w.readJournal('3')).enabled,true,'left as it was');
+  assert.deepEqual(await w.stored(),none('1','2','3','4','5'),'a new Goal copies nothing');
+});
+
+test(`four stored levels move to three once, then to their Roots: 2 to Normal, 3 to Auto Continue, 4 to Never Stop`,async t=>{
+  const w=await workspace(t);
+  for(const title of ['Normal','Thorough','Continue','Drive','None'])await w.run('create','--title',title);
+  await w.seed({1:1,2:2,3:3,4:4,5:undefined});await w.unrenumbered();
+  // A journal the AutoContinue move has not reached yet: it runs first, writing 3 on the old scale.
+  await w.run('create','--title','Under On','--parent','5');await w.seed({6:undefined});
+  await w.writeJournal('5',{rootId:'5',enabled:true,attempts:[]});
+  await w.run('tree','--id','1');
+  assert.deepEqual(await w.levels(),{1:undefined,2:undefined,3:2,4:3,5:2});
+  assert.deepEqual(await w.stored(),none('1','2','3','4','5','6'));
+  assert.deepEqual(JSON.parse(await readFile(w.scale,'utf8')),{levels:3});
+  await w.run('tree','--id','1');
+  assert.deepEqual(await w.levels(),{1:undefined,2:undefined,3:2,4:3,5:2},'never twice');
+});
+
+test(`a renumbering cut short repeats the recorded writes instead of moving a Goal twice`,async t=>{
+  const w=await workspace(t);
+  for(const title of ['A','B','C'])await w.run('create','--title',title);
+  // Recorded with the old levels 4, 3 and 2; only Goal 1 was written before the run stopped.
+  await w.seed({1:3,2:3,3:2});await writeFile(w.scale,JSON.stringify({from:{1:4,2:3,3:2}}));
+  await w.run('tree','--id','1');
+  assert.deepEqual(await w.levels(),{1:3,2:2,3:undefined});
+  assert.deepEqual(JSON.parse(await readFile(w.scale,'utf8')),{levels:3});
+});
+
+test(`each Root's level moves into its journal for the Root's current owner, and the field leaves every Goal`,async t=>{
+  // The CLI looks for the Codex chat the second Root names; there is none here.
+  expectHidden(t,'codex-work.observe');
+  const w=await workspace(t);
+  for(const title of ['Claude','Codex','Unowned'])await w.run('create','--title',title);
+  await w.run('create','--title','Child','--parent','1');
+  const claude={agent:'claude-code',id:'s',context:'00000000-0000-4000-8000-000000000001'},codexOwner={agent:'codex',id:'00000000-0000-4000-8000-000000000002'};
+  await w.patch({1:{owner:claude,autonomy:2},2:{owner:codexOwner,autonomy:3},3:{autonomy:2},4:{autonomy:1}});
+  await w.writeJournal('1',{rootId:'1',owner:claude,revision:'r',attempts:[{id:'kept',completedAt:'t'}]});
+  await w.writeJournal('2',{rootId:'2',owner:{agent:'codex',id:'00000000-0000-4000-8000-000000000003'},attempts:[{id:'earlier'}]});
+  await w.run('tree','--id','3');
+  assert.deepEqual(w.without(await w.readJournal('1')),{rootId:'1',owner:claude,revision:'r',attempts:[{id:'kept',completedAt:'t'}],autonomy:2},'the same owner keeps its record');
+  const codex=await w.readJournal('2');
+  assert.deepEqual([codex.owner,codex.autonomy,'attempts' in codex],[codexOwner,3,false],'another owner\'s record starts over for the current one');
+  assert.deepEqual(w.without(await w.readJournal('3')),{rootId:'3',autonomy:2},'a Root without an owner keeps it for the first one');
+  assert.deepEqual(await w.stored(),none('1','2','3','4'));
+  // A run cut short after the journals were written repeats them unchanged.
+  const before=await w.readJournal('1');await w.seed({1:2,4:3});
+  await w.run('tree','--id','1');
+  assert.deepEqual(await w.readJournal('1'),before);assert.deepEqual(await w.stored(),none('1','2','3','4'),'a child\'s level is dropped');
+});
+
+test(`a fresh workspace starts on the three-level scale`,async t=>{
+  const w=await workspace(t);
+  await w.run('create','--title','Root');
+  assert.deepEqual(JSON.parse(await readFile(w.scale,'utf8')),{levels:3},'marked done before any Goal exists');
+  assert.equal(await w.readJournal('1'),null,'a new Root has no journal and reads as Normal');
+  await w.seed({1:3});await w.run('create','--title','Child','--parent','1');
+  assert.deepEqual(await w.levels(),{1:3},'a level an older runtime wrote on the new scale moves to the Root as it is');
+  assert.deepEqual(await w.stored(),none('1','2'));
+});

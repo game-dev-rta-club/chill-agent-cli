@@ -23,7 +23,7 @@ npm run try-local -- --project /path/to/project
    project's data folder (`runtime/local`). Identical content gives the same
    package, so an unchanged build is reused.
 2. Only that project's data points at the package. The project's own
-   `cli.json` and its Git checkout stay unchanged.
+   `chill-agent.json` and its Git checkout stay unchanged.
 3. The project's Web shows its update button. It switches when someone presses
    the button, never in the middle of running work. `--restart` restarts the
    Web immediately instead. Each run appends its times to

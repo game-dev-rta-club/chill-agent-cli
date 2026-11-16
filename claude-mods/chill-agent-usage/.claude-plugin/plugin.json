@@ -1,0 +1,6 @@
+{
+  "name": "chill-agent-usage",
+  "version": "0.5.0",
+  "description": "Records the plan's usage that each Claude Code response reports, for the Agent menu in chill's Web.",
+  "author": { "name": "Game Dev RTA Club" }
+}

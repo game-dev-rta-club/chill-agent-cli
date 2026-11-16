@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {createRuntimeUpdater,performRuntimeUpdate,runtimeUpdateProvider,launchUpdateWorker} from '../lib/runtime-update.mjs';
+import {createRuntimeUpdater,performRuntimeUpdate,runtimeUpdateProvider,launchUpdateWorker,updateWorkerTask} from '../lib/runtime-update.mjs';
 import {readJson,writeJsonAtomically} from '../lib/storage.mjs';
 const a='a'.repeat(40),b='b'.repeat(40),c='c'.repeat(40);
 async function fixture(t){
  const directory=await mkdtemp(join(tmpdir(),'chill-update-'));
- t.after(()=>rm(directory,{recursive:true,force:true}));
+ t.after(()=>rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
  return {directory,root:join(directory,'old'),port:4173,duration:'3d',supported:true};
 }
 test('detection is read-only, unavailable without a valid candidate, and supports equal-version different commits',async t=>{
@@ -35,6 +35,8 @@ test('two clicks launch once; stale confirmation and launch failure do not chang
  const failed=createRuntimeUpdater({...other,provider,launch:async()=>{throw Error('launch failed');}});
  await assert.rejects(failed.start({candidate:b,id:randomUUID()}),/Could not start the update/);
  assert.equal((await failed.status()).phase,'idle');assert.ok((await failed.status()).error);
+ assert.equal(await failed.phase(),'idle');
+ assert.equal(await updater.phase(),'preparing','phase() reads only the running step');
 });
 async function worker(t,{acquireError=false,changePin=false,changePointer=false,restartError=false}={}){
  const options=await fixture(t),id=randomUUID(),target=join(options.directory,'new'),prepared=join(options.directory,'snapshot');
@@ -70,7 +72,19 @@ test('provider path is package-owned; independent launchd job uses fixed worker 
  await writeFile(join(f.root,'extensions.json'),JSON.stringify({runtimeUpdates:'https://bad/module.mjs'}));
  await assert.rejects(runtimeUpdateProvider(f.root),/Invalid runtime update provider/);
  let command,args;
- await launchUpdateWorker({...f,id:randomUUID(),run:async(c,a)=>{command=c;args=a;}});
+ await launchUpdateWorker({...f,id:randomUUID(),platform:'darwin',run:async(c,a)=>{command=c;args=a;}});
  assert.equal(command,'/bin/launchctl');assert.equal(args[0],'submit');
  assert.equal(args.at(-5),join(f.root,'bin/chill-runtime-update.mjs'));assert.equal(args.at(-4),f.directory);
+});
+test('on Windows the worker is its own headless task, so stopping the Web task tree leaves it running',async t=>{
+ const f=await fixture(t);await mkdir(join(f.directory,'runtime'),{recursive:true});
+ const id=randomUUID(),calls=[];
+ const name=await launchUpdateWorker({...f,id,platform:'win32',run:async(c,a)=>{calls.push([c,...a]);}});
+ assert.equal(name,updateWorkerTask(f.directory,id));assert.match(name,/^\\chill-agent\\update-[a-f0-9]{12}-/);
+ assert.deepEqual(calls.map(call=>call.slice(0,3)),[['schtasks','/Create','/TN'],['schtasks','/Run','/TN']]);
+ assert.equal(calls[0][3],name);
+ const task=(await readFile(join(f.directory,'runtime',`update-${id}.xml`),'utf16le')).replace(/^﻿/,'');
+ assert.match(task,/<Description>chill-agent update<\/Description>/);assert.match(task,/conhost\.exe<\/Command>/);
+ assert.ok(task.includes('chill-runtime-update.mjs'),'runs the package-owned worker');assert.ok(task.includes(`${id}</Arguments>`));
+ assert.doesNotMatch(task,/<Triggers>/,'the task never starts on its own');
 });

@@ -2,21 +2,22 @@
 import '../lib/quiet-sqlite-warning.mjs';
 import {workspacePort} from '../lib/project-workspace.mjs';
 import { readFile } from 'node:fs/promises';
-import { extname } from 'node:path';
+import { basename, extname } from 'node:path';
 
-import { appendAgentComment, appendFeedback, closeLetter, deleteAgentComment, createGoal, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
+import { appendFeedback, closeLetter, deleteAgentComment, updateGoal, readGoalContext, briefSource, updateBrief, initializeStore, checkFeedback, saveAttachment } from '../lib/goal-store.mjs';
 import { deliverFeedback, sendFeedbackNow } from '../lib/delivery.mjs';
 import { parseOptions, showHelp } from '../lib/cli-help.mjs';
-import {assignGoal} from '../lib/agents/index.mjs';
-import {assertAnswerer,selectAgentWork} from '../lib/agents/index.mjs';
+import {selectAgentWork} from '../lib/agents/index.mjs';
+import {adoptRoot,createRootOrGoal,readInbox,releaseRoot,replyOnGoal} from '../lib/agent-actions.mjs';
 import {readConnectedTree,readGoalPage} from '../lib/workspace-reader.mjs';
 import {renderGoalPage} from '../lib/goal-page-text.mjs';
 import {reviewGoals,renderGoalReview} from '../lib/goal-review.mjs';
 import {largeSize} from '../lib/limits.mjs';
+import {briefLayoutHint} from '../lib/brief.mjs';
 
-// Agents see the Deliverable by that name; stored records keep their internal names.
-const agentNames={brief:'deliverable',briefs:'deliverables',briefPath:'deliverablePath'};
-const forAgents=value=>Array.isArray(value)?value.map(forAgents):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([key,item])=>[agentNames[key]||key,key==='kind'&&item==='brief'?'deliverable':forAgents(item)])):value;
+// Agents see the Canvas by that name; stored records keep their internal names.
+const agentNames={brief:'canvas',briefs:'canvases',briefPath:'canvasPath'};
+const forAgents=value=>Array.isArray(value)?value.map(forAgents):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([key,item])=>[agentNames[key]||key,key==='kind'&&item==='brief'?'canvas':forAgents(item)])):value;
 const output=value=>console.log(JSON.stringify(forAgents(value),null,2));
 const url=(id,version)=>`http://127.0.0.1:${workspacePort()}/#/goal/${id}${version?`/v${version}`:''}`;
 async function input(path) {
@@ -26,18 +27,25 @@ async function input(path) {
   if(raw.length>largeSize) throw new Error('Request is too large.');
   return JSON.parse(raw);
 }
+// The Canvas was called the Deliverable; its old command and options are refused
+// with the new names, as goal brief is.
+const oldNames=args=>{
+  const first=args.findIndex(arg=>arg.startsWith('-'));
+  return args.some((arg,i)=>(first<0||i<first)&&arg==='deliverable'||arg==='--deliverable-offset'||arg==='deliverable'&&args[i-1]==='--section');
+};
 async function main() {
   const args=process.argv.slice(2);
+  if(oldNames(args))throw Error('The Deliverable was renamed to the Canvas: use goal canvas, --canvas-offset and --section canvas.');
   if(showHelp('goal',args.length?args:['--help'])) return;
   const [command,...rest]=args;
-  if(command==='brief')throw Error('goal brief was renamed to goal deliverable.');
-  const subcommand=command==='deliverable'?rest.shift():null;
+  if(command==='brief')throw Error('goal brief was renamed to goal canvas.');
+  const subcommand=command==='canvas'?rest.shift():null;
   const v=parseOptions(`goal ${command}${subcommand?` ${subcommand}`:''}`,rest);
   await initializeStore();
   const id=v['--id'];
   if(command==='create') {
-    const goal=await createGoal({title:v['--title'],parentId:v['--parent'],scope:v['--scope'],criteria:v['--criteria'],threadId:v['--thread-id']});
-    return output({...goal,url:url(goal.id)});
+    const {goal,text}=await createRootOrGoal({title:v['--title'],parentId:v['--parent'],scope:v['--scope'],criteria:v['--criteria']});
+    return output({...goal,url:url(goal.id),...(text?{message:text}:{})});
   }
   if(command==='update') {
     const patch=await input(v['--input-file']),goal=await updateGoal(id,patch);
@@ -45,15 +53,18 @@ async function main() {
     const {path}=await readGoalContext(id);
     return output({...goal,nextActions:{message:'Review parent and ancestor success criteria. Mark only achieved Goals Done; otherwise leave them Open. This reminder does not require changing their state.',ancestors:path.slice(0,-1).reverse().map(({id,title,criteria,state})=>({id,title,criteria,state}))}});
   }
-  if(command==='close-letter')return output(await closeLetter(id,Number(v['--event']),v['--reason'],v['--answer']===undefined?null:Number(v['--answer'])));
+  if(command==='close-letter')return output(await closeLetter(id,Number(v['--event']),v['--reason']));
   if(command==='delete-comment')return output(await deleteAgentComment(id,Number(v['--event'])));
-  if(command==='deliverable') {
+  if(command==='canvas') {
     const result=subcommand==='path'?await briefSource(id,v['--format']):await updateBrief(id,v['--format']);
     // An unchanged file usually means the edit never reached it, so say so as a failure.
-    if(result.changed===false)throw Error(`Not published: ${result.path} is the same as v${result.version}. Check that the edit was saved, then run deliverable update again.`);
-    return output({...result,url:url(id,result.version)});
+    if(result.changed===false)throw Error(`Not published: ${result.path} is the same as v${result.version}. Check that the edit was saved, then run canvas update again.`);
+    const hint=subcommand==='update'&&briefLayoutHint(result.body,result.format);
+    return output({...result,url:url(id,result.version),...(hint?{hint}:{})});
   }
-  if(command==='assign') return output(await assignGoal(id,v['--off']?null:v['--thread-id']));
+  if(command==='adopt') return output(await adoptRoot(id));
+  if(command==='release') return output(await releaseRoot(id));
+  if(command==='inbox') return console.log(await readInbox());
   if(command==='work') return output(await selectAgentWork(id,{stop:Boolean(v['--stop'])}));
   if(command==='tree') return output(await readConnectedTree(id));
   if(command==='review') {
@@ -62,16 +73,15 @@ async function main() {
   if(command==='show') {
     const text=v['--format']==='text',full=Boolean(v['--full']);
     if(full&&v['--limit']!==undefined)throw Error('Use --full or --limit, not both.');
-    if(!text&&(v['--section']||v['--deliverable-offset']))throw Error('--section and --deliverable-offset require --format text.');
+    if(!text&&(v['--section']||v['--canvas-offset']))throw Error('--section and --canvas-offset require --format text.');
     // Explicit --since is the feedback delivery boundary: do not silently drop newer instructions.
     const limit=v['--limit']!==undefined?Number(v['--limit']):text&&!full&&v['--since']===undefined?5:undefined;
     const page=await readGoalPage(id,{version:v['--version']===undefined?undefined:Number(v['--version']),since:Number(v['--since']??0),before:v['--before']===undefined?undefined:Number(v['--before']),limit});
-    return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--deliverable-offset']??0)})):output(page);
+    return text?console.log(renderGoalPage(page,{full,section:v['--section'],briefOffset:Number(v['--canvas-offset']??0)})):output(page);
   }
-  if(command==='comment'||command==='letter') {
-    await assertAnswerer((await readGoalContext(id)).root);
-    const event=await appendAgentComment({goalId:id,type:command,...(command==='letter'?{title:v['--title'],...(v['--no-reply']?{replyRequired:false}:{})}:{ }),text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
-    return output({...event,url:command==='letter'?`${url(id)}/letter/${event.id}`:url(id)});
+  if(command==='reply') {
+    const {comment:event,text}=await replyOnGoal({goalId:id,ask:v['--ask'],text:v['--text-file']?await readFile(v['--text-file'],'utf8'):v['--text']});
+    return output({...event,url:event.type==='letter'?`${url(id)}/letter/${event.id}`:url(id),message:text});
   }
   if(command==='check') return output(await checkFeedback({goalId:id,since:Number(v['--since']??0)}));
   if(command==='feedback') {
@@ -81,7 +91,8 @@ async function main() {
   }
   if(command==='image') {
     const mimeType={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp'}[extname(v['--file']).toLowerCase()];
-    const image=await saveAttachment(await readFile(v['--file']),mimeType);
+    // Other files keep their own name, so a download gets the same extension.
+    const image=await saveAttachment(await readFile(v['--file']),mimeType,basename(v['--file']));
     return output({...image,src:`/api/images/${image.id}`});
   }
   if(command==='send-now') return console.log(JSON.stringify({comment:await sendFeedbackNow(v['--event'])}));
