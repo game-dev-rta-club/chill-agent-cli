@@ -208,11 +208,12 @@ Check:
 9. **Resume.** Press Resume. Expected: the panel shows Running at once, before the resumed turn's first command ends,
    and within a few seconds Desktop receives a message asking the agent to go on with the stopped work. The agent
    finishes the stopped work.
-10. **Feedback resumes the agent.** Send the five-command request in Desktop again and press Pause while it runs, as
-    in step 8. Once the panel shows Paused, send "Reply with the word resumed." from Web without pressing Resume.
-    Expected: within a few seconds the feedback shows Sent and the panel shows Running. Desktop receives a message
-    carrying the feedback, and the agent's reply clears its mark. The agent may or may not go on with the stopped
-    commands; either is fine. Wait for Desktop's turn to end before step 11.
+10. **Feedback resumes the agent.** Send the five-command request in Desktop again. While it runs, send "Reply with
+    the word held." from Web; it shows Waiting. Press Pause. Expected: the held feedback shows Paused. Then, without
+    pressing Resume, send "Reply with the word resumed." from Web. Expected: within a few seconds both feedbacks show
+    Sent and the panel shows Running. Desktop receives a message carrying both, and the agent's replies clear their
+    marks. The agent may or may not go on with the stopped commands; either is fine. Wait for Desktop's turn to end
+    before step 11.
 11. **Settings save.** In the Agent panel, change Reasoning to another level. Expected: the panel shows Saving, then the new
     level, and Desktop's composer shows the same level after you reopen the chat. Change it back.
 12. Stop the server with `chill server stop` and delete the scratch folder.
