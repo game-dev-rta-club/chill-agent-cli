@@ -1,5 +1,6 @@
 import {letterState,rootLetterSummary,unreadReply,counted,rootOf} from './letter-state.js';
 import {browserClientId} from './browser-context.js';
+import {closeOnOutside} from './outside-close.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // The menu's mark: a bell, struck through while what it stands for is off.
 const bell=off=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>${off?'<path d="M4 3 20 21"/>':''}</svg>`;
@@ -24,8 +25,7 @@ export function createLettersMenu({button,panel,readReplies,countsChanged}){
  const close=(restore=false)=>{panel.hidden=true;button.setAttribute('aria-expanded','false');if(restore)button.focus({preventScroll:true});};
  button.onclick=()=>{const opening=panel.hidden;panel.hidden=!opening;button.setAttribute('aria-expanded',String(opening));if(opening)panel.querySelector('a,button')?.focus();};
  panel.addEventListener('click',e=>{if(e.target.closest('[data-replies-read]'))readReplies(shownReplies);else if(e.target.closest('a'))close();});
- document.addEventListener('pointerdown',e=>{if(!panel.contains(e.target)&&!button.contains(e.target))close();});
- document.addEventListener('focusin',e=>{if(!panel.contains(e.target)&&!button.contains(e.target))close();});
+ closeOnOutside(target=>panel.contains(target)||button.contains(target),()=>{if(!panel.hidden)close();});
  document.addEventListener('keydown',e=>{if(!panel.hidden&&e.key==='Escape'){e.preventDefault();close(true);}});
  const api=signal=>async(path,payload)=>{
   const response=await fetch(`/api/extensions/${control.id}/${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store',signal:AbortSignal.any([signal,AbortSignal.timeout(60000)])});

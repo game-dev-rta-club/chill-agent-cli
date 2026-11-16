@@ -8,6 +8,7 @@ import {createExtensionButtons} from './extension-buttons.js';
 import {letterState,rootLetterSummary,letterTabTitle} from './letter-state.js';
 import { activityDisplay, commentMarkDisplay, isWaitingOnCheck, showsThink, thinkView, todoMarkup, waitListMarkup, workDisclosure } from './work-ui.js';
 import { createGoalView } from './goal-view.js';
+import {closeOnOutside} from './outside-close.js';
 import { createBriefArrivalTracker } from './brief-navigation.js';
 import { briefBody, addCodeCopy, copyCode } from './brief-body.js';
 import {renderDiagrams, annotationOffset, annotationTextNodes} from './markdown-view.js';
@@ -345,9 +346,7 @@ autonomyPanel.addEventListener('click', event => {
   const choice = event.target.closest('[data-autonomy-level]');
   if (choice && autonomyBox()?.isConnected && !autonomySaves.has(autonomyBox().dataset.goalId)) void saveAutonomy(choice);
 });
-document.addEventListener('pointerdown', event => {
-  if (!autonomyPanel.hidden && !autonomyPanel.contains(event.target) && !autonomyTrigger.contains(event.target)) closeAutonomy();
-});
+closeOnOutside(target => autonomyPanel.contains(target) || Boolean(autonomyTrigger?.contains(target)), () => closeAutonomy());
 document.addEventListener('keydown', event => {
   if (autonomyPanel.hidden) return;
   const items = autonomyChoices().filter(b => !b.disabled), at = items.indexOf(document.activeElement);

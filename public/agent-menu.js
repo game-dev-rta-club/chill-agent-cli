@@ -3,6 +3,7 @@ import {presenceMark,presenceLabel} from './agent-presence.js';
 import {extensionIcon,announceControls} from './extension-buttons.js';
 import {confirmAction} from './confirmation-dialog.js';
 import {isWaitingOnCheck,waitItems,waitListMarkup} from './work-ui.js';
+import {closeOnOutside} from './outside-close.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const period=m=>m===null?'Usage':m%1440===0?`${m/1440}d`:m%60===0?`${m/60}h`:`${m}m`;
 const date=seconds=>new Intl.DateTimeFormat('en-US',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}).format(new Date(seconds*1000));
@@ -198,12 +199,9 @@ export function createAgentMenu({button,panel,content,getGoalId}) {
  button.addEventListener('click',()=>opened?close({restore:true}):open());
  panel.querySelector('[data-agent-close]').addEventListener('click',()=>close({restore:true}));refreshButton.addEventListener('click',refresh);
  // A confirmation opened from the menu belongs to it.
- const outside=e=>opened&&!panel.contains(e.target)&&!button.contains(e.target)&&!e.target.closest?.('.extension-confirm');
- document.addEventListener('pointerdown',e=>{if(outside(e))close();});
- document.addEventListener('focusin',e=>{if(outside(e))close();});
+ closeOnOutside(target=>panel.contains(target)||button.contains(target)||Boolean(target.closest?.('.extension-confirm')),()=>close());
  document.addEventListener('keydown',e=>{if(opened&&e.key==='Escape'){e.preventDefault();close({restore:true});}});
  panel.addEventListener('click',e=>{if(e.target.closest('a'))close({restore:true});});
- window.addEventListener('blur',()=>setTimeout(()=>{if(opened&&document.activeElement?.tagName==='IFRAME')close();},0));
  document.addEventListener('visibilitychange',()=>{if(opened&&document.visibilityState==='visible')void refresh();});
  window.addEventListener('chill-extensions-changed',()=>{if(opened)void refresh();});
  window.addEventListener('chill-agent-presence',event=>{
