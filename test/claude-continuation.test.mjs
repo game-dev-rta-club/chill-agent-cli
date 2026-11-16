@@ -153,16 +153,11 @@ test('a Root taken from another conversation starts at Normal, and only its owne
  assert.equal(await rootAutonomy(await readGoal(taken.id)),1,'the earlier conversation\'s level and its tool approval do not come along');
  assert.match((await f.action('release',{goalId:taken.id})).hookSpecificOutput.additionalContext,/has no owner now/,'its owner can');
 });
-test('Never Stop covers the whole Root tree and leaves out Goals another live conversation works on',async t=>{
+test('Never Stop covers the whole unfinished Root tree',async t=>{
  const f=await fixture(t);const a=await createGoal({title:'Part A',parentId:f.root.id}),b=await createGoal({title:'Part B',parentId:f.root.id}),done=await createGoal({title:'Shipped',parentId:f.root.id});
  await updateGoal(done.id,{state:'done'});await f.configure(3);
- // Another conversation in the project is working on Part B right now.
- const otherSession=randomUUID(),other=hookFor({session_id:otherSession,prompt_id:randomUUID(),cwd:f.cwd});
- await captureClaudeEntry(other('SessionStart',{source:'startup'}),{cwd:f.cwd,env:{CLAUDE_ENV_FILE:join(f.dir,'env')}});
- await recordClaudeWork(otherSession,[{type:'started'},{type:'handed',goals:[b.id]}]);
  const {reason}=await f.stop();
- assert.match(reason,new RegExp(`Unfinished in that tree: #${f.root.id} “Native Autonomy”, #${a.id} “Part A”\\.`));
- assert.match(reason,new RegExp(`Taken by other live conversations, so leave them: #${b.id} “Part B”`));
+ assert.match(reason,new RegExp(`Unfinished in that tree: #${f.root.id} “Native Autonomy”, #${a.id} “Part A”, #${b.id} “Part B”\\.`));
  assert.doesNotMatch(reason,/Shipped/);assert.match(reason,/Ask in a Letter \(a reply with --ask\) for what is the user's alone/);
 });
 test('feedback text adds nothing for Autonomy at any level',async t=>{

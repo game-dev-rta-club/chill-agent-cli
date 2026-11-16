@@ -68,14 +68,19 @@ conversation open after its response ends. A
 transcript with no write for 10 minutes counts as Idle, so a closed app does not
 stay Running. Without a reported transcript the state is unknown.
 
-The running Goal is the one whose feedback that response received. Activity
-links to that feedback, and feedback received within one response shares one
-Think, which opens while the response runs and closes when it stops. Until the
-agent writes text Think says Thinking…, and a stopped response with no text shows
-no Think. A response that received no Web feedback shows Running on the last Goal.
-The last Goal is, for Claude, the Goal where the conversation last received
-feedback or wrote a reply, Comment or Letter, kept across compaction and resume;
-for Codex, the last selected Goal. Activity keeps a link to it after the work stops.
+The conversation's current Goals, newest first, are each Goal it was handed a
+comment on that still awaits its reply, the Goal it selected with `goal work`
+while that work runs, and the Goal it last wrote a Comment or Letter on, when
+that is newer than all of them ([hand-off](../../lib/hand-off.mjs) `focusOf`).
+They show Running, with their parents, while the conversation works, so comments
+on several Goals, handed in one response or in separate ones, all show until
+each is answered. The first of them is the last Goal: Activity keeps a link to
+it after the work stops. Claude and Codex follow the same rule, read from the
+Goals' comments, so it holds across compaction and resume. Activity links to the
+feedback a response received, and feedback received within one response shares
+one Think, which opens while the response runs and closes when it stops. Until
+the agent writes text Think says Thinking…, and a stopped response with no text
+shows no Think.
 
 ## Pause, Resume and Queue
 

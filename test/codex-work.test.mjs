@@ -103,18 +103,34 @@ test('while the chat works, comments wait for its Stop; Send now hands them at t
   const later=await f.save('One more');
   const stop=await codexStop({threadId:f.thread,turnId:turn});
   assert.deepEqual(ids(stop.feedback),[later],'the Stop hands what waited and the turn goes on');
-  assert.deepEqual((await readCodexWork(f.thread)).goals,[f.root.id]);
+  assert.deepEqual((await codexSnapshot(f.thread)).focus,[f.root.id],'the Goal handed to the turn is its focus');
 });
 
-test('one turn handed comments on two Goals runs both, and a reply drops that Goal out',async t=>{
+test('one turn handed comments on two Goals runs both, and after the replies the Goal last written on runs',async t=>{
   const f=await fixture(t),a=await createGoal({title:'A',parentId:f.root.id}),b=await createGoal({title:'B',parentId:f.root.id});
   const turn=await f.work();
   await appendFeedback({goalId:a.id,text:'For A'});await appendFeedback({goalId:b.id,text:'For B'});
   await codexStop({threadId:f.thread,turnId:turn});
   const running=async()=>[...(await agentExecutions(await listGoals())).entries()].filter(([,e])=>e.status==='working').map(([id])=>id).sort();
   assert.deepEqual(await running(),[a.id,b.id]);
+  await appendAgentComment({goalId:a.id,type:'comment',text:'A is half done'});
+  assert.deepEqual(await running(),[a.id,b.id],'a progress note on A leaves B awaiting its reply');
+  await appendAgentComment({goalId:b.id,type:'comment',text:'B is done'});
+  assert.deepEqual(await running(),[b.id],'once both are answered, the Goal written on last runs');
+});
+
+test('comments sent to an idle chat in separate turns all show Running until each is answered',async t=>{
+  const f=await fixture(t),a=await createGoal({title:'A',parentId:f.root.id}),b=await createGoal({title:'B',parentId:f.root.id});
+  const send=async goal=>{const event=await appendFeedback({goalId:goal.id,text:`For ${goal.title}`});await deliverFeedback(event.changeId);};
+  const snapshot=()=>codexSnapshot(f.thread,{fresh:true});
+  await send(a);
+  assert.deepEqual((await snapshot()).focus,[a.id]);
+  await f.endTurn();await send(b);
+  const both=await snapshot();
+  assert.equal(both.status,'running');assert.deepEqual(both.focus,[b.id,a.id],'the Goal still owed a reply stays current into the next turn');
+  assert.deepEqual([...both.running].sort(),[f.root.id,a.id,b.id].sort());
   await appendAgentComment({goalId:a.id,type:'comment',text:'A is done'});
-  assert.deepEqual(await running(),[b.id]);
+  assert.deepEqual((await snapshot()).focus,[a.id,b.id],'the Goal the chat writes on becomes its last Goal');
 });
 
 test('a hook text that is too long names the comments instead of quoting them',async t=>{

@@ -22,7 +22,7 @@ async function fixture(t){
   const record=await captureClaudeEntry(event('SessionStart',{source:'startup'}),{cwd,env:{CLAUDE_ENV_FILE:envFile}});
   await agentAction('create-goal',{title:'Long run',scope:'Test',criteria:'Never waits in the app'},{CHILL_AGENT_HARNESS:'claude-code',CHILL_AGENT_SESSION_ID:sessionId});
   const goal=(await listGoals())[0];
-  await recordClaudeWork(sessionId,[{type:'started'},{type:'commented',goalId:goal.id}],{directory:data});
+  await recordClaudeWork(sessionId,[{type:'started'}],{directory:data});await appendAgentComment({goalId:goal.id,type:'comment',text:'Working on it'});
   const pre=(tool_name,tool_input={})=>claudeAskGuard(event('PreToolUse',{tool_name,tool_input}));
   return {event,goal,pre,connection:{harnessId:'claude-code',sessionId,contextId:record.contextId}};
 }

@@ -28,8 +28,10 @@ the selection; it is not the Web control that interrupts the agent.
 | Unavailable | The connection or evidence cannot establish the current state |
 
 The header describes the assigned chat, even before a work Goal is selected.
-Goal rows use the selected work and their own feedback activity; unrelated Goals
-do not all become Running merely because they share a chat. Running propagates
+Goal rows show Running for the chat's current Goals: those still owed a reply,
+the selected work and the Goal it last wrote on
+([claude-status](claude-status.md#see-whether-claude-is-responding-now)); unrelated
+Goals do not all become Running merely because they share a chat. Running propagates
 to ancestors and takes display priority over Done. Parent completion still
 requires the [explicit lifecycle checks](../workspace/goals.md).
 
