@@ -43,6 +43,17 @@ test('AutoContinue omits counts and empty labels while retaining its toggle and 
  }
 });
 
+test('a turn that starts soon after chill sent the chat a message is working before its first hook',()=>{
+ const now=Date.now(),sentAt=new Date(now-5000).toISOString(),seconds=at=>Math.floor(at/1000);
+ const live={threadState:'notLoaded',turn:{id:'new',status:'interrupted',startedAt:seconds(now-4000),completedAt:null},sentAt};
+ assert.equal(agentPresence(live,now),'working');
+ assert.equal(agentPresence({...live,sentAt:undefined},now),'unknown','no message sent: chill cannot tell');
+ assert.equal(agentPresence({...live,turn:{...live.turn,startedAt:seconds(now-60000)}},now),'unknown','a turn that began before the message is not its turn');
+ assert.equal(agentPresence({...live,sentAt:new Date(now-600000).toISOString()},now),'unknown','a turn long after the message is the user\'s');
+ assert.equal(agentPresence(live,now+130000),'unknown','without a hook, the claim ends like a heartbeat');
+ assert.equal(agentPresence({...live,turn:{...live.turn,completedAt:seconds(now)}},now),'paused');
+});
+
 test('hooks confirm a live chat before selecting a Goal, but cannot outlive its turn',()=>{
  const now=Date.now(),turn={id:'new',status:'interrupted',completedAt:null},heartbeat={turnId:'new',heartbeatAt:new Date(now).toISOString()};
  const snapshot={threadState:'notLoaded',turn,heartbeat};
