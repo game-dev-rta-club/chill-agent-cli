@@ -2,6 +2,7 @@ import {createThemeMenu} from './theme-menu.js';
 import {createSearchDialog} from './search-dialog.js';
 import {browserClientId} from './browser-context.js';
 import {confirmAction} from './confirmation-dialog.js';
+import {closeOnOutside} from './outside-close.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const bellIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>';
 export const extensionIcon=icon=>icon==='bell'?bellIcon:icon==='globe'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>';
@@ -74,9 +75,9 @@ export function createExtensionButtons({container,getGoalId,controlsChanged=()=>
   }catch(error){if(!signal.aborted)element.textContent=error.message;}
  }
  container.addEventListener('click',event=>{const b=event.target.closest('[data-header-extension]');if(b)void open(b.dataset.headerExtension);});
- const outside=e=>opened&&!panel.contains(e.target)&&!container.contains(e.target)&&!e.target.closest('.extension-confirm');
- document.addEventListener('pointerdown',e=>{if(!container.contains(e.target))showMore(false);if(outside(e))close();});
- document.addEventListener('focusin',e=>{if(!container.contains(e.target))showMore(false);if(outside(e))close();});
+ closeOnOutside(target=>container.contains(target),()=>showMore(false));
+ // A confirmation opened from the panel belongs to it.
+ closeOnOutside(target=>panel.contains(target)||container.contains(target)||Boolean(target.closest?.('.extension-confirm')),()=>{if(opened)close();});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&more.getAttribute('aria-expanded')==='true'){e.preventDefault();showMore(false,true);return;}if(opened&&e.key==='Escape'&&!e.target.closest('.extension-confirm')){e.preventDefault();close(true);}});
  const timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},15000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});

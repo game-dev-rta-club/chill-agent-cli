@@ -1,4 +1,5 @@
 import {themes,defaultTheme,defaultTabIcon,browserThemeColor,tabIcons,resolveAppearance} from './theme-catalog.js';
+import {closeOnOutside} from './outside-close.js';
 // Two panels share one saved appearance. More → Color theme picks the page
 // theme; the header icon picks the tab icon set. Inside a Root each edits that
 // Root's look; on the Goal list each edits the project default that Roots
@@ -42,7 +43,7 @@ export function createThemeMenu({button,iconButton,closeMore,restoreMore}) {
  }
  themePanel.addEventListener('click',event=>{if(busy)return;const theme=event.target.closest('[data-theme-choice]');if(theme)void save({theme:theme.dataset.themeChoice},themePanel);else if(event.target.closest('.theme-reset'))void save({reset:true},themePanel);});
  iconPanel.addEventListener('click',event=>{if(busy)return;const icon=event.target.closest('[data-icon-choice]');if(icon)void save({tabIcon:icon.dataset.iconChoice},iconPanel);});
- document.addEventListener('pointerdown',e=>{for(const p of panels)if(!p.hidden&&!p.contains(e.target)&&!owner(p)?.contains(e.target))close(p);});
+ for(const p of panels)closeOnOutside(target=>p.contains(target)||Boolean(owner(p)?.contains(target)),()=>close(p));
  document.addEventListener('keydown',e=>{
   const panel=panels.find(p=>!p.hidden);if(!panel)return;
   if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();close(panel,true);}
