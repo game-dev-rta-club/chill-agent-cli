@@ -73,7 +73,7 @@ test('Codex observation reads an interrupted turn and returns no transcript, inp
  const {adapter,calls}=nativeFixture();
  const result=await adapter.readRunSnapshot();
  assert.equal(agentPresence(result),'paused');
- assert.deepEqual(result.turn,{id:'run',status:'interrupted',completedAt:12});
+ assert.deepEqual(result.turn,{id:'run',status:'interrupted',startedAt:null,completedAt:12});
  assert.deepEqual(result.queue,{data:[{id:'pending'}]});
  assert.equal(result.heartbeat.turnId,'run');assert.doesNotMatch(JSON.stringify(result),/private|secret/);
  assert.equal(calls.length,3);assert(calls.every(call=>call.params.threadId==='native'));

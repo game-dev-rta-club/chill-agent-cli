@@ -40,6 +40,7 @@ test('an idle chat is sent waiting comments as one message, quoting the user as 
   const [text]=await f.sent();
   assert.deepEqual(ids(text),[first]);
   assert.deepEqual(await f.queue(),[],'Codex runs it as a turn at once');
+  assert.equal((await codexSnapshot(f.thread,{fresh:true})).status,'running','Running from the start of the turn chill\'s message began, before its first tool');
   assert.match(text,/"text":"Please start"/);assert.match(text,new RegExp(`show --id ${f.root.id} --since ${first-1} --format text`));
   assert.match(text,/Reply on the Goal \(this answers it\): .* reply --id <goalId> --text '<reply>'\nIf your message asks the user to decide or approve something, add --ask '<what to decide>'; it then appears as a Letter\./);assert.doesNotMatch(text,/activity --event|--state/);
   await f.endTurn();
@@ -81,8 +82,10 @@ test('a lost answer to an accepted message is checked against the turns and the 
   assert.deepEqual((await f.sent()).map(ids),[[ran]]);assert.deepEqual(await f.queue(),[]);
   await f.endTurn();
   assert.deepEqual(await handIdleCodex(f.thread),[],'handed already, though it runs as a turn');
-  // A turn the user started in Desktop, before its first tool: chill cannot tell it works, and Codex queues the message.
-  await f.startTurn();
+  // A turn the user started in Desktop long after chill's last message, before its first tool: chill cannot tell it works, and Codex queues the message.
+  const record=join(f.dir,'workspace','codex-work',`${f.thread}.json`);
+  await writeFile(record,JSON.stringify({...JSON.parse(await readFile(record,'utf8')),sentAt:new Date(Date.now()-600000).toISOString()}));
+  await f.startTurn();invalidateAgentObservation(f.thread);
   const waits=await lose('Waits in the queue');
   assert.equal((await f.queue()).length,1);
   assert.deepEqual(await handIdleCodex(f.thread),[],'handed already, though it waits in the queue');
@@ -149,8 +152,10 @@ test('the Stop is held once while a handed Goal awaits a reply, and a reply on i
 test('with two Roots, the Stop is held once for both and the stop right after it ends',async t=>{
   const f=await fixture(t),second=await createGoal({title:'Second Root'});
   await setRootOwner(second.id,{agent:'codex',id:f.thread});
+  // One starts a turn, so Two waits for that turn's Stop, which hands it and goes on.
   await f.save('One');await deliverFeedback((await appendFeedback({goalId:second.id,text:'Two'})).changeId);
-  const turn=await f.startTurn();
+  const turn=await f.tool();
+  assert.match((await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread))?.reason,/"text":"Two"/);
   const held=await hookOutput({hook_event_name:'Stop',session_id:f.thread,turn_id:turn},f.thread);
   assert.equal(held?.decision,'block');
   for(const id of [f.root.id,second.id])assert.match(held.reason,new RegExp(`Goal #${id}\\b`));
@@ -170,6 +175,7 @@ test('Pause stops the turn; a new comment resumes and is sent, and Resume asks t
   await f.work();await pauseCodex(f.thread,(await codexSnapshot(f.thread,{fresh:true})).work.id,{interrupt});
   await resumeCodex(f.thread);
   assert.match((await f.running()).items[0].content[0].text,/continue the stopped work/);
+  assert.equal((await codexSnapshot(f.thread,{fresh:true})).status,'running','Running as soon as Resume starts the turn, before its first tool');
   await assert.rejects(resumeCodex(f.thread),/Nothing to resume/);
 });
 
