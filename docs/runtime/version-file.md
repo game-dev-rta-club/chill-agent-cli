@@ -29,7 +29,8 @@ An application relies on exactly two things:
 
 Earlier skills named the file `cli.json`. A project set up with one keeps that
 path in its record; when the file is gone and `chill-agent.json` sits beside it,
-the CLI reads that instead, so reinstalling the skill needs no new setup.
+the CLI reads that instead, so from CLI 0.6.0 on reinstalling the skill needs no
+new setup. A Web still running 0.5.1 does not look for the new name; run setup once.
 
 Setup prepares the runtime as usual and records the version file's location
 and the package each prepared snapshot came from. When a
