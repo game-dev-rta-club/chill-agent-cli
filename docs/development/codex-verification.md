@@ -205,10 +205,14 @@ Check:
    button labeled Agent). Expected: Activity shows Running with a Pause button. Press Pause. The Desktop turn stops
    within a few seconds and the panel shows Paused with a Resume button. Pressing Desktop's own stop instead shows
    Interrupted, not Paused.
-9. **Feedback while paused.** In Web, send "Reply with the word held." Expected: the feedback shows Paused, and
-   Desktop's chat and the Agent panel's Queue stay empty.
-10. **Resume.** Press Resume. Expected: the panel returns to Running, Desktop receives the held message, the agent
-    answers it, and the mark goes away.
+9. **Resume.** Press Resume. Expected: the panel shows Running at once, before the resumed turn's first command ends,
+   and within a few seconds Desktop receives a message asking the agent to go on with the stopped work. The agent
+   finishes the stopped work.
+10. **Feedback resumes the agent.** Send the five-command request in Desktop again and press Pause while it runs, as
+    in step 8. Once the panel shows Paused, send "Reply with the word resumed." from Web without pressing Resume.
+    Expected: within a few seconds the feedback shows Sent and the panel shows Running. Desktop receives a message
+    carrying the feedback, and the agent's reply clears its mark. The agent may or may not go on with the stopped
+    commands; either is fine. Wait for Desktop's turn to end before step 11.
 11. **Settings save.** In the Agent panel, change Reasoning to another level. Expected: the panel shows Saving, then the new
     level, and Desktop's composer shows the same level after you reopen the chat. Change it back.
 12. Stop the server with `chill server stop` and delete the scratch folder.
