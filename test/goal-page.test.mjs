@@ -58,3 +58,9 @@ test('context handoff retains agreement and all new corrections while deferring 
  assert.match(renderGoalPage(page,{section:'canvas'}),/LONG BRIEF/);
  assert.deepEqual(page.conversation.map(e=>e.id),[2,3,4,5,6,7,8],'rendering does not consume feedback');
 });
+test('image annotations name their Canvas version and image',()=>{
+ const rect={x:0,y:0,width:1,height:1},annotations=[{kind:'image',imageId:'img1',source:{kind:'brief',version:2},rect,text:'Canvas image'},{kind:'image',source:{kind:'brief',version:2,svgIndex:0},rect,text:'Diagram'},{kind:'image',imageId:'img2',rect,text:'Attached'}];
+ const goals=[goal('1',null,{briefs:[brief('1',1),brief('1',2)],conversation:[{id:1,changeId:1,goalId:'1',author:'user',type:'comment',text:'',annotations}]})];
+ const text=renderGoalPage({...goalPage(goals,'1'),attachments:[]});
+ assert.match(text,/Image annotation: Canvas v2 · img1 · /);assert.match(text,/Image annotation: Canvas v2 · SVG 0 · \/api\/goals\/1\/briefs\/2\/svg\/0 · /);assert.match(text,/Image annotation: img2 · /);
+});

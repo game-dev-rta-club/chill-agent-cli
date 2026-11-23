@@ -185,7 +185,7 @@ const selectedNotes = (id = activeGoalId) => notesFor(id).filter(note => note.se
 const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Canvas v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent comment'} ${note.source?.eventId} · ` : '';
 function noteImageMarkup(note, preview = false) {
   const images=attachmentIdsFor(note).map(id=>`/api/images/${escapeHTML(id)}`);
-  if(note.kind==='image'&&note.source?.kind==='brief')images.unshift(`/api/goals/${activeGoalId}/briefs/${Number(note.source.version)}/svg/${Number(note.source.svgIndex)}`);
+  if(note.kind==='image'&&note.source?.kind==='brief'&&note.source.svgIndex!==undefined)images.unshift(`/api/goals/${activeGoalId}/briefs/${Number(note.source.version)}/svg/${Number(note.source.svgIndex)}`);
   return images.map(src => {
     const file = attachmentFiles.get(src.split('/').pop());
     if (file) return fileMarkup(src, file.name, preview ? 'note-file' : 'note-file is-small');
@@ -628,10 +628,10 @@ function mountHTMLBrief(id,version) {
       const copy=event.target.closest('[data-action="copy-code"]');if(copy){event.preventDefault();void copyCode(copy);return;}
       const mark=event.target.closest('.annotation-mark, .image-note-box');
       if(mark){event.preventDefault();openNoteReference(mark.dataset.noteRef);return;}
-      const image=event.target.closest('[data-action="annotate-image"]');if(image){event.preventDefault();openImageSelection(image.dataset.imageId,image.dataset.svgIndex);return;}
+      const image=event.target.closest('[data-action="annotate-image"]');if(image){event.preventDefault();openImageSelection(image.dataset);return;}
       // Clicking the image or diagram itself opens the same annotation screen, shown large.
       const picture=event.target.closest('.annotatable-image')?.querySelector(':scope > [data-action="annotate-image"]');
-      if(picture&&!event.target.closest('button')){event.preventDefault();openImageSelection(picture.dataset.imageId,picture.dataset.svgIndex);return;}
+      if(picture&&!event.target.closest('button')){event.preventDefault();openImageSelection(picture.dataset);return;}
       const link=event.target.closest('a[href]');if(!link)return;event.preventDefault();
       // A link to a Goal (#N) moves this page there; any other link opens a new tab.
       const route=link.getAttribute('href');if(route.startsWith('#/')){location.hash=route;return;}
@@ -923,20 +923,21 @@ function updateImageSelection() {
   if (area) positionArea(imageAreaBox, area);
   imageAreaNext.disabled = !area || Boolean(imageDrawing);
 }
-function openImageSelection(imageId,svgIndex) {
+// An image in the Canvas keeps the Canvas version, so its note shows on that version only.
+function openImageSelection({imageId,svgIndex,canvas}) {
   if (annotationSaves.has(notesKey()) || submitting.has(formKey(activeGoalId, 'comment'))) return;
   hideAnnotationAction(); hideAnnotationPreview();
   clearSelections();
   const svg=svgIndex===undefined?null:briefRoot()?.querySelector(`svg[data-brief-svg="${Number(svgIndex)}"]`);
-  const source=svg?{kind:'brief',version:activeVersion,svgIndex:Number(svgIndex)}:null;
-  imageSelection = {...(source?{source}:{imageId}), imageName: svg?(svg.getAttribute('aria-label')||svg.querySelector('title')?.textContent||`Diagram ${Number(svgIndex)+1}`).slice(0,200):imageNames.get(imageId) || 'Image', goalId: activeGoalId, version: activeVersion, rect: null};
+  const source=svg?{kind:'brief',version:activeVersion,svgIndex:Number(svgIndex)}:canvas?{kind:'brief',version:activeVersion}:null;
+  imageSelection = {...(source?{source}:{}),...(svg?{}:{imageId}), imageName: svg?(svg.getAttribute('aria-label')||svg.querySelector('title')?.textContent||`Diagram ${Number(svgIndex)+1}`).slice(0,200):imageNames.get(imageId) || 'Image', goalId: activeGoalId, version: activeVersion, rect: null};
   imageDrawing = null;
   imageAreaWhole.disabled = true;
   imageAreaDialog.querySelector('.image-area-hint').textContent = 'Drag to select. Drag again to redraw.';
   imageAreaImage.alt = imageSelection.imageName;
   // A diagram served as an image may have no size of its own; it fills the dialog.
-  imageAreaStage.classList.toggle('is-vector', Boolean(source));
-  imageAreaImage.src = source?`/api/goals/${activeGoalId}/briefs/${activeVersion}/svg/${source.svgIndex}`:`/api/images/${imageId}`;
+  imageAreaStage.classList.toggle('is-vector', Boolean(svg));
+  imageAreaImage.src = svg?`/api/goals/${activeGoalId}/briefs/${activeVersion}/svg/${source.svgIndex}`:`/api/images/${imageId}`;
   updateImageSelection();
   imageAreaDialog.showModal();
 }
@@ -974,7 +975,7 @@ imageAreaNext.addEventListener('click', () => {
   const selection = imageSelection;
   closeImageSelection();
   if (selection.goalId !== activeGoalId || selection.version !== activeVersion) return;
-  openNoteEditor({id: crypto.randomUUID(), kind: 'image', ...(selection.source?{source:selection.source}:{imageId:selection.imageId}), imageName: selection.imageName, rect: selection.rect, text: ''});
+  openNoteEditor({id: crypto.randomUUID(), kind: 'image', ...(selection.source?{source:selection.source}:{}),...(selection.imageId?{imageId:selection.imageId}:{}), imageName: selection.imageName, rect: selection.rect, text: ''});
 });
 function imagePoint(event) {
   const bounds = imageAreaImage.getBoundingClientRect();
@@ -1143,7 +1144,9 @@ function renderAnnotations(openingEditor=false) {
     // A reply image is named by its alt text unless a Canvas already named it.
     const label = img.closest('[data-annotation-reply]') && (img.title || img.alt);
     if (imageId && label && !imageNames.has(imageId)) imageNames.set(imageId, label.slice(0, 200));
-    const matching = entries.filter(item => item.note.kind === 'image' && (svgIndex!==null?item.note.source?.kind==='brief'&&item.note.source.version===activeVersion&&item.note.source.svgIndex===svgIndex:imageId ? item.note.imageId === imageId : item.note.target === 'attachment'));
+    // A note on a Canvas image shows on the version it was made on, as a text note does.
+    const canvas=Boolean(img.closest('.brief-body')),shown=source=>source?.kind==='brief'?canvas&&source.version===activeVersion:!canvas;
+    const matching = entries.filter(item => item.note.kind === 'image' && (svgIndex!==null?shown(item.note.source)&&item.note.source.svgIndex===svgIndex:imageId ? item.note.imageId === imageId&&shown(item.note.source) : item.note.target === 'attachment'));
     const bounds=svgIndex!==null?img.getBoundingClientRect():null;
     // Small decorative SVG icons keep their layout; a diagram-sized SVG gets
     // the same control as an uploaded image.
@@ -1172,6 +1175,7 @@ function renderAnnotations(openingEditor=false) {
       annotate.className = 'image-annotate';
       annotate.dataset.action = 'annotate-image';
       if(svgIndex!==null)annotate.dataset.svgIndex=String(svgIndex);else annotate.dataset.imageId = imageId;
+      if(canvas)annotate.dataset.canvas='1';
       annotate.setAttribute('aria-label', `Annotate image: ${svgIndex!==null?(img.getAttribute('aria-label')||`Diagram ${svgIndex+1}`):imageNames.get(imageId) || 'Image'}`);
       annotate.title = 'Annotate image';
       annotate.innerHTML = icon('annotate');
@@ -1222,7 +1226,7 @@ main.addEventListener('click', event => {
   if (mark) { event.preventDefault(); openNoteReference(mark.dataset.noteRef); return; }
   // Clicking an attached image itself opens the same annotation screen, shown large.
   const picture = !event.target.closest('button') && event.target.closest('.annotatable-image')?.querySelector(':scope > [data-action="annotate-image"]');
-  if (picture) { event.preventDefault(); openImageSelection(picture.dataset.imageId); }
+  if (picture) { event.preventDefault(); openImageSelection(picture.dataset); }
 
 });
 main.addEventListener('keydown', event => {
@@ -1573,7 +1577,7 @@ main.addEventListener('click', async event => {
   } else if (button.dataset.action === 'edit-draft-note') {
     openNoteReference(`draft-${button.dataset.noteId}`, true);
   } else if (button.dataset.action === 'annotate-image') {
-    openImageSelection(button.dataset.imageId,button.dataset.svgIndex);
+    openImageSelection(button.dataset);
   } else if (button.dataset.action === 'delete-draft-note') {
     if (annotationSaves.has(notesKey())) return;
     const noteId = button.dataset.noteId;
@@ -1638,7 +1642,7 @@ function notesPayload(notes, attachmentId) {
     const attachment = attachmentIdsFor(note).length ? {attachmentIds: attachmentIdsFor(note)} : {};
     if (note.kind === 'letter') return {...attachment, kind: 'letter', source: note.source, text: note.text};
     if (note.kind === 'text') return {...attachment, kind: 'text', anchor: note.anchor, source: note.source, text: note.text};
-    if(note.source?.kind==='brief')return {...attachment,kind:'image',source:note.source,imageName:note.imageName,rect:note.rect,text:note.text};
+    if(note.source?.kind==='brief')return {...attachment,kind:'image',source:note.source,...(note.imageId?{imageId:note.imageId}:{}),imageName:note.imageName,rect:note.rect,text:note.text};
     const imageId = note.target === 'attachment' ? attachmentId : note.imageId;
     if (!imageId) throw new Error('Attach the image before sending its notes.');
     return {...attachment, kind: 'image', imageId, ...(note.imageName ? {imageName: note.imageName} : {}), rect: note.rect, text: note.text};

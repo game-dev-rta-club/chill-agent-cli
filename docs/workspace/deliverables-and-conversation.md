@@ -55,7 +55,9 @@ picture in the image's own colours, about 25 bytes) beside the file; later views
 use it as the placeholder. A saved file never changes, so the browser keeps it instead of
 downloading it again.
 Text annotations retain their source version; image notes retain their attachment
-and location. Read the relevant version when responding to older feedback.
+and location, and a note on a Canvas image also its Canvas version. The Web shows
+a Canvas note on its own version only, so a new version starts without old marks.
+Read the relevant version when responding to older feedback.
 HTML images, and images an agent message shows in its text, have an annotation button. Its area window closes with ✕, Escape or
 a click outside it; a selection dragged past its edge keeps it open. Inline SVG diagrams use the same area
 selector and retain their Canvas version and SVG index, so changing a diagram
