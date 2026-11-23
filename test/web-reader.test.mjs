@@ -99,6 +99,12 @@ test('multiple images and rectangle annotations persist, reject foreign images a
  assert.equal((await f.post({annotations:[{...image,imageId:ids[2]}]})).status,201);
  const shown=await f.run('show','--id','1');assert.equal(shown.attachments.length,3);assert.ok(shown.attachments.every(a=>a.path.endsWith('.png')));
  assert.deepEqual(shown.conversation[0].attachmentIds,ids.slice(0,2));
+ // A note on an image in the Canvas keeps that Canvas version, so the Web shows it on that version only.
+ await writeFile(f.body,`![図](/api/images/${ids[2]})`);await f.run('canvas','update','--id','1');
+ const onCanvas={...image,imageId:ids[2],source:{kind:'brief',version:2}};
+ const saved=await f.post({annotations:[onCanvas]});assert.equal(saved.status,201);
+ const note=(await saved.json()).feedback.annotations[0];assert.deepEqual(note.source,{kind:'brief',version:2});assert.equal(note.imageId,ids[2]);
+ for(const source of [{kind:'brief',version:1},{kind:'brief',version:2,svgIndex:0},{kind:'brief',version:9}])assert.equal((await f.post({annotations:[{...onCanvas,source}]})).status,400);
 });
 test('Markdown annotations validate rendered text and API deltas render both authors',async t=>{
  const f=await fixture(t),source='## Result\n\nA **formatted** result.';
