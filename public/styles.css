@@ -234,6 +234,8 @@
 @media (hover: hover) { .annotation-action:hover .annotation-key-hint { display: inline-flex; } }
 .annotation-form { position: fixed; z-index: 22; left: 50%; bottom: max(6px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: calc(100% - 12px); max-height: calc(100dvh - 12px - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); box-shadow: 0 12px 42px #15211738; }
 .annotation-form textarea { max-height: min(50dvh, max(92px, calc(100dvh - 210px))); }
+/* The note box scrolls and would clip a floating list, so skills open in its flow, below the field. */
+.annotation-form .skill-menu { position: static; margin-top: 4px; max-height: 180px; }
 .annotation-heading { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
 .annotation-quote { margin: 6px 0 12px; padding: 7px 9px; border-left: 2px solid var(--accent); background: var(--surface); font-size: 12px; line-height: 1.6; max-height: 90px; overflow: auto; }
 .annotation-mark { border-radius: 2px; background: var(--theme-soft,#e4efb1); cursor: pointer; box-decoration-break: clone; -webkit-box-decoration-break: clone; }

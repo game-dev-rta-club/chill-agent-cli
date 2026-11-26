@@ -29,4 +29,6 @@ test('Claude and Codex show the same feedback text, with the Goal rule, no guide
  await mkdir(join(skill,'..'),{recursive:true});await writeFile(skill,'---\nname: grilling\n---\n');
  for(const text of [await claudeFeedbackText([{...event,text:'Use /grilling'}]),await codexFeedbackText([{...event,text:'Use /grilling'}])])
   assert.ok(text.includes(`Skills named in the feedback (invoke by name if your harness lists it; otherwise read the file and follow it):\n/grilling (user): ${skill}`));
+ // A note's text names skills as the comment's does.
+ assert.ok((await claudeFeedbackText([{...event,annotations:[{kind:'text',text:'Use /grilling'}]}])).includes(`/grilling (user): ${skill}`));
 });

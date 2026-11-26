@@ -50,6 +50,9 @@ test('annotations reference exact replies; duplicates stay idempotent after a De
  await f.note();assert.equal((await f.post({annotations:[annotation]})).status,201);
  assert.equal((await(await f.post(payload)).json()).feedback.changeId,2);
  assert.equal((await f.post({text:'Historical reply'})).status,201);
+ // The user's own comment can carry a note too.
+ const own=(await(await f.post({text:'自分の文'})).json()).feedback;
+ assert.equal((await f.post({annotations:[{...annotation,source:{kind:'comment',eventId:own.id},anchor:{start:0,end:2,quote:'自分'}}]})).status,201);
  assert.equal((await f.post({text:'',annotations:[]})).status,400);
  assert.equal((await f.post({text:'Old protocol',decision:'accept'})).status,400);
 });
