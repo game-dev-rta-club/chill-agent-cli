@@ -1,4 +1,4 @@
-// Typing "/" in a comment suggests the project's skills, as agent harnesses do:
+// Typing "/" in a comment or a note suggests the project's skills, as agent harnesses do:
 // at the start, after a space, or right after Japanese text, but not inside a
 // path or URL. Choosing one inserts "/name " there and the text is sent as typed.
 export function createSkillMenu({root, goalId, escapeHTML}) {
@@ -48,7 +48,7 @@ export function createSkillMenu({root, goalId, escapeHTML}) {
   }
   root.addEventListener('input', async event => {
     const field = event.target;
-    if (field.dataset?.input !== 'comment') return;
+    if (!['comment', 'annotation'].includes(field.dataset?.input)) return;
     const text = query(field);
     if (text === null) return close();
     input = field;

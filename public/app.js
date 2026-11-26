@@ -182,7 +182,7 @@ function noteLabel(note) {
   return note.kind === 'text' ? note.anchor.quote : note.imageName || imageNames.get(note.imageId) || 'Image';
 }
 const selectedNotes = (id = activeGoalId) => notesFor(id).filter(note => note.selected !== false);
-const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Canvas v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Agent comment'} ${note.source?.eventId} · ` : '';
+const noteSourceLabel = note => note.kind==='letter'?'Letter · ':note.source?.kind==='brief'?`Canvas v${note.source.version} · `:note.kind === 'text' ? `${note.source?.field==='title'?'Letter title':'Comment'} ${note.source?.eventId} · ` : '';
 function noteImageMarkup(note, preview = false) {
   const images=attachmentIdsFor(note).map(id=>`/api/images/${escapeHTML(id)}`);
   if(note.kind==='image'&&note.source?.kind==='brief'&&note.source.svgIndex!==undefined)images.unshift(`/api/goals/${activeGoalId}/briefs/${Number(note.source.version)}/svg/${Number(note.source.svgIndex)}`);
@@ -424,8 +424,7 @@ function mentionMarkup(mention) {
 }
 
 function replyMarkup(event) {
-  const source = event.author === 'agent' ? `data-annotation-reply="${event.id}"` : '';
-  return `<div class="event-text markdown-body" ${source}>${briefBody(event.html || '', {hasGoal, goalId:event.goalId, replyId:event.id, opened:openReplies})}</div>`;
+  return `<div class="event-text markdown-body" data-annotation-reply="${event.id}">${briefBody(event.html || '', {hasGoal, goalId:event.goalId, replyId:event.id, opened:openReplies})}</div>`;
 }
 
 // An open Letter offers Done (an empty circle); the user's own Done is a check

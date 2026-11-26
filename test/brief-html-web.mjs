@@ -78,7 +78,7 @@ try {
  await page.mouse.move(replyBox.x+2,replyBox.y+replyBox.height/2);await page.mouse.down();await page.mouse.move(replyBox.x+120,replyBox.y+replyBox.height/2,{steps:5});await page.mouse.up();
  assert.equal(await page.locator('.html-brief-frame').evaluate(el=>el.contentWindow.getSelection().toString()),'');
  await page.getByRole('button',{name:'Annotate selected text',exact:true}).click();
- assert.match(await page.locator('.annotation-form').innerText(),/Agent comment \d+ · Agent explanation/);
+ assert.match(await page.locator('.annotation-form').innerText(),/Comment \d+ · Agent explanation/);
  await page.getByRole('button',{name:'Close annotation',exact:true}).click();
  await page.setViewportSize({width:390,height:844});await page.locator('.html-brief-frame').evaluate(el=>{if(el.contentDocument.body.scrollWidth>el.clientWidth+1)throw new Error('HTML overflow');});await page.locator('.html-brief-frame').evaluate(el=>{const main=el.closest('main');main.scrollTop=el.offsetTop-10;});await page.screenshot({path:'/tmp/chill-html-brief-mobile.png',fullPage:true});
  await frame.getByText('PlanとHistoryの居場所',{exact:true}).click();assert.equal(await frame.locator('details[open]').count(),1);

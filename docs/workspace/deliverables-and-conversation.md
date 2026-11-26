@@ -58,6 +58,9 @@ Text annotations retain their source version; image notes retain their attachmen
 and location, and a note on a Canvas image also its Canvas version. The Web shows
 a Canvas note on its own version only, so a new version starts without old marks.
 Read the relevant version when responding to older feedback.
+A text note can quote any Comment in the Goal, the user's own included, or a
+Letter title. Typing "/" in a note offers the project's skills as in a Comment,
+and the skills a note names reach the agent with the Comment that carries it.
 HTML images, and images an agent message shows in its text, have an annotation button. Its area window closes with ✕, Escape or
 a click outside it; a selection dragged past its edge keeps it open. Inline SVG diagrams use the same area
 selector and retain their Canvas version and SVG index, so changing a diagram
